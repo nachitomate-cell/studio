@@ -13,12 +13,14 @@ import { UserProfile } from "@/components/profile/UserProfile";
 import { EntrepreneurForm } from "@/components/profile/EntrepreneurForm";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
+import { Auth } from "@/components/Auth";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isManagingBusiness, setIsManagingBusiness] = useState(false);
+  const [showAuth, setShowAuth] = useState(false); // Toggle para visualizar Auth
 
   const filteredEntrepreneurs = ENTREPRENEURS.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
@@ -28,6 +30,18 @@ export default function Home() {
   });
 
   const renderContent = () => {
+    if (showAuth) {
+      return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 py-10">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold text-primary">Autenticación</h1>
+            <Button variant="outline" size="sm" onClick={() => setShowAuth(false)}>Cerrar</Button>
+          </div>
+          <Auth />
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case "directory":
         return (
@@ -41,9 +55,12 @@ export default function Home() {
                     Patio Curauma, Valparaíso
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                <button 
+                  onClick={() => setShowAuth(true)}
+                  className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/20 hover:scale-105 transition-transform"
+                >
                   <span className="font-bold text-xl">C</span>
-                </div>
+                </button>
               </div>
 
               <div className="flex gap-2">
@@ -103,7 +120,7 @@ export default function Home() {
                 )}
               </div>
             </section>
-            <div className="h-20" /> {/* Spacer for bottom nav */}
+            <div className="h-20" />
           </div>
         );
       case "map":
