@@ -620,7 +620,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       <div className="text-center py-4">
         <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-[0.2em]">
-          © {new Date().getFullYear()} {PATIO_INFO.name} Curauma
+          © {new Date().getFullYear()} {PATIO_INFO.name}
         </p>
       </div>
     </div>
