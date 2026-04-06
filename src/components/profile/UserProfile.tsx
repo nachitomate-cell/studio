@@ -12,13 +12,9 @@ import { Gift, Award, Settings, LogOut, Briefcase, LogIn, ShoppingBag, CheckCirc
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { registrarCompra, canjearRecompensa } from "@/lib/puntos";
+import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
-
-interface UserProfileProps {
-  onSwitchMode: () => void;
-  onShowAuth: () => void;
-}
+import { CatalogoPremios } from "./CatalogoPremios";
 
 export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -60,28 +56,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
       title: "¡Compra Registrada!",
       description: "Has sumado una compra a tu historial.",
     });
-  };
-
-  const handleClaimReward = async () => {
-    if (!user) return;
-    setLoading(true);
-    
-    try {
-      await canjearRecompensa(db, user.uid, user.email || undefined);
-      
-      toast({
-        title: "¡Recompensa canjeada con éxito!",
-        description: "Disfruta de tu beneficio exclusivo en Patio Curauma. Te hemos enviado un comprobante.",
-      });
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo procesar el canje. Inténtalo de nuevo.",
-      });
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleLogout = async () => {
@@ -130,7 +104,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
           </h2>
           <div className="flex flex-wrap gap-1 mt-1">
             <Badge variant="secondary" className="bg-accent/20 text-primary border-none text-[10px]">
-              {userData?.puntos || 0} Puntos
+              {compras} Compras acumuladas
             </Badge>
             {canjes > 0 && (
               <Badge variant="outline" className="border-primary/30 text-primary text-[10px] flex gap-1 items-center">
@@ -147,37 +121,17 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
       <Card className="border-primary/20 shadow-md overflow-hidden bg-white">
         <CardHeader className="pb-2 bg-primary/5">
           <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-            <ShoppingBag className="w-4 h-4" />
-            Camino a tu Recompensa
+            <Award className="w-4 h-4" />
+            Tu Progreso
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4 space-y-4">
           <div className="flex justify-between items-end mb-1">
-            <span className="text-xs font-medium text-muted-foreground">Progreso: {compras}/{meta} compras</span>
-            <span className="text-xs font-bold text-primary">{Math.min(porcentaje, 100)}%</span>
+            <span className="text-xs font-medium text-muted-foreground">Acumulado: {compras} compras</span>
+            <span className="text-xs font-bold text-primary">{compras >= 5 ? '¡Listo para canjear!' : `${compras}/5 para el primer premio`}</span>
           </div>
-          <Progress value={porcentaje} className="h-2" />
+          <Progress value={Math.min(porcentaje, 100)} className="h-2" />
           
-          {userData?.recompensaDisponible ? (
-            <div className="bg-accent/10 border border-accent/30 p-4 rounded-xl space-y-3 animate-in zoom-in duration-300">
-              <div className="flex items-center gap-2 text-primary font-bold">
-                <CheckCircle2 className="w-5 h-5 text-accent-foreground" />
-                <span>¡Tienes una recompensa disponible!</span>
-              </div>
-              <Button 
-                onClick={handleClaimReward} 
-                disabled={loading}
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/80 font-bold rounded-xl h-12 shadow-md"
-              >
-                {loading ? "Procesando..." : "Canjear Recompensa"}
-              </Button>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic text-center">
-              Realiza {meta - compras} compras más para obtener un beneficio exclusivo.
-            </p>
-          )}
-
           <Button 
             onClick={handleSimulatePurchase} 
             disabled={loading} 
@@ -189,6 +143,12 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
           </Button>
         </CardContent>
       </Card>
+
+      <CatalogoPremios 
+        userId={user.uid} 
+        userEmail={user.email || undefined} 
+        comprasActuales={compras} 
+      />
 
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="p-4 space-y-4">
@@ -220,4 +180,9 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
       </div>
     </div>
   );
+}
+
+interface UserProfileProps {
+  onSwitchMode: () => void;
+  onShowAuth: () => void;
 }

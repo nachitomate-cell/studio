@@ -16,6 +16,13 @@ export type Entrepreneur = {
   imageUrl: string;
 };
 
+export type Premio = {
+  id: string;
+  nombre: string;
+  costo: number;
+  icono: string;
+};
+
 export const CATEGORIES: Category[] = [
   { id: 'all', name: 'Todos', icon: 'LayoutGrid' },
   { id: 'food', name: 'Gastronomía', icon: 'Utensils' },
@@ -84,4 +91,9 @@ export const MAP_LOCATIONS = [
   { id: 'loc-3', x: 45, y: 60, name: 'Pasillo Artesanos' },
   { id: 'loc-4', x: 15, y: 80, name: 'Zona Servicios' },
   { id: 'loc-5', x: 80, y: 85, name: 'Sector Sur' },
+];
+
+export const PREMIOS: Premio[] = [
+  { id: 'cafe', nombre: 'Café de Especialidad', costo: 5, icono: '☕' },
+  { id: 'entrada', nombre: 'Entrada Curauma Fest', costo: 10, icono: '🎫' },
 ];

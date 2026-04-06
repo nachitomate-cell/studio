@@ -3,7 +3,7 @@ import { doc, getDoc, updateDoc, setDoc, Firestore, increment } from "firebase/f
 
 /**
  * Registra una simulación de compra para el usuario.
- * Incrementa el contador y activa la recompensa si llega a 5.
+ * Incrementa el contador y activa la recompensa si llega a 5 (costo mínimo).
  */
 export async function registrarCompra(db: Firestore, userId: string) {
   const userRef = doc(db, "usuarios", userId);
@@ -24,7 +24,7 @@ export async function registrarCompra(db: Firestore, userId: string) {
     const data = userSnap.data();
     const nuevasCompras = (data.comprasRealizadas || 0) + 1;
     
-    updateDoc(userRef, {
+    await updateDoc(userRef, {
       comprasRealizadas: nuevasCompras,
       recompensaDisponible: nuevasCompras >= 5,
       puntos: increment(50)
@@ -36,23 +36,28 @@ export async function registrarCompra(db: Firestore, userId: string) {
 }
 
 /**
- * Procesa el canje de una recompensa.
- * Reinicia el contador de compras, suma al histórico y dispara notificación.
+ * Procesa el canje de una recompensa específica.
+ * Resta el costo del premio, actualiza el histórico y dispara notificación.
  */
-export async function canjearRecompensa(db: Firestore, userId: string, userEmail?: string) {
+export async function canjearRecompensa(db: Firestore, userId: string, costo: number, userEmail?: string) {
   const userRef = doc(db, "usuarios", userId);
   
   try {
-    // 1. Actualización en Firestore
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
+
+    const data = userSnap.data();
+    const nuevasCompras = (data.comprasRealizadas || 0) - costo;
+
+    // Actualización en Firestore
     await updateDoc(userRef, {
-      comprasRealizadas: 0,
-      recompensaDisponible: false,
+      comprasRealizadas: nuevasCompras,
+      recompensaDisponible: nuevasCompras >= 5, // Sigue disponible si aún puede costear el premio mínimo
       totalCanjesHistoricos: increment(1)
     });
 
-    // 2. Disparo de Notificación Automática (Simulado vía API Route)
+    // Disparo de Notificación Automática
     if (userEmail) {
-      // Usamos fetch sin await para no bloquear la UI del usuario mientras se "envía" el mensaje
       fetch('/api/notificaciones', {
         method: 'POST',
         headers: {
@@ -61,15 +66,14 @@ export async function canjearRecompensa(db: Firestore, userId: string, userEmail
         body: JSON.stringify({
           email: userEmail,
           event: 'recompensa_canjeada',
-          userName: userEmail.split('@')[0] // Simulación de nombre a partir del email
+          userName: userEmail.split('@')[0]
         }),
       }).catch(err => {
-        // Manejo silencioso del error de notificación para no afectar al usuario
         console.error("Fallo el envío de notificación automática:", err);
       });
     }
   } catch (error) {
     console.error("Error al canjear recompensa:", error);
-    throw error; // Re-lanzamos para que la UI pueda manejar el error si es de base de datos
+    throw error;
   }
 }
