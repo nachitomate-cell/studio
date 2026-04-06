@@ -18,12 +18,11 @@ import { LogIn, UserPlus, AlertCircle, LogOut, Phone } from "lucide-react";
 
 /**
  * LISTA DE CORREOS AUTORIZADOS COMO EMPRENDEDORES
- * Agrega aquí los correos que deben tener permisos de vendedor (ej: Pancho).
- * Los correos deben estar en minúsculas.
+ * Los correos en esta lista obtendrán automáticamente el rol "emprendedor" al registrarse.
  */
 const EMAILS_EMPRENDEDORES = [
   'ignaciiio.mate@gmail.com',
-  // 'correo.de.pancho@gmail.com', // <--- AGREGA EL CORREO DE PANCHO AQUÍ
+  // 'pancho@ejemplo.com', // Puedes añadir más aquí
 ];
 
 export function Auth() {
