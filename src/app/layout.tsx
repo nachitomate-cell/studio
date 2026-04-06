@@ -1,4 +1,3 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -21,6 +20,12 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased selection:bg-accent selection:text-accent-foreground overflow-x-hidden">
+        
+        {/* Header más compacto con logo reducido */}
+        <header className="bg-white shadow-sm p-2 flex justify-center w-full">
+          <img src="/Logo.png" alt="Patio Curauma" className="h-12 object-contain" />
+        </header>
+
         {children}
         <Toaster />
       </body>
