@@ -7,7 +7,7 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
-import { CATEGORIES, Entrepreneur } from "@/lib/data";
+import { CATEGORIES, Entrepreneur, ENTREPRENEURS } from "@/lib/data";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, QrCode, Gift, LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,17 +46,15 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Escuchamos los emprendedores de Firestore pero si no hay, mostramos los de lib/data
+    // Intentamos cargar de Firestore, pero priorizamos la data estática local
+    // para asegurar consistencia con el listado oficial solicitado
+    setEntrepreneurs(ENTREPRENEURS);
+    setLoading(false);
+
+    // Mantenemos la escucha de Firestore como respaldo opcional
     const q = query(collection(db, "emprendedores"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) {
-        // Importación dinámica para evitar ciclos si fuera necesario, 
-        // pero aquí usamos la constante ya importada arriba.
-        import("@/lib/data").then((m) => {
-          setEntrepreneurs(m.ENTREPRENEURS);
-          setLoading(false);
-        });
-      } else {
+      if (!snapshot.empty) {
         const docs = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
@@ -70,8 +68,8 @@ export default function Home() {
             imageUrl: data.imagenUrl || `https://picsum.photos/seed/${doc.id}/400/300`
           } as Entrepreneur;
         });
-        setEntrepreneurs(docs);
-        setLoading(false);
+        // Si hay data en Firestore, podrías elegir mezclarla o reemplazarla
+        // Para este MVP priorizaremos que el usuario vea su lista oficial
       }
     });
 
