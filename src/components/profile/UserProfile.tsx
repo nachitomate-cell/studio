@@ -15,7 +15,7 @@ import {
   Smile, Cat, Dog, Coffee, Star, Store,
   MessageCircle, MapPin, 
   Clock, Bell, CheckCircle2,
-  Info, ExternalLink
+  Info, ExternalLink, Instagram, Facebook
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -571,7 +571,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
 
         <Card className="border-none shadow-sm bg-slate-50 rounded-2xl overflow-hidden">
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-6 space-y-6">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-primary shadow-sm shrink-0">
                 <MapPin className="w-5 h-5" />
@@ -598,6 +598,28 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   onClick={() => window.open(`https://wa.me/${PATIO_INFO.whatsapp}`, '_blank')}
                 >
                   Hablar ahora <ExternalLink className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
+              <p className="text-[10px] font-bold text-primary uppercase mb-3">Síguenos en redes</p>
+              <div className="flex gap-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="rounded-xl gap-2 border-primary/20 text-primary font-bold"
+                  onClick={() => window.open(`https://www.instagram.com/${PATIO_INFO.instagram}`, '_blank')}
+                >
+                  <Instagram className="w-4 h-4" /> Instagram
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="rounded-xl gap-2 border-primary/20 text-primary font-bold"
+                  onClick={() => window.open(`https://www.facebook.com/profile.php?id=${PATIO_INFO.facebook}`, '_blank')}
+                >
+                  <Facebook className="w-4 h-4" /> Facebook
                 </Button>
               </div>
             </div>
