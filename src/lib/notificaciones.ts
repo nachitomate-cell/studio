@@ -1,16 +1,11 @@
-
 /**
  * @fileOverview Librería de notificaciones para el Club Patio.
- * Maneja la lógica de avisos al usuario y logs de actividad sin depender de API Routes.
  */
 
 import { db } from "./firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, limit, orderBy } from "firebase/firestore";
+import { generatePromoMessage } from "@/ai/flows/generate-promo-message-flow";
 
-/**
- * Registra un evento de notificación en la base de datos para el usuario.
- * Esto puede ser consumido por un servicio de mensajería externo o mostrado en la app.
- */
 export async function enviarNotificacionLocal(userId: string, titulo: string, mensaje: string) {
   try {
     const notifRef = collection(db, "usuarios", userId, "notificaciones");
@@ -20,17 +15,50 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
       leida: false,
       fecha: new Date().toISOString()
     });
-    console.log(`[NOTIFICACIÓN] ${titulo}: ${mensaje}`);
   } catch (error) {
     console.error("Error al registrar notificación:", error);
   }
 }
 
 /**
- * Función dummy para simular el envío de un correo o push.
- * En una App Pro de Capacitor, aquí se integraría Firebase Cloud Messaging (FCM).
+ * Genera un recordatorio automatizado usando IA si ha pasado tiempo desde el último.
  */
-export async function simularPushNotification(email: string, mensaje: string) {
-  // En Capacitor, usaríamos el plugin de Push Notifications aquí.
-  console.log(`[PUSH SIMULADO] Enviado a ${email}: ${mensaje}`);
+export async function verificarYGenerarRecordatorioIA(userId: string, userName: string, stamps: number) {
+  try {
+    const notifRef = collection(db, "usuarios", userId, "notificaciones");
+    const q = query(notifRef, orderBy("fecha", "desc"), limit(1));
+    const querySnapshot = await getDocs(q);
+
+    let debieraGenerar = true;
+    if (!querySnapshot.empty) {
+      const lastNotif = querySnapshot.docs[0].data();
+      const lastDate = new Date(lastNotif.fecha);
+      const now = new Date();
+      const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
+      
+      // Solo generamos un mensaje nuevo cada 24 horas para no saturar
+      if (diffHours < 24) debieraGenerar = false;
+    }
+
+    if (debieraGenerar) {
+      const aiResponse = await generatePromoMessage({
+        userName: userName || "Miembro del Club",
+        stampsCount: stamps
+      });
+
+      await addDoc(notifRef, {
+        titulo: aiResponse.title,
+        mensaje: aiResponse.message,
+        cta: aiResponse.callToAction,
+        isAI: true,
+        leida: false,
+        fecha: new Date().toISOString()
+      });
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error en motor de IA de notificaciones:", error);
+    return false;
+  }
 }

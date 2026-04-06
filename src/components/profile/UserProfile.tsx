@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, onSnapshot, updateDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +14,8 @@ import {
   Smile, Cat, Dog, Coffee, Star, Store,
   MessageCircle, MapPin, 
   Clock, Bell, CheckCircle2,
-  Info, ExternalLink, Instagram, Facebook, Sparkles
+  Info, ExternalLink, Instagram, Facebook, Sparkles,
+  ChevronRight, Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
+import { verificarYGenerarRecordatorioIA } from "@/lib/notificaciones";
 
 const AVATAR_OPTIONS = [
   { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
@@ -47,8 +48,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [userData, setUserData] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [recentSales, setRecentSales] = useState<any[]>([]);
-  const [todayCount, setTodayCount] = useState(0);
+  const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const { toast } = useToast();
 
   const [editForm, setEditForm] = useState({
@@ -96,42 +96,24 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           ubicacionTienda: data.ubicacionTienda || "",
           promoOptIn: data.promoOptIn || false
         });
+
+        // Al cargar los datos del usuario, verificamos si toca generar un recordatorio IA
+        verificarYGenerarRecordatorioIA(user.uid, data.nombre, data.comprasRealizadas || 0);
       }
     });
 
-    return () => unsubscribeDoc();
-  }, [user]);
-
-  useEffect(() => {
-    if (!user || userData?.rol !== "emprendedor") return;
-
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const qToday = query(
-      collection(db, "usuarios", user.uid, "ventas_registradas"),
-      where("fecha", ">=", startOfToday.toISOString())
-    );
-
-    const unsubscribeToday = onSnapshot(qToday, (snapshot) => {
-      setTodayCount(snapshot.size);
-    });
-
-    const qRecent = query(
-      collection(db, "usuarios", user.uid, "ventas_registradas"),
-      orderBy("fecha", "desc"),
-      limit(5)
-    );
-
-    const unsubscribeRecent = onSnapshot(qRecent, (snapshot) => {
-      setRecentSales(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    // Cargar notificaciones
+    const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
+    const qNotif = query(notifRef, orderBy("fecha", "desc"), limit(5));
+    const unsubscribeNotif = onSnapshot(qNotif, (snapshot) => {
+      setNotificaciones(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
     return () => {
-      unsubscribeToday();
-      unsubscribeRecent();
+      unsubscribeDoc();
+      unsubscribeNotif();
     };
-  }, [user, userData?.rol]);
+  }, [user]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
@@ -342,6 +324,55 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {!isEntrepreneur && (
         <>
+          {/* Centro de Notificaciones y Mensajes IA */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 px-1">
+              <Bell className="w-5 h-5 text-primary" />
+              <h3 className="font-bold text-lg text-primary">Mensajes del Club</h3>
+            </div>
+            
+            <div className="space-y-3">
+              {notificaciones.length > 0 ? (
+                notificaciones.map((notif) => (
+                  <Card key={notif.id} className={cn(
+                    "border-none shadow-sm rounded-2xl overflow-hidden transition-all",
+                    notif.isAI ? "bg-gradient-to-br from-white to-primary/5 border-l-4 border-l-primary" : "bg-white"
+                  )}>
+                    <CardContent className="p-4 flex gap-4">
+                      <div className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                        notif.isAI ? "bg-primary text-white" : "bg-slate-100 text-slate-400"
+                      )}>
+                        {notif.isAI ? <Sparkles className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-slate-800">{notif.titulo}</h4>
+                          <span className="text-[8px] text-slate-400 uppercase font-bold">
+                            {new Date(notif.fecha).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {notif.mensaje}
+                        </p>
+                        {notif.cta && (
+                          <Button variant="link" className="p-0 h-auto text-primary text-xs font-bold gap-1">
+                            {notif.cta} <ChevronRight className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="bg-slate-50 p-8 rounded-3xl text-center space-y-2 border-2 border-dashed border-slate-200">
+                  <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-xs text-slate-400 font-medium italic">Pronto recibirás promociones exclusivas.</p>
+                </div>
+              )}
+            </div>
+          </section>
+
           <Card className="border-none shadow-lg bg-gradient-to-br from-primary to-accent/40 rounded-3xl overflow-hidden text-white">
             <CardContent className="p-6 flex items-center justify-between">
               <div className="space-y-1">
