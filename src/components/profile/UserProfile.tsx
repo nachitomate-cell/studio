@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,12 +14,11 @@ import {
   QrCode, Edit2, Check, X, Trophy, Save, 
   Smile, Cat, Dog, Coffee, Star, Store,
   MessageCircle, MapPin, 
-  Clock, Bell
+  Clock, Bell, CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
@@ -201,7 +201,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="flex flex-col items-center justify-center bg-white p-10 rounded-2xl border border-border shadow-sm text-center space-y-6">
           <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-            <LogIn className="w-8 h-8 text-primary" />
+            <UserIcon className="w-8 h-8 text-primary" />
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-primary">¡Bienvenido al Club Patio!</h2>
@@ -213,7 +213,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             onClick={onShowAuth} 
             className="w-full rounded-xl h-12 text-lg font-bold gap-2 shadow-lg shadow-primary/20"
           >
-            <LogIn className="w-5 h-5" /> Iniciar Sesión
+            <UserIcon className="w-5 h-5" /> Iniciar Sesión
           </Button>
         </div>
       </div>
@@ -223,9 +223,15 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const rol = userData?.rol || "cliente";
   const isEntrepreneur = rol === "emprendedor";
   const sellos = userData?.comprasRealizadas || 0;
-  const meta = 5;
-  const porcentaje = (sellos / meta) * 100;
   const canjes = userData?.totalCanjesHistoricos || 0;
+  
+  // Lógica de la tarjeta de 10 sellos
+  const totalSlots = 10;
+  const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
+  const sellosRestantesParaPremio = 5 - (sellos % 5);
+  const mensajeMotivador = sellos % 5 === 0 && sellos > 0 
+    ? "¡Tienes un premio listo para canjear!" 
+    : `¡Te faltan ${sellosRestantesParaPremio === 5 ? 5 : sellosRestantesParaPremio} sellos para tu próximo premio!`;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -345,8 +351,110 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {!isEntrepreneur ? (
         <>
-          {/* Toggle de Promociones */}
-          <Card className="border-none shadow-sm bg-accent/5 overflow-hidden">
+          {/* Tarjeta Física de Sellos */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="font-bold text-lg text-primary flex items-center gap-2">
+                <Award className="w-5 h-5" />
+                Mi Tarjeta de Sellos
+              </h3>
+              {canjes > 0 && (
+                <Badge className="bg-accent text-accent-foreground border-none font-bold">
+                  {canjes} Premios Ganados
+                </Badge>
+              )}
+            </div>
+
+            <Card className="border-none shadow-xl bg-[#FDFCF0] rounded-[2rem] overflow-hidden relative group">
+              {/* Textura sutil de papel */}
+              <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cardboard-flat.png')]" />
+              
+              <CardContent className="p-8 relative z-10">
+                <div className="flex justify-between items-start mb-6">
+                  <img src="/Logo.png" alt="Patio" className="h-10 object-contain grayscale opacity-60" />
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-primary/40 uppercase tracking-widest leading-none">Miembro Club</p>
+                    <p className="text-xs font-bold text-primary/60">ID: {user.uid.slice(0, 8)}</p>
+                  </div>
+                </div>
+
+                {/* Grilla de 10 círculos */}
+                <div className="grid grid-cols-5 gap-4 mb-8">
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    const isFilled = i < sellosEnTarjeta;
+                    return (
+                      <div key={i} className="aspect-square relative flex items-center justify-center">
+                        <div className={cn(
+                          "w-full h-full rounded-full transition-all duration-500 flex items-center justify-center",
+                          isFilled 
+                            ? "bg-white shadow-inner scale-100" 
+                            : "bg-primary/5 border-2 border-dashed border-primary/20 scale-95"
+                        )}>
+                          {isFilled ? (
+                            <div className="animate-in zoom-in duration-300">
+                              <CheckCircle2 className="w-8 h-8 text-primary fill-primary/10" />
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-bold text-primary/20">{i + 1}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-4 text-center">
+                  <p className="text-primary font-bold text-lg leading-tight px-4">
+                    {mensajeMotivador}
+                  </p>
+                  
+                  <div className="flex flex-col gap-3">
+                    <Button 
+                      className="w-full h-12 rounded-2xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform"
+                      onClick={() => {
+                        const premiosSection = document.getElementById('premios-catalogo');
+                        premiosSection?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      Ver Premios Disponibles
+                    </Button>
+                    
+                    <Button 
+                      variant="ghost" 
+                      onClick={handleSimulatePurchase}
+                      className="text-[10px] text-primary/40 hover:bg-transparent uppercase tracking-widest font-bold"
+                    >
+                      (Simular Sello Demo)
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* QR de Miembro */}
+          {!isEditing && (
+            <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden">
+              <CardHeader className="pb-2 text-center bg-slate-50/50">
+                <CardTitle className="text-[10px] font-bold flex items-center justify-center gap-2 text-primary/60 uppercase tracking-widest">
+                  <QrCode className="w-4 h-4" />
+                  Muestra esto en el local
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center py-8">
+                <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner mb-4">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${user.uid}&color=4EAD1F`}
+                    alt="Código QR de Miembro"
+                    className="w-44 h-44"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Notificaciones Toggle */}
+          <Card className="border-none shadow-sm bg-accent/5 rounded-2xl overflow-hidden">
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-primary shadow-sm">
@@ -365,75 +473,17 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </CardContent>
           </Card>
 
-          {!isEditing && (
-            <Card className="border-accent/30 shadow-md bg-white">
-              <CardHeader className="pb-2 text-center">
-                <CardTitle className="text-sm font-bold flex items-center justify-center gap-2 text-primary uppercase tracking-wider">
-                  <QrCode className="w-5 h-5" />
-                  Tu Identificador de Miembro
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center space-y-4 py-6">
-                <div className="p-3 bg-white border-2 border-primary/10 rounded-2xl shadow-inner">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${user.uid}&color=4EAD1F`}
-                    alt="Código QR de Miembro"
-                    className="w-40 h-40"
-                  />
-                </div>
-                <p className="text-xs text-center text-muted-foreground max-w-[200px] font-medium italic">
-                  "Muestra este código en caja al comprar para sumar sellos"
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card className="border-primary/20 shadow-md bg-white">
-            <CardHeader className="pb-2 bg-primary/5">
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-                <Award className="w-4 h-4" />
-                Nivel de Sellos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <div className="flex justify-between items-end mb-1">
-                <div className="flex gap-2">
-                  <Badge variant="outline" className="border-primary/30 text-primary text-[10px] font-bold">
-                    {sellos} Sellos
-                  </Badge>
-                  {canjes > 0 && (
-                    <Badge className="bg-accent text-accent-foreground border-none text-[10px] font-bold flex gap-1 items-center">
-                      <Trophy className="w-2.5 h-2.5" /> {canjes} Premio{canjes !== 1 ? 's' : ''}
-                    </Badge>
-                  )}
-                </div>
-                <span className="text-xs font-bold text-primary">
-                  {sellos >= 5 ? '¡Premio listo para canje!' : `Próximo premio: ${sellos}/5 sellos`}
-                </span>
-              </div>
-              <Progress value={Math.min(porcentaje, 100)} className="h-2.5 bg-primary/10" />
-              
-              <Button 
-                onClick={handleSimulatePurchase} 
-                disabled={loading} 
-                variant="ghost" 
-                className="w-full text-primary hover:bg-primary/5 rounded-xl h-10 text-[10px] border border-dashed border-primary/20"
-              >
-                <Gift className="w-3.5 h-3.5 mr-2" />
-                Simular Escaneo de Sello (Demo)
-              </Button>
-            </CardContent>
-          </Card>
-
-          <CatalogoPremios 
-            userId={user.uid} 
-            userEmail={user.email || undefined} 
-            comprasActuales={sellos} 
-          />
+          <div id="premios-catalogo">
+            <CatalogoPremios 
+              userId={user.uid} 
+              userEmail={user.email || undefined} 
+              comprasActuales={sellos} 
+            />
+          </div>
         </>
       ) : (
         <div className="space-y-6">
-          <Card className="border-accent/40 shadow-md bg-white overflow-hidden">
+          <Card className="border-accent/40 shadow-md bg-white overflow-hidden rounded-3xl">
             <CardHeader className="bg-accent/10 pb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2 text-primary">
                 <Store className="w-5 h-5" />
@@ -510,7 +560,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             <div className="space-y-3">
               {recentSales.length > 0 ? (
                 recentSales.map((sale, idx) => (
-                  <Card key={idx} className="border-none shadow-sm bg-white overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300" style={{ animationDelay: `${idx * 100}ms` }}>
+                  <Card key={idx} className="border-none shadow-sm bg-white overflow-hidden rounded-2xl animate-in fade-in slide-in-from-right-4 duration-300" style={{ animationDelay: `${idx * 100}ms` }}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-primary">
@@ -542,7 +592,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
           {!isEditing && (
             <Link href="/vendedor">
-              <Button className="w-full h-16 rounded-2xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
+              <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
                 <QrCode className="w-6 h-6" />
                 Terminal de Sellos (Escanear)
               </Button>
@@ -566,3 +616,4 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     </div>
   );
 }
+
