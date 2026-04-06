@@ -16,11 +16,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LogIn, UserPlus, AlertCircle, LogOut, Phone } from "lucide-react";
 
-// Lista de correos autorizados para tener el rol de emprendedor
-// Agrega aquí nuevos correos según sea necesario (ej: el de Pancho)
+/**
+ * LISTA DE CORREOS AUTORIZADOS COMO EMPRENDEDORES
+ * Agrega aquí los correos que deben tener permisos de vendedor (ej: Pancho).
+ * Los correos deben estar en minúsculas.
+ */
 const EMAILS_EMPRENDEDORES = [
   'ignaciiio.mate@gmail.com',
-  // 'pancho@ejemplo.com', // <- Agrega el correo de Pancho aquí más adelante
+  // 'correo.de.pancho@gmail.com', // <--- AGREGA EL CORREO DE PANCHO AQUÍ
 ];
 
 export function Auth() {
@@ -47,14 +50,15 @@ export function Auth() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
 
-        // Determinar el rol basado en el correo electrónico
-        const rolAsignado = EMAILS_EMPRENDEDORES.includes(email.toLowerCase().trim()) 
+        // Validación de Rol: Si el correo está en la lista, es emprendedor, si no, cliente.
+        const emailLimpio = email.toLowerCase().trim();
+        const rolAsignado = EMAILS_EMPRENDEDORES.includes(emailLimpio) 
           ? "emprendedor" 
           : "cliente";
 
-        // Crear perfil inicial en Firestore automáticamente
+        // Crear perfil inicial en Firestore con el rol correspondiente
         await setDoc(doc(db, "usuarios", newUser.uid), {
-          correo: email,
+          correo: emailLimpio,
           telefono: phone,
           rol: rolAsignado, 
           comprasRealizadas: 0,
