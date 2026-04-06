@@ -25,18 +25,17 @@ export type Premio = {
 
 export const CATEGORIES: Category[] = [
   { id: 'all', name: 'Todos', icon: 'LayoutGrid' },
-  { id: 'food', name: 'Gastronomía', icon: 'Utensils' },
-  { id: 'crafts', name: 'Artesanía', icon: 'Palette' },
-  { id: 'plants', name: 'Plantas', icon: 'Leaf' },
-  { id: 'services', name: 'Servicios', icon: 'Wrench' },
-  { id: 'fashion', name: 'Moda', icon: 'Shirt' },
+  { id: 'deco', name: 'Deco & Hogar', icon: 'Home' },
+  { id: 'belleza', name: 'Belleza', icon: 'Sparkles' },
+  { id: 'joyeria', name: 'Joyería', icon: 'Gem' },
+  { id: 'gourmet', name: 'Gourmet', icon: 'Utensils' },
 ];
 
 export const ENTREPRENEURS: Entrepreneur[] = [
   {
     id: 'e1',
     name: 'Sabores del Patio',
-    category: 'food',
+    category: 'gourmet',
     description: 'Comida casera con ingredientes orgánicos de la zona.',
     contact: '+56 9 1234 5678',
     schedule: 'Lun-Vie 10:00 - 19:00',
@@ -46,7 +45,7 @@ export const ENTREPRENEURS: Entrepreneur[] = [
   {
     id: 'e2',
     name: 'Artesanías Curauma',
-    category: 'crafts',
+    category: 'joyeria',
     description: 'Joyas únicas hechas a mano con piedras locales.',
     contact: '+56 9 8765 4321',
     schedule: 'Sáb-Dom 11:00 - 20:00',
@@ -56,32 +55,12 @@ export const ENTREPRENEURS: Entrepreneur[] = [
   {
     id: 'e3',
     name: 'Rincón Verde',
-    category: 'plants',
+    category: 'deco',
     description: 'Vivero especializado en suculentas y plantas de interior.',
     contact: '+56 9 5555 4444',
     schedule: 'Mié-Dom 09:00 - 18:00',
     locationId: 'loc-2',
     imageUrl: 'https://picsum.photos/seed/plant1/400/300'
-  },
-  {
-    id: 'e4',
-    name: 'Costuras con Amor',
-    category: 'fashion',
-    description: 'Reparación de prendas y confección de accesorios textiles.',
-    contact: '+56 9 3333 2222',
-    schedule: 'Lun-Vie 09:00 - 17:00',
-    locationId: 'loc-5',
-    imageUrl: 'https://picsum.photos/seed/fashion1/400/300'
-  },
-  {
-    id: 'e5',
-    name: 'Tech Fix Curauma',
-    category: 'services',
-    description: 'Reparación de celulares y laptops en el momento.',
-    contact: '+56 9 9999 8888',
-    schedule: 'Lun-Sáb 10:00 - 18:30',
-    locationId: 'loc-4',
-    imageUrl: 'https://picsum.photos/seed/service1/400/300'
   }
 ];
 

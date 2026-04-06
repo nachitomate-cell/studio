@@ -5,38 +5,37 @@
 
 @layer base {
   :root {
-    /* Primary: #4EAD1F (100 70% 40%) */
-    --primary: 100 70% 40%;
+    /* Color oficial: #8dc63f (HSL 86 54% 51%) */
+    --primary: 86 54% 51%;
     --primary-foreground: 0 0% 100%;
     
-    /* Background: #F2F4F0 (80 15% 95%) */
-    --background: 80 15% 95%;
-    --foreground: 100 20% 10%;
+    /* Fondo Blanco Minimalista */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 15%;
     
-    /* Accent: #C6D775 (70 52% 65%) */
-    --accent: 70 52% 65%;
-    --accent-foreground: 100 20% 15%;
+    --accent: 86 54% 90%;
+    --accent-foreground: 86 54% 20%;
     
     --card: 0 0% 100%;
-    --card-foreground: 100 20% 10%;
+    --card-foreground: 0 0% 15%;
     
     --popover: 0 0% 100%;
-    --popover-foreground: 100 20% 10%;
+    --popover-foreground: 0 0% 15%;
     
-    --secondary: 80 15% 90%;
-    --secondary-foreground: 100 70% 25%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 20%;
     
-    --muted: 80 10% 85%;
-    --muted-foreground: 100 10% 40%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
     
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     
-    --border: 80 15% 85%;
-    --input: 80 15% 85%;
-    --ring: 100 70% 40%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 86 54% 51%;
     
-    --radius: 0.75rem;
+    --radius: 0.5rem;
   }
 }
 
