@@ -7,23 +7,25 @@ import {
   createUserWithEmailAndPassword,
   signOut 
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, UserPlus, AlertCircle, LogOut } from "lucide-react";
+import { LogIn, UserPlus, AlertCircle, LogOut, Phone } from "lucide-react";
 
 export function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
 
-  // Escuchar cambios de estado de autenticación de forma simple para visualización
+  // Escuchar cambios de estado de autenticación
   auth.onAuthStateChanged((u) => setUser(u));
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -35,7 +37,19 @@ export function Auth() {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const newUser = userCredential.user;
+
+        // Crear perfil inicial en Firestore automáticamente
+        await setDoc(doc(db, "usuarios", newUser.uid), {
+          correo: email,
+          telefono: phone,
+          comprasRealizadas: 0,
+          puntos: 0,
+          totalCanjesHistoricos: 0,
+          recompensaDisponible: false,
+          createdAt: new Date().toISOString()
+        });
       }
     } catch (err: any) {
       setError(err.message || "Ocurrió un error inesperado.");
@@ -52,8 +66,8 @@ export function Auth() {
     return (
       <Card className="w-full max-w-md mx-auto border-primary/20 shadow-lg">
         <CardHeader>
-          <CardTitle className="text-primary font-bold">Bienvenido</CardTitle>
-          <CardDescription>Sesión iniciada como {user.email}</CardDescription>
+          <CardTitle className="text-primary font-bold">Sesión Iniciada</CardTitle>
+          <CardDescription>Estás conectado como {user.email}</CardDescription>
         </CardHeader>
         <CardFooter>
           <Button onClick={handleLogout} variant="destructive" className="w-full gap-2 rounded-xl">
@@ -76,7 +90,7 @@ export function Auth() {
         <CardDescription>
           {isLogin 
             ? "Accede a tu cuenta para conectar con emprendedores." 
-            : "Únete a la comunidad de Curauma Conecta hoy mismo."}
+            : "Completa tus datos para unirte a Patio Curauma."}
         </CardDescription>
       </CardHeader>
       
@@ -102,6 +116,24 @@ export function Auth() {
               className="rounded-xl"
             />
           </div>
+
+          {!isLogin && (
+            <div className="space-y-2 animate-in slide-in-from-left-2 duration-300">
+              <Label htmlFor="phone">Teléfono (WhatsApp)</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  id="phone" 
+                  type="tel" 
+                  placeholder="+56 9 1234 5678" 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required 
+                  className="rounded-xl pl-10"
+                />
+              </div>
+            </div>
+          )}
           
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña</Label>
@@ -126,7 +158,10 @@ export function Auth() {
             type="button" 
             variant="ghost" 
             className="text-primary font-semibold hover:bg-primary/5"
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError(null);
+            }}
           >
             {isLogin ? "¿No tienes cuenta? Regístrate" : "¿Ya tienes cuenta? Inicia sesión"}
           </Button>
