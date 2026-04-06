@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -32,7 +33,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
     return () => unsubscribeAuth();
   }, []);
 
-  // Escuchar datos del usuario en Firestore
   useEffect(() => {
     if (!user) {
       setUserData(null);
@@ -64,15 +64,24 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
 
   const handleClaimReward = async () => {
     if (!user) return;
+    setLoading(true);
     
-    // Llamamos a la función de canje
-    canjearRecompensa(db, user.uid);
-    
-    // Mostramos feedback visual inmediato
-    toast({
-      title: "¡Recompensa canjeada con éxito!",
-      description: "Disfruta de tu beneficio exclusivo en Patio Curauma.",
-    });
+    try {
+      await canjearRecompensa(db, user.uid, user.email || undefined);
+      
+      toast({
+        title: "¡Recompensa canjeada con éxito!",
+        description: "Disfruta de tu beneficio exclusivo en Patio Curauma. Te hemos enviado un comprobante.",
+      });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo procesar el canje. Inténtalo de nuevo.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -110,7 +119,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header Perfil */}
       <div className="flex items-center gap-4 bg-white p-6 rounded-2xl border border-border shadow-sm">
         <Avatar className="w-20 h-20 border-4 border-accent/30">
           <AvatarImage src={`https://picsum.photos/seed/${user.uid}/200`} alt={user.email || "Usuario"} />
@@ -136,7 +144,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         </Button>
       </div>
 
-      {/* Sistema de Recompensas */}
       <Card className="border-primary/20 shadow-md overflow-hidden bg-white">
         <CardHeader className="pb-2 bg-primary/5">
           <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
@@ -157,8 +164,12 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                 <CheckCircle2 className="w-5 h-5 text-accent-foreground" />
                 <span>¡Tienes una recompensa disponible!</span>
               </div>
-              <Button onClick={handleClaimReward} className="w-full bg-accent text-accent-foreground hover:bg-accent/80 font-bold rounded-xl h-12 shadow-md">
-                Canjear Recompensa
+              <Button 
+                onClick={handleClaimReward} 
+                disabled={loading}
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/80 font-bold rounded-xl h-12 shadow-md"
+              >
+                {loading ? "Procesando..." : "Canjear Recompensa"}
               </Button>
             </div>
           ) : (
@@ -179,7 +190,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         </CardContent>
       </Card>
 
-      {/* Acciones de Perfil */}
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="p-4 space-y-4">
           <Button 

@@ -1,3 +1,4 @@
+
 import { doc, getDoc, updateDoc, setDoc, Firestore, increment } from "firebase/firestore";
 
 /**
@@ -11,7 +12,6 @@ export async function registrarCompra(db: Firestore, userId: string) {
     const userSnap = await getDoc(userRef);
     
     if (!userSnap.exists()) {
-      // Si el usuario no existe en la colección, lo creamos con valores iniciales
       await setDoc(userRef, {
         comprasRealizadas: 1,
         recompensaDisponible: false,
@@ -24,11 +24,10 @@ export async function registrarCompra(db: Firestore, userId: string) {
     const data = userSnap.data();
     const nuevasCompras = (data.comprasRealizadas || 0) + 1;
     
-    // Actualizamos el documento sin await para aprovechar el cache local optimista
     updateDoc(userRef, {
       comprasRealizadas: nuevasCompras,
       recompensaDisponible: nuevasCompras >= 5,
-      puntos: increment(50) // Sumamos 50 puntos por cada compra
+      puntos: increment(50)
     });
     
   } catch (error) {
@@ -38,15 +37,39 @@ export async function registrarCompra(db: Firestore, userId: string) {
 
 /**
  * Procesa el canje de una recompensa.
- * Reinicia el contador de compras y suma al histórico.
+ * Reinicia el contador de compras, suma al histórico y dispara notificación.
  */
-export async function canjearRecompensa(db: Firestore, userId: string) {
+export async function canjearRecompensa(db: Firestore, userId: string, userEmail?: string) {
   const userRef = doc(db, "usuarios", userId);
   
-  // Realizamos la actualización en Firestore
-  updateDoc(userRef, {
-    comprasRealizadas: 0,
-    recompensaDisponible: false,
-    totalCanjesHistoricos: increment(1)
-  });
+  try {
+    // 1. Actualización en Firestore
+    await updateDoc(userRef, {
+      comprasRealizadas: 0,
+      recompensaDisponible: false,
+      totalCanjesHistoricos: increment(1)
+    });
+
+    // 2. Disparo de Notificación Automática (Simulado vía API Route)
+    if (userEmail) {
+      // Usamos fetch sin await para no bloquear la UI del usuario mientras se "envía" el mensaje
+      fetch('/api/notificaciones', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userEmail,
+          event: 'recompensa_canjeada',
+          userName: userEmail.split('@')[0] // Simulación de nombre a partir del email
+        }),
+      }).catch(err => {
+        // Manejo silencioso del error de notificación para no afectar al usuario
+        console.error("Fallo el envío de notificación automática:", err);
+      });
+    }
+  } catch (error) {
+    console.error("Error al canjear recompensa:", error);
+    throw error; // Re-lanzamos para que la UI pueda manejar el error si es de base de datos
+  }
 }
