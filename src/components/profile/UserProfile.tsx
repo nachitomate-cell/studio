@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -145,7 +146,11 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         description: "Tus datos se han guardado correctamente.",
       });
     } catch (error) {
-      console.error("Error al actualizar perfil:", error);
+      toast({
+        variant: "destructive",
+        title: "Error al guardar",
+        description: "No se pudieron actualizar los datos.",
+      });
     } finally {
       setLoading(false);
     }

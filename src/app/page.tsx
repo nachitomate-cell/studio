@@ -37,6 +37,8 @@ export default function Home() {
   useEffect(() => {
     if (!user || !userData) return;
 
+    if (!navigator.geolocation) return;
+
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
@@ -66,7 +68,10 @@ export default function Home() {
           );
         }
       },
-      (error) => console.error("Error de ubicación:", error),
+      (error) => {
+        // Silenciamos el error para evitar el overlay de error en desarrollo
+        // si el usuario no otorga permisos de ubicación.
+      },
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
 
