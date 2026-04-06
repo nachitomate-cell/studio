@@ -21,9 +21,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-accent selection:text-accent-foreground overflow-x-hidden">
         
-        {/* Header más compacto con logo reducido */}
-        <header className="bg-white shadow-sm p-2 flex justify-center w-full">
-          <img src="/Logo.png" alt="Patio Curauma" className="h-12 object-contain" />
+        {/* Header fijo con logo optimizado */}
+        <header className="bg-white shadow-md py-3 flex justify-center w-full sticky top-0 z-50">
+          <img src="/Logo.png" alt="Patio Curauma" className="h-14 object-contain" />
         </header>
 
         {children}
