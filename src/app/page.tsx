@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,7 +9,7 @@ import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
 import { CATEGORIES, Entrepreneur, ENTREPRENEURS, PATIO_INFO } from "@/lib/data";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -17,17 +18,60 @@ import { UserProfile } from "@/components/profile/UserProfile";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
 import { Auth } from "@/components/Auth";
+import { procesarProximidadGeofence } from "@/lib/notificaciones";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
+  const { toast } = useToast();
   
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Sistema de Monitoreo de Ubicación (Geofencing)
+  useEffect(() => {
+    if (!user || !userData) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const targetLat = PATIO_INFO.coordinates.lat;
+        const targetLng = PATIO_INFO.coordinates.lng;
+
+        // Fórmula de Haversine para calcular distancia en metros
+        const R = 6371e3; // Radio de la tierra en metros
+        const φ1 = latitude * Math.PI/180;
+        const φ2 = targetLat * Math.PI/180;
+        const Δφ = (targetLat-latitude) * Math.PI/180;
+        const Δλ = (targetLng-longitude) * Math.PI/180;
+
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+
+        // Si está a menos de 500 metros, procesar alerta
+        if (distance < 500) {
+          procesarProximidadGeofence(
+            user.uid, 
+            userData.nombre || "Miembro", 
+            userData.comprasRealizadas || 0,
+            true
+          );
+        }
+      },
+      (error) => console.error("Error de ubicación:", error),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [user, userData]);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
