@@ -6,6 +6,11 @@ import { Toaster } from "@/components/ui/toaster"
 export const metadata: Metadata = {
   title: 'Club Patio',
   description: 'Acumula sellos y obtén recompensas en Patio Curauma',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Club Patio',
+  },
 };
 
 export const viewport: Viewport = {
@@ -14,6 +19,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: '#ffffff',
 };
 
 export default function RootLayout({
@@ -30,7 +36,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-accent selection:text-accent-foreground overflow-x-hidden h-full flex flex-col bg-white">
         
-        {/* Header fijo con logo optimizado */}
+        {/* Header fijo con logo optimizado y manejo de safe area superior */}
         <header className="bg-white/95 backdrop-blur-sm shadow-sm py-3 flex justify-center w-full sticky top-0 z-50 pt-safe border-b border-slate-100">
           <img src="/Logo.png" alt="Patio" className="h-10 object-contain" />
         </header>
