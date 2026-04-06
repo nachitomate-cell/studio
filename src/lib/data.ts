@@ -25,9 +25,9 @@ export type Premio = {
 };
 
 export const PATIO_INFO = {
-  name: "Patio Curauma",
-  address: "AVENIDA UNIVERSIDAD 134, LOCAL 1",
-  city: "VALPARAISO - Valparaíso",
+  name: "Outlet Curauma",
+  address: "Av. Lomas de la Luz 4650",
+  city: "Curauma, Valparaíso",
   region: "Valparaíso - Chile",
   phone: "+56 9 9969 0322",
   whatsapp: "56999690322",
