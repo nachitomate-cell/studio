@@ -218,7 +218,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const isEntrepreneur = rol === "emprendedor";
   const sellos = userData?.comprasRealizadas || 0;
   const tickets = userData?.ticketsSorteo || 0;
-  const canjes = userData?.totalCanjesHistoricos || 0;
   
   const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
   const sellosRestantesParaPremio = 5 - (sellos % 5);
@@ -273,7 +272,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {!isEntrepreneur && (
         <>
-          {/* Dashboard de Sorteo */}
           <Card className="border-none shadow-lg bg-gradient-to-br from-primary to-accent/40 rounded-3xl overflow-hidden text-white">
             <CardContent className="p-6 flex items-center justify-between">
               <div className="space-y-1">
@@ -288,20 +286,15 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           </Card>
 
           <section className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="font-bold text-lg text-primary flex items-center gap-2">
-                <Award className="w-5 h-5" />
-                Mi Tarjeta de Sellos
-              </h3>
-            </div>
+            <h3 className="font-bold text-lg text-primary flex items-center gap-2 px-1">
+              <Award className="w-5 h-5" />
+              Mi Tarjeta de Sellos
+            </h3>
 
             <Card className="border-none shadow-xl bg-[#FDFCF0] rounded-[2rem] overflow-hidden relative">
               <CardContent className="p-8">
                 <div className="flex justify-between items-start mb-6">
                   <img src="/Logo.png" alt="Patio" className="h-10 object-contain grayscale opacity-60" />
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-primary/40 uppercase tracking-widest leading-none">Miembro Club</p>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-5 gap-4 mb-8">
@@ -349,20 +342,18 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </Card>
           </section>
 
-          {!isEditing && (
-            <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden">
-              <CardContent className="flex flex-col items-center py-8">
-                <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Escanea esto en el local</p>
-                <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${user.uid}&color=4EAD1F`}
-                    alt="QR"
-                    className="w-44 h-44"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden">
+            <CardContent className="flex flex-col items-center py-8">
+              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Escanea esto en el local</p>
+              <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${user.uid}&color=4EAD1F`}
+                  alt="QR"
+                  className="w-44 h-44"
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           <div id="premios-catalogo">
             <CatalogoPremios 
@@ -376,7 +367,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {isEntrepreneur && (
         <div className="space-y-6">
-          {/* Panel Emprendedor simplificado */}
           <Card className="border-accent/40 shadow-md bg-white rounded-3xl overflow-hidden">
             <CardHeader className="bg-accent/10">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -391,8 +381,61 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               </Link>
             </CardContent>
           </Card>
+          <div id="premios-catalogo-vendedor">
+            <CatalogoPremios userId={user.uid} comprasActuales={sellos} />
+          </div>
         </div>
       )}
+
+      {/* SECCIÓN DE SOPORTE Y REDES SOCIALES */}
+      <section className="space-y-4 pt-6">
+        <div className="flex items-center gap-2 px-1">
+          <Info className="w-4 h-4 text-primary" />
+          <h3 className="font-bold text-sm text-slate-500 uppercase tracking-widest">Información y Soporte</h3>
+        </div>
+        
+        <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <MapPin className="w-5 h-5 text-primary shrink-0" />
+              <div className="text-xs text-slate-600">
+                <p className="font-bold text-slate-800">{PATIO_INFO.address}</p>
+                <p>{PATIO_INFO.city}</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="rounded-xl border-pink-500/20 text-pink-600 gap-2 font-bold text-xs"
+                onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')}
+              >
+                <Instagram className="w-4 h-4" /> Instagram
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="rounded-xl border-blue-500/20 text-blue-600 gap-2 font-bold text-xs"
+                onClick={() => window.open(`https://facebook.com/${PATIO_INFO.facebook}`, '_blank')}
+              >
+                <Facebook className="w-4 h-4" /> Facebook
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="rounded-xl border-slate-500/20 text-slate-800 gap-2 font-bold text-xs"
+                onClick={() => window.open(`https://www.tiktok.com/@${PATIO_INFO.tiktok}`, '_blank')}
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.13-1.47-.13 3.35-.13 6.7.01 10.05.05 1.77-.55 3.65-1.92 4.81-1.47 1.25-3.63 1.48-5.38.83-2.14-.76-3.62-3.04-3.56-5.31.02-2.29 1.54-4.51 3.73-5.2.2-.06.4-.11.61-.15.01-1.57.01-3.14.01-4.71-1.85.24-3.69 1.05-4.99 2.41C5.51 12.35 4.96 14.3 5.02 16.3c.12 3.52 2.64 6.78 6.07 7.57 3.55.8 7.42-.91 8.87-4.23.47-1.12.63-2.35.53-3.55V0H12.525z"/>
+                </svg>
+                TikTok
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       <div className="text-center py-4">
         <Button onClick={handleLogout} variant="ghost" className="text-destructive font-bold text-xs gap-2">

@@ -7,9 +7,9 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
-import { CATEGORIES, Entrepreneur, ENTREPRENEURS } from "@/lib/data";
+import { CATEGORIES, Entrepreneur, ENTREPRENEURS, PATIO_INFO } from "@/lib/data";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -179,6 +179,24 @@ export default function Home() {
                     No se encontraron resultados.
                   </div>
                 )}
+              </div>
+            </section>
+
+            {/* Footer de Redes Sociales en Directorio */}
+            <section className="px-6 py-12 text-center space-y-4 bg-slate-50 mt-10">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Síguenos y entérate de todo</p>
+              <div className="flex justify-center gap-6">
+                <button onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')} className="text-pink-600 hover:scale-110 transition-transform">
+                  <Instagram className="w-6 h-6" />
+                </button>
+                <button onClick={() => window.open(`https://facebook.com/${PATIO_INFO.facebook}`, '_blank')} className="text-blue-600 hover:scale-110 transition-transform">
+                  <Facebook className="w-6 h-6" />
+                </button>
+                <button onClick={() => window.open(`https://www.tiktok.com/@${PATIO_INFO.tiktok}`, '_blank')} className="text-slate-800 hover:scale-110 transition-transform">
+                  <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.13-1.47-.13 3.35-.13 6.7.01 10.05.05 1.77-.55 3.65-1.92 4.81-1.47 1.25-3.63 1.48-5.38.83-2.14-.76-3.62-3.04-3.56-5.31.02-2.29 1.54-4.51 3.73-5.2.2-.06.4-.11.61-.15.01-1.57.01-3.14.01-4.71-1.85.24-3.69 1.05-4.99 2.41C5.51 12.35 4.96 14.3 5.02 16.3c.12 3.52 2.64 6.78 6.07 7.57 3.55.8 7.42-.91 8.87-4.23.47-1.12.63-2.35.53-3.55V0H12.525z"/>
+                  </svg>
+                </button>
               </div>
             </section>
             
