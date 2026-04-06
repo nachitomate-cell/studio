@@ -26,9 +26,9 @@ export type Premio = {
 
 export const PATIO_INFO = {
   name: "Outlet Curauma",
-  address: "Av. Lomas de la Luz 4650",
-  city: "Curauma, Valparaíso",
-  region: "Valparaíso - Chile",
+  address: "Outlet Curauma. Av. Lomas de la Luz 4650, Curauma, Valparaíso.",
+  city: "",
+  region: "",
   phone: "+56 9 9969 0322",
   whatsapp: "56999690322",
   instagram: "patiocurauma",
