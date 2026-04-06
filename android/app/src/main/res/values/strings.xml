@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Club Patio</string>
+    <string name="title_activity_main">Club Patio</string>
+    <string name="package_name">com.clubpatio.app</string>
+    <string name="custom_url_scheme">com.clubpatio.app</string>
+</resources>

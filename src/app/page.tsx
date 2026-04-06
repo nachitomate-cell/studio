@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,7 +8,7 @@ import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
 import { CATEGORIES, Entrepreneur } from "@/lib/data";
 import { Input } from "@/components/ui/input";
-import { Search, MapPin, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -24,7 +23,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   
-  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,9 +86,9 @@ export default function Home() {
           <Button 
             onClick={() => setShowAuth(true)} 
             variant="outline"
-            className="h-11 rounded-lg border-border shadow-sm hover:bg-slate-50 font-bold text-sm gap-2"
+            className="h-11 rounded-lg border-slate-200 shadow-sm hover:bg-slate-50 font-bold text-sm gap-2"
           >
-            <LogIn className="w-4 h-4" /> Entrar
+            <LogIn className="w-4 h-4 text-slate-400" /> Entrar
           </Button>
           <Button 
             onClick={() => setShowAuth(true)} 
@@ -106,7 +105,7 @@ export default function Home() {
         <div className="mt-6">
           <Button 
             onClick={() => window.location.href = "/vendedor"}
-            className="w-full h-14 rounded-xl bg-[#8dc63f] text-white font-bold text-lg gap-3 shadow-lg hover:scale-[1.01] transition-transform animate-pulse-subtle"
+            className="w-full h-14 rounded-xl bg-[#8dc63f] text-white font-bold text-lg gap-3 shadow-lg hover:scale-[1.01] transition-transform"
           >
             <QrCode className="w-6 h-6" />
             Abrir Escáner de Sellos
@@ -120,7 +119,7 @@ export default function Home() {
         <Button 
           onClick={() => setActiveTab("profile")}
           variant="outline"
-          className="h-11 rounded-lg border-border shadow-sm font-bold text-sm gap-2"
+          className="h-11 rounded-lg border-slate-200 shadow-sm font-bold text-sm gap-2 bg-white"
         >
           <QrCode className="w-4 h-4 text-[#8dc63f]" /> Mi QR
         </Button>
@@ -146,20 +145,18 @@ export default function Home() {
     switch (activeTab) {
       case "directory":
         return (
-          <div className="space-y-10 py-6 animate-in fade-in duration-500">
-            {/* Minimalist Hero */}
-            <header className="px-4 text-center space-y-3">
-              <h1 className="text-4xl font-bold text-foreground tracking-tight">
+          <div className="space-y-8 py-6 animate-in fade-in duration-500 bg-white">
+            <header className="px-6 text-center space-y-3">
+              <h1 className="text-4xl font-bold text-foreground tracking-tight leading-tight">
                 Únete al <span className="text-[#8dc63f]">Club Patio</span>
               </h1>
-              <p className="text-muted-foreground text-sm max-w-[280px] mx-auto">
+              <p className="text-muted-foreground text-sm max-w-[300px] mx-auto leading-relaxed">
                 Acumula sellos en tus tiendas favoritas y gana recompensas exclusivas.
               </p>
               {renderShortcuts()}
             </header>
 
-            {/* Búsqueda */}
-            <section className="px-4">
+            <section className="px-6">
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-[#8dc63f] transition-colors" />
                 <Input 
@@ -171,12 +168,11 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Categorías Carrusel */}
             <section className="space-y-4">
-              <div className="px-4 flex items-center justify-between">
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">Explorar Categorías</h2>
+              <div className="px-6 flex items-center justify-between">
+                <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Categorías</h2>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-2 px-4 no-scrollbar snap-x">
+              <div className="flex gap-2 overflow-x-auto pb-2 px-6 no-scrollbar snap-x">
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat.id}
@@ -194,16 +190,14 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Recomendaciones AI */}
-            <div className="px-4">
+            <div className="px-6">
               <RecommendationWidget />
             </div>
 
-            {/* Directorio Grilla 2 Columnas */}
-            <section className="space-y-6 px-4">
-              <div className="flex items-center justify-between">
+            <section className="space-y-6 px-6">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h2 className="text-xl font-bold text-foreground">Nuestros Emprendedores</h2>
-                <Badge variant="outline" className="rounded-md border-slate-200 font-bold text-[10px] py-0 h-5">
+                <Badge variant="outline" className="rounded-md border-slate-100 font-bold text-[10px] py-0 h-5 bg-slate-50">
                   {filteredEntrepreneurs.length} Puestos
                 </Badge>
               </div>
@@ -234,9 +228,9 @@ export default function Home() {
           </div>
         );
       case "map":
-        return <div className="pt-6 px-4"><InteractiveMap /><div className="h-24" /></div>;
+        return <div className="pt-6 px-4 bg-white"><InteractiveMap /><div className="h-24" /></div>;
       case "profile":
-        return <div className="pt-6 px-4"><UserProfile onSwitchMode={() => {}} onShowAuth={() => setShowAuth(true)} /><div className="h-24" /></div>;
+        return <div className="pt-6 px-4 bg-white"><UserProfile onSwitchMode={() => {}} onShowAuth={() => setShowAuth(true)} /><div className="h-24" /></div>;
       default:
         return null;
     }
