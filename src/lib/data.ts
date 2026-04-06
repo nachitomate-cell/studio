@@ -23,6 +23,15 @@ export type Premio = {
   icono: string;
 };
 
+export const PATIO_INFO = {
+  name: "Patio Curauma",
+  address: "AVENIDA UNIVERSIDAD 134, LOCAL 1",
+  city: "VALPARAISO - Valparaíso",
+  region: "Valparaíso - Chile",
+  phone: "+56 9 9969 0322",
+  whatsapp: "56999690322"
+};
+
 export const CATEGORIES: Category[] = [
   { id: 'all', name: 'Todos', icon: 'LayoutGrid' },
   { id: 'deco', name: 'Deco & Hogar', icon: 'Home' },

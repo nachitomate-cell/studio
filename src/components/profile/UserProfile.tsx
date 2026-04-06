@@ -14,7 +14,8 @@ import {
   QrCode, Edit2, Check, X, Trophy, Save, 
   Smile, Cat, Dog, Coffee, Star, Store,
   MessageCircle, MapPin, 
-  Clock, Bell, CheckCircle2
+  Clock, Bell, CheckCircle2,
+  Info, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { CatalogoPremios } from "./CatalogoPremios";
 import { cn } from "@/lib/utils";
+import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -225,7 +227,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const sellos = userData?.comprasRealizadas || 0;
   const canjes = userData?.totalCanjesHistoricos || 0;
   
-  // Lógica de la tarjeta de 10 sellos
   const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
   const sellosRestantesParaPremio = 5 - (sellos % 5);
   const mensajeMotivador = sellos % 5 === 0 && sellos > 0 
@@ -350,7 +351,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {!isEntrepreneur ? (
         <>
-          {/* Tarjeta Física de Sellos */}
           <section className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-bold text-lg text-primary flex items-center gap-2">
@@ -449,25 +449,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </Card>
           )}
 
-          <Card className="border-none shadow-sm bg-accent/5 rounded-2xl overflow-hidden">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-primary shadow-sm">
-                  <Bell className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-primary">Notificaciones del Club</p>
-                  <p className="text-[10px] text-muted-foreground">Recibir ofertas y promociones exclusivas</p>
-                </div>
-              </div>
-              <Switch 
-                checked={editForm.promoOptIn} 
-                onCheckedChange={(checked) => setEditForm({ ...editForm, promoOptIn: checked })}
-                disabled={!isEditing}
-              />
-            </CardContent>
-          </Card>
-
           <div id="premios-catalogo">
             <CatalogoPremios 
               userId={user.uid} 
@@ -478,6 +459,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </>
       ) : (
         <div className="space-y-6">
+          {/* Dashboard Emprendedor */}
           <Card className="border-accent/40 shadow-md bg-white overflow-hidden rounded-3xl">
             <CardHeader className="bg-accent/10 pb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2 text-primary">
@@ -496,13 +478,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {userData?.descripcion || "Aquí aparecerá la descripción de tu negocio."}
                   </p>
-
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <MapPin className="w-4 h-4 text-primary" />
-                      <span>{userData?.ubicacionTienda || "Sin ubicación"}</span>
-                    </div>
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -513,16 +488,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                       value={editForm.nombreTienda} 
                       onChange={(e) => setEditForm({...editForm, nombreTienda: e.target.value})}
                       placeholder="Ej: Sabores del Patio"
-                      className="rounded-lg"
-                    />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="rubro">Rubro / Categoría</Label>
-                    <Input 
-                      id="rubro" 
-                      value={editForm.rubro} 
-                      onChange={(e) => setEditForm({...editForm, rubro: e.target.value})}
-                      placeholder="Ej: Gastronomía"
                       className="rounded-lg"
                     />
                   </div>
@@ -593,18 +558,52 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   Terminal de Sellos (Escanear)
                 </Button>
               </Link>
-              
-              <div id="premios-catalogo-vendedor">
-                <CatalogoPremios 
-                  userId={user.uid} 
-                  userEmail={user.email || undefined} 
-                  comprasActuales={sellos} // Los emprendedores también pueden verlos para referencia
-                />
-              </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Sección de Contacto y Soporte Oficial */}
+      <section className="space-y-4 pt-4">
+        <div className="flex items-center gap-2 px-1">
+          <Info className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-bold text-primary uppercase tracking-widest">Información y Soporte</h3>
+        </div>
+
+        <Card className="border-none shadow-sm bg-slate-50 rounded-2xl overflow-hidden">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-primary shadow-sm shrink-0">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-[10px] font-bold text-primary uppercase">Dirección</p>
+                <p className="text-xs font-medium text-slate-600">
+                  {PATIO_INFO.address}<br />
+                  {PATIO_INFO.city}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-primary shadow-sm shrink-0">
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-[10px] font-bold text-primary uppercase">Soporte WhatsApp</p>
+                <p className="text-xs font-medium text-slate-600">{PATIO_INFO.phone}</p>
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto text-xs text-primary font-bold"
+                  onClick={() => window.open(`https://wa.me/${PATIO_INFO.whatsapp}`, '_blank')}
+                >
+                  Hablar ahora <ExternalLink className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="p-4 space-y-3">
@@ -617,6 +616,12 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             <span className="font-medium">Cerrar Sesión</span>
           </Button>
         </div>
+      </div>
+
+      <div className="text-center py-4">
+        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-[0.2em]">
+          © {new Date().getFullYear()} {PATIO_INFO.name} Curauma
+        </p>
       </div>
     </div>
   );

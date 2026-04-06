@@ -1,17 +1,52 @@
 
 "use client";
 
-import { MAP_LOCATIONS } from "@/lib/data";
-import { MapPin, Info } from "lucide-react";
+import { MAP_LOCATIONS, PATIO_INFO } from "@/lib/data";
+import { MapPin, Info, Phone, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function InteractiveMap() {
+  const handleDirections = () => {
+    const query = encodeURIComponent(`${PATIO_INFO.address}, ${PATIO_INFO.city}`);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+  };
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      {/* Tarjeta de Información Oficial */}
+      <Card className="border-none shadow-md bg-white rounded-2xl overflow-hidden">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0">
+              <MapPin className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-slate-800 leading-tight">Ubicación Oficial</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {PATIO_INFO.address}<br />
+                {PATIO_INFO.city}<br />
+                {PATIO_INFO.region}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0">
+              <Phone className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-slate-800 leading-tight">Contacto</h3>
+              <p className="text-xs text-muted-foreground">{PATIO_INFO.phone}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="bg-white rounded-2xl p-4 border border-border shadow-sm overflow-hidden relative min-h-[400px]">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-primary">
-          <MapPin className="w-5 h-5" />
+          <Navigation className="w-5 h-5" />
           Plano de Patio Curauma
         </h3>
         
@@ -64,7 +99,11 @@ export function InteractiveMap() {
         </div>
       </div>
       
-      <Button className="w-full h-12 rounded-xl text-lg font-bold shadow-lg shadow-primary/20">
+      <Button 
+        onClick={handleDirections}
+        className="w-full h-14 rounded-2xl text-lg font-bold shadow-lg shadow-primary/20 bg-primary hover:opacity-90 gap-3"
+      >
+        <Navigation className="w-6 h-6" />
         ¿Cómo llegar al Patio?
       </Button>
     </div>
