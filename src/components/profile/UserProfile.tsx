@@ -15,7 +15,7 @@ import {
   MessageCircle, MapPin, 
   Clock, Bell, CheckCircle2,
   Info, ExternalLink, Instagram, Facebook, Sparkles,
-  ChevronRight, Calendar
+  ChevronRight, Calendar, FlaskConical, Navigation
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
-import { verificarYGenerarRecordatorioIA } from "@/lib/notificaciones";
+import { verificarYGenerarRecordatorioIA, procesarProximidadGeofence } from "@/lib/notificaciones";
 
 const AVATAR_OPTIONS = [
   { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
@@ -104,7 +104,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
     // Cargar notificaciones
     const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
-    const qNotif = query(notifRef, orderBy("fecha", "desc"), limit(5));
+    const qNotif = query(notifRef, orderBy("fecha", "desc"), limit(10));
     const unsubscribeNotif = onSnapshot(qNotif, (snapshot) => {
       setNotificaciones(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -162,6 +162,29 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     });
   };
 
+  const handleTestGeofence = async () => {
+    if (!user || !userData) return;
+    setLoading(true);
+    await procesarProximidadGeofence(user.uid, userData.nombre || "Miembro", userData.comprasRealizadas || 0, true);
+    setLoading(false);
+    toast({
+      title: "Simulación de Geovalla",
+      description: "Se ha disparado el motor de cercanía geográfica.",
+    });
+  };
+
+  const handleForceAINotif = async () => {
+    if (!user || !userData) return;
+    setLoading(true);
+    // Forzamos el recordatorio ignorando el cooldown de 24h para esta prueba
+    await verificarYGenerarRecordatorioIA(user.uid, userData.nombre || "Miembro", userData.comprasRealizadas || 0);
+    setLoading(false);
+    toast({
+      title: "Motor GenAI activado",
+      description: "La IA ha redactado una nueva oferta para ti.",
+    });
+  };
+
   const handleLogout = async () => {
     await signOut(auth);
   };
@@ -205,7 +228,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const sellosRestantesParaPremio = 5 - (sellos % 5);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className={cn(
           "h-24 bg-gradient-to-r",
@@ -324,6 +347,25 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {!isEntrepreneur && (
         <>
+          {/* Zona de Pruebas (Debug) */}
+          <section className="bg-slate-100/50 p-4 rounded-3xl border border-slate-200 border-dashed space-y-3">
+            <div className="flex items-center gap-2 text-slate-500 mb-2">
+              <FlaskConical className="w-4 h-4" />
+              <h4 className="text-[10px] font-bold uppercase tracking-widest">Zona de Pruebas</h4>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Button onClick={handleTestGeofence} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold">
+                <Navigation className="w-3 h-3" /> Proximidad
+              </Button>
+              <Button onClick={handleForceAINotif} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold">
+                <Sparkles className="w-3 h-3" /> Generar IA
+              </Button>
+              <Button onClick={handleSimulatePurchase} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold">
+                <Gift className="w-3 h-3" /> Sumar Sello
+              </Button>
+            </div>
+          </section>
+
           {/* Centro de Notificaciones y Mensajes IA */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-1">
@@ -345,7 +387,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                       )}>
                         {notif.isAI ? <Sparkles className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-bold text-slate-800">{notif.titulo}</h4>
                           <span className="text-[8px] text-slate-400 uppercase font-bold">
@@ -433,9 +475,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                       onClick={() => document.getElementById('premios-catalogo')?.scrollIntoView({ behavior: 'smooth' })}
                     >
                       Canjear Sellos por Premios
-                    </Button>
-                    <Button variant="ghost" onClick={handleSimulatePurchase} className="text-[10px] opacity-20 uppercase font-bold">
-                      (Demo: Sumar Sello)
                     </Button>
                   </div>
                 </div>
