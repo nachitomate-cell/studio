@@ -226,7 +226,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const canjes = userData?.totalCanjesHistoricos || 0;
   
   // Lógica de la tarjeta de 10 sellos
-  const totalSlots = 10;
   const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
   const sellosRestantesParaPremio = 5 - (sellos % 5);
   const mensajeMotivador = sellos % 5 === 0 && sellos > 0 
@@ -366,7 +365,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </div>
 
             <Card className="border-none shadow-xl bg-[#FDFCF0] rounded-[2rem] overflow-hidden relative group">
-              {/* Textura sutil de papel */}
               <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cardboard-flat.png')]" />
               
               <CardContent className="p-8 relative z-10">
@@ -378,7 +376,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   </div>
                 </div>
 
-                {/* Grilla de 10 círculos */}
                 <div className="grid grid-cols-5 gap-4 mb-8">
                   {Array.from({ length: 10 }).map((_, i) => {
                     const isFilled = i < sellosEnTarjeta;
@@ -432,7 +429,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </Card>
           </section>
 
-          {/* QR de Miembro */}
           {!isEditing && (
             <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden">
               <CardHeader className="pb-2 text-center bg-slate-50/50">
@@ -453,7 +449,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </Card>
           )}
 
-          {/* Notificaciones Toggle */}
           <Card className="border-none shadow-sm bg-accent/5 rounded-2xl overflow-hidden">
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -591,12 +586,22 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           </div>
 
           {!isEditing && (
-            <Link href="/vendedor">
-              <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
-                <QrCode className="w-6 h-6" />
-                Terminal de Sellos (Escanear)
-              </Button>
-            </Link>
+            <div className="space-y-4">
+              <Link href="/vendedor">
+                <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
+                  <QrCode className="w-6 h-6" />
+                  Terminal de Sellos (Escanear)
+                </Button>
+              </Link>
+              
+              <div id="premios-catalogo-vendedor">
+                <CatalogoPremios 
+                  userId={user.uid} 
+                  userEmail={user.email || undefined} 
+                  comprasActuales={sellos} // Los emprendedores también pueden verlos para referencia
+                />
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -616,4 +621,3 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     </div>
   );
 }
-
