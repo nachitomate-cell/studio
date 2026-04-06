@@ -20,7 +20,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isManagingBusiness, setIsManagingBusiness] = useState(false);
-  const [showAuth, setShowAuth] = useState(false); // Toggle para visualizar Auth
+  const [showAuth, setShowAuth] = useState(false);
 
   const filteredEntrepreneurs = ENTREPRENEURS.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
@@ -29,13 +29,18 @@ export default function Home() {
     return matchesCategory && matchesSearch;
   });
 
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setShowAuth(false); // Cerrar vista de auth al cambiar de pestaña
+  };
+
   const renderContent = () => {
     if (showAuth) {
       return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 py-10">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-2xl font-bold text-primary">Autenticación</h1>
-            <Button variant="outline" size="sm" onClick={() => setShowAuth(false)}>Cerrar</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAuth(false)}>Volver</Button>
           </div>
           <Auth />
         </div>
@@ -137,7 +142,10 @@ export default function Home() {
             {isManagingBusiness ? (
               <EntrepreneurForm onBack={() => setIsManagingBusiness(false)} />
             ) : (
-              <UserProfile onSwitchMode={() => setIsManagingBusiness(true)} />
+              <UserProfile 
+                onSwitchMode={() => setIsManagingBusiness(true)} 
+                onShowAuth={() => setShowAuth(true)}
+              />
             )}
             <div className="h-20" />
           </div>
@@ -152,7 +160,7 @@ export default function Home() {
       <div className="max-w-lg mx-auto px-4 pt-8 pb-4">
         {renderContent()}
       </div>
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </main>
   );
 }
