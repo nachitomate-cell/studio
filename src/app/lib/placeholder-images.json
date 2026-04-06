@@ -1,0 +1,35 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-patio",
+      "description": "A beautiful view of an outdoor marketplace with green spaces",
+      "imageUrl": "https://picsum.photos/seed/patio1/1200/600",
+      "imageHint": "outdoor market"
+    },
+    {
+      "id": "entrepreneur-1",
+      "description": "Artisan handmade crafts",
+      "imageUrl": "https://picsum.photos/seed/crafts/400/300",
+      "imageHint": "handmade crafts"
+    },
+    {
+      "id": "entrepreneur-2",
+      "description": "Local organic food stall",
+      "imageUrl": "https://picsum.photos/seed/food/400/300",
+      "imageHint": "organic food"
+    },
+    {
+      "id": "entrepreneur-3",
+      "description": "Garden and plants shop",
+      "imageUrl": "https://picsum.photos/seed/plants/400/300",
+      "imageHint": "garden shop"
+    },
+    {
+      "id": "user-avatar",
+      "description": "Profile picture of a user",
+      "imageUrl": "https://picsum.photos/seed/user123/200/200",
+      "imageHint": "person portrait"
+    }
+  ]
+}
