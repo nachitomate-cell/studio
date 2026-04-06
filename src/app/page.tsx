@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -45,30 +46,40 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    // Escuchamos los emprendedores de Firestore pero si no hay, mostramos los de lib/data
     const q = query(collection(db, "emprendedores"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.nombre || "Sin nombre",
-          category: data.rubro?.toLowerCase() || "otros",
-          description: data.descripcion || "",
-          locationId: data.ubicacion || "loc-1",
-          contact: data.contacto || data.whatsapp || "No disponible",
-          schedule: data.horario || "Consultar horario",
-          imageUrl: data.imagenUrl || `https://picsum.photos/seed/${doc.id}/400/300`
-        } as Entrepreneur;
-      });
-      setEntrepreneurs(docs);
-      setLoading(false);
+      if (snapshot.empty) {
+        // Importación dinámica para evitar ciclos si fuera necesario, 
+        // pero aquí usamos la constante ya importada arriba.
+        import("@/lib/data").then((m) => {
+          setEntrepreneurs(m.ENTREPRENEURS);
+          setLoading(false);
+        });
+      } else {
+        const docs = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.nombre || "Sin nombre",
+            category: data.rubro?.toLowerCase() || "otros",
+            description: data.descripcion || "",
+            locationId: data.ubicacion || "loc-1",
+            contact: data.contacto || data.whatsapp || "No disponible",
+            schedule: data.horario || "Consultar horario",
+            imageUrl: data.imagenUrl || `https://picsum.photos/seed/${doc.id}/400/300`
+          } as Entrepreneur;
+        });
+        setEntrepreneurs(docs);
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
   }, []);
 
   const filteredEntrepreneurs = entrepreneurs.filter((e) => {
-    const matchesCategory = selectedCategory === "all" || e.category.includes(selectedCategory);
+    const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
     const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           e.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
