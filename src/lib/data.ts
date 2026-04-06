@@ -34,10 +34,10 @@ export const PATIO_INFO = {
   instagram: "patiocurauma",
   facebook: "100063522160910",
   tiktok: "patio_curauma",
-  // Coordenadas aproximadas del Outlet Curauma para Geofencing
+  // Coordenadas exactas proporcionadas para Geofencing
   coordinates: {
-    lat: -33.1322,
-    lng: -71.5435
+    lat: -33.1316449,
+    lng: -71.5668639
   }
 };
 
