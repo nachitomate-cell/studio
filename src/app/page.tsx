@@ -1,12 +1,14 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { collection, onSnapshot, query } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
-import { CATEGORIES, ENTREPRENEURS } from "@/lib/data";
+import { CATEGORIES, Entrepreneur } from "@/lib/data";
 import { Input } from "@/components/ui/input";
-import { Search, SlidersHorizontal, MapPin } from "lucide-react";
+import { Search, SlidersHorizontal, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfile } from "@/components/profile/UserProfile";
@@ -21,8 +23,38 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isManagingBusiness, setIsManagingBusiness] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  
+  const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredEntrepreneurs = ENTREPRENEURS.filter((e) => {
+  // Cargar emprendedores desde Firestore
+  useEffect(() => {
+    const q = query(collection(db, "emprendedores"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.nombre || "Sin nombre",
+          category: data.rubro || "otros",
+          description: data.descripcion || "",
+          locationId: data.ubicacion || "loc-1",
+          contact: data.contacto || "No disponible",
+          schedule: data.horario || "Consultar horario",
+          imageUrl: data.imagenUrl || `https://picsum.photos/seed/${doc.id}/400/300`
+        } as Entrepreneur;
+      });
+      setEntrepreneurs(docs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching entrepreneurs:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const filteredEntrepreneurs = entrepreneurs.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
     const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           e.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -31,7 +63,7 @@ export default function Home() {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    setShowAuth(false); // Cerrar vista de auth al cambiar de pestaña
+    setShowAuth(false);
   };
 
   const renderContent = () => {
@@ -107,23 +139,31 @@ export default function Home() {
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-xl font-bold text-primary">Resultados ({filteredEntrepreneurs.length})</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {filteredEntrepreneurs.length > 0 ? (
-                  filteredEntrepreneurs.map((entrepreneur) => (
-                    <EntrepreneurCard key={entrepreneur.id} entrepreneur={entrepreneur} />
-                  ))
-                ) : (
-                  <div className="py-12 text-center space-y-2">
-                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto text-muted-foreground">
-                      <Search className="w-8 h-8" />
+              
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                  <p className="text-muted-foreground font-medium">Cargando emprendedores...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {filteredEntrepreneurs.length > 0 ? (
+                    filteredEntrepreneurs.map((entrepreneur) => (
+                      <EntrepreneurCard key={entrepreneur.id} entrepreneur={entrepreneur} />
+                    ))
+                  ) : (
+                    <div className="py-12 text-center space-y-2 col-span-full">
+                      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto text-muted-foreground">
+                        <Search className="w-8 h-8" />
+                      </div>
+                      <p className="text-muted-foreground font-medium">No encontramos resultados</p>
+                      <Button variant="link" onClick={() => {setSearchQuery(""); setSelectedCategory("all")}}>
+                        Limpiar filtros
+                      </Button>
                     </div>
-                    <p className="text-muted-foreground font-medium">No encontramos resultados</p>
-                    <Button variant="link" onClick={() => {setSearchQuery(""); setSelectedCategory("all")}}>
-                      Limpiar filtros
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </section>
             <div className="h-20" />
           </div>

@@ -1,5 +1,7 @@
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Configuración exacta de Firebase para Patio Curauma
 const firebaseConfig = {
@@ -14,5 +16,6 @@ const firebaseConfig = {
 // Inicializar Firebase (el 'if' evita errores si Next.js recarga la página)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
+const db = getFirestore(app);
 
-export { app, auth };
+export { app, auth, db };
