@@ -1,11 +1,33 @@
 
 /**
  * @fileOverview Librería de notificaciones para el Club Patio.
+ * Maneja tanto notificaciones internas (Firestore) como del sistema (Browser/iOS).
  */
 
 import { db } from "./firebase";
 import { collection, addDoc, query, where, getDocs, limit, orderBy } from "firebase/firestore";
 import { generatePromoMessage } from "@/ai/flows/generate-promo-message-flow";
+
+/**
+ * Dispara una notificación física en el sistema operativo (iOS/Android/Web).
+ */
+export async function dispararAlertaSistema(titulo: string, mensaje: string) {
+  if (!("Notification" in window)) return;
+
+  if (Notification.permission === "granted") {
+    // Intentamos usar el Service Worker para mayor compatibilidad en PWA
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (registration) {
+      registration.showNotification(titulo, {
+        body: mensaje,
+        icon: "/Logo.png", // Asegúrate de que el logo exista en public
+        badge: "/Logo.png",
+      });
+    } else {
+      new Notification(titulo, { body: mensaje });
+    }
+  }
+}
 
 export async function enviarNotificacionLocal(userId: string, titulo: string, mensaje: string, metadata: any = {}) {
   try {
@@ -17,6 +39,9 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
       fecha: new Date().toISOString(),
       ...metadata
     });
+
+    // Disparar alerta real en el celular si hay permisos
+    dispararAlertaSistema(titulo, mensaje);
   } catch (error) {
     console.error("Error al registrar notificación:", error);
   }
@@ -38,7 +63,6 @@ export async function verificarYGenerarRecordatorioIA(userId: string, userName: 
       const now = new Date();
       const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
       
-      // Solo generamos un mensaje nuevo cada 24 horas para no saturar
       if (diffHours < 24) debieraGenerar = false;
     }
 
@@ -48,14 +72,19 @@ export async function verificarYGenerarRecordatorioIA(userId: string, userName: 
         stampsCount: stamps
       });
 
+      const titulo = aiResponse.title;
+      const mensaje = aiResponse.message;
+
       await addDoc(notifRef, {
-        titulo: aiResponse.title,
-        mensaje: aiResponse.message,
+        titulo,
+        mensaje,
         cta: aiResponse.callToAction,
         isAI: true,
         leida: false,
         fecha: new Date().toISOString()
       });
+
+      dispararAlertaSistema(titulo, mensaje);
       return true;
     }
     return false;
@@ -73,7 +102,6 @@ export async function procesarProximidadGeofence(userId: string, userName: strin
 
   try {
     const notifRef = collection(db, "usuarios", userId, "notificaciones");
-    // Buscamos si ya se envió una notificación de proximidad hoy
     const startOfDay = new Date();
     startOfDay.setHours(0,0,0,0);
     
@@ -85,25 +113,22 @@ export async function procesarProximidadGeofence(userId: string, userName: strin
     );
     
     const snapshot = await getDocs(q);
-    
-    // Si ya le avisamos hoy que está cerca, no molestamos más
     if (!snapshot.empty) return;
 
-    // Generamos un mensaje especial de IA para proximidad
-    const aiResponse = await generatePromoMessage({
-      userName: userName || "Miembro",
-      stampsCount: stamps
-    });
+    const titulo = `¡Estás cerca de un Sello! 📍`;
+    const mensaje = `Hola ${userName}, detectamos que estás cerca de Patio Curauma. ¡Entra y suma tu sello de hoy!`;
 
     await addDoc(notifRef, {
-      titulo: `¡Estás cerca de un Sello! 📍`,
-      mensaje: `Hola ${userName}, detectamos que estás cerca de Patio Curauma. ¡Entra y pide tu sello de hoy para estar más cerca del sorteo!`,
+      titulo,
+      mensaje,
       cta: "Ver Mapa",
       tipo: "geofence",
       isAI: true,
       leida: false,
       fecha: new Date().toISOString()
     });
+
+    dispararAlertaSistema(titulo, mensaje);
 
   } catch (error) {
     console.error("Error en Geofencing:", error);
