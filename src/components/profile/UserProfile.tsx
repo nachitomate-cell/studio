@@ -5,13 +5,14 @@ import { useState, useEffect } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Gift, Award, Settings, LogOut, Briefcase, LogIn, 
-  User as UserIcon, Calendar as CalendarIcon, Phone, 
-  QrCode, Edit2, Check, X, Trophy, Save, Camera 
+  Gift, Award, LogOut, Briefcase, LogIn, 
+  User as UserIcon, Phone, 
+  QrCode, Edit2, Check, X, Trophy, Save, 
+  Smile, Cat, Dog, Coffee, Star, LucideIcon 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,21 @@ import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { CatalogoPremios } from "./CatalogoPremios";
 import { cn } from "@/lib/utils";
+
+// Configuración de Avatares Predeterminados
+const AVATAR_OPTIONS = [
+  { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
+  { id: 'Smile', icon: Smile, color: 'bg-yellow-100 text-yellow-600' },
+  { id: 'Cat', icon: Cat, color: 'bg-orange-100 text-orange-600' },
+  { id: 'Dog', icon: Dog, color: 'bg-blue-100 text-blue-600' },
+  { id: 'Coffee', icon: Coffee, color: 'bg-amber-100 text-amber-800' },
+  { id: 'Star', icon: Star, color: 'bg-purple-100 text-purple-600' },
+];
+
+interface UserProfileProps {
+  onSwitchMode: () => void;
+  onShowAuth: () => void;
+}
 
 export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -34,7 +50,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
   const [editForm, setEditForm] = useState({
     nombre: "",
     telefono: "",
-    fotoPerfil: "",
+    avatarId: "User",
     fechaNacimiento: ""
   });
 
@@ -59,7 +75,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         setEditForm({
           nombre: data.nombre || "",
           telefono: data.telefono || "",
-          fotoPerfil: data.fotoPerfil || "",
+          avatarId: data.avatarId || "User",
           fechaNacimiento: data.fechaNacimiento || ""
         });
       } else {
@@ -78,7 +94,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
       await updateDoc(userRef, {
         nombre: editForm.nombre,
         telefono: editForm.telefono,
-        fotoPerfil: editForm.fotoPerfil,
+        avatarId: editForm.avatarId,
         fechaNacimiento: editForm.fechaNacimiento,
         updatedAt: new Date().toISOString()
       });
@@ -112,6 +128,13 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
 
   const handleLogout = async () => {
     await signOut(auth);
+  };
+
+  // Función para renderizar el icono dinámicamente
+  const renderAvatarIcon = (avatarId: string, className: string = "w-12 h-12") => {
+    const option = AVATAR_OPTIONS.find(opt => opt.id === avatarId) || AVATAR_OPTIONS[0];
+    const IconComponent = option.icon;
+    return <IconComponent className={cn(className, option.color.split(' ')[1])} />;
   };
 
   if (!user) {
@@ -151,17 +174,11 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         <div className="px-6 pb-6 -mt-12">
           <div className="flex justify-between items-end mb-4">
             <div className="relative">
-              <Avatar className="w-24 h-24 border-4 border-white shadow-md">
-                <AvatarImage src={userData?.fotoPerfil || `https://picsum.photos/seed/${user.uid}/200`} alt="Avatar" />
-                <AvatarFallback className="bg-primary text-white text-xl">
-                  {userData?.nombre?.[0] || user.email?.substring(0, 1).toUpperCase()}
+              <Avatar className="w-24 h-24 border-4 border-white shadow-md bg-white">
+                <AvatarFallback className={cn("flex items-center justify-center bg-white")}>
+                  {renderAvatarIcon(userData?.avatarId || editForm.avatarId, "w-10 h-10")}
                 </AvatarFallback>
               </Avatar>
-              {isEditing && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full cursor-pointer">
-                  <Camera className="w-6 h-6 text-white" />
-                </div>
-              )}
             </div>
             {!isEditing ? (
               <Button 
@@ -209,7 +226,28 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
               )}
             </div>
           ) : (
-            <div className="space-y-4 pt-2">
+            <div className="space-y-6 pt-2">
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold text-muted-foreground">Elige tu Avatar</Label>
+                <div className="grid grid-cols-6 gap-2">
+                  {AVATAR_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => setEditForm({ ...editForm, avatarId: option.id })}
+                      className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                        option.color,
+                        editForm.avatarId === option.id 
+                          ? "ring-2 ring-primary ring-offset-2 scale-110" 
+                          : "opacity-60 hover:opacity-100 hover:scale-105"
+                      )}
+                    >
+                      <option.icon className="w-5 h-5" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid gap-4">
                 <div className="grid gap-1.5">
                   <Label htmlFor="nombre">Nombre Completo</Label>
@@ -228,16 +266,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                     value={editForm.telefono} 
                     onChange={(e) => setEditForm({...editForm, telefono: e.target.value})}
                     placeholder="+56 9 1234 5678"
-                    className="h-10 rounded-lg"
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="foto">URL de Foto de Perfil</Label>
-                  <Input 
-                    id="foto" 
-                    value={editForm.fotoPerfil} 
-                    onChange={(e) => setEditForm({...editForm, fotoPerfil: e.target.value})}
-                    placeholder="https://ejemplo.com/foto.jpg"
                     className="h-10 rounded-lg"
                   />
                 </div>
@@ -352,9 +380,4 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
       </div>
     </div>
   );
-}
-
-interface UserProfileProps {
-  onSwitchMode: () => void;
-  onShowAuth: () => void;
 }
