@@ -41,13 +41,16 @@ export function Auth() {
         const newUser = userCredential.user;
 
         // Crear perfil inicial en Firestore automáticamente
+        // Por defecto todos son 'cliente'. El rol 'emprendedor' se asigna manualmente en la consola para seguridad.
         await setDoc(doc(db, "usuarios", newUser.uid), {
           correo: email,
           telefono: phone,
+          rol: "cliente", 
           comprasRealizadas: 0,
           puntos: 0,
           totalCanjesHistoricos: 0,
           recompensaDisponible: false,
+          avatarId: "User",
           createdAt: new Date().toISOString()
         });
       }
