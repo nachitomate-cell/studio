@@ -3,7 +3,7 @@ import { doc, getDoc, updateDoc, setDoc, Firestore, increment } from "firebase/f
 
 /**
  * Registra una simulación de compra para el usuario.
- * Incrementa el contador y activa la recompensa si llega a 5 (costo mínimo).
+ * Lógica 100% cliente utilizando el SDK de Firebase.
  */
 export async function registrarCompra(db: Firestore, userId: string) {
   const userRef = doc(db, "usuarios", userId);
@@ -16,7 +16,8 @@ export async function registrarCompra(db: Firestore, userId: string) {
         comprasRealizadas: 1,
         recompensaDisponible: false,
         puntos: 100,
-        totalCanjesHistoricos: 0
+        totalCanjesHistoricos: 0,
+        createdAt: new Date().toISOString()
       });
       return;
     }
@@ -27,7 +28,8 @@ export async function registrarCompra(db: Firestore, userId: string) {
     await updateDoc(userRef, {
       comprasRealizadas: nuevasCompras,
       recompensaDisponible: nuevasCompras >= 5,
-      puntos: increment(50)
+      puntos: increment(50),
+      lastUpdate: new Date().toISOString()
     });
     
   } catch (error) {
@@ -37,7 +39,7 @@ export async function registrarCompra(db: Firestore, userId: string) {
 
 /**
  * Procesa el canje de una recompensa específica.
- * Resta el costo del premio, actualiza el histórico y dispara notificación.
+ * Se eliminó la llamada a API Routes para compatibilidad con build estático.
  */
 export async function canjearRecompensa(db: Firestore, userId: string, costo: number, userEmail?: string) {
   const userRef = doc(db, "usuarios", userId);
@@ -52,26 +54,14 @@ export async function canjearRecompensa(db: Firestore, userId: string, costo: nu
     // Actualización en Firestore
     await updateDoc(userRef, {
       comprasRealizadas: nuevasCompras,
-      recompensaDisponible: nuevasCompras >= 5, // Sigue disponible si aún puede costear el premio mínimo
-      totalCanjesHistoricos: increment(1)
+      recompensaDisponible: nuevasCompras >= 5,
+      totalCanjesHistoricos: increment(1),
+      lastCanjeAt: new Date().toISOString()
     });
 
-    // Disparo de Notificación Automática
-    if (userEmail) {
-      fetch('/api/notificaciones', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: userEmail,
-          event: 'recompensa_canjeada',
-          userName: userEmail.split('@')[0]
-        }),
-      }).catch(err => {
-        console.error("Fallo el envío de notificación automática:", err);
-      });
-    }
+    // Simulación de notificación (solo log en cliente, sin API routes)
+    console.log(`[CLUB PATIO] Canje exitoso para ${userEmail}. El cliente debe mostrar esta pantalla en el puesto.`);
+    
   } catch (error) {
     console.error("Error al canjear recompensa:", error);
     throw error;

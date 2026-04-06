@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, QrCode, Camera, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
-import { Html5QrcodeScanner } from "html5-qrcode";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function VendedorPage() {
@@ -18,7 +18,7 @@ export default function VendedorPage() {
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [lastClient, setLastClient] = useState<any>(null);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const scannerRef = useRef<any>(null);
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -35,14 +35,17 @@ export default function VendedorPage() {
 
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err));
+        scannerRef.current.clear().catch((err: any) => console.error("Failed to clear scanner", err));
       }
     };
   }, []);
 
-  const startScanner = () => {
+  const startScanner = async () => {
     setScanning(true);
     setLastClient(null);
+
+    // Importación dinámica para evitar errores de SSR en build estático
+    const { Html5QrcodeScanner } = await import("html5-qrcode");
 
     setTimeout(() => {
       const scanner = new Html5QrcodeScanner(
@@ -61,7 +64,7 @@ export default function VendedorPage() {
       scannerRef.current.clear().then(() => {
         setScanning(false);
         scannerRef.current = null;
-      }).catch(err => console.error("Failed to stop scanner", err));
+      }).catch((err: any) => console.error("Failed to stop scanner", err));
     } else {
       setScanning(false);
     }
@@ -100,7 +103,7 @@ export default function VendedorPage() {
       const vendedorId = auth.currentUser?.uid;
       if (vendedorId) {
         const logRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
-        addDoc(logRef, {
+        await addDoc(logRef, {
           vendedorId,
           clienteId: uid,
           clienteNombre: userData.nombre || "Miembro Anónimo",
