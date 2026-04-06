@@ -1,9 +1,9 @@
 
 import { doc, getDoc, updateDoc, setDoc, Firestore, increment } from "firebase/firestore";
+import { enviarNotificacionLocal } from "./notificaciones";
 
 /**
  * Registra una simulación de compra para el usuario.
- * Lógica 100% cliente utilizando el SDK de Firebase.
  */
 export async function registrarCompra(db: Firestore, userId: string) {
   const userRef = doc(db, "usuarios", userId);
@@ -31,6 +31,10 @@ export async function registrarCompra(db: Firestore, userId: string) {
       puntos: increment(50),
       lastUpdate: new Date().toISOString()
     });
+
+    if (nuevasCompras >= 5) {
+      await enviarNotificacionLocal(userId, "¡Premio Disponible!", "Has alcanzado 5 sellos. ¡Canjea tu premio en el Club Patio!");
+    }
     
   } catch (error) {
     console.error("Error al registrar compra:", error);
@@ -39,7 +43,6 @@ export async function registrarCompra(db: Firestore, userId: string) {
 
 /**
  * Procesa el canje de una recompensa específica.
- * Se eliminó la llamada a API Routes para compatibilidad con build estático.
  */
 export async function canjearRecompensa(db: Firestore, userId: string, costo: number, userEmail?: string) {
   const userRef = doc(db, "usuarios", userId);
@@ -51,7 +54,6 @@ export async function canjearRecompensa(db: Firestore, userId: string, costo: nu
     const data = userSnap.data();
     const nuevasCompras = (data.comprasRealizadas || 0) - costo;
 
-    // Actualización en Firestore
     await updateDoc(userRef, {
       comprasRealizadas: nuevasCompras,
       recompensaDisponible: nuevasCompras >= 5,
@@ -59,8 +61,7 @@ export async function canjearRecompensa(db: Firestore, userId: string, costo: nu
       lastCanjeAt: new Date().toISOString()
     });
 
-    // Simulación de notificación (solo log en cliente, sin API routes)
-    console.log(`[CLUB PATIO] Canje exitoso para ${userEmail}. El cliente debe mostrar esta pantalla en el puesto.`);
+    await enviarNotificacionLocal(userId, "Canje Exitoso", `Has canjeado tu premio. ¡Gracias por ser parte del Club Patio!`);
     
   } catch (error) {
     console.error("Error al canjear recompensa:", error);
