@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,12 +13,12 @@ import {
   User as UserIcon, Phone, 
   QrCode, Edit2, Check, X, Trophy, Save, 
   Smile, Cat, Dog, Coffee, Star, Store,
-  Instagram, MessageCircle, MapPin, ExternalLink
+  Instagram, MessageCircle, MapPin, ExternalLink,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +27,6 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
 
-// Configuración de Avatares Predeterminados
 const AVATAR_OPTIONS = [
   { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
   { id: 'Smile', icon: Smile, color: 'bg-yellow-100 text-yellow-600' },
@@ -47,15 +46,15 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
   const [userData, setUserData] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [todayCount, setTodayCount] = useState(0);
   const { toast } = useToast();
 
-  // Estados del formulario de edición
   const [editForm, setEditForm] = useState({
     nombre: "",
     telefono: "",
     avatarId: "User",
     fechaNacimiento: "",
-    // Campos de tienda para emprendedores
     nombreTienda: "",
     rubro: "",
     descripcion: "",
@@ -100,6 +99,37 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
     return () => unsubscribeDoc();
   }, [user]);
 
+  useEffect(() => {
+    if (!user || userData?.rol !== "emprendedor") return;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const qToday = query(
+      collection(db, "usuarios", user.uid, "ventas_registradas"),
+      where("fecha", ">=", startOfToday.toISOString())
+    );
+
+    const unsubscribeToday = onSnapshot(qToday, (snapshot) => {
+      setTodayCount(snapshot.size);
+    });
+
+    const qRecent = query(
+      collection(db, "usuarios", user.uid, "ventas_registradas"),
+      orderBy("fecha", "desc"),
+      limit(5)
+    );
+
+    const unsubscribeRecent = onSnapshot(qRecent, (snapshot) => {
+      setRecentSales(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsubscribeToday();
+      unsubscribeRecent();
+    };
+  }, [user, userData?.rol]);
+
   const handleSaveProfile = async () => {
     if (!user) return;
     setLoading(true);
@@ -115,7 +145,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         updatedAt: new Date().toISOString()
       };
 
-      // Si es emprendedor, guardamos también los datos de la tienda
       if (isEntrepreneur) {
         updateData.nombreTienda = editForm.nombreTienda;
         updateData.rubro = editForm.rubro;
@@ -197,7 +226,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      {/* Header Perfil */}
       <div className="flex flex-col bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className={cn(
           "h-24 bg-gradient-to-r",
@@ -327,12 +355,8 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         </div>
       </div>
 
-      {/* SECCIÓN CONDICIONAL POR ROL */}
-      
       {!isEntrepreneur ? (
-        /* VISTA CLIENTE */
         <>
-          {/* Código QR de Validación */}
           {!isEditing && (
             <Card className="border-accent/30 shadow-md bg-white">
               <CardHeader className="pb-2 text-center">
@@ -356,7 +380,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
             </Card>
           )}
 
-          {/* Progreso Recompensas */}
           <Card className="border-primary/20 shadow-md bg-white">
             <CardHeader className="pb-2 bg-primary/5">
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
@@ -394,7 +417,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
             </CardContent>
           </Card>
 
-          {/* Catálogo */}
           <CatalogoPremios 
             userId={user.uid} 
             userEmail={user.email || undefined} 
@@ -402,7 +424,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
           />
         </>
       ) : (
-        /* VISTA EMPRENDEDOR */
         <div className="space-y-6">
           <Card className="border-accent/40 shadow-md bg-white overflow-hidden">
             <CardHeader className="bg-accent/10 pb-4">
@@ -505,7 +526,54 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
             </CardContent>
           </Card>
 
-          {/* Acceso a Terminal de Ventas */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-primary">
+                <Clock className="w-5 h-5" />
+                Resumen de Actividad
+              </h3>
+              <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-bold">
+                Hoy: {todayCount} clientes
+              </Badge>
+            </div>
+            
+            <div className="space-y-3">
+              {recentSales.length > 0 ? (
+                recentSales.map((sale, idx) => (
+                  <Card key={idx} className="border-none shadow-sm bg-white overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300" style={{ animationDelay: `${idx * 100}ms` }}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-primary">
+                          <UserIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-primary">{sale.clienteNombre}</p>
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(sale.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] border-primary/20 text-primary font-bold">
+                        +50 pts
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-border">
+                  <p className="text-xs text-muted-foreground italic">
+                    Aún no has registrado ventas hoy. ¡Empieza a escanear!
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <p className="text-center text-[10px] text-muted-foreground italic">
+              Has premiado a {todayCount} clientes hoy. ¡Buen trabajo!
+            </p>
+          </div>
+
           {!isEditing && (
             <Link href="/vendedor">
               <Button className="w-full h-16 rounded-2xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
@@ -517,7 +585,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         </div>
       )}
 
-      {/* Acciones Adicionales */}
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="p-4 space-y-3">
           <Button 

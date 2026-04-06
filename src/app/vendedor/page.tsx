@@ -3,8 +3,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, updateDoc, increment } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, getDoc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -22,12 +22,10 @@ export default function VendedorPage() {
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
-    // Verificar permisos de cámara al cargar
     const checkPermission = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
-        // Detener el stream inmediatamente, solo queríamos verificar el permiso
         stream.getTracks().forEach(track => track.stop());
       } catch (error) {
         console.error("Error accessing camera:", error);
@@ -47,12 +45,11 @@ export default function VendedorPage() {
     setScanning(true);
     setLastClient(null);
 
-    // Pequeño delay para asegurar que el div "reader" esté en el DOM
     setTimeout(() => {
       const scanner = new Html5QrcodeScanner(
         "reader",
         { fps: 10, qrbox: { width: 250, height: 250 } },
-        /* verbose= */ false
+        false
       );
 
       scanner.render(onScanSuccess, onScanFailure);
@@ -72,14 +69,11 @@ export default function VendedorPage() {
   };
 
   const onScanSuccess = async (decodedText: string) => {
-    // El decodedText debería ser el UID del cliente
     stopScanner();
     await registrarVenta(decodedText);
   };
 
-  const onScanFailure = (error: any) => {
-    // Errores comunes de escaneo (no se encuentra QR en el frame) se ignoran para no saturar la consola
-  };
+  const onScanFailure = (error: any) => {};
 
   const registrarVenta = async (uid: string) => {
     setLoading(true);
@@ -97,13 +91,24 @@ export default function VendedorPage() {
       }
 
       const userData = userSnap.data();
+      const timestamp = new Date().toISOString();
       
-      // Actualizar en Firestore
       await updateDoc(userRef, {
         comprasRealizadas: increment(1),
         puntos: increment(50),
-        lastPurchaseAt: new Date().toISOString()
+        lastPurchaseAt: timestamp
       });
+
+      const vendedorId = auth.currentUser?.uid;
+      if (vendedorId) {
+        const logRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
+        addDoc(logRef, {
+          vendedorId,
+          clienteId: uid,
+          clienteNombre: userData.nombre || "Cliente Anónimo",
+          fecha: timestamp
+        });
+      }
 
       setLastClient({
         nombre: userData.nombre || "Cliente Anónimo",
