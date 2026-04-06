@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'Curauma Conecta',
-  description: 'Conectando emprendedores en Patio Curauma',
+  title: 'Club Patio',
+  description: 'Acumula sellos y obtén recompensas en Patio Curauma',
 };
 
 export default function RootLayout({

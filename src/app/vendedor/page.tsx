@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -70,12 +69,12 @@ export default function VendedorPage() {
 
   const onScanSuccess = async (decodedText: string) => {
     stopScanner();
-    await registrarVenta(decodedText);
+    await registrarSello(decodedText);
   };
 
   const onScanFailure = (error: any) => {};
 
-  const registrarVenta = async (uid: string) => {
+  const registrarSello = async (uid: string) => {
     setLoading(true);
     try {
       const userRef = doc(db, "usuarios", uid);
@@ -84,8 +83,8 @@ export default function VendedorPage() {
       if (!userSnap.exists()) {
         toast({
           variant: "destructive",
-          title: "Usuario no encontrado",
-          description: "El código QR no corresponde a un cliente registrado.",
+          title: "Miembro no encontrado",
+          description: "El código QR no corresponde a un miembro del Club Patio.",
         });
         return;
       }
@@ -95,7 +94,6 @@ export default function VendedorPage() {
       
       await updateDoc(userRef, {
         comprasRealizadas: increment(1),
-        puntos: increment(50),
         lastPurchaseAt: timestamp
       });
 
@@ -105,28 +103,28 @@ export default function VendedorPage() {
         addDoc(logRef, {
           vendedorId,
           clienteId: uid,
-          clienteNombre: userData.nombre || "Cliente Anónimo",
+          clienteNombre: userData.nombre || "Miembro Anónimo",
           fecha: timestamp
         });
       }
 
       setLastClient({
-        nombre: userData.nombre || "Cliente Anónimo",
+        nombre: userData.nombre || "Miembro Anónimo",
         email: userData.correo,
-        compras: (userData.comprasRealizadas || 0) + 1
+        sellos: (userData.comprasRealizadas || 0) + 1
       });
 
       toast({
-        title: "¡Venta Registrada!",
-        description: `Se sumó una compra a ${userData.nombre || userData.correo}.`,
+        title: "¡Sello Entregado!",
+        description: `Se sumó un sello a ${userData.nombre || userData.correo}.`,
       });
 
     } catch (error) {
-      console.error("Error al registrar venta:", error);
+      console.error("Error al registrar sello:", error);
       toast({
         variant: "destructive",
         title: "Error de servidor",
-        description: "No se pudo procesar la venta. Inténtalo de nuevo.",
+        description: "No se pudo procesar el sello. Inténtalo de nuevo.",
       });
     } finally {
       setLoading(false);
@@ -139,14 +137,14 @@ export default function VendedorPage() {
         <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="text-primary">
           <ArrowLeft className="w-6 h-6" />
         </Button>
-        <h1 className="text-2xl font-bold text-primary">Terminal Vendedor</h1>
+        <h1 className="text-2xl font-bold text-primary">Terminal de Sellos</h1>
       </div>
 
       <Card className="border-primary/20 shadow-lg overflow-hidden">
         <CardHeader className="bg-primary/5 pb-4">
           <CardTitle className="text-lg flex items-center gap-2">
             <QrCode className="w-5 h-5 text-primary" />
-            Escanear Cliente
+            Escanear Miembro
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
@@ -157,7 +155,7 @@ export default function VendedorPage() {
               </div>
               <div className="text-center space-y-2">
                 <p className="text-muted-foreground font-medium">
-                  Usa la cámara para escanear el código QR del cliente y sumar sus puntos.
+                  Escanea el código del miembro para entregar un sello.
                 </p>
               </div>
               <Button 
@@ -187,7 +185,7 @@ export default function VendedorPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Acceso a Cámara Denegado</AlertTitle>
               <AlertDescription>
-                Por favor, permite el acceso a la cámara en los ajustes de tu navegador para usar el escáner.
+                Por favor, permite el acceso a la cámara para usar el escáner del Club.
               </AlertDescription>
             </Alert>
           )}
@@ -201,9 +199,9 @@ export default function VendedorPage() {
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <div>
-              <p className="text-xs font-bold text-accent-foreground uppercase tracking-widest">Último Registro</p>
+              <p className="text-xs font-bold text-accent-foreground uppercase tracking-widest">Último Sello</p>
               <h3 className="font-bold text-lg text-primary">{lastClient.nombre}</h3>
-              <p className="text-sm text-muted-foreground">Total: {lastClient.compras} compras acumuladas</p>
+              <p className="text-sm text-muted-foreground">Total: {lastClient.sellos} sellos acumulados</p>
             </div>
           </CardContent>
         </Card>
@@ -211,7 +209,7 @@ export default function VendedorPage() {
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground italic">
-          "Recuerda que cada escaneo suma 50 puntos y 1 compra al historial del cliente."
+          "Cada escaneo suma 1 sello al Club Patio del cliente."
         </p>
       </div>
     </main>

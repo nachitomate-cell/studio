@@ -47,7 +47,7 @@ const prompt = ai.definePrompt({
   name: 'recommendEntrepreneursPrompt',
   input: {schema: RecommendEntrepreneursInputSchema},
   output: {schema: RecommendEntrepreneursOutputSchema},
-  prompt: `You are an intelligent recommendation engine for "Curauma Conecta", an app for a local marketplace called Patio Curauma.\n\nYour task is to recommend entrepreneurs to a user based on their browsing history and inferred preferences.\n\nGenerate 3 unique recommendations. For each recommendation, provide the entrepreneur's name, their business category, and a brief, concise reason (1-2 sentences) explaining why they are a good fit for the user based on their preferences. Be creative with entrepreneur names and categories, ensuring they sound like local businesses.\n\nBrowsing History: {{#each browsingHistory}}- {{this}}\n{{/each}}\nInferred Preferences: {{#each inferredPreferences}}- {{this}}\n{{/each}}\n`,
+  prompt: `You are an intelligent recommendation engine for "Club Patio", the loyalty app for a local marketplace called Patio Curauma.\n\nYour task is to recommend local entrepreneurs (tiendas) to a member based on their browsing history and preferences. Members earn "Sellos" (stamps) for their purchases.\n\nGenerate 3 unique recommendations. For each recommendation, provide the entrepreneur's name, their business category, and a brief, concise reason (1-2 sentences) explaining why they are a good fit for the user. Be creative with local business names.\n\nBrowsing History: {{#each browsingHistory}}- {{this}}\n{{/each}}\nInferred Preferences: {{#each inferredPreferences}}- {{this}}\n{{/each}}\n`,
 });
 
 const recommendEntrepreneursFlow = ai.defineFlow(

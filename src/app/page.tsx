@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,7 +12,6 @@ import { Search, MapPin, Loader2, QrCode, Gift, LogIn, UserPlus } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfile } from "@/components/profile/UserProfile";
-import { EntrepreneurForm } from "@/components/profile/EntrepreneurForm";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
 import { Auth } from "@/components/Auth";
@@ -22,7 +20,6 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isManagingBusiness, setIsManagingBusiness] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -109,7 +106,7 @@ export default function Home() {
             className="w-full h-12 rounded-lg bg-[#8dc63f] text-white font-bold text-base gap-3 shadow-md hover:opacity-95"
           >
             <QrCode className="w-5 h-5" />
-            Abrir Escáner de Ventas
+            Abrir Escáner de Sellos
           </Button>
         </div>
       );
@@ -127,7 +124,7 @@ export default function Home() {
           onClick={() => setActiveTab("profile")}
           className="h-10 rounded-lg bg-[#8dc63f] text-white border-none shadow-sm hover:opacity-90 font-medium text-sm gap-2"
         >
-          <Gift className="w-4 h-4" /> Premios
+          <Gift className="w-4 h-4" /> Mis Sellos
         </Button>
       </div>
     );
@@ -150,9 +147,12 @@ export default function Home() {
             <header className="space-y-4 px-2">
               <div>
                 <h1 className="text-3xl font-bold text-foreground tracking-tight">
-                  Conecta con el <span className="text-[#8dc63f]">talento local</span>
+                  Únete al <span className="text-[#8dc63f]">Club Patio</span>
                 </h1>
-                <p className="text-muted-foreground flex items-center gap-1.5 text-xs mt-1">
+                <p className="text-muted-foreground text-sm mt-1">
+                  Acumula sellos en tus tiendas favoritas y gana premios exclusivos.
+                </p>
+                <p className="text-muted-foreground flex items-center gap-1.5 text-[10px] mt-2 uppercase tracking-widest font-bold">
                   <MapPin className="w-3.5 h-3.5" />
                   Patio Curauma, Valparaíso
                 </p>
@@ -165,7 +165,7 @@ export default function Home() {
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="¿Qué buscas?" 
+                  placeholder="Busca tiendas o productos..." 
                   className="pl-10 h-10 rounded-lg bg-slate-50 border-none shadow-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -194,7 +194,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Recomendaciones */}
+            {/* Recomendaciones AI */}
             <div className="px-2">
               <RecommendationWidget />
             </div>
@@ -215,7 +215,7 @@ export default function Home() {
                     ))
                   ) : (
                     <div className="col-span-full py-12 text-center text-muted-foreground text-sm">
-                      No se encontraron emprendedores.
+                      No se encontraron tiendas.
                     </div>
                   )}
                 </div>
@@ -228,7 +228,7 @@ export default function Home() {
       case "map":
         return <div className="pt-6 px-2"><InteractiveMap /><div className="h-24" /></div>;
       case "profile":
-        return <div className="pt-6 px-2"><UserProfile onSwitchMode={() => setIsManagingBusiness(true)} onShowAuth={() => setShowAuth(true)} /><div className="h-24" /></div>;
+        return <div className="pt-6 px-2"><UserProfile onSwitchMode={() => {}} onShowAuth={() => setShowAuth(true)} /><div className="h-24" /></div>;
       default:
         return null;
     }

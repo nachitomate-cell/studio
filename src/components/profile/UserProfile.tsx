@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,17 +8,18 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Gift, Award, LogOut, Briefcase, LogIn, 
+  Gift, Award, LogOut, 
   User as UserIcon, Phone, 
   QrCode, Edit2, Check, X, Trophy, Save, 
   Smile, Cat, Dog, Coffee, Star, Store,
-  Instagram, MessageCircle, MapPin, ExternalLink,
-  Clock
+  MessageCircle, MapPin, 
+  Clock, Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { CatalogoPremios } from "./CatalogoPremios";
@@ -41,7 +41,7 @@ interface UserProfileProps {
   onShowAuth: () => void;
 }
 
-export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
+export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [userData, setUserData] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -60,7 +60,8 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
     descripcion: "",
     whatsapp: "",
     instagram: "",
-    ubicacionTienda: ""
+    ubicacionTienda: "",
+    promoOptIn: false
   });
 
   useEffect(() => {
@@ -91,7 +92,8 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
           descripcion: data.descripcion || "",
           whatsapp: data.whatsapp || "",
           instagram: data.instagram || "",
-          ubicacionTienda: data.ubicacionTienda || ""
+          ubicacionTienda: data.ubicacionTienda || "",
+          promoOptIn: data.promoOptIn || false
         });
       }
     });
@@ -142,6 +144,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
         telefono: editForm.telefono,
         avatarId: editForm.avatarId,
         fechaNacimiento: editForm.fechaNacimiento,
+        promoOptIn: editForm.promoOptIn,
         updatedAt: new Date().toISOString()
       };
 
@@ -178,8 +181,8 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
     await registrarCompra(db, user.uid);
     setLoading(false);
     toast({
-      title: "¡Compra Registrada!",
-      description: "Has sumado una compra a tu historial.",
+      title: "¡Sello Acumulado!",
+      description: "Has sumado un sello a tu Club Patio.",
     });
   };
 
@@ -201,9 +204,9 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
             <LogIn className="w-8 h-8 text-primary" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-primary">¡Bienvenido!</h2>
+            <h2 className="text-2xl font-bold text-primary">¡Bienvenido al Club Patio!</h2>
             <p className="text-muted-foreground px-4">
-              Inicia sesión para ver tus puntos acumulados, gestionar tu emprendimiento y ganar recompensas.
+              Inicia sesión para acumular sellos en tus tiendas favoritas y ganar premios exclusivos.
             </p>
           </div>
           <Button 
@@ -219,9 +222,9 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
 
   const rol = userData?.rol || "cliente";
   const isEntrepreneur = rol === "emprendedor";
-  const compras = userData?.comprasRealizadas || 0;
+  const sellos = userData?.comprasRealizadas || 0;
   const meta = 5;
-  const porcentaje = (compras / meta) * 100;
+  const porcentaje = (sellos / meta) * 100;
   const canjes = userData?.totalCanjesHistoricos || 0;
 
   return (
@@ -283,17 +286,12 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                   {userData?.nombre || "Usuario"}
                 </h2>
                 <Badge variant={isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">
-                  {isEntrepreneur ? "Emprendedor" : "Cliente"}
+                  {isEntrepreneur ? "Emprendedor" : "Miembro Club"}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <UserIcon className="w-3.5 h-3.5" /> {user.email}
               </p>
-              {userData?.telefono && (
-                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5" /> {userData.telefono}
-                </p>
-              )}
             </div>
           ) : (
             <div className="space-y-6 pt-2">
@@ -330,22 +328,12 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="telefono">Teléfono personal</Label>
+                  <Label htmlFor="telefono">WhatsApp</Label>
                   <Input 
                     id="telefono" 
                     value={editForm.telefono} 
                     onChange={(e) => setEditForm({...editForm, telefono: e.target.value})}
                     placeholder="+56 9 1234 5678"
-                    className="h-10 rounded-lg"
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="fecha">Fecha de Nacimiento</Label>
-                  <Input 
-                    id="fecha" 
-                    type="date"
-                    value={editForm.fechaNacimiento} 
-                    onChange={(e) => setEditForm({...editForm, fechaNacimiento: e.target.value})}
                     className="h-10 rounded-lg"
                   />
                 </div>
@@ -357,24 +345,44 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
 
       {!isEntrepreneur ? (
         <>
+          {/* Toggle de Promociones */}
+          <Card className="border-none shadow-sm bg-accent/5 overflow-hidden">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-primary shadow-sm">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-primary">Notificaciones del Club</p>
+                  <p className="text-[10px] text-muted-foreground">Recibir ofertas y promociones exclusivas</p>
+                </div>
+              </div>
+              <Switch 
+                checked={editForm.promoOptIn} 
+                onCheckedChange={(checked) => setEditForm({ ...editForm, promoOptIn: checked })}
+                disabled={!isEditing}
+              />
+            </CardContent>
+          </Card>
+
           {!isEditing && (
             <Card className="border-accent/30 shadow-md bg-white">
               <CardHeader className="pb-2 text-center">
                 <CardTitle className="text-sm font-bold flex items-center justify-center gap-2 text-primary uppercase tracking-wider">
                   <QrCode className="w-5 h-5" />
-                  Tu Identificador de Cliente
+                  Tu Identificador de Miembro
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4 py-6">
                 <div className="p-3 bg-white border-2 border-primary/10 rounded-2xl shadow-inner">
                   <img 
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${user.uid}&color=4EAD1F`}
-                    alt="Código QR de Usuario"
+                    alt="Código QR de Miembro"
                     className="w-40 h-40"
                   />
                 </div>
                 <p className="text-xs text-center text-muted-foreground max-w-[200px] font-medium italic">
-                  "Muestra este código en los puestos al comprar para sumar puntos"
+                  "Muestra este código en caja al comprar para sumar sellos"
                 </p>
               </CardContent>
             </Card>
@@ -384,23 +392,23 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
             <CardHeader className="pb-2 bg-primary/5">
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
                 <Award className="w-4 h-4" />
-                Nivel de Fidelidad
+                Nivel de Sellos
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
               <div className="flex justify-between items-end mb-1">
                 <div className="flex gap-2">
                   <Badge variant="outline" className="border-primary/30 text-primary text-[10px] font-bold">
-                    {compras} Compras
+                    {sellos} Sellos
                   </Badge>
                   {canjes > 0 && (
                     <Badge className="bg-accent text-accent-foreground border-none text-[10px] font-bold flex gap-1 items-center">
-                      <Trophy className="w-2.5 h-2.5" /> {canjes} Canje{canjes !== 1 ? 's' : ''}
+                      <Trophy className="w-2.5 h-2.5" /> {canjes} Premio{canjes !== 1 ? 's' : ''}
                     </Badge>
                   )}
                 </div>
                 <span className="text-xs font-bold text-primary">
-                  {compras >= 5 ? '¡Recompensa disponible!' : `Próxima meta: ${compras}/5`}
+                  {sellos >= 5 ? '¡Premio listo para canje!' : `Próximo premio: ${sellos}/5 sellos`}
                 </span>
               </div>
               <Progress value={Math.min(porcentaje, 100)} className="h-2.5 bg-primary/10" />
@@ -412,7 +420,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                 className="w-full text-primary hover:bg-primary/5 rounded-xl h-10 text-[10px] border border-dashed border-primary/20"
               >
                 <Gift className="w-3.5 h-3.5 mr-2" />
-                Simular Escaneo de Compra (Demo)
+                Simular Escaneo de Sello (Demo)
               </Button>
             </CardContent>
           </Card>
@@ -420,7 +428,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
           <CatalogoPremios 
             userId={user.uid} 
             userEmail={user.email || undefined} 
-            comprasActuales={compras} 
+            comprasActuales={sellos} 
           />
         </>
       ) : (
@@ -441,7 +449,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                   </div>
                   
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    {userData?.descripcion || "Aquí aparecerá la descripción de tu negocio para que los clientes te conozcan."}
+                    {userData?.descripcion || "Aquí aparecerá la descripción de tu negocio."}
                   </p>
 
                   <div className="grid grid-cols-2 gap-3 pt-2">
@@ -449,12 +457,6 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                       <MapPin className="w-4 h-4 text-primary" />
                       <span>{userData?.ubicacionTienda || "Sin ubicación"}</span>
                     </div>
-                    {userData?.whatsapp && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                        <span>{userData.whatsapp}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (
@@ -480,45 +482,13 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                     />
                   </div>
                   <div className="grid gap-1.5">
-                    <Label htmlFor="desc">Descripción del Negocio</Label>
+                    <Label htmlFor="desc">Descripción</Label>
                     <Textarea 
                       id="desc" 
                       value={editForm.descripcion} 
                       onChange={(e) => setEditForm({...editForm, descripcion: e.target.value})}
                       placeholder="Cuéntanos sobre tus productos..."
                       className="rounded-lg min-h-[100px]"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="ws">WhatsApp Tienda</Label>
-                      <Input 
-                        id="ws" 
-                        value={editForm.whatsapp} 
-                        onChange={(e) => setEditForm({...editForm, whatsapp: e.target.value})}
-                        placeholder="+56 9 ..."
-                        className="rounded-lg"
-                      />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="ig">Instagram (@user)</Label>
-                      <Input 
-                        id="ig" 
-                        value={editForm.instagram} 
-                        onChange={(e) => setEditForm({...editForm, instagram: e.target.value})}
-                        placeholder="ejemplo_tienda"
-                        className="rounded-lg"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="ubi">Ubicación en el Patio</Label>
-                    <Input 
-                      id="ubi" 
-                      value={editForm.ubicacionTienda} 
-                      onChange={(e) => setEditForm({...editForm, ubicacionTienda: e.target.value})}
-                      placeholder="Ej: Pasillo Central, Local 4"
-                      className="rounded-lg"
                     />
                   </div>
                 </div>
@@ -530,10 +500,10 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold flex items-center gap-2 text-primary">
                 <Clock className="w-5 h-5" />
-                Resumen de Actividad
+                Sellos Entregados
               </h3>
               <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-bold">
-                Hoy: {todayCount} clientes
+                Hoy: {todayCount} sellos
               </Badge>
             </div>
             
@@ -555,7 +525,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[10px] border-primary/20 text-primary font-bold">
-                        +50 pts
+                        +1 Sello
                       </Badge>
                     </CardContent>
                   </Card>
@@ -563,22 +533,18 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
               ) : (
                 <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-border">
                   <p className="text-xs text-muted-foreground italic">
-                    Aún no has registrado ventas hoy. ¡Empieza a escanear!
+                    Aún no has entregado sellos hoy.
                   </p>
                 </div>
               )}
             </div>
-
-            <p className="text-center text-[10px] text-muted-foreground italic">
-              Has premiado a {todayCount} clientes hoy. ¡Buen trabajo!
-            </p>
           </div>
 
           {!isEditing && (
             <Link href="/vendedor">
               <Button className="w-full h-16 rounded-2xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
                 <QrCode className="w-6 h-6" />
-                Terminal de Ventas (Escanear)
+                Terminal de Sellos (Escanear)
               </Button>
             </Link>
           )}

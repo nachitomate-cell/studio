@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -26,7 +25,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
     try {
       await canjearRecompensa(db, userId, premio.costo, userEmail);
       toast({
-        title: "¡Recompensa canjeada con éxito!",
+        title: "¡Premio canjeado con éxito!",
         description: `Has canjeado "${premio.nombre}". ¡Disfrútalo en el Patio!`,
       });
     } catch (error) {
@@ -44,7 +43,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-primary">
         <ShoppingBag className="w-5 h-5" />
-        <h3 className="font-bold text-lg">Catálogo de Premios</h3>
+        <h3 className="font-bold text-lg">Premios del Club</h3>
       </div>
       
       <div className="grid grid-cols-1 gap-3">
@@ -65,7 +64,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
                   <h4 className="font-bold text-primary">{premio.nombre}</h4>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-[10px] font-bold border-accent text-accent-foreground">
-                      Costo: {premio.costo} compras
+                      Costo: {premio.costo} sellos
                     </Badge>
                   </div>
                 </div>
@@ -77,7 +76,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
                   className={`rounded-lg h-9 px-4 font-bold ${puedeCanjear ? 'bg-accent text-accent-foreground hover:bg-accent/80' : 'bg-muted text-muted-foreground'}`}
                 >
                   {loadingId === premio.id ? (
-                    "Procesando..."
+                    "Canjeando..."
                   ) : puedeCanjear ? (
                     <span className="flex items-center gap-1"><Check className="w-4 h-4" /> Canjear</span>
                   ) : (
