@@ -21,6 +21,7 @@ export type Premio = {
   nombre: string;
   costo: number;
   icono: string;
+  esSorteo?: boolean;
 };
 
 export const PATIO_INFO = {
@@ -116,6 +117,7 @@ export const MAP_LOCATIONS = [
 ];
 
 export const PREMIOS: Premio[] = [
+  { id: 'sorteo-grande', nombre: 'Participación en Gran Sorteo', costo: 10, icono: '🏆', esSorteo: true },
   { id: 'cafe', nombre: 'Café de Especialidad', costo: 5, icono: '☕' },
-  { id: 'entrada', nombre: 'Entrada Curauma Fest', costo: 10, icono: '🎫' },
+  { id: 'entrada', nombre: 'Entrada a Evento Patio', costo: 8, icono: '🎫' },
 ];

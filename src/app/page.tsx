@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, query, doc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
 import { CATEGORIES, Entrepreneur, ENTREPRENEURS } from "@/lib/data";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -46,34 +46,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Intentamos cargar de Firestore, pero priorizamos la data estática local
-    // para asegurar consistencia con el listado oficial solicitado
     setEntrepreneurs(ENTREPRENEURS);
     setLoading(false);
-
-    // Mantenemos la escucha de Firestore como respaldo opcional
-    const q = query(collection(db, "emprendedores"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const docs = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            name: data.nombre || "Sin nombre",
-            category: data.rubro?.toLowerCase() || "otros",
-            description: data.descripcion || "",
-            locationId: data.ubicacion || "loc-1",
-            contact: data.contacto || data.whatsapp || "No disponible",
-            schedule: data.horario || "Consultar horario",
-            imageUrl: data.imagenUrl || `https://picsum.photos/seed/${doc.id}/400/300`
-          } as Entrepreneur;
-        });
-        // Si hay data en Firestore, podrías elegir mezclarla o reemplazarla
-        // Para este MVP priorizaremos que el usuario vea su lista oficial
-      }
-    });
-
-    return () => unsubscribe();
   }, []);
 
   const filteredEntrepreneurs = entrepreneurs.filter((e) => {
@@ -83,62 +57,32 @@ export default function Home() {
     return matchesCategory && matchesSearch;
   });
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    setShowAuth(false);
-  };
-
-  const renderShortcuts = () => {
-    if (!user) {
-      return (
-        <div className="grid grid-cols-2 gap-3 mt-6">
-          <Button 
-            onClick={() => setShowAuth(true)} 
-            variant="outline"
-            className="h-11 rounded-lg border-slate-200 shadow-sm hover:bg-slate-50 font-bold text-sm gap-2"
-          >
-            <LogIn className="w-4 h-4 text-slate-400" /> Entrar
-          </Button>
-          <Button 
-            onClick={() => setShowAuth(true)} 
-            className="h-11 rounded-lg bg-[#8dc63f] text-white border-none shadow-md hover:opacity-90 font-bold text-sm gap-2"
-          >
-            <UserPlus className="w-4 h-4" /> Registrarse
-          </Button>
-        </div>
-      );
-    }
-
-    if (userData?.rol === "emprendedor") {
-      return (
-        <div className="mt-6">
-          <Button 
-            onClick={() => window.location.href = "/vendedor"}
-            className="w-full h-14 rounded-xl bg-[#8dc63f] text-white font-bold text-lg gap-3 shadow-lg hover:scale-[1.01] transition-transform"
-          >
-            <QrCode className="w-6 h-6" />
-            Abrir Escáner de Sellos
-          </Button>
-        </div>
-      );
-    }
+  const renderHero = () => {
+    if (user) return null;
 
     return (
-      <div className="grid grid-cols-2 gap-3 mt-6">
-        <Button 
-          onClick={() => setActiveTab("profile")}
-          variant="outline"
-          className="h-11 rounded-lg border-slate-200 shadow-sm font-bold text-sm gap-2 bg-white"
-        >
-          <QrCode className="w-4 h-4 text-[#8dc63f]" /> Mi QR
-        </Button>
-        <Button 
-          onClick={() => setActiveTab("profile")}
-          className="h-11 rounded-lg bg-[#8dc63f] text-white border-none shadow-md hover:opacity-90 font-bold text-sm gap-2"
-        >
-          <Gift className="w-4 h-4" /> Mis Sellos
-        </Button>
-      </div>
+      <section className="px-6 py-8">
+        <div className="bg-gradient-to-br from-primary to-accent/40 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl shadow-primary/20">
+          <div className="relative z-10 space-y-4">
+            <Badge className="bg-white/20 text-white border-none backdrop-blur-sm px-3 py-1 font-bold text-[10px] uppercase tracking-widest">
+              Promo Bienvenida
+            </Badge>
+            <h1 className="text-3xl font-black leading-tight">
+              ¡Gana tu primer sello gratis! 🎁
+            </h1>
+            <p className="text-sm opacity-90 font-medium leading-relaxed max-w-[220px]">
+              Regístrate hoy desde nuestras redes y comienza a participar en el Gran Sorteo.
+            </p>
+            <Button 
+              onClick={() => setShowAuth(true)} 
+              className="bg-white text-primary hover:bg-white/90 font-bold rounded-xl px-6 h-12 shadow-lg"
+            >
+              ¡Quiero mi Sello!
+            </Button>
+          </div>
+          <Sparkles className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10" />
+        </div>
+      </section>
     );
   };
 
@@ -154,23 +98,39 @@ export default function Home() {
     switch (activeTab) {
       case "directory":
         return (
-          <div className="space-y-8 py-6 animate-in fade-in duration-500 bg-white">
-            <header className="px-6 text-center space-y-3">
-              <h1 className="text-4xl font-bold text-foreground tracking-tight leading-tight">
-                Únete al <span className="text-[#8dc63f]">Club Patio</span>
+          <div className="space-y-4 py-6 bg-white">
+            <header className="px-6 text-center space-y-2">
+              <h1 className="text-3xl font-black text-foreground tracking-tighter">
+                Club <span className="text-primary">Patio</span>
               </h1>
-              <p className="text-muted-foreground text-sm max-w-[300px] mx-auto leading-relaxed">
-                Acumula sellos en tus tiendas favoritas y gana recompensas exclusivas.
-              </p>
-              {renderShortcuts()}
+              <p className="text-muted-foreground text-xs font-bold uppercase tracking-[0.2em]">Curauma • Fidelización</p>
             </header>
 
-            <section className="px-6">
+            {renderHero()}
+
+            {user && (
+              <section className="px-6">
+                <Card className="border-none shadow-md bg-slate-50 rounded-2xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                      <Trophy className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Mis Tickets Sorteo</p>
+                      <p className="text-xl font-black text-slate-800">{userData?.ticketsSorteo || 0}</p>
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => setActiveTab("profile")} variant="ghost" className="text-xs font-bold text-primary">Ver Perfil</Button>
+                </Card>
+              </section>
+            )}
+
+            <section className="px-6 pt-4">
               <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-[#8dc63f] transition-colors" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Busca tiendas o productos..." 
-                  className="pl-12 h-12 rounded-xl bg-slate-50 border-none shadow-sm focus:ring-2 focus:ring-[#8dc63f]/20"
+                  placeholder="Buscar emprendimientos..." 
+                  className="pl-11 h-12 rounded-xl bg-slate-50 border-none shadow-inner"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -178,19 +138,16 @@ export default function Home() {
             </section>
 
             <section className="space-y-4">
-              <div className="px-6 flex items-center justify-between">
-                <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Categorías</h2>
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-2 px-6 no-scrollbar snap-x">
+              <div className="flex gap-2 overflow-x-auto pb-2 px-6 no-scrollbar">
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
                     className={cn(
-                      "px-6 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border snap-start",
+                      "px-5 py-2 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border",
                       selectedCategory === cat.id 
-                        ? "bg-[#8dc63f] text-white border-transparent shadow-md shadow-[#8dc63f]/20" 
-                        : "bg-white text-foreground border-slate-200 hover:border-[#8dc63f]/50"
+                        ? "bg-primary text-white border-transparent shadow-md" 
+                        : "bg-white text-foreground border-slate-100 hover:border-primary/30"
                     )}
                   >
                     {cat.name}
@@ -203,34 +160,25 @@ export default function Home() {
               <RecommendationWidget />
             </div>
 
-            <section className="space-y-6 px-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <h2 className="text-xl font-bold text-foreground">Nuestros Emprendedores</h2>
-                <Badge variant="outline" className="rounded-md border-slate-100 font-bold text-[10px] py-0 h-5 bg-slate-50">
-                  {filteredEntrepreneurs.length} Puestos
+            <section className="space-y-6 px-6 pt-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-lg font-black text-foreground">Directorio</h2>
+                <Badge variant="outline" className="rounded-md border-slate-100 font-bold text-[10px]">
+                  {filteredEntrepreneurs.length} Locales
                 </Badge>
               </div>
               
-              {loading ? (
-                <div className="flex justify-center py-20">
-                  <Loader2 className="w-10 h-10 text-[#8dc63f] animate-spin" />
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  {filteredEntrepreneurs.length > 0 ? (
-                    filteredEntrepreneurs.map((entrepreneur) => (
-                      <EntrepreneurCard key={entrepreneur.id} entrepreneur={entrepreneur} />
-                    ))
-                  ) : (
-                    <div className="col-span-full py-20 text-center space-y-3">
-                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
-                        <Search className="w-6 h-6 text-slate-300" />
-                      </div>
-                      <p className="text-muted-foreground text-sm font-medium">No encontramos ninguna tienda que coincida.</p>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-4">
+                {filteredEntrepreneurs.length > 0 ? (
+                  filteredEntrepreneurs.map((entrepreneur) => (
+                    <EntrepreneurCard key={entrepreneur.id} entrepreneur={entrepreneur} />
+                  ))
+                ) : (
+                  <div className="col-span-full py-12 text-center text-muted-foreground text-xs italic">
+                    No se encontraron resultados.
+                  </div>
+                )}
+              </div>
             </section>
             
             <div className="h-24" />
@@ -250,7 +198,10 @@ export default function Home() {
       <div className="max-w-lg mx-auto pb-4">
         {renderContent()}
       </div>
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      <BottomNav activeTab={activeTab} onTabChange={(tab) => {
+        setActiveTab(tab);
+        setShowAuth(false);
+      }} />
     </main>
   );
 }
