@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -233,7 +234,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             <div className="relative">
               <Avatar className="w-24 h-24 border-4 border-white shadow-md bg-white">
                 <AvatarFallback className={cn("flex items-center justify-center bg-white")}>
-                  {renderAvatarIcon(userData?.avatarId || editForm.avatarId, "w-10 h-10")}
+                  {renderAvatarIcon(isEditing ? editForm.avatarId : (userData?.avatarId || 'User'), "w-10 h-10")}
                 </AvatarFallback>
               </Avatar>
             </div>
@@ -248,7 +249,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               </Button>
             ) : (
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>X</Button>
+                <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setIsEditing(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
                 <Button size="sm" className="rounded-full bg-primary" onClick={handleSaveProfile} disabled={loading}>
                   <Save className="w-4 h-4" />
                 </Button>
@@ -256,15 +259,83 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             )}
           </div>
 
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold text-primary">
-                {userData?.nombre || "Usuario"}
-              </h2>
-              <Badge variant={isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">
-                {isEntrepreneur ? "Emprendedor" : "Miembro Club"}
-              </Badge>
-            </div>
+          <div className="space-y-4">
+            {isEditing ? (
+              <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase text-slate-400">Nombre Completo</Label>
+                  <Input 
+                    value={editForm.nombre} 
+                    onChange={(e) => setEditForm({...editForm, nombre: e.target.value})}
+                    placeholder="Tu nombre"
+                    className="rounded-xl bg-slate-50 border-none shadow-inner"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase text-slate-400">Teléfono / WhatsApp</Label>
+                  <Input 
+                    value={editForm.telefono} 
+                    onChange={(e) => setEditForm({...editForm, telefono: e.target.value})}
+                    placeholder="+56 9..."
+                    className="rounded-xl bg-slate-50 border-none shadow-inner"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase text-slate-400">Seleccionar Avatar</Label>
+                  <div className="grid grid-cols-6 gap-2">
+                    {AVATAR_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => setEditForm({...editForm, avatarId: opt.id})}
+                        className={cn(
+                          "aspect-square rounded-xl flex items-center justify-center transition-all",
+                          editForm.avatarId === opt.id 
+                            ? "bg-primary text-white scale-110 shadow-md" 
+                            : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                        )}
+                      >
+                        <opt.icon className="w-5 h-5" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {isEntrepreneur && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100 mt-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase text-slate-400">Nombre de la Tienda</Label>
+                      <Input 
+                        value={editForm.nombreTienda} 
+                        onChange={(e) => setEditForm({...editForm, nombreTienda: e.target.value})}
+                        className="rounded-xl bg-slate-50 border-none shadow-inner"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase text-slate-400">Descripción</Label>
+                      <Textarea 
+                        value={editForm.descripcion} 
+                        onChange={(e) => setEditForm({...editForm, descripcion: e.target.value})}
+                        className="rounded-xl bg-slate-50 border-none shadow-inner min-h-[80px]"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-2xl font-bold text-primary">
+                    {userData?.nombre || "Usuario"}
+                  </h2>
+                  <Badge variant={isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">
+                    {isEntrepreneur ? "Emprendedor" : "Miembro Club"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> {userData?.telefono || "Sin teléfono registrado"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
