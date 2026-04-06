@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,7 +7,7 @@ import { auth, db } from "@/lib/firebase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Gift, Award, Settings, LogOut, Briefcase, LogIn, ShoppingBag, CheckCircle2 } from "lucide-react";
+import { Gift, Award, Settings, LogOut, Briefcase, LogIn, ShoppingBag, CheckCircle2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -45,7 +44,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
       if (docSnap.exists()) {
         setUserData(docSnap.data());
       } else {
-        setUserData({ comprasRealizadas: 0, recompensaDisponible: false, puntos: 0 });
+        setUserData({ comprasRealizadas: 0, recompensaDisponible: false, puntos: 0, totalCanjesHistoricos: 0 });
       }
     });
 
@@ -65,10 +64,14 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
 
   const handleClaimReward = async () => {
     if (!user) return;
-    await canjearRecompensa(db, user.uid);
+    
+    // Llamamos a la función de canje
+    canjearRecompensa(db, user.uid);
+    
+    // Mostramos feedback visual inmediato
     toast({
-      title: "¡Felicidades!",
-      description: "Tu recompensa ha sido canjeada con éxito.",
+      title: "¡Recompensa canjeada con éxito!",
+      description: "Disfruta de tu beneficio exclusivo en Patio Curauma.",
     });
   };
 
@@ -103,6 +106,7 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
   const compras = userData?.comprasRealizadas || 0;
   const meta = 5;
   const porcentaje = (compras / meta) * 100;
+  const canjes = userData?.totalCanjesHistoricos || 0;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -116,10 +120,16 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
           <h2 className="text-lg font-bold text-primary truncate">
             {user.email}
           </h2>
-          <p className="text-xs text-muted-foreground">Miembro de la comunidad</p>
-          <Badge variant="secondary" className="mt-1 bg-accent/20 text-primary border-none">
-            {userData?.puntos || 0} Puntos Totales
-          </Badge>
+          <div className="flex flex-wrap gap-1 mt-1">
+            <Badge variant="secondary" className="bg-accent/20 text-primary border-none text-[10px]">
+              {userData?.puntos || 0} Puntos
+            </Badge>
+            {canjes > 0 && (
+              <Badge variant="outline" className="border-primary/30 text-primary text-[10px] flex gap-1 items-center">
+                <Trophy className="w-2 h-2" /> {canjes} Canjes
+              </Badge>
+            )}
+          </div>
         </div>
         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
           <Settings className="w-6 h-6" />
@@ -142,13 +152,13 @@ export function UserProfile({ onSwitchMode, onShowAuth }: UserProfileProps) {
           <Progress value={porcentaje} className="h-2" />
           
           {userData?.recompensaDisponible ? (
-            <div className="bg-accent/10 border border-accent/30 p-4 rounded-xl space-y-3 animate-bounce-short">
+            <div className="bg-accent/10 border border-accent/30 p-4 rounded-xl space-y-3 animate-in zoom-in duration-300">
               <div className="flex items-center gap-2 text-primary font-bold">
                 <CheckCircle2 className="w-5 h-5 text-accent-foreground" />
                 <span>¡Tienes una recompensa disponible!</span>
               </div>
-              <Button onClick={handleClaimReward} className="w-full bg-accent text-accent-foreground hover:bg-accent/80 font-bold rounded-xl">
-                Canjear Ahora
+              <Button onClick={handleClaimReward} className="w-full bg-accent text-accent-foreground hover:bg-accent/80 font-bold rounded-xl h-12 shadow-md">
+                Canjear Recompensa
               </Button>
             </div>
           ) : (
