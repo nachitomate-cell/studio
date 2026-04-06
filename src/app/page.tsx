@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { UserProfile } from "@/components/profile/UserProfile";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
