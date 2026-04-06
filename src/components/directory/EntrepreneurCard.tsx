@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Phone, MapPin, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface EntrepreneurCardProps {
   entrepreneur: Entrepreneur;
@@ -48,14 +49,16 @@ export function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps) {
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="w-4 h-4 text-accent-foreground" />
-            <span>Sector {entrepreneur.locationId.split('-')[1]}</span>
+            <span>{entrepreneur.locationId}</span>
           </div>
         </div>
 
-        <Button variant="outline" className="w-full mt-2 gap-2 border-primary/20 text-primary hover:bg-primary/5">
-          <ExternalLink className="w-4 h-4" />
-          Ver Perfil Completo
-        </Button>
+        <Link href={`/emprendedor/${entrepreneur.id}`} className="block w-full mt-2">
+          <Button variant="outline" className="w-full gap-2 border-primary/20 text-primary hover:bg-primary/5">
+            <ExternalLink className="w-4 h-4" />
+            Ver Perfil Completo
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   );
