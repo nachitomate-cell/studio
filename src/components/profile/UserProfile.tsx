@@ -604,11 +604,11 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
             <div className="pt-2 border-t border-slate-200">
               <p className="text-[10px] font-bold text-primary uppercase mb-3">Síguenos en redes</p>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-2">
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="rounded-xl gap-2 border-primary/20 text-primary font-bold"
+                  className="rounded-xl gap-2 border-primary/20 text-primary font-bold h-9"
                   onClick={() => window.open(`https://www.instagram.com/${PATIO_INFO.instagram}`, '_blank')}
                 >
                   <Instagram className="w-4 h-4" /> Instagram
@@ -616,10 +616,26 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="rounded-xl gap-2 border-primary/20 text-primary font-bold"
+                  className="rounded-xl gap-2 border-primary/20 text-primary font-bold h-9"
                   onClick={() => window.open(`https://www.facebook.com/profile.php?id=${PATIO_INFO.facebook}`, '_blank')}
                 >
                   <Facebook className="w-4 h-4" /> Facebook
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="rounded-xl gap-2 border-primary/20 text-primary font-bold h-9"
+                  onClick={() => window.open(`https://www.tiktok.com/@${PATIO_INFO.tiktok}`, '_blank')}
+                >
+                  <svg 
+                    viewBox="0 0 24 24" 
+                    fill="currentColor" 
+                    stroke="none" 
+                    className="w-4 h-4"
+                  >
+                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                  </svg>
+                  TikTok
                 </Button>
               </div>
             </div>

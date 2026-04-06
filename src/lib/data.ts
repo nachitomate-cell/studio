@@ -31,7 +31,8 @@ export const PATIO_INFO = {
   phone: "+56 9 9969 0322",
   whatsapp: "56999690322",
   instagram: "patiocurauma",
-  facebook: "100063522160910"
+  facebook: "100063522160910",
+  tiktok: "patio_curauma"
 };
 
 export const CATEGORIES: Category[] = [
