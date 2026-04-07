@@ -1,0 +1,310 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's personal profile within the Curauma Conecta app, storing general user information and accumulated gift points.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address. Used for identification but not for authentication.",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "User's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "User's last name."
+        },
+        "giftPoints": {
+          "type": "number",
+          "description": "Accumulated gift points for the user, visible in 'Mi Perfil'."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "giftPoints",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BusinessCategory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BusinessCategory",
+      "type": "object",
+      "description": "Defines categories for entrepreneurs, allowing users to filter the directory.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the BusinessCategory entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the business category (e.g., 'Food & Drinks', 'Handicrafts', 'Services')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of what the business category encompasses."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the business category was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the business category was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "EntrepreneurProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EntrepreneurProfile",
+      "type": "object",
+      "description": "Stores detailed business information for entrepreneurs, linked to a UserProfile.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the EntrepreneurProfile entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile entity of the entrepreneur. (Relationship: UserProfile 1:1 EntrepreneurProfile)"
+        },
+        "businessName": {
+          "type": "string",
+          "description": "The legal or common name of the entrepreneur's business."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the business, its products, and services."
+        },
+        "contactPhone": {
+          "type": "string",
+          "description": "Primary contact phone number for the business."
+        },
+        "contactEmail": {
+          "type": "string",
+          "description": "Primary contact email address for the business.",
+          "format": "email"
+        },
+        "websiteUrl": {
+          "type": "string",
+          "description": "Official website URL for the business.",
+          "format": "uri"
+        },
+        "socialMediaUrls": {
+          "type": "array",
+          "description": "An array of URLs for the business's social media profiles.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "address": {
+          "type": "string",
+          "description": "Physical address or a description of the business's location within Patio Curauma."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude coordinate of the business's location for map display."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude coordinate of the business's location for map display."
+        },
+        "operatingHours": {
+          "type": "string",
+          "description": "Description of the business's operating hours (e.g., 'Mon-Fri 9 AM - 6 PM', 'Weekends by appointment')."
+        },
+        "categoryIds": {
+          "type": "array",
+          "description": "References to BusinessCategory entities this entrepreneur belongs to, used for filtering. (Relationship: BusinessCategory N:N EntrepreneurProfile)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "imageUrls": {
+          "type": "array",
+          "description": "An array of direct URLs to images associated with the entrepreneur's profile or products.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the entrepreneur profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the entrepreneur profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "businessName",
+        "description",
+        "categoryIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MapPoint": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MapPoint",
+      "type": "object",
+      "description": "Represents a point of interest on the interactive map of Patio Curauma.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MapPoint entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the point of interest (e.g., 'Main Entrance', 'Restrooms', 'Cafeteria')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the map point."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude coordinate of the map point."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude coordinate of the map point."
+        },
+        "type": {
+          "type": "string",
+          "description": "Categorization of the map point (e.g., 'Entrepreneur', 'Service', 'Facility', 'Parking')."
+        },
+        "entrepreneurProfileId": {
+          "type": "string",
+          "description": "Optional reference to an EntrepreneurProfile entity if this map point represents an entrepreneur's specific location. (Relationship: EntrepreneurProfile 1:1 MapPoint)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the map point was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the map point was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "latitude",
+        "longitude",
+        "type",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores individual user profiles. Access is restricted to the authenticated user (`request.auth.uid`) matching the `userId` parameter in the path. This collection provides owner-based read/write access and supports Authorization Independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, which corresponds to `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/business_categories/{categoryId}",
+        "definition": {
+          "entityName": "BusinessCategory",
+          "schema": {
+            "$ref": "#/backend/entities/BusinessCategory"
+          },
+          "description": "Contains a predefined list of business categories for filtering entrepreneurs. This collection is publicly readable for all users and supports QAPs for listing. Write access is typically restricted to administrators, ensuring Structural Segregation for public data.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "The unique identifier for a business category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/entrepreneur_profiles/{entrepreneurProfileId}",
+        "definition": {
+          "entityName": "EntrepreneurProfile",
+          "schema": {
+            "$ref": "#/backend/entities/EntrepreneurProfile"
+          },
+          "description": "Stores detailed business information for entrepreneurs. This collection allows public read access for the 'Directorio de emprendedores' feature. Write (create, update, delete) access is restricted to the entrepreneur identified by the 'userId' field within the document itself, which acts as a denormalized 'ownerId' for Authorization Independence.",
+          "params": [
+            {
+              "name": "entrepreneurProfileId",
+              "description": "The unique identifier for an entrepreneur's business profile."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/map_points/{mapPointId}",
+        "definition": {
+          "entityName": "MapPoint",
+          "schema": {
+            "$ref": "#/backend/entities/MapPoint"
+          },
+          "description": "Holds data for points of interest on the interactive map of Patio Curauma. This collection is publicly readable for all users, enabling QAPs for map display. Write access is restricted to specific roles (e.g., administrators), ensuring Structural Segregation.",
+          "params": [
+            {
+              "name": "mapPointId",
+              "description": "The unique identifier for a map point of interest."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure prioritizes Authorization Independence and Structural Segregation to ensure robust, debuggable security rules, while also supporting Query-Able Paths (QAPs) for efficient data retrieval. Each collection has a clear, homogeneous security posture.\n\n1.  **User Profiles (/users/{userId}):** User profiles are stored in a top-level collection with `userId` as the document ID. This path inherently links the document to the authenticated user (`request.auth.uid`), making it 'private data'. Authorization rules are straightforward: only the owner can read/write their own profile. This ensures **Authorization Independence** as no `get()` calls are needed to verify ownership for profile management.\n\n2.  **Business Categories (/business_categories/{categoryId}):** These categories are global and intended for public filtering. They are placed in a top-level collection, signifying their shared, public read access. Write access would typically be restricted to administrators. This demonstrates **Structural Segregation** as all documents within this collection share the same read access requirements, enabling **QAPs** for public listings without complex rule filters.\n\n3.  **Entrepreneur Profiles (/entrepreneur_profiles/{entrepreneurProfileId}):** Entrepreneur profiles, which include the 'name, category, and description' mentioned in the user request, are stored in a top-level collection. To address the critical user requirement of 'etiquetada a nombre de ese emprendedor en específico (para que nadie más la pueda borrar)', each `EntrepreneurProfile` document **MUST include the `userId` (acting as `ownerId`)** as a denormalized field. This `userId` field directly corresponds to the `request.auth.uid` of the entrepreneur who owns the profile. This design achieves **Authorization Independence (CRITICAL)** because security rules for write operations (create, update, delete) can directly check `request.auth.uid == resource.data.userId` without performing any `get()` operations on parent documents or user profiles. This also facilitates **QAPs** for the 'Directorio de Emprendedores' feature, allowing public `list` and `get` operations for all entrepreneur profiles, while restricting write operations to the authenticated owner. The `imageUrls` field within this document stores direct links to images, which would be hosted in Cloud Storage, maintaining the separation of large binary data.\n\n4.  **Map Points (/map_points/{mapPointId}):** Similar to business categories, map points are global and intended for public viewing on the interactive map. They are in a top-level collection with public read access. Write access would be restricted to specific roles, ensuring **Structural Segregation** and enabling **QAPs** for map listings.\n\nThis structure directly supports the user's request for 'Caja de Textos' by providing a secure, owner-restricted storage for `EntrepreneurProfile` data, where `userId` within the document ensures ownership without hierarchical dependencies. The `imageUrls` field supports the 'Caja de Fotos' concept by storing references to external storage. All `list` operations (Directorio, Mapa, Categorias) are inherently QAP-compliant due to the homogeneous security posture of their respective collections."
+  }
+}

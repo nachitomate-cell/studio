@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * CURAUMA CONECTA - SECURITY RULES DOCUMENTATION
+     *
+     * Core Philosophy:
+     * This ruleset enforces a strict user-ownership model for personal and business data 
+     * while allowing public access to the community directory and map. Authorization is 
+     * primarily managed through direct UID comparison to ensure performance and cost-efficiency.
+     *
+     * Data Structure:
+     * - /users/{userId}: Private user profiles containing personal info and gift points.
+     * - /business_categories/{categoryId}: Publicly readable configuration for the app directory.
+     * - /entrepreneur_profiles/{profileId}: Publicly readable business info, secured for writes 
+     *   by a denormalized 'userId' field.
+     * - /map_points/{pointId}: Publicly readable geographic data for the interactive map.
+     *
+     * Key Security Decisions:
+     * 1. Authorization Independence: We use denormalized ownership fields (like userId) 
+     *    directly on documents. This avoids expensive get() calls and ensures rules 
+     *    scale linearly.
+     * 2. User Listing Protection: The /users collection is non-enumerable (list access denied) 
+     *    to prevent data scraping of the user base.
+     * 3. Ownership Consistency: For user-owned paths, we enforce that the data payload 
+     *    contains an ID matching the path and the user's authenticated UID.
+     * 4. Structural Segregation: Administrative data (Categories, Map Points) is 
+     *    publicly readable but strictly restricted for writes, assuming these are 
+     *    managed by a separate admin process or manually.
+     */
+
+    // --- Helper Functions ---
+
+    /** @description Checks if the user is authenticated with any provider. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the provided ID matches the authenticated user's UID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Checks if the existing document belongs to the authenticated user. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    /** @description Checks if a field in the document data matches the authenticated user's UID. */
+    function isDocumentOwner(ownerIdField) {
+      return isSignedIn() && request.auth.uid == ownerIdField;
+    }
+
+    /** @description Checks if the document exists and the ownership field matches the user. */
+    function isExistingDocumentOwner(ownerIdField) {
+      return resource != null && isDocumentOwner(ownerIdField);
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for private user profile data.
+     * @path /users/{userId}
+     * @allow (get) If the authenticated user is the owner of the ID.
+     * @deny (list) Listing is disabled to protect user privacy.
+     * @principle Restricts access to a user's own data tree and enforces relational integrity.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for the public directory categories.
+     * @path /business_categories/{categoryId}
+     * @allow (get, list) Anyone, including anonymous users, can read categories.
+     * @deny (write) Only administrators (manually managed) can modify these.
+     * @principle Structural Segregation for public read-only configuration data.
+     */
+    match /business_categories/{categoryId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Rules for entrepreneur business profiles.
+     * @path /entrepreneur_profiles/{entrepreneurProfileId}
+     * @allow (get, list) Anyone can view business profiles in the directory.
+     * @allow (create) Authenticated users can create a profile if they set themselves as the owner.
+     * @deny (write) Users cannot modify or delete profiles they do not own.
+     * @principle Public Read with Owner-Only Writes using denormalized ownership fields.
+     */
+    match /entrepreneur_profiles/{entrepreneurProfileId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingDocumentOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingDocumentOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Rules for map points of interest.
+     * @path /map_points/{mapPointId}
+     * @allow (get, list) Anyone can view map points for navigation.
+     * @deny (write) Only administrators can modify map point locations.
+     * @principle Public Read with restricted write access for global map data.
+     */
+    match /map_points/{mapPointId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+  }
+}
