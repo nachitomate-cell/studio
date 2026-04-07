@@ -15,7 +15,7 @@ import {
   Gift, Clock, ChevronRight, LayoutDashboard,
   X, Store, Save, ImagePlus, UserCircle, Upload
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,7 +66,7 @@ export default function VendedorPage() {
               nombreTienda: data.businessName || data.nombre || "",
               descripcion: data.description || data.descripcion || ""
             });
-            setPreviewUrl(data.imageUrls?.[0] || data.imageUrl || null);
+            setPreviewUrl(data.imageUrl || data.imageUrls?.[0] || null);
           }
         });
 
@@ -117,7 +117,6 @@ export default function VendedorPage() {
     try {
       let finalImageUrl = previewUrl;
 
-      // 1. Subir a Storage si hay imagen seleccionada
       if (profileImage) {
         try {
           const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/profile.jpg`);
@@ -133,7 +132,6 @@ export default function VendedorPage() {
         }
       }
 
-      // 2. Guardar en Firestore
       const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
       const updateData = {
         id: auth.currentUser.uid,
