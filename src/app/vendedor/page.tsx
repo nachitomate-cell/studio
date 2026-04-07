@@ -11,7 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft, QrCode, Camera, CheckCircle2, 
   Loader2, AlertCircle, TrendingUp, Users, 
-  Gift, Clock, ChevronRight, LayoutDashboard
+  Gift, Clock, ChevronRight, LayoutDashboard,
+  X
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -23,9 +24,8 @@ export default function VendedorPage() {
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
-  const scannerRef = useRef<any>(null);
+  const scannerInstance = useRef<any>(null);
 
-  // Simulación de métricas (en una fase posterior vendrán de Firestore)
   const stats = {
     sellosMes: 124,
     clientesFieles: 45,
@@ -39,13 +39,11 @@ export default function VendedorPage() {
         setHasCameraPermission(true);
         stream.getTracks().forEach(track => track.stop());
       } catch (error) {
-        console.error("Error accessing camera:", error);
         setHasCameraPermission(false);
       }
     };
     checkPermission();
 
-    // Cargar actividad reciente en tiempo real
     if (auth.currentUser) {
       const q = query(
         collection(db, "usuarios", auth.currentUser.uid, "ventas_registradas"),
@@ -57,44 +55,71 @@ export default function VendedorPage() {
         setRecentActivity(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
       
-      return () => unsubscribe();
+      return () => {
+        unsubscribe();
+        stopScanner();
+      };
     }
   }, []);
 
   const startScanner = async () => {
     setScanning(true);
 
-    const { Html5QrcodeScanner } = await import("html5-qrcode");
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      
+      // Esperar un breve momento para asegurar que el div 'reader' esté en el DOM
+      setTimeout(async () => {
+        try {
+          const html5QrCode = new Html5Qrcode("reader");
+          scannerInstance.current = html5QrCode;
 
-    setTimeout(() => {
-      const scanner = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        false
-      );
+          const config = { 
+            fps: 10, 
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+          };
 
-      scanner.render(onScanSuccess, onScanFailure);
-      scannerRef.current = scanner;
-    }, 100);
-  };
-
-  const stopScanner = () => {
-    if (scannerRef.current) {
-      scannerRef.current.clear().then(() => {
-        setScanning(false);
-        scannerRef.current = null;
-      }).catch((err: any) => console.error("Failed to stop scanner", err));
-    } else {
+          await html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            (decodedText) => {
+              onScanSuccess(decodedText);
+            },
+            (errorMessage) => {
+              // Errores de escaneo silenciosos (suceden en cada frame sin QR)
+            }
+          );
+        } catch (err) {
+          setScanning(false);
+          toast({
+            variant: "destructive",
+            title: "Error de Cámara",
+            description: "No se pudo iniciar el escáner. Verifica los permisos.",
+          });
+        }
+      }, 300);
+    } catch (e) {
       setScanning(false);
     }
   };
 
-  const onScanSuccess = async (decodedText: string) => {
-    stopScanner();
-    await registrarSello(decodedText);
+  const stopScanner = async () => {
+    if (scannerInstance.current && scannerInstance.current.isScanning) {
+      try {
+        await scannerInstance.current.stop();
+      } catch (err) {
+        // Error al detener
+      }
+    }
+    setScanning(false);
+    scannerInstance.current = null;
   };
 
-  const onScanFailure = (error: any) => {};
+  const onScanSuccess = async (decodedText: string) => {
+    await stopScanner();
+    await registrarSello(decodedText);
+  };
 
   const registrarSello = async (uid: string) => {
     setLoading(true);
@@ -136,7 +161,6 @@ export default function VendedorPage() {
       });
 
     } catch (error) {
-      console.error("Error al registrar sello:", error);
       toast({
         variant: "destructive",
         title: "Error de servidor",
@@ -149,7 +173,6 @@ export default function VendedorPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/50 pb-20">
-      {/* Header */}
       <div className="bg-white border-b border-slate-100 p-6 sticky top-0 z-10">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -158,7 +181,7 @@ export default function VendedorPage() {
             </Button>
             <h1 className="text-xl font-bold text-slate-800">Panel del Emprendedor</h1>
           </div>
-          <Badge variant="outline" className="bg-[#8dc63f]/5 text-[#8dc63f] border-[#8dc63f]/20 font-bold">
+          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold">
             En línea
           </Badge>
         </div>
@@ -166,12 +189,11 @@ export default function VendedorPage() {
 
       <div className="max-w-lg mx-auto p-6 space-y-8">
         
-        {/* Main Action: Scanner */}
         <section className="space-y-4">
           {!scanning ? (
             <Button 
               onClick={startScanner} 
-              className="w-full h-20 rounded-2xl bg-[#8dc63f] text-white font-bold text-xl gap-4 shadow-xl shadow-[#8dc63f]/20 hover:scale-[1.01] transition-all active:scale-95"
+              className="w-full h-20 rounded-2xl bg-primary text-white font-bold text-xl gap-4 shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all active:scale-95"
               disabled={loading}
             >
               {loading ? <Loader2 className="w-8 h-8 animate-spin" /> : <QrCode className="w-8 h-8" />}
@@ -180,17 +202,23 @@ export default function VendedorPage() {
           ) : (
             <Card className="border-none shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-300">
               <CardHeader className="bg-slate-900 text-white pb-6">
-                <CardTitle className="text-sm font-bold flex items-center justify-between">
-                  Escanear Código QR
-                  <Button variant="ghost" size="sm" onClick={stopScanner} className="text-slate-400 hover:text-white">
-                    Cancelar
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-primary" />
+                    <CardTitle className="text-sm font-bold">Escanear Código QR</CardTitle>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={stopScanner} className="text-slate-400 hover:text-white rounded-full h-8 w-8">
+                    <X className="w-5 h-5" />
                   </Button>
-                </CardTitle>
+                </div>
               </CardHeader>
-              <CardContent className="p-0">
-                <div id="reader" className="w-full"></div>
-                <div className="p-6 bg-slate-50 text-center">
-                  <p className="text-xs text-slate-500">Apunta la cámara al código del cliente</p>
+              <CardContent className="p-0 bg-black relative">
+                <div id="reader" className="w-full aspect-square overflow-hidden"></div>
+                <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
+                  <div className="w-full h-full border-2 border-primary/50 rounded-xl"></div>
+                </div>
+                <div className="p-6 bg-slate-900 text-center">
+                  <p className="text-xs text-slate-300 font-medium">Apunta la cámara al código del cliente</p>
                 </div>
               </CardContent>
             </Card>
@@ -201,13 +229,12 @@ export default function VendedorPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Cámara deshabilitada</AlertTitle>
               <AlertDescription>
-                Debes permitir el acceso a la cámara en los ajustes de tu navegador.
+                Debes permitir el acceso a la cámara en los ajustes de tu navegador para usar esta función.
               </AlertDescription>
             </Alert>
           )}
         </section>
 
-        {/* Stats Dashboard */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-1">
             <LayoutDashboard className="w-4 h-4 text-slate-400" />
@@ -217,7 +244,7 @@ export default function VendedorPage() {
           <div className="grid grid-cols-1 gap-3">
             <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
               <CardContent className="p-5 flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#8dc63f]/10 rounded-xl flex items-center justify-center text-[#8dc63f]">
+                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                   <TrendingUp className="w-6 h-6" />
                 </div>
                 <div>
@@ -250,14 +277,13 @@ export default function VendedorPage() {
           </div>
         </section>
 
-        {/* Recent Activity */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-slate-400" />
               <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Actividad Reciente</h2>
             </div>
-            <Button variant="link" className="text-xs text-[#8dc63f] font-bold p-0 h-auto">Ver todo</Button>
+            <Button variant="link" className="text-xs text-primary font-bold p-0 h-auto">Ver todo</Button>
           </div>
 
           <div className="space-y-3">
@@ -284,7 +310,7 @@ export default function VendedorPage() {
               ))
             ) : (
               <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-                <p className="text-xs text-slate-400 italic">No hay registros recientes hoy.</p>
+                <p className="text-xs text-slate-400 font-medium italic">No hay registros recientes hoy.</p>
               </div>
             )}
           </div>
@@ -292,7 +318,7 @@ export default function VendedorPage() {
 
         <div className="text-center pt-4">
           <p className="text-[10px] text-slate-400 font-medium">
-            © 2024 Club Patio Curauma • Gestión de Fidelización
+            © {new Date().getFullYear()} Club Patio Curauma • Gestión de Fidelización
           </p>
         </div>
       </div>
