@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,25 +13,29 @@ import {
   ArrowLeft, QrCode, Camera, CheckCircle2, 
   Loader2, AlertCircle, TrendingUp, Users, 
   Gift, Clock, ChevronRight, LayoutDashboard,
-  X
+  X, Store, Save, ImagePlus, UserCircle
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 export default function VendedorPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [scanning, setScanning] = useState(false);
+  const [view, setView] = useState<"dashboard" | "scanner" | "profile">("dashboard");
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [userData, setUserData] = useState<any>(null);
   const scannerInstance = useRef<any>(null);
 
-  const stats = {
-    sellosMes: 124,
-    clientesFieles: 45,
-    premiosEntregados: 12
-  };
+  // Formulario simple estilo Google Forms
+  const [shopForm, setShopForm] = useState({
+    nombreTienda: "",
+    descripcion: ""
+  });
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -46,82 +50,69 @@ export default function VendedorPage() {
     checkPermission();
 
     if (auth.currentUser) {
+      // Cargar datos actuales del local
+      const userRef = doc(db, "usuarios", auth.currentUser.uid);
+      const unsubscribeUser = onSnapshot(userRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserData(data);
+          setShopForm({
+            nombreTienda: data.nombreTienda || "",
+            descripcion: data.descripcion || ""
+          });
+        }
+      });
+
+      // Cargar historial
       const q = query(
         collection(db, "usuarios", auth.currentUser.uid, "ventas_registradas"),
         orderBy("fecha", "desc"),
         limit(3)
       );
       
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const unsubscribeVentas = onSnapshot(q, (snapshot) => {
         setRecentActivity(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      }, (err) => {
-        // Error silencioso para el vendedor si falla el historial
       });
       
       return () => {
-        unsubscribe();
+        unsubscribeUser();
+        unsubscribeVentas();
         stopScanner();
       };
     }
   }, []);
 
   const startScanner = async () => {
-    setScanning(true);
-
+    setView("scanner");
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
-      
       setTimeout(async () => {
         try {
           const html5QrCode = new Html5Qrcode("reader");
           scannerInstance.current = html5QrCode;
-
-          const config = { 
-            fps: 10, 
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0
-          };
-
-          await html5QrCode.start(
-            { facingMode: "environment" }, 
-            config, 
-            (decodedText) => {
-              onScanSuccess(decodedText);
-            },
-            (errorMessage) => {
-              // No es necesario loguear cada frame fallido
-            }
-          );
+          const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+          await html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => onScanSuccess(decodedText), () => {});
         } catch (err) {
-          setScanning(false);
-          toast({
-            variant: "destructive",
-            title: "Error de Cámara",
-            description: "No se pudo iniciar el escáner. Verifica los permisos.",
-          });
+          setView("dashboard");
+          toast({ variant: "destructive", title: "Error de Cámara", description: "No se pudo iniciar el escáner." });
         }
       }, 300);
     } catch (e) {
-      setScanning(false);
+      setView("dashboard");
     }
   };
 
   const stopScanner = async () => {
     if (scannerInstance.current && scannerInstance.current.isScanning) {
-      try {
-        await scannerInstance.current.stop();
-      } catch (err) {
-        // Fallo al detener
-      }
+      try { await scannerInstance.current.stop(); } catch (err) {}
     }
-    setScanning(false);
+    setView("dashboard");
     scannerInstance.current = null;
   };
 
   const onScanSuccess = async (decodedText: string) => {
     const clientUid = decodedText.trim();
     if (!clientUid) return;
-    
     await stopScanner();
     handleProcessSale(clientUid);
   };
@@ -129,26 +120,110 @@ export default function VendedorPage() {
   const handleProcessSale = async (uid: string) => {
     setLoading(true);
     try {
-      const vendedorId = auth.currentUser?.uid;
-      
-      // Usamos la función centralizada de puntos para asegurar consistencia
-      await registrarCompra(db, uid, vendedorId);
-
-      toast({
-        title: "¡Sello Procesado!",
-        description: "El cliente ha recibido su sello correctamente.",
-      });
-
+      await registrarCompra(db, uid, auth.currentUser?.uid);
+      toast({ title: "¡Sello Procesado!", description: "El cliente ha recibido su sello correctamente." });
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error de servidor",
-        description: "No se pudo procesar el sello. Inténtalo de nuevo.",
-      });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo procesar el sello." });
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSaveShopInfo = async () => {
+    if (!auth.currentUser) return;
+    setLoading(true);
+    try {
+      const userRef = doc(db, "usuarios", auth.currentUser.uid);
+      await updateDoc(userRef, {
+        nombreTienda: shopForm.nombreTienda,
+        descripcion: shopForm.descripcion,
+        updatedAt: new Date().toISOString()
+      });
+      toast({ title: "Cambios guardados", description: "La información de tu local se actualizó correctamente." });
+      setView("dashboard");
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron guardar los cambios." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (view === "profile") {
+    return (
+      <main className="min-h-screen bg-[#f0f2f5] pb-20 font-sans">
+        <div className="bg-white border-b border-slate-200 p-6 sticky top-0 z-10 flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setView("dashboard")} className="text-slate-400">
+            <ArrowLeft className="w-6 h-6" />
+          </Button>
+          <h1 className="text-xl font-bold text-slate-800">Mi Perfil de Tienda</h1>
+        </div>
+
+        <div className="max-w-lg mx-auto p-6 space-y-6">
+          <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white">
+            <div className="h-2 bg-primary w-full" />
+            <CardContent className="p-8 space-y-8">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-medium text-slate-900">Configuración del Local</h2>
+                <p className="text-sm text-slate-500">Completa la información que verán los socios del club.</p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Nombre del Local */}
+                <div className="space-y-3">
+                  <Label htmlFor="shopName" className="text-sm font-bold text-slate-700">Nombre de tu local</Label>
+                  <Input 
+                    id="shopName" 
+                    placeholder="Ej: Sabores del Patio" 
+                    className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
+                    value={shopForm.nombreTienda}
+                    onChange={(e) => setShopForm({...shopForm, nombreTienda: e.target.value})}
+                  />
+                </div>
+
+                {/* Descripción */}
+                <div className="space-y-3">
+                  <Label htmlFor="shopDesc" className="text-sm font-bold text-slate-700">¿De qué trata tu tienda?</Label>
+                  <Textarea 
+                    id="shopDesc" 
+                    placeholder="Describe tus productos o servicios..." 
+                    className="min-h-[120px] border-slate-200 focus:border-primary rounded-lg text-base p-4"
+                    value={shopForm.descripcion}
+                    onChange={(e) => setShopForm({...shopForm, descripcion: e.target.value})}
+                  />
+                </div>
+
+                {/* Subir Foto */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-bold text-slate-700">Foto de tu local</Label>
+                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer group">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400 group-hover:text-primary transition-colors">
+                      <ImagePlus className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Subir foto de mi tienda</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <Button 
+                  onClick={handleSaveShopInfo}
+                  disabled={loading}
+                  className="w-full h-14 bg-primary text-white font-black rounded-xl text-lg gap-3 shadow-lg shadow-primary/20"
+                >
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+                  Guardar Cambios
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            Esta información es pública en el directorio del club
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50/50 pb-20">
@@ -169,16 +244,7 @@ export default function VendedorPage() {
       <div className="max-w-lg mx-auto p-6 space-y-8">
         
         <section className="space-y-4">
-          {!scanning ? (
-            <Button 
-              onClick={startScanner} 
-              className="w-full h-20 rounded-2xl bg-primary text-white font-bold text-xl gap-4 shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all active:scale-95"
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="w-8 h-8 animate-spin" /> : <QrCode className="w-8 h-8" />}
-              Escanear Cliente
-            </Button>
-          ) : (
+          {view === "scanner" ? (
             <Card className="border-none shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-300">
               <CardHeader className="bg-slate-900 text-white pb-6">
                 <div className="flex items-center justify-between">
@@ -201,15 +267,32 @@ export default function VendedorPage() {
                 </div>
               </CardContent>
             </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              <Button 
+                onClick={startScanner} 
+                className="w-full h-20 rounded-2xl bg-primary text-white font-bold text-xl gap-4 shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all active:scale-95"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="w-8 h-8 animate-spin" /> : <QrCode className="w-8 h-8" />}
+                Escanear Cliente
+              </Button>
+              <Button 
+                onClick={() => setView("profile")}
+                variant="outline"
+                className="w-full h-16 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-3 hover:bg-slate-50"
+              >
+                <Store className="w-5 h-5 text-primary" />
+                Editar Perfil de mi Tienda
+              </Button>
+            </div>
           )}
 
-          {hasCameraPermission === false && (
+          {hasCameraPermission === false && view === "scanner" && (
             <Alert variant="destructive" className="rounded-2xl border-none shadow-md">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Sin acceso a cámara</AlertTitle>
-              <AlertDescription>
-                Habilita los permisos en tu navegador para poder escanear socios.
-              </AlertDescription>
+              <AlertDescription>Habilita los permisos para poder escanear socios.</AlertDescription>
             </Alert>
           )}
         </section>
@@ -228,7 +311,7 @@ export default function VendedorPage() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Fidelización (Mes)</p>
-                  <p className="text-2xl font-black text-slate-800">{stats.sellosMes} Sellos</p>
+                  <p className="text-2xl font-black text-slate-800">{userData?.sellosEntregados || 0} Sellos</p>
                 </div>
               </CardContent>
             </Card>
@@ -240,16 +323,16 @@ export default function VendedorPage() {
                     <Users className="w-4 h-4 text-blue-500" />
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Miembros</span>
                   </div>
-                  <p className="text-xl font-black text-slate-800">{stats.clientesFieles}</p>
+                  <p className="text-xl font-black text-slate-800">{recentActivity.length}</p>
                 </CardContent>
               </Card>
               <Card className="border-none shadow-sm bg-white rounded-2xl">
                 <CardContent className="p-4 space-y-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Gift className="w-4 h-4 text-amber-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Entregados</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Tienda</span>
                   </div>
-                  <p className="text-xl font-black text-slate-800">{stats.premiosEntregados}</p>
+                  <p className="text-[10px] font-black text-slate-800 truncate">{userData?.nombreTienda || "Sin Nombre"}</p>
                 </CardContent>
               </Card>
             </div>
@@ -262,7 +345,6 @@ export default function VendedorPage() {
               <Clock className="w-4 h-4 text-slate-400" />
               <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Ventas Recientes</h2>
             </div>
-            <Button variant="link" className="text-xs text-primary font-bold p-0 h-auto">Ver Historial</Button>
           </div>
 
           <div className="space-y-3">
@@ -275,7 +357,7 @@ export default function VendedorPage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
-                      <Users className="w-5 h-5" />
+                      <UserCircle className="w-5 h-5" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800">{sale.clienteNombre}</p>
@@ -294,12 +376,6 @@ export default function VendedorPage() {
             )}
           </div>
         </section>
-
-        <div className="text-center pt-4">
-          <p className="text-[10px] text-slate-400 font-medium">
-            © {new Date().getFullYear()} Patio Curauma • Sistema Aliados
-          </p>
-        </div>
       </div>
     </main>
   );
