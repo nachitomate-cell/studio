@@ -2,7 +2,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: 'export',
+  // output: 'export', // Desactivado temporalmente para pruebas en desarrollo
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,7 +10,8 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    allowedDevOrigins: ['*.cloudworkstations.dev'],
+    // Corregido: Algunos entornos de NextJS 15 requieren esta configuración específica
+    allowedDevOrigins: ['localhost:9002', '*.cloudworkstations.dev'],
   },
   images: {
     unoptimized: true,
@@ -30,6 +31,12 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'picsum.photos',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
         port: '',
         pathname: '/**',
       },

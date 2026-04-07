@@ -1,17 +1,11 @@
-
 "use client";
 
 import { EntrepreneurDetailView } from "@/components/directory/EntrepreneurDetailView";
 
 /**
- * En modo 'output: export' (estático), Next.js necesita conocer todas las rutas
- * dinámicas posibles en tiempo de compilación.
- * Retornamos un array vacío para permitir que las rutas se manejen dinámicamente en el cliente.
+ * Vista de detalle del emprendedor.
+ * Cargamos los datos dinámicamente en el cliente usando el ID de la URL.
  */
-export function generateStaticParams() {
-  return [];
-}
-
 export default function Page() {
   return <EntrepreneurDetailView />;
 }
