@@ -3,11 +3,12 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, updateDoc, increment, collection, addDoc, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { registrarCompra } from "@/lib/puntos";
 import { 
   ArrowLeft, QrCode, Camera, CheckCircle2, 
   Loader2, AlertCircle, TrendingUp, Users, 
@@ -53,6 +54,8 @@ export default function VendedorPage() {
       
       const unsubscribe = onSnapshot(q, (snapshot) => {
         setRecentActivity(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }, (err) => {
+        // Error silencioso para el vendedor si falla el historial
       });
       
       return () => {
@@ -68,7 +71,6 @@ export default function VendedorPage() {
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       
-      // Esperar un breve momento para asegurar que el div 'reader' esté en el DOM
       setTimeout(async () => {
         try {
           const html5QrCode = new Html5Qrcode("reader");
@@ -87,7 +89,7 @@ export default function VendedorPage() {
               onScanSuccess(decodedText);
             },
             (errorMessage) => {
-              // Errores de escaneo silenciosos (suceden en cada frame sin QR)
+              // No es necesario loguear cada frame fallido
             }
           );
         } catch (err) {
@@ -109,7 +111,7 @@ export default function VendedorPage() {
       try {
         await scannerInstance.current.stop();
       } catch (err) {
-        // Error al detener
+        // Fallo al detener
       }
     }
     setScanning(false);
@@ -117,54 +119,31 @@ export default function VendedorPage() {
   };
 
   const onScanSuccess = async (decodedText: string) => {
+    const clientUid = decodedText.trim();
+    if (!clientUid) return;
+    
     await stopScanner();
-    await registrarSello(decodedText);
+    handleProcessSale(clientUid);
   };
 
-  const registrarSello = async (uid: string) => {
+  const handleProcessSale = async (uid: string) => {
     setLoading(true);
     try {
-      const userRef = doc(db, "usuarios", uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        toast({
-          variant: "destructive",
-          title: "Miembro no encontrado",
-          description: "El código QR no corresponde a un miembro del Club Patio.",
-        });
-        return;
-      }
-
-      const userData = userSnap.data();
-      const timestamp = new Date().toISOString();
-      
-      await updateDoc(userRef, {
-        comprasRealizadas: increment(1),
-        lastPurchaseAt: timestamp
-      });
-
       const vendedorId = auth.currentUser?.uid;
-      if (vendedorId) {
-        const logRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
-        await addDoc(logRef, {
-          vendedorId,
-          clienteId: uid,
-          clienteNombre: userData.nombre || "Miembro Anónimo",
-          fecha: timestamp
-        });
-      }
+      
+      // Usamos la función centralizada de puntos para asegurar consistencia
+      await registrarCompra(db, uid, vendedorId);
 
       toast({
-        title: "¡Sello Entregado!",
-        description: `Se sumó un sello a ${userData.nombre || userData.correo}.`,
+        title: "¡Sello Procesado!",
+        description: "El cliente ha recibido su sello correctamente.",
       });
 
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error de servidor",
-        description: "No se pudo procesar el sello.",
+        description: "No se pudo procesar el sello. Inténtalo de nuevo.",
       });
     } finally {
       setLoading(false);
@@ -182,7 +161,7 @@ export default function VendedorPage() {
             <h1 className="text-xl font-bold text-slate-800">Panel del Emprendedor</h1>
           </div>
           <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold">
-            En línea
+            Aliado Activo
           </Badge>
         </div>
       </div>
@@ -197,7 +176,7 @@ export default function VendedorPage() {
               disabled={loading}
             >
               {loading ? <Loader2 className="w-8 h-8 animate-spin" /> : <QrCode className="w-8 h-8" />}
-              Abrir Escáner de Sellos
+              Escanear Cliente
             </Button>
           ) : (
             <Card className="border-none shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -205,7 +184,7 @@ export default function VendedorPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Camera className="w-4 h-4 text-primary" />
-                    <CardTitle className="text-sm font-bold">Escanear Código QR</CardTitle>
+                    <CardTitle className="text-sm font-bold">Escáner de Sellos</CardTitle>
                   </div>
                   <Button variant="ghost" size="icon" onClick={stopScanner} className="text-slate-400 hover:text-white rounded-full h-8 w-8">
                     <X className="w-5 h-5" />
@@ -218,7 +197,7 @@ export default function VendedorPage() {
                   <div className="w-full h-full border-2 border-primary/50 rounded-xl"></div>
                 </div>
                 <div className="p-6 bg-slate-900 text-center">
-                  <p className="text-xs text-slate-300 font-medium">Apunta la cámara al código del cliente</p>
+                  <p className="text-xs text-slate-300 font-medium">Enfoca el código QR del Socio</p>
                 </div>
               </CardContent>
             </Card>
@@ -227,9 +206,9 @@ export default function VendedorPage() {
           {hasCameraPermission === false && (
             <Alert variant="destructive" className="rounded-2xl border-none shadow-md">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Cámara deshabilitada</AlertTitle>
+              <AlertTitle>Sin acceso a cámara</AlertTitle>
               <AlertDescription>
-                Debes permitir el acceso a la cámara en los ajustes de tu navegador para usar esta función.
+                Habilita los permisos en tu navegador para poder escanear socios.
               </AlertDescription>
             </Alert>
           )}
@@ -248,8 +227,8 @@ export default function VendedorPage() {
                   <TrendingUp className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Sellos Entregados (Mes)</p>
-                  <p className="text-2xl font-black text-slate-800">{stats.sellosMes}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Fidelización (Mes)</p>
+                  <p className="text-2xl font-black text-slate-800">{stats.sellosMes} Sellos</p>
                 </div>
               </CardContent>
             </Card>
@@ -259,7 +238,7 @@ export default function VendedorPage() {
                 <CardContent className="p-4 space-y-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Users className="w-4 h-4 text-blue-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Clientes</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Miembros</span>
                   </div>
                   <p className="text-xl font-black text-slate-800">{stats.clientesFieles}</p>
                 </CardContent>
@@ -268,7 +247,7 @@ export default function VendedorPage() {
                 <CardContent className="p-4 space-y-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Gift className="w-4 h-4 text-amber-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Premios</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Entregados</span>
                   </div>
                   <p className="text-xl font-black text-slate-800">{stats.premiosEntregados}</p>
                 </CardContent>
@@ -281,9 +260,9 @@ export default function VendedorPage() {
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-slate-400" />
-              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Actividad Reciente</h2>
+              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Ventas Recientes</h2>
             </div>
-            <Button variant="link" className="text-xs text-primary font-bold p-0 h-auto">Ver todo</Button>
+            <Button variant="link" className="text-xs text-primary font-bold p-0 h-auto">Ver Historial</Button>
           </div>
 
           <div className="space-y-3">
@@ -301,7 +280,7 @@ export default function VendedorPage() {
                     <div>
                       <p className="text-sm font-bold text-slate-800">{sale.clienteNombre}</p>
                       <p className="text-[10px] text-slate-400">
-                        {new Date(sale.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • 1 Sello sumado
+                        {new Date(sale.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Sello sumado
                       </p>
                     </div>
                   </div>
@@ -310,7 +289,7 @@ export default function VendedorPage() {
               ))
             ) : (
               <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-                <p className="text-xs text-slate-400 font-medium italic">No hay registros recientes hoy.</p>
+                <p className="text-xs text-slate-400 font-medium italic">Esperando primera venta del día...</p>
               </div>
             )}
           </div>
@@ -318,7 +297,7 @@ export default function VendedorPage() {
 
         <div className="text-center pt-4">
           <p className="text-[10px] text-slate-400 font-medium">
-            © {new Date().getFullYear()} Club Patio Curauma • Gestión de Fidelización
+            © {new Date().getFullYear()} Patio Curauma • Sistema Aliados
           </p>
         </div>
       </div>
