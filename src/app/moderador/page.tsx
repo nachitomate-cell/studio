@@ -9,7 +9,8 @@ import {
   ShieldAlert, Settings, UserCog, Database, 
   ArrowLeft, Search, MoreVertical, Store,
   AlertTriangle, Lock, Unlock, Loader2,
-  UserPlus, UserMinus, RefreshCcw
+  UserPlus, UserMinus, RefreshCcw, FlaskConical,
+  Navigation, Sparkles, Gift
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -25,10 +26,12 @@ import {
   limit,
   serverTimestamp
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/lib/notificaciones";
+import { registrarCompra } from "@/lib/puntos";
 
 export default function ModeradorPage() {
   const router = useRouter();
@@ -56,7 +59,6 @@ export default function ModeradorPage() {
       errorEmitter.emit('permission-error', permissionError);
     });
 
-    // Cargar Logs reales si existen
     const logsQ = query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(5));
     const unsubscribeLogs = onSnapshot(logsQ, (snapshot) => {
       setSystemLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -108,6 +110,34 @@ export default function ModeradorPage() {
     }
   };
 
+  // Funciones de la Zona de Pruebas
+  const handleTestGeofence = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setLoading(true);
+    await procesarProximidadGeofence(user.uid, "Admin Test", 0, true);
+    setLoading(false);
+    toast({ title: "Simulación Geofence", description: "Se ha disparado la alerta de proximidad." });
+  };
+
+  const handleForceAINotif = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setLoading(true);
+    await verificarYGenerarRecordatorioIA(user.uid, "Admin Test", 5);
+    setLoading(false);
+    toast({ title: "Simulación IA", description: "Genkit ha generado un nuevo mensaje de prueba." });
+  };
+
+  const handleSimulatePurchase = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setLoading(true);
+    await registrarCompra(db, user.uid);
+    setLoading(false);
+    toast({ title: "Simulación Sello", description: "Has sumado un sello a tu cuenta de prueba." });
+  };
+
   return (
     <main className="min-h-screen bg-[#0f172a] text-slate-100 pb-20 font-sans">
       <div className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-6 sticky top-0 z-50">
@@ -133,13 +163,36 @@ export default function ModeradorPage() {
       </div>
 
       <div className="max-w-lg mx-auto p-6 space-y-8">
+        
+        {/* ZONA DE PRUEBAS INTEGRADA EN MASTER ADMIN */}
+        <section className="bg-primary/5 p-6 rounded-[2rem] border border-primary/20 space-y-4 shadow-xl shadow-primary/5">
+          <div className="flex items-center gap-2 text-primary mb-2">
+            <FlaskConical className="w-5 h-5" />
+            <h2 className="text-xs font-bold uppercase tracking-widest">Zona de Pruebas de Sistema</h2>
+          </div>
+          <p className="text-[10px] text-slate-400 font-medium leading-relaxed mb-4">
+            Herramientas para validar el motor de IA y Geofencing sin salir del panel administrativo.
+          </p>
+          <div className="grid grid-cols-1 gap-3">
+            <Button onClick={handleTestGeofence} disabled={loading} variant="outline" className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-xs h-12 gap-3 font-bold justify-start px-6 rounded-2xl">
+              <Navigation className="w-4 h-4 text-blue-400" /> Simular Proximidad (Geofence)
+            </Button>
+            <Button onClick={handleForceAINotif} disabled={loading} variant="outline" className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-xs h-12 gap-3 font-bold justify-start px-6 rounded-2xl">
+              <Sparkles className="w-4 h-4 text-primary" /> Forzar Mensaje IA (Genkit)
+            </Button>
+            <Button onClick={handleSimulatePurchase} disabled={loading} variant="outline" className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-xs h-12 gap-3 font-bold justify-start px-6 rounded-2xl">
+              <Gift className="w-4 h-4 text-amber-400" /> Sumar Sello de Prueba
+            </Button>
+          </div>
+        </section>
+
         <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-5 flex gap-4">
           <div className="w-10 h-10 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500 shrink-0">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <p className="text-xs text-red-200 leading-relaxed font-medium">
             <span className="font-black text-red-500 uppercase block mb-1 text-[10px]">Acceso Crítico</span>
-            Estás operando sobre la base de datos de producción. Los cambios en roles y estados son instantáneos para los usuarios.
+            Estás operando sobre la base de datos de producción. Los cambios en roles y estados son instantáneos.
           </p>
         </div>
 
@@ -229,11 +282,6 @@ export default function ModeradorPage() {
                 </div>
               </div>
             ))}
-            {entrepreneurs.length === 0 && (
-              <div className="text-center py-10 bg-slate-800/20 rounded-3xl border border-dashed border-slate-800">
-                <p className="text-xs text-slate-500 italic">No hay emprendedores registrados en la DB.</p>
-              </div>
-            )}
           </div>
         </section>
 
