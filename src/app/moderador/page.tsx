@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -50,7 +49,10 @@ export default function ModeradorPage() {
     const fetchTestUser = async () => {
       setIsSearchingTestUser(true);
       try {
-        const q = query(collection(db, "usuarios"), where("correo", "==", TEST_TARGET_EMAIL));
+        const q = query(
+          collection(db, "usuarios"), 
+          where("correo", "==", TEST_TARGET_EMAIL.toLowerCase().trim())
+        );
         const snap = await getDocs(q);
         if (!snap.empty) {
           const d = snap.docs[0];
@@ -60,6 +62,8 @@ export default function ModeradorPage() {
             nombre: data.nombre || "Socio de Prueba",
             sellos: data.comprasRealizadas || 0
           });
+        } else {
+          setTestUser(null);
         }
       } catch (e) {
         console.error("Error buscando usuario de prueba:", e);
@@ -113,40 +117,32 @@ export default function ModeradorPage() {
     }
   };
 
-  const handleFixStamps = async (userId: string, current: number) => {
-    const newVal = prompt("Ingresa el número total de sellos:", current.toString());
-    if (newVal !== null) {
-      const num = parseInt(newVal);
-      if (!isNaN(num)) updateUserField(userId, "comprasRealizadas", num);
-    }
-  };
-
   // HANDLERS DEL LABORATORIO (DIRIGIDOS A NACHITOMATE@GMAIL.COM)
   const runGeofenceTest = async () => {
     if (!testUser) {
-      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}` });
+      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}. Asegúrate que esté registrado.` });
       return;
     }
     setLoading(true);
-    await procesarProximidadGeofence(testUser.id, testUser.nombre, testUser.sellos, true);
+    await procesarProximidadGeofence(testUser.id, testUser.nombre, testUser.sellos, true, true);
     setLoading(false);
     toast({ title: "Simulación Geofence", description: `Enviada a ${TEST_TARGET_EMAIL}` });
   };
 
   const runAITest = async () => {
     if (!testUser) {
-      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}` });
+      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}. Asegúrate que esté registrado.` });
       return;
     }
     setLoading(true);
-    await verificarYGenerarRecordatorioIA(testUser.id, testUser.nombre, testUser.sellos);
+    await verificarYGenerarRecordatorioIA(testUser.id, testUser.nombre, testUser.sellos, true);
     setLoading(false);
     toast({ title: "Generación IA", description: `Mensaje Genkit enviado a ${TEST_TARGET_EMAIL}` });
   };
 
   const runAutoStampTest = async () => {
     if (!testUser) {
-      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}` });
+      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}. Asegúrate que esté registrado.` });
       return;
     }
     setLoading(true);
@@ -157,7 +153,6 @@ export default function ModeradorPage() {
 
   return (
     <main className="min-h-screen bg-[#020617] text-slate-100 pb-32 font-sans selection:bg-primary/30">
-      {/* Header Estilo "Hilos Detrás de la Cortina" */}
       <div className="bg-slate-950/80 backdrop-blur-xl border-b border-slate-800 p-6 sticky top-0 z-50">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -181,7 +176,6 @@ export default function ModeradorPage() {
 
       <div className="max-w-lg mx-auto p-6 space-y-8">
         
-        {/* ZONA DE LABORATORIO - DIRIGIDA A NACHITOMATE@GMAIL.COM */}
         <section className="bg-primary/5 p-8 rounded-[2.5rem] border border-primary/20 space-y-4 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <Target className="w-16 h-16 text-primary" />
@@ -196,15 +190,15 @@ export default function ModeradorPage() {
             <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary">
               <Target className="w-5 h-5" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-[10px] font-bold text-slate-400 uppercase">Target de Pruebas:</p>
               <p className="text-xs font-black text-white">{TEST_TARGET_EMAIL}</p>
               {isSearchingTestUser ? (
-                <p className="text-[8px] text-slate-500 animate-pulse">Buscando UID en Firebase...</p>
+                <p className="text-[8px] text-slate-500 animate-pulse">Buscando en Firebase...</p>
               ) : testUser ? (
-                <p className="text-[8px] text-primary font-bold">USUARIO CONECTADO (UID: {testUser.id.slice(0,8)}...)</p>
+                <p className="text-[8px] text-primary font-bold uppercase">Conectado (UID: {testUser.id.slice(0,8)}...)</p>
               ) : (
-                <p className="text-[8px] text-red-500 font-bold">ERROR: USUARIO NO REGISTRADO</p>
+                <p className="text-[8px] text-red-500 font-bold uppercase">No registrado en el Club</p>
               )}
             </div>
           </div>
@@ -220,8 +214,8 @@ export default function ModeradorPage() {
                 <Navigation className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <p className="text-[11px]">Simular Geofence en nachitomate</p>
-                <p className="text-[8px] text-slate-600">Alerta de proximidad remota</p>
+                <p className="text-[11px]">Simular Geofence</p>
+                <p className="text-[8px] text-slate-600 uppercase">Alerta de proximidad forzada</p>
               </div>
             </Button>
             
@@ -235,8 +229,8 @@ export default function ModeradorPage() {
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <p className="text-[11px]">Forzar Mensaje IA en nachitomate</p>
-                <p className="text-[8px] text-slate-600">Generar notificación Genkit remota</p>
+                <p className="text-[11px]">Forzar Mensaje IA</p>
+                <p className="text-[8px] text-slate-600 uppercase">Generación remota Genkit</p>
               </div>
             </Button>
 
@@ -251,13 +245,12 @@ export default function ModeradorPage() {
               </div>
               <div className="text-left">
                 <p className="text-[11px]">Auto-Sello Remoto</p>
-                <p className="text-[8px] text-slate-600">Sumar sello a nachitomate</p>
+                <p className="text-[8px] text-slate-600 uppercase">Sumar sello a nachitomate</p>
               </div>
             </Button>
           </div>
         </section>
 
-        {/* RADAR DE FRAUDE */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-1">
             <Zap className="w-4 h-4 text-amber-400" />
@@ -273,7 +266,7 @@ export default function ModeradorPage() {
                         <p className="text-[11px] font-medium text-slate-300">
                           <span className="text-primary font-bold">{log.usuario}</span> {log.accion}
                         </p>
-                        <p className="text-[9px] text-slate-500 font-mono">
+                        <p className="text-[9px] text-slate-500 font-mono uppercase">
                           {new Date(log.fecha).toLocaleTimeString()} • ID: {log.id.slice(0,8)}
                         </p>
                       </div>
@@ -287,102 +280,6 @@ export default function ModeradorPage() {
             </CardContent>
           </Card>
         </section>
-
-        {/* BUSCADOR DE MIEMBROS */}
-        <section className="space-y-4">
-          <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Buscador Global</h2>
-          <form onSubmit={handleSearch} className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
-            <Input 
-              placeholder="Correo del usuario..." 
-              className="bg-slate-900 border-slate-800 rounded-2xl pl-11 h-14 text-white focus:ring-primary focus:border-primary"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Button 
-              type="submit" 
-              disabled={loading}
-              className="absolute right-2 top-2 h-10 rounded-xl px-4 font-bold bg-primary hover:bg-primary/90"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rastrear"}
-            </Button>
-          </form>
-
-          <div className="space-y-3">
-            {foundUsers.map(user => (
-              <Card key={user.id} className={cn(
-                "bg-slate-900 border-slate-800 rounded-[2rem] overflow-hidden shadow-xl transition-all",
-                user.baneado && "opacity-60 border-red-900/50 grayscale-[0.5]"
-              )}>
-                <CardContent className="p-6 space-y-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black",
-                        user.baneado ? "bg-red-900/50" : "bg-slate-800"
-                      )}>
-                        {user.nombre?.[0] || user.correo?.[0]?.toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-black text-white">{user.nombre || "Socio Anónimo"}</p>
-                          {user.baneado && <Badge className="bg-red-600 text-[8px] font-black uppercase">Baneado</Badge>}
-                        </div>
-                        <p className="text-[10px] text-slate-500 font-bold">{user.correo}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      onClick={() => handleFixStamps(user.id, user.comprasRealizadas || 0)}
-                      variant="outline" 
-                      className="bg-slate-950 border-slate-800 text-[10px] h-10 gap-2 font-bold rounded-xl"
-                    >
-                      <Edit3 className="w-3 h-3 text-blue-400" /> Editar Sellos ({user.comprasRealizadas || 0})
-                    </Button>
-                    
-                    {user.rol !== 'emprendedor' ? (
-                      <Button 
-                        onClick={() => updateUserField(user.id, 'rol', 'emprendedor')}
-                        className="bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-white text-[10px] h-10 gap-2 font-bold rounded-xl"
-                      >
-                        <UserPlus className="w-3 h-3" /> Hacer Aliado
-                      </Button>
-                    ) : (
-                      <Button 
-                        onClick={() => updateUserField(user.id, 'rol', 'cliente')}
-                        className="bg-slate-950 border-slate-800 text-slate-400 hover:text-white text-[10px] h-10 gap-2 font-bold rounded-xl"
-                      >
-                        <UserMinus className="w-3 h-3" /> Hacer Socio
-                      </Button>
-                    )}
-
-                    <Button 
-                      onClick={() => updateUserField(user.id, 'baneado', !user.baneado)}
-                      variant="outline" 
-                      className={cn(
-                        "col-span-2 h-10 gap-2 font-bold rounded-xl text-[10px]",
-                        user.baneado 
-                          ? "bg-green-500/10 border-green-500/20 text-green-500 hover:bg-green-500 hover:text-white" 
-                          : "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white"
-                      )}
-                    >
-                      {user.baneado ? <UserCheck className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                      {user.baneado ? "Desbloquear Usuario" : "Banear Usuario"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <div className="text-center pt-8">
-          <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.4em] bg-slate-950 py-3 rounded-full inline-block px-10 border border-slate-900">
-            Patio Curauma • Test Mode Active
-          </p>
-        </div>
       </div>
     </main>
   );

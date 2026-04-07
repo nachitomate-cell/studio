@@ -13,12 +13,13 @@ import { useToast } from "@/hooks/use-toast";
  */
 export function NotificationSystem() {
   const { toast } = useToast();
-  const [mountTime] = useState(new Date().toISOString());
+  // Usamos un offset de un segundo antes para no perder notificaciones por discrepancia de ms
+  const [mountTime] = useState(new Date(Date.now() - 1000).toISOString());
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Escuchamos solo las notificaciones creadas DESPUÉS de que la app cargó
+        // Escuchamos las notificaciones creadas desde la carga de la app
         const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
         const q = query(
           notifRef, 
@@ -29,7 +30,7 @@ export function NotificationSystem() {
 
         const unsubscribeNotif = onSnapshot(q, (snapshot) => {
           snapshot.docChanges().forEach((change) => {
-            // Solo procesamos documentos que se añaden en tiempo real
+            // Solo procesamos documentos nuevos
             if (change.type === "added") {
               const data = change.doc.data();
               
