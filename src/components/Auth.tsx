@@ -16,8 +16,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles } from "lucide-react";
 
+const EMAIL_MASTER_ADMIN = 'ignaciiio.mate@gmail.com';
 const EMAILS_EMPRENDEDORES = [
-  'ignaciiio.mate@gmail.com',
+  'aliado@clubpatio.cl',
 ];
 
 export function Auth() {
@@ -44,9 +45,14 @@ export function Auth() {
         const newUser = userCredential.user;
 
         const emailLimpio = email.toLowerCase().trim();
-        const rolAsignado = EMAILS_EMPRENDEDORES.includes(emailLimpio) 
-          ? "emprendedor" 
-          : "cliente";
+        
+        // ASIGNACIÓN DE ROLES
+        let rolAsignado = "cliente";
+        if (emailLimpio === EMAIL_MASTER_ADMIN) {
+          rolAsignado = "admin";
+        } else if (EMAILS_EMPRENDEDORES.includes(emailLimpio)) {
+          rolAsignado = "emprendedor";
+        }
 
         // REGALO DE BIENVENIDA: El usuario comienza con 1 sello gratis por unirse al club
         await setDoc(doc(db, "usuarios", newUser.uid), {

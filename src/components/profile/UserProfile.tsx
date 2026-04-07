@@ -220,6 +220,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   }
 
   const rol = userData?.rol || "cliente";
+  const isAdmin = rol === "admin";
   const isEntrepreneur = rol === "emprendedor";
   const sellos = userData?.comprasRealizadas || 0;
   const tickets = userData?.ticketsSorteo || 0;
@@ -251,13 +252,15 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h2 className="text-2xl font-bold text-primary">{userData?.nombre || "Usuario"}</h2>
-              <Badge variant={isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">{isEntrepreneur ? "Emprendedor" : "Miembro Club"}</Badge>
+              <Badge variant={isAdmin ? "destructive" : isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">
+                {isAdmin ? "Master Admin" : isEntrepreneur ? "Emprendedor" : "Miembro Club"}
+              </Badge>
             </div>
           </div>
         </div>
       </div>
 
-      {/* NUEVO: Botón para habilitar notificaciones reales en iPhone */}
+      {/* NOTIFICACIONES PUSH */}
       {!pushEnabled && (
         <Card className="border-none shadow-md bg-blue-50/50 rounded-2xl">
           <CardContent className="p-4 flex items-center justify-between gap-4">
@@ -272,20 +275,24 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </Card>
       )}
 
+      {/* ZONA DE PRUEBAS - SOLO PARA ADMIN */}
+      {isAdmin && (
+        <section className="bg-slate-100/50 p-4 rounded-3xl border border-slate-200 border-dashed space-y-3">
+          <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <FlaskConical className="w-4 h-4" />
+            <h4 className="text-[10px] font-bold uppercase tracking-widest">Zona de Pruebas (Admin Only)</h4>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Button onClick={handleTestGeofence} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Navigation className="w-3 h-3" /> Proximidad</Button>
+            <Button onClick={handleForceAINotif} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Sparkles className="w-3 h-3" /> Generar IA</Button>
+            <Button onClick={handleSimulatePurchase} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Gift className="w-3 h-3" /> Sumar Sello</Button>
+          </div>
+        </section>
+      )}
+
+      {/* VISTA PARA SOCIO Y ADMIN */}
       {!isEntrepreneur && (
         <>
-          <section className="bg-slate-100/50 p-4 rounded-3xl border border-slate-200 border-dashed space-y-3">
-            <div className="flex items-center gap-2 text-slate-500 mb-2">
-              <FlaskConical className="w-4 h-4" />
-              <h4 className="text-[10px] font-bold uppercase tracking-widest">Zona de Pruebas</h4>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button onClick={handleTestGeofence} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Navigation className="w-3 h-3" /> Proximidad</Button>
-              <Button onClick={handleForceAINotif} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Sparkles className="w-3 h-3" /> Generar IA</Button>
-              <Button onClick={handleSimulatePurchase} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Gift className="w-3 h-3" /> Sumar Sello</Button>
-            </div>
-          </section>
-
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-1">
               <Bell className="w-5 h-5 text-primary" />
@@ -364,6 +371,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </>
       )}
 
+      {/* VISTA PARA EMPRENDEDOR */}
       {isEntrepreneur && (
         <div className="space-y-6">
           <Card className="border-accent/40 shadow-md bg-white rounded-3xl overflow-hidden">
