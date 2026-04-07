@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, getDoc } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -64,10 +64,10 @@ export default function VendedorPage() {
           if (snap.exists()) {
             const data = snap.data();
             setShopForm({
-              nombreTienda: data.businessName || "",
-              descripcion: data.description || ""
+              nombreTienda: data.businessName || data.nombre || "",
+              descripcion: data.description || data.descripcion || ""
             });
-            setPreviewUrl(data.imageUrls?.[0] || null);
+            setPreviewUrl(data.imageUrls?.[0] || data.imageUrl || null);
           }
         });
 
@@ -116,44 +116,41 @@ export default function VendedorPage() {
     setLoading(true);
 
     try {
-      let imageUrl = previewUrl;
+      let finalImageUrl = previewUrl;
 
+      // 1. Subir a Storage si hay imagen seleccionada
       if (profileImage) {
-        try {
-          const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/${Date.now()}_${profileImage.name}`);
-          const uploadResult = await uploadBytes(storageRef, profileImage);
-          imageUrl = await getDownloadURL(uploadResult.ref);
-        } catch (storageError: any) {
-          console.warn("Error en Storage:", storageError);
-          toast({ 
-            variant: "destructive", 
-            title: "Error de imagen", 
-            description: "No se pudo subir la foto. Se guardarán solo los textos." 
-          });
-        }
+        const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/profile.jpg`);
+        const uploadResult = await uploadBytes(storageRef, profileImage);
+        finalImageUrl = await getDownloadURL(uploadResult.ref);
       }
 
+      // 2. Guardar en Firestore
       const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
-      await setDoc(profileRef, {
+      const updateData = {
         id: auth.currentUser.uid,
         userId: auth.currentUser.uid,
         businessName: shopForm.nombreTienda,
         description: shopForm.descripcion,
-        imageUrls: imageUrl ? [imageUrl] : [],
+        imageUrl: finalImageUrl,
+        imageUrls: finalImageUrl ? [finalImageUrl] : [],
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
 
+      await setDoc(profileRef, updateData, { merge: true });
+
+      // Actualizar también el nombre en la tabla de usuarios para sincronización rápida
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
-      await setDoc(userRef, { nombreTienda: shopForm.nombreTienda }, { merge: true });
+      await updateDoc(userRef, { nombreTienda: shopForm.nombreTienda });
 
-      toast({ title: "Perfil actualizado", description: "La información se guardó correctamente." });
+      toast({ title: "¡Perfil actualizado!", description: "La información de tu local se ha guardado correctamente." });
       setView("dashboard");
     } catch (error: any) {
-      console.error("Error al guardar:", error);
+      console.error("Error al guardar perfil:", error);
       toast({ 
         variant: "destructive", 
         title: "Error al guardar", 
-        description: error.message || "No se pudieron guardar los cambios." 
+        description: "Asegúrate de tener Storage activado y permisos configurados." 
       });
     } finally {
       setLoading(false);
