@@ -13,7 +13,7 @@ const firebaseConfig = {
   appId: "1:120681935080:web:d41757280ca888b46bd95d"
 };
 
-// Inicializar Firebase (el 'if' evita errores si Next.js recarga la página)
+// Inicializar Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);

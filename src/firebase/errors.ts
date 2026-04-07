@@ -1,6 +1,3 @@
-/**
- * @fileOverview Definición de errores personalizados para Firestore.
- */
 
 export type SecurityRuleContext = {
   path: string;

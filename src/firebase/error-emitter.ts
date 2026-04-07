@@ -1,6 +1,3 @@
-/**
- * @fileOverview Emisor de eventos global para errores de Firebase.
- */
 
 type Listener = (error: any) => void;
 

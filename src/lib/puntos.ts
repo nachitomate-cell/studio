@@ -1,3 +1,4 @@
+
 import { doc, getDoc, updateDoc, setDoc, Firestore, increment, collection, addDoc } from "firebase/firestore";
 import { enviarNotificacionLocal } from "./notificaciones";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -5,9 +6,6 @@ import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/e
 
 /**
  * Registra una compra para el usuario, sumando sellos y puntos.
- * @param db Instancia de Firestore
- * @param userId ID del cliente (UID)
- * @param vendedorId ID del vendedor (opcional)
  */
 export async function registrarCompra(db: Firestore, userId: string, vendedorId?: string) {
   const userRef = doc(db, "usuarios", userId);
@@ -46,16 +44,15 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       }));
     });
 
-    // 2. Notificar al Cliente (Recipient)
+    // 2. Notificar al Cliente
     if (nuevasCompras % 5 === 0) {
       await enviarNotificacionLocal(userId, "¡Premio Listo! 🎁", `¡Felicidades! Has completado ${nuevasCompras} sellos. Canjea tu premio ahora.`);
     } else {
       await enviarNotificacionLocal(userId, "¡Sello Recibido! ✨", `Has sumado un nuevo sello en Patio Curauma. ¡Te faltan pocos para tu premio!`);
     }
 
-    // 3. Si hay un vendedor, registrar y NOTIFICAR al Emprendedor (Sender)
+    // 3. Registrar y Notificar al Emprendedor
     if (vendedorId) {
-      // Registrar en historial de ventas
       const logRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
       addDoc(logRef, {
         vendedorId,
@@ -69,7 +66,6 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
         }));
       });
 
-      // Enviar notificación de sistema al emprendedor
       await enviarNotificacionLocal(vendedorId, "Venta Exitosa ✅", `Has entregado un sello a ${clienteNombre}.`);
     }
     
@@ -79,7 +75,7 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
 }
 
 /**
- * Procesa el canje de una recompensa específica.
+ * Procesa el canje de una recompensa.
  */
 export async function canjearRecompensa(db: Firestore, userId: string, costo: number, userEmail?: string) {
   const userRef = doc(db, "usuarios", userId);
