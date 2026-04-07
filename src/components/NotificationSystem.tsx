@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { collection, query, where, orderBy, onSnapshot, limit } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { collection, query, orderBy, onSnapshot, limit, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
@@ -13,44 +13,36 @@ import { useToast } from "@/hooks/use-toast";
  */
 export function NotificationSystem() {
   const { toast } = useToast();
-  const lastNotifId = useRef<string | null>(null);
+  const [mountTime] = useState(new Date().toISOString());
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Escuchar las notificaciones más recientes creadas para este usuario
+        // Escuchamos solo las notificaciones creadas DESPUÉS de que la app cargó
         const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
         const q = query(
           notifRef, 
+          where("fecha", ">", mountTime),
           orderBy("fecha", "desc"), 
-          limit(1)
+          limit(5)
         );
 
         const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-          if (!snapshot.empty) {
-            const doc = snapshot.docs[0];
-            const data = doc.data();
-            
-            // Evitar disparar la alerta para notificaciones antiguas al cargar
-            if (!lastNotifId.current) {
-              lastNotifId.current = doc.id;
-              return;
-            }
-
-            // Si es un nuevo ID de notificación, disparamos la alerta
-            if (doc.id !== lastNotifId.current) {
-              lastNotifId.current = doc.id;
+          snapshot.docChanges().forEach((change) => {
+            // Solo procesamos documentos que se añaden en tiempo real
+            if (change.type === "added") {
+              const data = change.doc.data();
               
-              // Alerta visual en la app
+              // 1. Alerta visual en la app (Toast)
               toast({
                 title: data.titulo,
                 description: data.mensaje,
               });
 
-              // Alerta física del sistema (iPhone/Android)
+              // 2. Alerta física del sistema (iPhone/Android)
               dispararAlertaSistema(data.titulo, data.mensaje);
             }
-          }
+          });
         }, (error) => {
           console.warn("Fallo en listener de notificaciones:", error);
         });
@@ -60,7 +52,7 @@ export function NotificationSystem() {
     });
 
     return () => unsubscribeAuth();
-  }, [toast]);
+  }, [toast, mountTime]);
 
   return null;
 }

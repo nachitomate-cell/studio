@@ -11,10 +11,12 @@ import { generatePromoMessage } from "@/ai/flows/generate-promo-message-flow";
  * Dispara una notificación física en el sistema operativo (iOS/Android/Web).
  */
 export async function dispararAlertaSistema(titulo: string, mensaje: string) {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (typeof window === "undefined") return;
 
-  if (Notification.permission === "granted") {
+  // En iOS/Android, las notificaciones Push requieren permisos previos
+  if ("Notification" in window && Notification.permission === "granted") {
     try {
+      // Intentamos usar el Service Worker para mayor compatibilidad en segundo plano
       const registration = await navigator.serviceWorker?.getRegistration();
       if (registration && 'showNotification' in registration) {
         registration.showNotification(titulo, {
@@ -24,10 +26,11 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
           vibrate: [200, 100, 200],
         });
       } else {
+        // Fallback a notificación de navegador estándar
         new Notification(titulo, { body: mensaje });
       }
     } catch (e) {
-      new Notification(titulo, { body: mensaje });
+      console.warn("No se pudo disparar notificación de sistema:", e);
     }
   }
 }
@@ -37,6 +40,8 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
  * El listener global se encargará de disparar la alerta física en el dispositivo del destinatario.
  */
 export async function enviarNotificacionLocal(userId: string, titulo: string, mensaje: string, metadata: any = {}) {
+  if (!userId) return;
+  
   try {
     const notifRef = collection(db, "usuarios", userId, "notificaciones");
     await addDoc(notifRef, {
@@ -47,7 +52,7 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
       ...metadata
     });
   } catch (error) {
-    console.error("Error al registrar notificación:", error);
+    console.error("Error al registrar notificación en Firestore:", error);
   }
 }
 
@@ -92,7 +97,7 @@ export async function verificarYGenerarRecordatorioIA(userId: string, userName: 
  * Procesa la lógica de cercanía geográfica (Geofencing) para disparar invitaciones.
  */
 export async function procesarProximidadGeofence(userId: string, userName: string, stamps: number, isNear: boolean) {
-  if (!isNear) return;
+  if (!isNear || !userId) return;
 
   try {
     const notifRef = collection(db, "usuarios", userId, "notificaciones");
