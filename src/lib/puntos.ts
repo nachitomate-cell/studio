@@ -4,9 +4,6 @@ import { enviarNotificacionLocal } from "./notificaciones";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
-/**
- * Registra una compra para el usuario, sumando sellos y puntos.
- */
 export async function registrarCompra(db: Firestore, userId: string, vendedorId?: string) {
   const userRef = doc(db, "usuarios", userId);
   
@@ -29,7 +26,6 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
     const timestamp = new Date().toISOString();
     const clienteNombre = data.nombre || data.correo || "Miembro del Club";
     
-    // 1. Actualizar Cliente
     updateDoc(userRef, {
       comprasRealizadas: increment(1),
       recompensaDisponible: nuevasCompras >= 5,
@@ -44,14 +40,12 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       }));
     });
 
-    // 2. Notificar al Cliente
     if (nuevasCompras % 5 === 0) {
       await enviarNotificacionLocal(userId, "¡Premio Listo! 🎁", `¡Felicidades! Has completado ${nuevasCompras} sellos. Canjea tu premio ahora.`);
     } else {
       await enviarNotificacionLocal(userId, "¡Sello Recibido! ✨", `Has sumado un nuevo sello en Patio Curauma. ¡Te faltan pocos para tu premio!`);
     }
 
-    // 3. Registrar y Notificar al Emprendedor
     if (vendedorId) {
       const logRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
       addDoc(logRef, {
@@ -74,9 +68,6 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
   }
 }
 
-/**
- * Procesa el canje de una recompensa.
- */
 export async function canjearRecompensa(db: Firestore, userId: string, costo: number, userEmail?: string) {
   const userRef = doc(db, "usuarios", userId);
   

@@ -3,9 +3,6 @@ import { db } from "./firebase";
 import { collection, addDoc, query, where, getDocs, limit, orderBy } from "firebase/firestore";
 import { generatePromoMessage } from "@/ai/flows/generate-promo-message-flow";
 
-/**
- * Dispara una notificación física en el sistema operativo.
- */
 export async function dispararAlertaSistema(titulo: string, mensaje: string) {
   if (typeof window === "undefined") return;
 
@@ -28,9 +25,6 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
   }
 }
 
-/**
- * Registra una notificación en Firestore.
- */
 export async function enviarNotificacionLocal(userId: string, titulo: string, mensaje: string, metadata: any = {}) {
   if (!userId) return;
   
@@ -48,9 +42,6 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
   }
 }
 
-/**
- * Genera un recordatorio automatizado usando IA.
- */
 export async function verificarYGenerarRecordatorioIA(userId: string, userName: string, stamps: number) {
   try {
     const notifRef = collection(db, "usuarios", userId, "notificaciones");
@@ -85,9 +76,6 @@ export async function verificarYGenerarRecordatorioIA(userId: string, userName: 
   }
 }
 
-/**
- * Procesa la lógica de proximidad geográfica.
- */
 export async function procesarProximidadGeofence(userId: string, userName: string, stamps: number, isNear: boolean) {
   if (!isNear || !userId) return;
 

@@ -1,35 +1,8 @@
 
-export type Category = {
-  id: string;
-  name: string;
-  icon: string;
-};
-
-export type Entrepreneur = {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  contact: string;
-  schedule: string;
-  locationId: string;
-  imageUrl: string;
-};
-
-export type Premio = {
-  id: string;
-  nombre: string;
-  costo: number;
-  icono: string;
-  esSorteo?: boolean;
-};
-
-export type MapLocation = {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-};
+export type Category = { id: string; name: string; icon: string; };
+export type Entrepreneur = { id: string; name: string; category: string; description: string; contact: string; schedule: string; locationId: string; imageUrl: string; };
+export type Premio = { id: string; nombre: string; costo: number; icono: string; esSorteo?: boolean; };
+export type MapLocation = { id: string; name: string; x: number; y: number; };
 
 export const PATIO_INFO = {
   name: "Outlet Curauma",
@@ -39,10 +12,7 @@ export const PATIO_INFO = {
   instagram: "patiocurauma",
   facebook: "100063522160910",
   tiktok: "patio_curauma",
-  coordinates: {
-    lat: -33.1316449,
-    lng: -71.5668639
-  }
+  coordinates: { lat: -33.1316449, lng: -71.5668639 }
 };
 
 export const CATEGORIES: Category[] = [
@@ -55,26 +25,8 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const ENTREPRENEURS: Entrepreneur[] = [
-  {
-    id: 'e1',
-    name: 'Aromavida - Biogreen',
-    category: 'deco',
-    description: 'Productos eco-sostenibles para el hogar y cuidado personal. 🌿',
-    contact: '+56 9 1111 2222',
-    schedule: 'Lun-Sáb 10:00 - 19:00',
-    locationId: 'loc-1',
-    imageUrl: 'https://picsum.photos/seed/biogreen/400/300'
-  },
-  {
-    id: 'e2',
-    name: 'Curauma Sabor',
-    category: 'gourmet',
-    description: 'Exclusiva selección de licores y sabores gourmet. 🍔',
-    contact: '+56 9 3333 4444',
-    schedule: 'Mar-Dom 12:00 - 21:00',
-    locationId: 'loc-2',
-    imageUrl: 'https://picsum.photos/seed/sabor/400/300'
-  }
+  { id: 'e1', name: 'Aromavida - Biogreen', category: 'deco', description: 'Productos eco-sostenibles para el hogar y cuidado personal. 🌿', contact: '+56 9 1111 2222', schedule: 'Lun-Sáb 10:00 - 19:00', locationId: 'loc-1', imageUrl: 'https://picsum.photos/seed/biogreen/400/300' },
+  { id: 'e2', name: 'Curauma Sabor', category: 'gourmet', description: 'Exclusiva selección de licores y sabores gourmet. 🍔', contact: '+56 9 3333 4444', schedule: 'Mar-Dom 12:00 - 21:00', locationId: 'loc-2', imageUrl: 'https://picsum.photos/seed/sabor/400/300' }
 ];
 
 export const PREMIOS: Premio[] = [
