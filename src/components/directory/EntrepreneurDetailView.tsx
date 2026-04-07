@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -20,21 +20,20 @@ import {
   Wallet, 
   Banknote,
   Loader2,
-  ExternalLink,
   Share2,
   Heart
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-/**
- * Vista de detalle inmersiva para el cliente.
- * Muestra toda la información del emprendedor guardada en la 'Caja de Textos'.
- */
-export function EntrepreneurDetailView() {
+function DetailContent() {
   const params = useParams();
-  const id = params?.id;
+  const searchParams = useSearchParams();
   const router = useRouter();
+  
+  // Soporta tanto /emprendedor/[id] como /detalle?id=...
+  const id = params?.id || searchParams.get('id');
+  
   const [entrepreneur, setEntrepreneur] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -42,7 +41,6 @@ export function EntrepreneurDetailView() {
   useEffect(() => {
     if (!id) return;
 
-    // Conexión en tiempo real a la 'Caja de Textos'
     const docRef = doc(db, "entrepreneur_profiles", id as string);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -104,7 +102,6 @@ export function EntrepreneurDetailView() {
 
   return (
     <main className="min-h-screen bg-[#F2F4F0] pb-24 font-body animate-in fade-in duration-500">
-      {/* Botones de Acción Flotantes Superiores */}
       <div className="fixed top-4 left-4 right-4 z-50 flex justify-between items-center">
         <Button 
           variant="secondary" 
@@ -134,7 +131,6 @@ export function EntrepreneurDetailView() {
         </div>
       </div>
 
-      {/* Hero: Imagen Principal */}
       <div className="relative h-[45vh] w-full">
         <Image
           src={entrepreneur.imagenUrl}
@@ -146,10 +142,8 @@ export function EntrepreneurDetailView() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#F2F4F0] via-transparent to-black/20" />
       </div>
 
-      {/* Contenido Detallado */}
       <div className="max-w-lg mx-auto px-6 -mt-16 relative z-10">
         <div className="space-y-6">
-          {/* Cabecera del Local */}
           <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white">
             <CardContent className="p-8 space-y-4">
               <div className="space-y-2">
@@ -190,7 +184,6 @@ export function EntrepreneurDetailView() {
             </CardContent>
           </Card>
 
-          {/* Medios de Pago */}
           <section className="space-y-3 px-2">
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Aceptamos</h2>
             <div className="flex gap-3 overflow-x-auto no-scrollbar">
@@ -207,11 +200,10 @@ export function EntrepreneurDetailView() {
             </div>
           </section>
 
-          {/* Call to Actions Principales */}
           <div className="space-y-3">
             <Button 
               className="w-full h-16 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-black text-lg gap-4 shadow-xl shadow-[#25D366]/20 transition-all active:scale-95"
-              onClick={() => window.open(`https://wa.me/${entrepreneur.whatsapp.replace(/\D/g, '')}`, '_blank')}
+              onClick={() => window.open(`https://wa.me/${entrepreneur.whatsapp?.replace(/\D/g, '')}`, '_blank')}
             >
               <MessageCircle className="w-7 h-7 fill-current" />
               Contactar por WhatsApp
@@ -221,7 +213,7 @@ export function EntrepreneurDetailView() {
               <Button 
                 variant="outline"
                 className="h-14 rounded-2xl border-primary/20 bg-white text-primary font-bold gap-3 hover:bg-primary/5"
-                onClick={() => window.open(`https://instagram.com/${entrepreneur.instagram.replace('@', '')}`, '_blank')}
+                onClick={() => window.open(`https://instagram.com/${entrepreneur.instagram?.replace('@', '')}`, '_blank')}
                 disabled={!entrepreneur.instagram}
               >
                 <Instagram className="w-5 h-5" />
@@ -238,7 +230,6 @@ export function EntrepreneurDetailView() {
             </div>
           </div>
 
-          {/* Recordatorio de Fidelización */}
           <Card className="bg-primary border-none rounded-3xl overflow-hidden shadow-lg">
             <CardContent className="p-6 flex items-center gap-4 text-white">
               <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -259,5 +250,13 @@ export function EntrepreneurDetailView() {
         </div>
       </div>
     </main>
+  );
+}
+
+export function EntrepreneurDetailView() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>}>
+      <DetailContent />
+    </Suspense>
   );
 }
