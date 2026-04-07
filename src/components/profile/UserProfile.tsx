@@ -17,7 +17,8 @@ import {
   Clock, Bell, CheckCircle2,
   ExternalLink, Sparkles,
   Calendar, FlaskConical, Navigation,
-  LayoutDashboard, AlertTriangle, Trash2
+  LayoutDashboard, AlertTriangle, Trash2,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +36,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
@@ -279,7 +278,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             ) : (
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setIsEditing(false)}><X className="w-4 h-4" /></Button>
-                <Button size="sm" className="rounded-full bg-primary" onClick={handleSaveProfile} disabled={loading}><Save className="w-4 h-4" /></Button>
               </div>
             )}
           </div>
@@ -290,9 +288,80 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                 {isAdmin ? "Master Admin" : isDirector ? "Director de Patio" : isEntrepreneur ? "Emprendedor" : "Miembro Club"}
               </Badge>
             </div>
+            {!isEditing && userData?.telefono && (
+              <p className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
+                <Phone className="w-3 h-3" /> {userData.telefono}
+              </p>
+            )}
           </div>
         </div>
       </div>
+
+      {isEditing && (
+        <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden animate-in slide-in-from-top duration-300">
+          <CardHeader className="bg-slate-50 pb-4">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <UserIcon className="w-4 h-4 text-primary" /> Editar Mis Datos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            <div className="space-y-4">
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Selecciona tu Avatar</Label>
+              <div className="flex flex-wrap gap-3 justify-center">
+                {AVATAR_OPTIONS.map((opt) => {
+                  const Icon = opt.icon;
+                  const isSelected = editForm.avatarId === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => setEditForm({ ...editForm, avatarId: opt.id })}
+                      className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                        opt.color,
+                        isSelected ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-lg" : "opacity-40 grayscale-[50%] hover:opacity-100 hover:grayscale-0"
+                      )}
+                    >
+                      <Icon className="w-6 h-6" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-nombre">Nombre Completo</Label>
+                <Input
+                  id="edit-nombre"
+                  value={editForm.nombre}
+                  onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                  placeholder="Tu nombre"
+                  className="rounded-xl h-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-telefono">WhatsApp / Teléfono</Label>
+                <Input
+                  id="edit-telefono"
+                  value={editForm.telefono}
+                  onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
+                  placeholder="+56 9 ..."
+                  className="rounded-xl h-12"
+                />
+              </div>
+            </div>
+            
+            <Button 
+              onClick={handleSaveProfile} 
+              disabled={loading}
+              className="w-full h-12 rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Guardar Cambios
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {isEditing && (
         <Card className="border-red-100 bg-red-50/30 rounded-2xl">
@@ -325,7 +394,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </Card>
       )}
 
-      {!pushEnabled && (
+      {!pushEnabled && !isEditing && (
         <Card className="border-none shadow-md bg-blue-50/50 rounded-2xl">
           <CardContent className="p-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -389,7 +458,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </CardHeader>
             <CardContent className="p-6">
               <Link href="/vendedor">
-                <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3">
+                <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20">
                   <QrCode className="w-6 h-6" /> Abrir Terminal de Sellos
                 </Button>
               </Link>
@@ -398,7 +467,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
       )}
 
-      {!isEntrepreneur && !isDirector && (
+      {!isEntrepreneur && !isDirector && !isEditing && (
         <>
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-1">
