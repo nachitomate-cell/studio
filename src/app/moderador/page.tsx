@@ -290,14 +290,14 @@ export default function ModeradorPage() {
                         <p className="text-[10px] text-slate-500">{user.correo}</p>
                       </div>
                     </div>
-                    <Badge variant={user.rol === 'admin' ? 'destructive' : user.rol === 'emprendedor' ? 'default' : 'outline'} className="text-[8px] uppercase font-black">
-                      {user.rol || 'cliente'}
+                    <Badge variant={user.rol === 'admin' ? 'destructive' : user.rol === 'director' ? 'secondary' : user.rol === 'emprendedor' ? 'default' : 'outline'} className="text-[8px] uppercase font-black">
+                      {user.rol === 'cliente' ? 'Socio' : user.rol === 'emprendedor' ? 'Aliado' : user.rol === 'director' ? 'Director' : user.rol || 'socio'}
                     </Badge>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 pt-2 border-t border-slate-800">
                     <div className="space-y-2">
-                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Asignar Rol</p>
+                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Asignar Nivel</p>
                       <div className="flex gap-1">
                         <Button 
                           size="sm" 
@@ -313,10 +313,10 @@ export default function ModeradorPage() {
                         >Aliado</Button>
                         <Button 
                           size="sm" 
-                          variant={user.rol === 'admin' ? 'default' : 'outline'} 
+                          variant={user.rol === 'director' ? 'default' : 'outline'} 
                           className="flex-1 h-8 text-[9px] font-bold rounded-lg"
-                          onClick={() => updateUserField(user.id, 'rol', 'admin')}
-                        >Admin</Button>
+                          onClick={() => updateUserField(user.id, 'rol', 'director')}
+                        >Director de Patio</Button>
                       </div>
                     </div>
 
