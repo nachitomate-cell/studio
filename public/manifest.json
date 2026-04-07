@@ -1,0 +1,22 @@
+
+{
+  "name": "Club Patio Curauma",
+  "short_name": "Club Patio",
+  "description": "Acumula sellos y obtén recompensas en Patio Curauma",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8dc63f",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/patio-icon/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/patio-icon/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

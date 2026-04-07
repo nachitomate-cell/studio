@@ -1,24 +1,30 @@
+
 import { db } from "./firebase";
 import { collection, addDoc, query, where, getDocs, limit, orderBy } from "firebase/firestore";
 import { generatePromoMessage } from "@/ai/flows/generate-promo-message-flow";
 
 /**
  * Dispara una notificación nativa del sistema (Push) si el permiso está concedido.
+ * En iOS PWA, requiere que el Service Worker esté activo.
  */
 export async function dispararAlertaSistema(titulo: string, mensaje: string) {
   if (typeof window === "undefined") return;
 
   if ("Notification" in window && Notification.permission === "granted") {
     try {
-      const registration = await navigator.serviceWorker?.getRegistration();
+      const registration = await navigator.serviceWorker.getRegistration();
       if (registration && 'showNotification' in registration) {
-        registration.showNotification(titulo, {
+        // Método preferido para PWA (permite segundo plano si el sistema no ha suspendido el proceso)
+        await registration.showNotification(titulo, {
           body: mensaje,
-          icon: "/Logo.png",
-          badge: "/Logo.png",
+          icon: "https://picsum.photos/seed/patio-icon/192/192",
+          badge: "https://picsum.photos/seed/patio-icon/192/192",
           vibrate: [200, 100, 200],
+          tag: 'club-patio-notification', // Evita duplicados
+          renotify: true
         });
       } else {
+        // Fallback para navegadores sin Service Worker activo
         new Notification(titulo, { body: mensaje });
       }
     } catch (e) {

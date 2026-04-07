@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,6 +18,11 @@ export function NotificationSystem() {
   const [mountTime] = useState(new Date(Date.now() - 1000).toISOString());
 
   useEffect(() => {
+    // Registro del Service Worker para soporte de notificaciones PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.warn("SW Registration failed:", err));
+    }
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         // Escuchamos las notificaciones creadas desde la carga de la app
@@ -34,7 +40,7 @@ export function NotificationSystem() {
             if (change.type === "added") {
               const data = change.doc.data();
               
-              // 1. Alerta visual en la app (Toast)
+              // 1. Alerta visual en la app (Toast) - Solo si la app está abierta
               toast({
                 title: data.titulo,
                 description: data.mensaje,
