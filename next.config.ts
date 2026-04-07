@@ -2,7 +2,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  // output: 'export', // Desactivado temporalmente para pruebas en desarrollo
+  // output: 'export', // Desactivado temporalmente para pruebas en desarrollo según solicitud
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,8 +10,12 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    // Corregido: Algunos entornos de NextJS 15 requieren esta configuración específica
-    allowedDevOrigins: ['localhost:9002', '*.cloudworkstations.dev'],
+    // Configuración para permitir orígenes de desarrollo específicos
+    allowedDevOrigins: [
+      'localhost:9002', 
+      '*.cloudworkstations.dev',
+      '9000-firebase-studio-1775442021830.cluster-hlmk2l2htragyudeyf6f3tzsi6.cloudworkstations.dev'
+    ],
   },
   images: {
     unoptimized: true,

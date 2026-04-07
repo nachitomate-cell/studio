@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -16,7 +15,7 @@ import {
   Gift, Clock, ChevronRight, LayoutDashboard,
   X, Store, Save, ImagePlus, UserCircle, Upload
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -120,9 +119,18 @@ export default function VendedorPage() {
 
       // 1. Subir a Storage si hay imagen seleccionada
       if (profileImage) {
-        const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/profile.jpg`);
-        const uploadResult = await uploadBytes(storageRef, profileImage);
-        finalImageUrl = await getDownloadURL(uploadResult.ref);
+        try {
+          const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/profile.jpg`);
+          const uploadResult = await uploadBytes(storageRef, profileImage);
+          finalImageUrl = await getDownloadURL(uploadResult.ref);
+        } catch (storageError: any) {
+          console.error("Storage Error:", storageError);
+          toast({ 
+            variant: "destructive", 
+            title: "Error de Imagen", 
+            description: "No se pudo subir la foto. Se guardará solo el texto." 
+          });
+        }
       }
 
       // 2. Guardar en Firestore
@@ -132,14 +140,13 @@ export default function VendedorPage() {
         userId: auth.currentUser.uid,
         businessName: shopForm.nombreTienda,
         description: shopForm.descripcion,
-        imageUrl: finalImageUrl,
+        imageUrl: finalImageUrl || null,
         imageUrls: finalImageUrl ? [finalImageUrl] : [],
         updatedAt: new Date().toISOString()
       };
 
       await setDoc(profileRef, updateData, { merge: true });
 
-      // Actualizar también el nombre en la tabla de usuarios para sincronización rápida
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       await updateDoc(userRef, { nombreTienda: shopForm.nombreTienda });
 
@@ -150,7 +157,7 @@ export default function VendedorPage() {
       toast({ 
         variant: "destructive", 
         title: "Error al guardar", 
-        description: "Asegúrate de tener Storage activado y permisos configurados." 
+        description: "Hubo un problema al conectar con la base de datos." 
       });
     } finally {
       setLoading(false);
@@ -206,7 +213,7 @@ export default function VendedorPage() {
 
   if (view === "profile") {
     return (
-      <main className="min-h-screen bg-[#f0f2f5] pb-20 font-sans animate-in slide-in-from-right duration-300">
+      <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
         <div className="bg-white border-b border-slate-200 p-6 sticky top-0 z-10 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setView("dashboard")} className="text-slate-400">
             <ArrowLeft className="w-6 h-6" />
