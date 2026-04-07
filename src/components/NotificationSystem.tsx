@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,6 +6,8 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 /**
  * Componente que escucha nuevas notificaciones en Firestore
@@ -26,8 +27,9 @@ export function NotificationSystem() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
+        const notifPath = `usuarios/${user.uid}/notificaciones`;
         const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
-        // Escuchamos solo las notificaciones creadas DESPUÉS de abrir la app
+        
         const q = query(
           notifRef, 
           where("fecha", ">", mountTime),
@@ -35,24 +37,28 @@ export function NotificationSystem() {
           limit(5)
         );
 
-        const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data();
-              
-              // 1. Alerta visual en la app (Toast)
-              toast({
-                title: data.titulo,
-                description: data.mensaje,
-              });
-
-              // 2. Intento de alerta nativa del sistema
-              dispararAlertaSistema(data.titulo, data.mensaje);
-            }
-          });
-        }, (error) => {
-          console.warn("Error en listener de notificaciones:", error);
-        });
+        const unsubscribeNotif = onSnapshot(q, 
+          (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === "added") {
+                const data = change.doc.data();
+                toast({
+                  title: data.titulo,
+                  description: data.mensaje,
+                });
+                dispararAlertaSistema(data.titulo, data.mensaje);
+              }
+            });
+          }, 
+          async (serverError) => {
+            // Manejo de error contextual para el desarrollador
+            const permissionError = new FirestorePermissionError({
+              path: notifPath,
+              operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          }
+        );
 
         return () => unsubscribeNotif();
       }
