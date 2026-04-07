@@ -16,7 +16,8 @@ import {
   MessageCircle, MapPin, 
   Clock, Bell, CheckCircle2,
   Info, ExternalLink, Instagram, Facebook, Sparkles,
-  ChevronRight, Calendar, FlaskConical, Navigation
+  ChevronRight, Calendar, FlaskConical, Navigation,
+  LayoutDashboard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +72,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
-    // Verificar si ya hay permisos de notificación
     if ("Notification" in window) {
       setPushEnabled(Notification.permission === "granted");
     }
@@ -222,6 +222,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const rol = userData?.rol || "cliente";
   const isAdmin = rol === "admin";
   const isEntrepreneur = rol === "emprendedor";
+  const isDirector = rol === "director";
   const sellos = userData?.comprasRealizadas || 0;
   const tickets = userData?.ticketsSorteo || 0;
   const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
@@ -230,7 +231,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className={cn("h-24 bg-gradient-to-r", isEntrepreneur ? "from-accent/30 to-primary/20" : "from-primary/20 to-accent/20")} />
+        <div className={cn("h-24 bg-gradient-to-r", isEntrepreneur ? "from-accent/30 to-primary/20" : isDirector ? "from-indigo-100 to-primary/20" : "from-primary/20 to-accent/20")} />
         <div className="px-6 pb-6 -mt-12">
           <div className="flex justify-between items-end mb-4">
             <Avatar className="w-24 h-24 border-4 border-white shadow-md bg-white">
@@ -252,15 +253,14 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h2 className="text-2xl font-bold text-primary">{userData?.nombre || "Usuario"}</h2>
-              <Badge variant={isAdmin ? "destructive" : isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">
-                {isAdmin ? "Master Admin" : isEntrepreneur ? "Emprendedor" : "Miembro Club"}
+              <Badge variant={isAdmin ? "destructive" : isDirector ? "secondary" : isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">
+                {isAdmin ? "Master Admin" : isDirector ? "Director de Patio" : isEntrepreneur ? "Emprendedor" : "Miembro Club"}
               </Badge>
             </div>
           </div>
         </div>
       </div>
 
-      {/* NOTIFICACIONES PUSH */}
       {!pushEnabled && (
         <Card className="border-none shadow-md bg-blue-50/50 rounded-2xl">
           <CardContent className="p-4 flex items-center justify-between gap-4">
@@ -275,7 +275,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </Card>
       )}
 
-      {/* ZONA DE PRUEBAS - SOLO PARA ADMIN */}
       {isAdmin && (
         <section className="bg-slate-100/50 p-4 rounded-3xl border border-slate-200 border-dashed space-y-3">
           <div className="flex items-center gap-2 text-slate-500 mb-2">
@@ -290,8 +289,52 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </section>
       )}
 
-      {/* VISTA PARA SOCIO Y ADMIN */}
-      {!isEntrepreneur && (
+      {isDirector && (
+        <section className="space-y-4 animate-in slide-in-from-bottom duration-500">
+          <Card className="border-indigo-100 shadow-xl bg-white rounded-3xl overflow-hidden border-2">
+            <CardHeader className="bg-indigo-50/50 pb-4">
+              <CardTitle className="text-lg font-black flex items-center gap-2 text-indigo-900">
+                <Trophy className="w-5 h-5 text-indigo-600" /> 
+                Gestión Directiva
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Tienes acceso al panel de control global para monitorear la salud del recinto, gestionar premios y enviar comunicados.
+                </p>
+                <Link href="/director">
+                  <Button className="w-full h-16 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-lg gap-3 shadow-lg shadow-indigo-200 transition-all active:scale-95">
+                    <LayoutDashboard className="w-6 h-6" /> 
+                    Abrir Panel Directivo
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {isEntrepreneur && (
+        <div className="space-y-6 animate-in slide-in-from-bottom duration-500">
+          <Card className="border-accent/40 shadow-md bg-white rounded-3xl overflow-hidden">
+            <CardHeader className="bg-accent/10">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <Store className="w-5 h-5" /> Mi Tienda
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <Link href="/vendedor">
+                <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3">
+                  <QrCode className="w-6 h-6" /> Abrir Terminal de Sellos
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {!isEntrepreneur && !isDirector && (
         <>
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-1">
@@ -369,18 +412,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             <CatalogoPremios userId={user.uid} userEmail={user.email || undefined} comprasActuales={sellos} />
           </div>
         </>
-      )}
-
-      {/* VISTA PARA EMPRENDEDOR */}
-      {isEntrepreneur && (
-        <div className="space-y-6">
-          <Card className="border-accent/40 shadow-md bg-white rounded-3xl overflow-hidden">
-            <CardHeader className="bg-accent/10"><CardTitle className="text-lg font-bold flex items-center gap-2"><Store className="w-5 h-5" /> Mi Tienda</CardTitle></CardHeader>
-            <CardContent className="p-6">
-              <Link href="/vendedor"><Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3"><QrCode className="w-6 h-6" /> Abrir Terminal de Sellos</Button></Link>
-            </CardContent>
-          </Card>
-        </div>
       )}
 
       <div className="text-center py-4">
