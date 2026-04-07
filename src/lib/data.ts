@@ -7,6 +7,8 @@ export type MapLocation = { id: string; name: string; x: number; y: number; };
 export const PATIO_INFO = {
   name: "Outlet Curauma",
   address: "Outlet Curauma. Av. Lomas de la Luz 4650, Curauma, Valparaíso.",
+  city: "Valparaíso",
+  region: "V Región",
   phone: "+56 9 9969 0322",
   whatsapp: "56999690322",
   instagram: "patiocurauma",
@@ -24,9 +26,40 @@ export const CATEGORIES: Category[] = [
   { id: 'artesania', name: 'Artesanías', icon: 'Palette' },
 ];
 
+/**
+ * Datos de ejemplo enriquecidos para la presentación.
+ */
 export const ENTREPRENEURS: Entrepreneur[] = [
-  { id: 'e1', name: 'Aromavida - Biogreen', category: 'deco', description: 'Productos eco-sostenibles para el hogar y cuidado personal. 🌿', contact: '+56 9 1111 2222', schedule: 'Lun-Sáb 10:00 - 19:00', locationId: 'loc-1', imageUrl: 'https://picsum.photos/seed/biogreen/400/300' },
-  { id: 'e2', name: 'Curauma Sabor', category: 'gourmet', description: 'Exclusiva selección de licores y sabores gourmet. 🍔', contact: '+56 9 3333 4444', schedule: 'Mar-Dom 12:00 - 21:00', locationId: 'loc-2', imageUrl: 'https://picsum.photos/seed/sabor/400/300' }
+  { 
+    id: 'e1', 
+    name: 'Aromavida - Biogreen', 
+    category: 'deco', 
+    description: 'Productos eco-sostenibles para el hogar y cuidado personal. Fragancias que transforman tu espacio. 🌿', 
+    contact: '+56 9 1111 2222', 
+    schedule: 'Lun-Sáb 10:00 - 19:00', 
+    locationId: 'loc-1', 
+    imageUrl: 'https://picsum.photos/seed/biogreen/800/600' 
+  },
+  { 
+    id: 'e2', 
+    name: 'Curauma Sabor', 
+    category: 'gourmet', 
+    description: 'Exclusiva selección de licores artesanales, snacks gourmet y delicias locales para compartir. 🍔', 
+    contact: '+56 9 3333 4444', 
+    schedule: 'Mar-Dom 12:00 - 21:00', 
+    locationId: 'loc-2', 
+    imageUrl: 'https://picsum.photos/seed/sabor/800/600' 
+  },
+  { 
+    id: 'e3', 
+    name: 'Joyas del Mar', 
+    category: 'joyeria', 
+    description: 'Accesorios únicos inspirados en la costa central. Hechos a mano con metales nobles y piedras naturales. ✨', 
+    contact: '+56 9 5555 6666', 
+    schedule: 'Lun-Vie 11:00 - 18:00', 
+    locationId: 'loc-3', 
+    imageUrl: 'https://picsum.photos/seed/joyas/800/600' 
+  }
 ];
 
 export const PREMIOS: Premio[] = [

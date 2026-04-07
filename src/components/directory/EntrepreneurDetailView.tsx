@@ -19,14 +19,16 @@ import {
   Wallet, 
   Banknote,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Share2,
+  Heart
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /**
- * Vista de detalle de un emprendedor.
- * Utiliza la colección 'entrepreneur_profiles' para ser consistente con el resto del sistema.
+ * Vista de detalle inmersiva para el cliente.
+ * Muestra toda la información del emprendedor guardada en la 'Caja de Textos'.
  */
 export function EntrepreneurDetailView() {
   const params = useParams();
@@ -34,48 +36,65 @@ export function EntrepreneurDetailView() {
   const router = useRouter();
   const [entrepreneur, setEntrepreneur] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     if (!id) return;
 
-    // Sincronizado con la colección oficial definida en backend.json y rules
+    // Conexión en tiempo real a la 'Caja de Textos'
     const docRef = doc(db, "entrepreneur_profiles", id as string);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setEntrepreneur({ 
           id: docSnap.id, 
-          nombre: data.businessName || data.nombre,
-          descripcion: data.description || data.descripcion,
-          rubro: data.rubro || data.category,
-          imagenUrl: data.imageUrls?.[0] || data.imagenUrl,
+          nombre: data.businessName || data.nombre || "Local del Patio",
+          descripcion: data.description || data.descripcion || "Sin descripción disponible.",
+          rubro: data.category || data.rubro || "General",
+          imagenUrl: data.imageUrls?.[0] || data.imagenUrl || `https://picsum.photos/seed/${docSnap.id}/800/600`,
+          whatsapp: data.whatsapp || data.contactPhone || "",
+          instagram: data.instagram || "",
+          ubicacion: data.address || data.ubicacionTienda || "Patio Curauma",
+          horario: data.operatingHours || data.horario || "Consultar en local",
           ...data 
         });
       }
       setLoading(false);
     }, (error) => {
-      console.error("Error en listener de emprendedor:", error);
+      console.error("Error cargando detalle:", error);
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [id]);
 
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: entrepreneur?.nombre,
+        text: `¡Mira este emprendimiento en Club Patio Curauma!`,
+        url: window.location.href,
+      });
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#F2F4F0]">
         <Loader2 className="w-10 h-10 text-primary animate-spin" />
-        <p className="text-muted-foreground font-medium">Cargando perfil...</p>
+        <p className="text-primary/60 font-bold uppercase text-[10px] tracking-widest">Cargando experiencia...</p>
       </div>
     );
   }
 
   if (!entrepreneur) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-primary">Emprendedor no encontrado</h1>
-        <p className="text-muted-foreground">El perfil que buscas no existe o ha sido movido.</p>
-        <Button onClick={() => router.push("/")} className="rounded-xl">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-[#F2F4F0]">
+        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm">
+          <MapPin className="w-10 h-10 text-slate-300" />
+        </div>
+        <h1 className="text-xl font-bold text-slate-800">Local no encontrado</h1>
+        <Button onClick={() => router.push("/")} className="rounded-xl bg-primary">
           Volver al Directorio
         </Button>
       </div>
@@ -83,125 +102,160 @@ export function EntrepreneurDetailView() {
   }
 
   return (
-    <main className="min-h-screen bg-background pb-20">
-      {/* Botón Volver Flotante */}
-      <div className="fixed top-4 left-4 z-50">
+    <main className="min-h-screen bg-[#F2F4F0] pb-24 font-body animate-in fade-in duration-500">
+      {/* Botones de Acción Flotantes Superiores */}
+      <div className="fixed top-4 left-4 right-4 z-50 flex justify-between items-center">
         <Button 
           variant="secondary" 
           size="icon" 
           onClick={() => router.push("/")}
-          className="rounded-full shadow-lg bg-white/90 backdrop-blur-sm border-none"
+          className="rounded-full shadow-xl bg-white/90 backdrop-blur-md border-none"
         >
           <ArrowLeft className="w-5 h-5 text-primary" />
         </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            onClick={() => setIsFavorite(!isFavorite)}
+            className="rounded-full shadow-xl bg-white/90 backdrop-blur-md border-none"
+          >
+            <Heart className={cn("w-5 h-5 transition-colors", isFavorite ? "fill-red-500 text-red-500" : "text-slate-400")} />
+          </Button>
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            onClick={handleShare}
+            className="rounded-full shadow-xl bg-white/90 backdrop-blur-md border-none"
+          >
+            <Share2 className="w-5 h-5 text-slate-400" />
+          </Button>
+        </div>
       </div>
 
-      {/* Hero Header */}
-      <div className="relative h-72 w-full">
+      {/* Hero: Imagen Principal */}
+      <div className="relative h-[45vh] w-full">
         <Image
-          src={entrepreneur.imagenUrl || `https://picsum.photos/seed/${entrepreneur.id}/800/600`}
+          src={entrepreneur.imagenUrl}
           alt={entrepreneur.nombre}
           fill
           className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-6 left-6 right-6">
-          <Badge className="mb-2 bg-accent text-accent-foreground border-none font-bold uppercase text-[10px]">
-            {entrepreneur.rubro || "General"}
-          </Badge>
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            {entrepreneur.nombre}
-          </h1>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-[#F2F4F0] via-transparent to-black/20" />
       </div>
 
-      <div className="max-w-lg mx-auto px-6 -mt-6 relative z-10">
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden mb-8">
-          <CardContent className="p-8 space-y-6 bg-white">
-            {/* Descripción */}
-            <div className="space-y-2">
-              <h2 className="text-sm font-bold text-primary uppercase tracking-widest">Sobre el negocio</h2>
-              <p className="text-muted-foreground leading-relaxed">
-                {entrepreneur.descripcion || "Este emprendedor aún no ha añadido una descripción detallada."}
+      {/* Contenido Detallado */}
+      <div className="max-w-lg mx-auto px-6 -mt-16 relative z-10">
+        <div className="space-y-6">
+          {/* Cabecera del Local */}
+          <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white">
+            <CardContent className="p-8 space-y-4">
+              <div className="space-y-2">
+                <Badge className="bg-accent text-accent-foreground border-none font-black uppercase text-[9px] tracking-widest px-3">
+                  {entrepreneur.rubro}
+                </Badge>
+                <h1 className="text-3xl font-black text-slate-800 tracking-tighter leading-none">
+                  {entrepreneur.nombre}
+                </h1>
+              </div>
+
+              <p className="text-slate-500 text-sm leading-relaxed font-medium italic">
+                "{entrepreneur.descripcion}"
               </p>
-            </div>
 
-            {/* Información de contacto rápida */}
-            <div className="grid grid-cols-1 gap-4 pt-2">
-              <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-2xl border border-primary/10">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                  <MapPin className="w-5 h-5" />
+              <Separator className="bg-slate-100" />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Sector</p>
+                    <p className="text-xs font-bold text-slate-700">{entrepreneur.ubicacion}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-primary uppercase">Ubicación</p>
-                  <p className="text-sm font-medium">{entrepreneur.ubicacion || entrepreneur.address || "Sector Central"}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Horario</p>
+                    <p className="text-xs font-bold text-slate-700">{entrepreneur.horario}</p>
+                  </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-2xl border border-primary/10">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                  <Clock className="w-5 h-5" />
+          {/* Medios de Pago */}
+          <section className="space-y-3 px-2">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Aceptamos</h2>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar">
+              {[
+                { icon: Banknote, label: "Efectivo" },
+                { icon: CreditCard, label: "Débito/Crédito" },
+                { icon: Wallet, label: "Transferencia" }
+              ].map((pay, i) => (
+                <div key={i} className="bg-white px-4 py-3 rounded-2xl flex items-center gap-3 shadow-sm border border-slate-100 min-w-[140px]">
+                  <pay.icon className="w-4 h-4 text-primary" />
+                  <span className="text-[10px] font-bold text-slate-600 uppercase">{pay.label}</span>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-primary uppercase">Horario</p>
-                  <p className="text-sm font-medium">{entrepreneur.horario || entrepreneur.operatingHours || "Consultar disponibilidad"}</p>
-                </div>
-              </div>
+              ))}
             </div>
+          </section>
 
-            {/* Medios de Pago */}
-            <div className="space-y-4 pt-2">
-              <h2 className="text-sm font-bold text-primary uppercase tracking-widest">Medios de Pago</h2>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex flex-col items-center gap-1.5 opacity-70">
-                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center">
-                    <Banknote className="w-6 h-6 text-slate-600" />
-                  </div>
-                  <span className="text-[10px] font-bold">Efectivo</span>
-                </div>
-                <div className="flex flex-col items-center gap-1.5 opacity-70">
-                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center">
-                    <CreditCard className="w-6 h-6 text-slate-600" />
-                  </div>
-                  <span className="text-[10px] font-bold">Tarjetas</span>
-                </div>
-                <div className="flex flex-col items-center gap-1.5 opacity-70">
-                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center">
-                    <Wallet className="w-6 h-6 text-slate-600" />
-                  </div>
-                  <span className="text-[10px] font-bold">Transferencia</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Redes y Contacto */}
-            <div className="space-y-3 pt-4">
+          {/* Call to Actions Principales */}
+          <div className="space-y-3">
+            <Button 
+              className="w-full h-16 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-black text-lg gap-4 shadow-xl shadow-[#25D366]/20 transition-all active:scale-95"
+              onClick={() => window.open(`https://wa.me/${entrepreneur.whatsapp.replace(/\D/g, '')}`, '_blank')}
+            >
+              <MessageCircle className="w-7 h-7 fill-current" />
+              Contactar por WhatsApp
+            </Button>
+            
+            <div className="grid grid-cols-2 gap-3">
               <Button 
-                className="w-full h-14 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-lg gap-3 shadow-lg shadow-[#25D366]/20"
-                onClick={() => window.open(`https://wa.me/${entrepreneur.whatsapp || entrepreneur.contactPhone || entrepreneur.contacto}`, '_blank')}
+                variant="outline"
+                className="h-14 rounded-2xl border-primary/20 bg-white text-primary font-bold gap-3 hover:bg-primary/5"
+                onClick={() => window.open(`https://instagram.com/${entrepreneur.instagram.replace('@', '')}`, '_blank')}
+                disabled={!entrepreneur.instagram}
               >
-                <MessageCircle className="w-6 h-6 fill-current" />
-                WhatsApp
+                <Instagram className="w-5 h-5" />
+                Instagram
               </Button>
-              
-              {(entrepreneur.instagram || entrepreneur.websiteUrl) && (
-                <Button 
-                  variant="outline"
-                  className="w-full h-14 rounded-2xl border-pink-500/20 text-pink-600 hover:bg-pink-50 font-bold text-lg gap-3"
-                  onClick={() => window.open(entrepreneur.websiteUrl || `https://instagram.com/${entrepreneur.instagram}`, '_blank')}
-                >
-                  <Instagram className="w-6 h-6" />
-                  Redes Sociales
-                </Button>
-              )}
+              <Button 
+                variant="outline"
+                className="h-14 rounded-2xl border-primary/20 bg-white text-primary font-bold gap-3 hover:bg-primary/5"
+                onClick={() => router.push("/map")}
+              >
+                <MapPin className="w-5 h-5" />
+                Ver Mapa
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <p className="text-center text-xs text-muted-foreground italic px-8">
-          "Al comprar en este puesto, recuerda mostrar tu código QR para sumar sellos y ganar recompensas."
-        </p>
+          {/* Recordatorio de Fidelización */}
+          <Card className="bg-primary border-none rounded-3xl overflow-hidden shadow-lg">
+            <CardContent className="p-6 flex items-center gap-4 text-white">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                <Heart className="w-6 h-6 fill-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[11px] font-black uppercase tracking-widest opacity-80">Gana Recompensas</p>
+                <p className="text-sm font-bold">Muestra tu QR al pagar en este local para sumar sellos.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <footer className="text-center pt-4 pb-8">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+              Toda la información ha sido proporcionada<br/>por el emprendedor de Patio Curauma.
+            </p>
+          </footer>
+        </div>
       </div>
     </main>
   );
