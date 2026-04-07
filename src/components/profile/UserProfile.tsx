@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, onSnapshot, updateDoc, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { onAuthStateChanged, User, signOut, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
+import { doc, onSnapshot, updateDoc, collection, query, where, orderBy, limit, getDocs, deleteDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import {
   Clock, Bell, CheckCircle2,
   Info, ExternalLink, Instagram, Facebook, Sparkles,
   ChevronRight, Calendar, FlaskConical, Navigation,
-  LayoutDashboard
+  LayoutDashboard, AlertTriangle, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,17 @@ import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
 import { verificarYGenerarRecordatorioIA, procesarProximidadGeofence, dispararAlertaSistema } from "@/lib/notificaciones";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const AVATAR_OPTIONS = [
   { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
@@ -168,6 +179,30 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      // 1. Borrar datos de Firestore
+      await deleteDoc(doc(db, "usuarios", user.uid));
+      // 2. Borrar usuario de Auth
+      await deleteUser(user);
+      toast({ title: "Cuenta eliminada", description: "Lamentamos verte partir. Tus datos han sido borrados." });
+    } catch (error: any) {
+      if (error.code === 'auth/requires-recent-login') {
+        toast({ 
+          variant: "destructive", 
+          title: "Acción Protegida", 
+          description: "Por seguridad, debes cerrar sesión y volver a entrar para confirmar la eliminación de tu cuenta." 
+        });
+      } else {
+        toast({ variant: "destructive", title: "Error", description: "No pudimos eliminar la cuenta. Inténtalo más tarde." });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSimulatePurchase = async () => {
     if (!user) return;
     setLoading(true);
@@ -260,6 +295,37 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           </div>
         </div>
       </div>
+
+      {isEditing && (
+        <Card className="border-red-100 bg-red-50/30 rounded-2xl">
+          <CardContent className="p-4 flex flex-col items-center text-center gap-3">
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-4 h-4" />
+              <p className="text-xs font-bold uppercase">Zona de Peligro</p>
+            </div>
+            <p className="text-[11px] text-slate-500">¿Deseas eliminar permanentemente tu cuenta y todos tus sellos acumulados?</p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="w-full rounded-xl gap-2 font-bold h-10">
+                  <Trash2 className="w-4 h-4" /> Eliminar mi cuenta
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-3xl max-w-[90%] md:max-w-lg">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás totalmente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Perderás tus {sellos} sellos y el acceso a tus premios actuales.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col gap-2">
+                  <AlertDialogCancel className="rounded-xl font-bold h-12">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-white rounded-xl font-bold h-12">Sí, eliminar cuenta</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+      )}
 
       {!pushEnabled && (
         <Card className="border-none shadow-md bg-blue-50/50 rounded-2xl">
@@ -414,10 +480,22 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </>
       )}
 
-      <div className="text-center py-4">
-        <Button onClick={handleLogout} variant="ghost" className="text-destructive font-bold text-xs gap-2"><LogOut className="w-4 h-4" /> Cerrar Sesión del Club</Button>
-        <p className="text-[10px] text-muted-foreground font-medium uppercase mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
-      </div>
+      {/* FOOTER DE CUMPLIMIENTO APP STORE */}
+      <section className="px-8 space-y-4 pt-6">
+        <div className="flex flex-col gap-3">
+          <Link href="#" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
+            POLÍTICA DE PRIVACIDAD <ExternalLink className="w-3 h-3" />
+          </Link>
+          <Link href="#" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
+            TÉRMINOS Y CONDICIONES <ExternalLink className="w-3 h-3" />
+          </Link>
+        </div>
+        <Separator className="bg-slate-100" />
+        <div className="text-center">
+          <Button onClick={handleLogout} variant="ghost" className="text-destructive font-bold text-xs gap-2"><LogOut className="w-4 h-4" /> Cerrar Sesión del Club</Button>
+          <p className="text-[10px] text-muted-foreground font-medium uppercase mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
+        </div>
+      </section>
     </div>
   );
 }
