@@ -54,7 +54,6 @@ export default function VendedorPage() {
     checkPermission();
 
     if (auth.currentUser) {
-      // Cargar datos actuales del local desde la colección 'entrepreneur_profiles'
       const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
       const unsubscribeProfile = onSnapshot(profileRef, (snap) => {
         if (snap.exists()) {
@@ -67,7 +66,6 @@ export default function VendedorPage() {
         }
       });
 
-      // Datos de usuario para el dashboard
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       const unsubscribeUser = onSnapshot(userRef, (snap) => {
         if (snap.exists()) {
@@ -75,11 +73,10 @@ export default function VendedorPage() {
         }
       });
 
-      // Cargar historial
       const q = query(
         collection(db, "usuarios", auth.currentUser.uid, "ventas_registradas"),
         orderBy("fecha", "desc"),
-        limit(3)
+        limit(5)
       );
       
       const unsubscribeVentas = onSnapshot(q, (snapshot) => {
@@ -110,28 +107,29 @@ export default function VendedorPage() {
     }
     
     setLoading(true);
-    console.log("Iniciando guardado de información de tienda...");
+    console.log("Iniciando proceso de guardado...");
 
     try {
       let imageUrl = previewUrl;
 
-      // 1. CAJA DE FOTOS: Subir imagen si hay una nueva
       if (profileImage) {
-        console.log("Detectada nueva imagen, subiendo a Storage...");
-        const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/${Date.now()}_${profileImage.name}`);
         try {
+          console.log("Intentando subir imagen...");
+          const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/${Date.now()}_${profileImage.name}`);
           const uploadResult = await uploadBytes(storageRef, profileImage);
           imageUrl = await getDownloadURL(uploadResult.ref);
-          console.log("Imagen subida con éxito. URL:", imageUrl);
+          console.log("Imagen subida con éxito.");
         } catch (storageError: any) {
-          console.error("Error crítico en Storage:", storageError);
-          // Si falla la imagen, avisamos pero permitimos que el resto intente guardarse si es posible
-          throw new Error(`Error al subir la imagen: ${storageError.message}. Verifica las reglas de seguridad de Storage.`);
+          console.warn("Error en Storage (posiblemente no configurado):", storageError);
+          toast({ 
+            variant: "destructive", 
+            title: "Storage no activo", 
+            description: "No se pudo subir la foto. Se guardarán solo los textos por ahora." 
+          });
         }
       }
 
-      // 2. CAJA DE TEXTOS: Guardar en Firestore (entrepreneur_profiles)
-      console.log("Guardando datos en Firestore...");
+      console.log("Guardando textos en Firestore...");
       const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
       await setDoc(profileRef, {
         id: auth.currentUser.uid,
@@ -139,26 +137,23 @@ export default function VendedorPage() {
         businessName: shopForm.nombreTienda,
         description: shopForm.descripcion,
         imageUrls: imageUrl ? [imageUrl] : [],
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString()
+        updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      // También actualizamos el nombre de la tienda en el documento de usuario para el dashboard
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       await setDoc(userRef, { nombreTienda: shopForm.nombreTienda }, { merge: true });
 
-      console.log("Guardado completado exitosamente.");
-      toast({ title: "Perfil de tienda actualizado", description: "Tus cambios están ahora en las cajas fuertes del sistema." });
+      toast({ title: "Perfil actualizado", description: "La información de texto se guardó correctamente." });
       setView("dashboard");
     } catch (error: any) {
-      console.error("Fallo general en handleSaveShopInfo:", error);
+      console.error("Error crítico en guardado:", error);
       toast({ 
         variant: "destructive", 
         title: "Error al guardar", 
-        description: error.message || "No se pudieron guardar los cambios. Revisa tu conexión." 
+        description: error.message || "No se pudieron guardar los cambios." 
       });
     } finally {
-      console.log("Finalizando proceso de guardado.");
+      console.log("Finalizando estado de carga.");
       setLoading(false);
     }
   };
@@ -299,10 +294,6 @@ export default function VendedorPage() {
               </div>
             </CardContent>
           </Card>
-
-          <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            Esta información es pública en el directorio del club
-          </p>
         </div>
       </main>
     );
@@ -460,6 +451,6 @@ export default function VendedorPage() {
           </div>
         </section>
       </div>
-    </main>
+    </nav>
   );
 }
