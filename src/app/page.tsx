@@ -33,10 +33,29 @@ export default function Home() {
   const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Sistema de Monitoreo de Ubicación (Geofencing)
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setUserData(null);
+      return;
+    }
+
+    const userRef = doc(db, "usuarios", user.uid);
+    const unsubscribeDoc = onSnapshot(userRef, (docSnap) => {
+      if (docSnap.exists()) setUserData(docSnap.data());
+    });
+
+    return () => unsubscribeDoc();
+  }, [user]);
+
   useEffect(() => {
     if (!user || !userData) return;
-
     if (!navigator.geolocation) return;
 
     const watchId = navigator.geolocation.watchPosition(
@@ -45,8 +64,7 @@ export default function Home() {
         const targetLat = PATIO_INFO.coordinates.lat;
         const targetLng = PATIO_INFO.coordinates.lng;
 
-        // Fórmula de Haversine para calcular distancia en metros
-        const R = 6371e3; // Radio de la tierra en metros
+        const R = 6371e3;
         const φ1 = latitude * Math.PI/180;
         const φ2 = targetLat * Math.PI/180;
         const Δφ = (targetLat-latitude) * Math.PI/180;
@@ -58,7 +76,6 @@ export default function Home() {
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         const distance = R * c;
 
-        // Si está a menos de 500 metros, procesar alerta
         if (distance < 500) {
           procesarProximidadGeofence(
             user.uid, 
@@ -68,31 +85,12 @@ export default function Home() {
           );
         }
       },
-      (error) => {
-        // Silenciamos el error para evitar el overlay de error en desarrollo
-        // si el usuario no otorga permisos de ubicación.
-      },
+      (error) => {},
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [user, userData]);
-
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        const userRef = doc(db, "usuarios", currentUser.uid);
-        const unsubscribeDoc = onSnapshot(userRef, (docSnap) => {
-          if (docSnap.exists()) setUserData(docSnap.data());
-        });
-        return () => unsubscribeDoc();
-      } else {
-        setUserData(null);
-      }
-    });
-    return () => unsubscribeAuth();
-  }, []);
 
   useEffect(() => {
     setEntrepreneurs(ENTREPRENEURS);
@@ -230,7 +228,6 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Footer de Redes Sociales en Directorio */}
             <section className="px-6 py-12 text-center space-y-4 bg-slate-50 mt-10">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Síguenos y entérate de todo</p>
               <div className="flex justify-center gap-6">

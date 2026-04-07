@@ -1,11 +1,13 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  signOut 
+  signOut,
+  onAuthStateChanged,
+  User 
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -29,28 +31,33 @@ export function Auth() {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState(auth.currentUser);
+  const [user, setUser] = useState<User | null>(null);
   const [isBanned, setIsBanned] = useState(false);
   const { toast } = useToast();
 
-  auth.onAuthStateChanged(async (u) => {
-    setUser(u);
-    if (u) {
-      const userRef = doc(db, "usuarios", u.uid);
-      const snap = await getDoc(userRef);
-      if (snap.exists() && snap.data().baneado) {
-        setIsBanned(true);
-        await signOut(auth);
-        toast({
-          variant: "destructive",
-          title: "Cuenta Suspendida",
-          description: "Tu acceso al Club Patio ha sido revocado por el administrador.",
-        });
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      if (u) {
+        const userRef = doc(db, "usuarios", u.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists() && snap.data().baneado) {
+          setIsBanned(true);
+          await signOut(auth);
+          toast({
+            variant: "destructive",
+            title: "Cuenta Suspendida",
+            description: "Tu acceso al Club Patio ha sido revocado.",
+          });
+        } else {
+          setIsBanned(false);
+        }
       } else {
         setIsBanned(false);
       }
-    }
-  });
+    });
+    return () => unsubscribe();
+  }, [toast]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +82,7 @@ export function Auth() {
         }
 
         await setDoc(doc(db, "usuarios", newUser.uid), {
+          id: newUser.uid,
           correo: emailLimpio,
           telefono: phone,
           rol: rolAsignado, 
@@ -106,7 +114,7 @@ export function Auth() {
           <Ban className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <CardTitle className="text-red-700">Acceso Denegado</CardTitle>
           <CardDescription>
-            Tu cuenta ha sido bloqueada. Si crees que esto es un error, contacta al administrador del Patio.
+            Tu cuenta ha sido bloqueada por el administrador.
           </CardDescription>
         </CardHeader>
         <CardFooter>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -52,43 +53,50 @@ export default function VendedorPage() {
     };
     checkPermission();
 
-    if (auth.currentUser) {
-      const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
-      const unsubscribeProfile = onSnapshot(profileRef, (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          setShopForm({
-            nombreTienda: data.businessName || "",
-            descripcion: data.description || ""
-          });
-          setPreviewUrl(data.imageUrls?.[0] || null);
-        }
-      });
+    let unsubscribeProfile: () => void = () => {};
+    let unsubscribeUser: () => void = () => {};
+    let unsubscribeVentas: () => void = () => {};
 
-      const userRef = doc(db, "usuarios", auth.currentUser.uid);
-      const unsubscribeUser = onSnapshot(userRef, (snap) => {
-        if (snap.exists()) {
-          setUserData(snap.data());
-        }
-      });
+    const authUnsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        const profileRef = doc(db, "entrepreneur_profiles", user.uid);
+        unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            setShopForm({
+              nombreTienda: data.businessName || "",
+              descripcion: data.description || ""
+            });
+            setPreviewUrl(data.imageUrls?.[0] || null);
+          }
+        });
 
-      const q = query(
-        collection(db, "usuarios", auth.currentUser.uid, "ventas_registradas"),
-        orderBy("fecha", "desc"),
-        limit(5)
-      );
-      
-      const unsubscribeVentas = onSnapshot(q, (snapshot) => {
-        setRecentActivity(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
-      
-      return () => {
-        unsubscribeProfile();
-        unsubscribeUser();
-        unsubscribeVentas();
-        stopScanner();
-      };
-    }
+        const userRef = doc(db, "usuarios", user.uid);
+        unsubscribeUser = onSnapshot(userRef, (snap) => {
+          if (snap.exists()) {
+            setUserData(snap.data());
+          }
+        });
+
+        const q = query(
+          collection(db, "usuarios", user.uid, "ventas_registradas"),
+          orderBy("fecha", "desc"),
+          limit(5)
+        );
+        
+        unsubscribeVentas = onSnapshot(q, (snapshot) => {
+          setRecentActivity(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+      }
+    });
+
+    return () => {
+      authUnsubscribe();
+      unsubscribeProfile();
+      unsubscribeUser();
+      unsubscribeVentas();
+      stopScanner();
+    };
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,11 +124,11 @@ export default function VendedorPage() {
           const uploadResult = await uploadBytes(storageRef, profileImage);
           imageUrl = await getDownloadURL(uploadResult.ref);
         } catch (storageError: any) {
-          console.warn("Error en Storage (posiblemente no configurado):", storageError);
+          console.warn("Error en Storage:", storageError);
           toast({ 
             variant: "destructive", 
-            title: "Storage no activo", 
-            description: "No se pudo subir la foto. Se guardarán solo los textos por ahora." 
+            title: "Error de imagen", 
+            description: "No se pudo subir la foto. Se guardarán solo los textos." 
           });
         }
       }
