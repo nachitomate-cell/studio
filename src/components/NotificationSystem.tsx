@@ -9,24 +9,25 @@ import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useToast } from "@/hooks/use-toast";
 
 /**
- * Componente invisible que escucha nuevas notificaciones en Firestore
- * y dispara alertas reales del sistema (iOS/Android/Web).
+ * Componente que escucha nuevas notificaciones en Firestore
+ * Intenta disparar alertas de sistema si la app está abierta o en memoria.
  */
 export function NotificationSystem() {
   const { toast } = useToast();
-  // Usamos un offset de un segundo antes para no perder notificaciones por discrepancia de ms
-  const [mountTime] = useState(new Date(Date.now() - 1000).toISOString());
+  const [mountTime] = useState(new Date().toISOString());
 
   useEffect(() => {
-    // Registro del Service Worker para soporte de notificaciones PWA
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.warn("SW Registration failed:", err));
+    // Registro del Service Worker para soporte PWA en iOS/Android
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log("SW registrado con éxito:", reg.scope))
+        .catch(err => console.warn("Fallo al registrar SW:", err));
     }
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Escuchamos las notificaciones creadas desde la carga de la app
         const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
+        // Escuchamos solo las notificaciones creadas DESPUÉS de abrir la app
         const q = query(
           notifRef, 
           where("fecha", ">", mountTime),
@@ -36,22 +37,21 @@ export function NotificationSystem() {
 
         const unsubscribeNotif = onSnapshot(q, (snapshot) => {
           snapshot.docChanges().forEach((change) => {
-            // Solo procesamos documentos nuevos
             if (change.type === "added") {
               const data = change.doc.data();
               
-              // 1. Alerta visual en la app (Toast) - Solo si la app está abierta
+              // 1. Alerta visual en la app (Toast)
               toast({
                 title: data.titulo,
                 description: data.mensaje,
               });
 
-              // 2. Alerta física del sistema (iPhone/Android)
+              // 2. Intento de alerta nativa del sistema
               dispararAlertaSistema(data.titulo, data.mensaje);
             }
           });
         }, (error) => {
-          console.warn("Fallo en listener de notificaciones:", error);
+          console.warn("Error en listener de notificaciones:", error);
         });
 
         return () => unsubscribeNotif();
