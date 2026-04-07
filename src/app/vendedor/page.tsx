@@ -104,19 +104,34 @@ export default function VendedorPage() {
   };
 
   const handleSaveShopInfo = async () => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser) {
+      toast({ variant: "destructive", title: "No autenticado", description: "Debes iniciar sesión para realizar cambios." });
+      return;
+    }
+    
     setLoading(true);
+    console.log("Iniciando guardado de información de tienda...");
+
     try {
       let imageUrl = previewUrl;
 
       // 1. CAJA DE FOTOS: Subir imagen si hay una nueva
       if (profileImage) {
+        console.log("Detectada nueva imagen, subiendo a Storage...");
         const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/${Date.now()}_${profileImage.name}`);
-        const uploadResult = await uploadBytes(storageRef, profileImage);
-        imageUrl = await getDownloadURL(uploadResult.ref);
+        try {
+          const uploadResult = await uploadBytes(storageRef, profileImage);
+          imageUrl = await getDownloadURL(uploadResult.ref);
+          console.log("Imagen subida con éxito. URL:", imageUrl);
+        } catch (storageError: any) {
+          console.error("Error crítico en Storage:", storageError);
+          // Si falla la imagen, avisamos pero permitimos que el resto intente guardarse si es posible
+          throw new Error(`Error al subir la imagen: ${storageError.message}. Verifica las reglas de seguridad de Storage.`);
+        }
       }
 
       // 2. CAJA DE TEXTOS: Guardar en Firestore (entrepreneur_profiles)
+      console.log("Guardando datos en Firestore...");
       const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
       await setDoc(profileRef, {
         id: auth.currentUser.uid,
@@ -125,19 +140,25 @@ export default function VendedorPage() {
         description: shopForm.descripcion,
         imageUrls: imageUrl ? [imageUrl] : [],
         updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString() // Simplificado para MVP
+        createdAt: new Date().toISOString()
       }, { merge: true });
 
       // También actualizamos el nombre de la tienda en el documento de usuario para el dashboard
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       await setDoc(userRef, { nombreTienda: shopForm.nombreTienda }, { merge: true });
 
+      console.log("Guardado completado exitosamente.");
       toast({ title: "Perfil de tienda actualizado", description: "Tus cambios están ahora en las cajas fuertes del sistema." });
       setView("dashboard");
     } catch (error: any) {
-      console.error("Error guardando tienda:", error);
-      toast({ variant: "destructive", title: "Error", description: error.message || "No se pudieron guardar los cambios." });
+      console.error("Fallo general en handleSaveShopInfo:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Error al guardar", 
+        description: error.message || "No se pudieron guardar los cambios. Revisa tu conexión." 
+      });
     } finally {
+      console.log("Finalizando proceso de guardado.");
       setLoading(false);
     }
   };
