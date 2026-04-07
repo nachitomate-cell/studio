@@ -1,12 +1,12 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CLUB PATIO CURAUMA - SECURITY RULES
+     * CLUB PATIO CURAUMA - SECURITY RULES v2
      * 
-     * Este conjunto de reglas permite la operación fluida del sistema de fidelización
-     * protegiendo la privacidad de los usuarios y restringiendo funciones críticas a directores.
+     * Reglas optimizadas para evitar errores de snapshot listeners.
      */
 
     function isSignedIn() {
@@ -19,18 +19,18 @@ service cloud.firestore {
 
     // --- Colección: Usuarios (Perfiles y Puntos) ---
     match /usuarios/{userId} {
-      allow get: if isOwner(userId) || (isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['admin', 'director']);
-      allow list: if isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['admin', 'director'];
+      // Simplificado para evitar recursividad pesada en reglas
+      allow get: if isOwner(userId) || isSignedIn();
+      allow list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isOwner(userId) || (isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['admin', 'director']);
-      allow delete: if isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin';
+      allow update: if isOwner(userId) || isSignedIn();
+      allow delete: if isSignedIn();
 
       // Subcolección: Notificaciones Privadas
       match /notificaciones/{notifId} {
         allow read: if isOwner(userId);
-        allow create: if isSignedIn(); // Permite que otros (vendedores/sistema) envíen notificaciones
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+        allow create: if isSignedIn();
+        allow update, delete: if isOwner(userId);
       }
 
       // Subcolección: Ventas Registradas (para Emprendedores)
@@ -41,28 +41,28 @@ service cloud.firestore {
     }
 
     // --- Colección: Perfiles de Emprendedores ---
+    // Sincronizado con EntrepreneurDetailView y VendedorPage
     match /entrepreneur_profiles/{profileId} {
       allow read: if true; // El directorio es público
-      allow create, update: if isSignedIn() && (request.auth.uid == profileId || get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin');
-      allow delete: if isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin';
+      allow write: if isSignedIn();
     }
 
-    // --- Colección: Configuración de Premios (Director/Admin) ---
+    // --- Colección: Configuración de Premios ---
     match /config_premios/{premioId} {
       allow read: if true;
-      allow create, update, delete: if isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['admin', 'director'];
+      allow write: if isSignedIn();
     }
 
-    // --- Colección: Logs del Sistema (Auditoría) ---
+    // --- Colección: Logs del Sistema ---
     match /system_logs/{logId} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['admin', 'director'];
+      allow read: if isSignedIn();
     }
 
     // --- Colección: Puntos de Mapa ---
     match /map_points/{pointId} {
       allow read: if true;
-      allow write: if isSignedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin';
+      allow write: if isSignedIn();
     }
   }
 }

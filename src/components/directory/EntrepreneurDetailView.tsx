@@ -24,6 +24,10 @@ import {
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
+/**
+ * Vista de detalle de un emprendedor.
+ * Utiliza la colección 'entrepreneur_profiles' para ser consistente con el resto del sistema.
+ */
 export function EntrepreneurDetailView() {
   const params = useParams();
   const id = params?.id;
@@ -34,11 +38,23 @@ export function EntrepreneurDetailView() {
   useEffect(() => {
     if (!id) return;
 
-    const docRef = doc(db, "emprendedores", id as string);
+    // Sincronizado con la colección oficial definida en backend.json y rules
+    const docRef = doc(db, "entrepreneur_profiles", id as string);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setEntrepreneur({ id: docSnap.id, ...docSnap.data() });
+        const data = docSnap.data();
+        setEntrepreneur({ 
+          id: docSnap.id, 
+          nombre: data.businessName || data.nombre,
+          descripcion: data.description || data.descripcion,
+          rubro: data.rubro || data.category,
+          imagenUrl: data.imageUrls?.[0] || data.imagenUrl,
+          ...data 
+        });
       }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error en listener de emprendedor:", error);
       setLoading(false);
     });
 
@@ -119,7 +135,7 @@ export function EntrepreneurDetailView() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-primary uppercase">Ubicación</p>
-                  <p className="text-sm font-medium">{entrepreneur.ubicacion || "Sector Central"}</p>
+                  <p className="text-sm font-medium">{entrepreneur.ubicacion || entrepreneur.address || "Sector Central"}</p>
                 </div>
               </div>
 
@@ -129,7 +145,7 @@ export function EntrepreneurDetailView() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-primary uppercase">Horario</p>
-                  <p className="text-sm font-medium">{entrepreneur.horario || "Consultar disponibilidad"}</p>
+                  <p className="text-sm font-medium">{entrepreneur.horario || entrepreneur.operatingHours || "Consultar disponibilidad"}</p>
                 </div>
               </div>
             </div>
@@ -163,20 +179,20 @@ export function EntrepreneurDetailView() {
             <div className="space-y-3 pt-4">
               <Button 
                 className="w-full h-14 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-lg gap-3 shadow-lg shadow-[#25D366]/20"
-                onClick={() => window.open(`https://wa.me/${entrepreneur.whatsapp || entrepreneur.contacto}`, '_blank')}
+                onClick={() => window.open(`https://wa.me/${entrepreneur.whatsapp || entrepreneur.contactPhone || entrepreneur.contacto}`, '_blank')}
               >
                 <MessageCircle className="w-6 h-6 fill-current" />
                 WhatsApp
               </Button>
               
-              {entrepreneur.instagram && (
+              {(entrepreneur.instagram || entrepreneur.websiteUrl) && (
                 <Button 
                   variant="outline"
                   className="w-full h-14 rounded-2xl border-pink-500/20 text-pink-600 hover:bg-pink-50 font-bold text-lg gap-3"
-                  onClick={() => window.open(`https://instagram.com/${entrepreneur.instagram}`, '_blank')}
+                  onClick={() => window.open(entrepreneur.websiteUrl || `https://instagram.com/${entrepreneur.instagram}`, '_blank')}
                 >
                   <Instagram className="w-6 h-6" />
-                  Instagram
+                  Redes Sociales
                 </Button>
               )}
             </div>
