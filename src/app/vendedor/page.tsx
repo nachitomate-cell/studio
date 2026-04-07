@@ -3,8 +3,9 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, getDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -13,13 +14,14 @@ import {
   ArrowLeft, QrCode, Camera, CheckCircle2, 
   Loader2, AlertCircle, TrendingUp, Users, 
   Gift, Clock, ChevronRight, LayoutDashboard,
-  X, Store, Save, ImagePlus, UserCircle
+  X, Store, Save, ImagePlus, UserCircle, Upload
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function VendedorPage() {
   const router = useRouter();
@@ -29,9 +31,11 @@ export default function VendedorPage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [userData, setUserData] = useState<any>(null);
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const scannerInstance = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Formulario simple estilo Google Forms
   const [shopForm, setShopForm] = useState({
     nombreTienda: "",
     descripcion: ""
@@ -50,16 +54,24 @@ export default function VendedorPage() {
     checkPermission();
 
     if (auth.currentUser) {
-      // Cargar datos actuales del local
+      // Cargar datos actuales del local desde la colección 'entrepreneur_profiles'
+      const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
+      const unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setShopForm({
+            nombreTienda: data.businessName || "",
+            descripcion: data.description || ""
+          });
+          setPreviewUrl(data.imageUrls?.[0] || null);
+        }
+      });
+
+      // Datos de usuario para el dashboard
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       const unsubscribeUser = onSnapshot(userRef, (snap) => {
         if (snap.exists()) {
-          const data = snap.data();
-          setUserData(data);
-          setShopForm({
-            nombreTienda: data.nombreTienda || "",
-            descripcion: data.descripcion || ""
-          });
+          setUserData(snap.data());
         }
       });
 
@@ -75,12 +87,60 @@ export default function VendedorPage() {
       });
       
       return () => {
+        unsubscribeProfile();
         unsubscribeUser();
         unsubscribeVentas();
         stopScanner();
       };
     }
   }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProfileImage(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSaveShopInfo = async () => {
+    if (!auth.currentUser) return;
+    setLoading(true);
+    try {
+      let imageUrl = previewUrl;
+
+      // 1. CAJA DE FOTOS: Subir imagen si hay una nueva
+      if (profileImage) {
+        const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/${Date.now()}_${profileImage.name}`);
+        const uploadResult = await uploadBytes(storageRef, profileImage);
+        imageUrl = await getDownloadURL(uploadResult.ref);
+      }
+
+      // 2. CAJA DE TEXTOS: Guardar en Firestore (entrepreneur_profiles)
+      const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
+      await setDoc(profileRef, {
+        id: auth.currentUser.uid,
+        userId: auth.currentUser.uid,
+        businessName: shopForm.nombreTienda,
+        description: shopForm.descripcion,
+        imageUrls: imageUrl ? [imageUrl] : [],
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString() // Simplificado para MVP
+      }, { merge: true });
+
+      // También actualizamos el nombre de la tienda en el documento de usuario para el dashboard
+      const userRef = doc(db, "usuarios", auth.currentUser.uid);
+      await setDoc(userRef, { nombreTienda: shopForm.nombreTienda }, { merge: true });
+
+      toast({ title: "Perfil de tienda actualizado", description: "Tus cambios están ahora en las cajas fuertes del sistema." });
+      setView("dashboard");
+    } catch (error: any) {
+      console.error("Error guardando tienda:", error);
+      toast({ variant: "destructive", title: "Error", description: error.message || "No se pudieron guardar los cambios." });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const startScanner = async () => {
     setView("scanner");
@@ -129,28 +189,9 @@ export default function VendedorPage() {
     }
   };
 
-  const handleSaveShopInfo = async () => {
-    if (!auth.currentUser) return;
-    setLoading(true);
-    try {
-      const userRef = doc(db, "usuarios", auth.currentUser.uid);
-      await updateDoc(userRef, {
-        nombreTienda: shopForm.nombreTienda,
-        descripcion: shopForm.descripcion,
-        updatedAt: new Date().toISOString()
-      });
-      toast({ title: "Cambios guardados", description: "La información de tu local se actualizó correctamente." });
-      setView("dashboard");
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron guardar los cambios." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (view === "profile") {
     return (
-      <main className="min-h-screen bg-[#f0f2f5] pb-20 font-sans">
+      <main className="min-h-screen bg-[#f0f2f5] pb-20 font-sans animate-in slide-in-from-right duration-300">
         <div className="bg-white border-b border-slate-200 p-6 sticky top-0 z-10 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setView("dashboard")} className="text-slate-400">
             <ArrowLeft className="w-6 h-6" />
@@ -168,7 +209,6 @@ export default function VendedorPage() {
               </div>
 
               <div className="space-y-6">
-                {/* Nombre del Local */}
                 <div className="space-y-3">
                   <Label htmlFor="shopName" className="text-sm font-bold text-slate-700">Nombre de tu local</Label>
                   <Input 
@@ -180,7 +220,6 @@ export default function VendedorPage() {
                   />
                 </div>
 
-                {/* Descripción */}
                 <div className="space-y-3">
                   <Label htmlFor="shopDesc" className="text-sm font-bold text-slate-700">¿De qué trata tu tienda?</Label>
                   <Textarea 
@@ -192,14 +231,37 @@ export default function VendedorPage() {
                   />
                 </div>
 
-                {/* Subir Foto */}
                 <div className="space-y-3">
                   <Label className="text-sm font-bold text-slate-700">Foto de tu local</Label>
-                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer group">
-                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400 group-hover:text-primary transition-colors">
-                      <ImagePlus className="w-6 h-6" />
-                    </div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Subir foto de mi tienda</p>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handleFileChange}
+                  />
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                      "border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group overflow-hidden relative aspect-video bg-slate-50/50",
+                      previewUrl && "border-solid border-primary/20"
+                    )}
+                  >
+                    {previewUrl ? (
+                      <>
+                        <img src={previewUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Upload className="text-white w-8 h-8" />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400 group-hover:text-primary transition-colors">
+                          <ImagePlus className="w-6 h-6" />
+                        </div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Subir foto de mi tienda</p>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
