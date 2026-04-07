@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, collection, query } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
-import { CATEGORIES, Entrepreneur, ENTREPRENEURS, PATIO_INFO } from "@/lib/data";
+import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,34 @@ export default function Home() {
     return () => unsubscribeDoc();
   }, [user]);
 
+  // Listener en tiempo real para el directorio de emprendedores
+  useEffect(() => {
+    const q = query(collection(db, "entrepreneur_profiles"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.businessName || data.nombre || "Local Aliado",
+          category: data.category || data.rubro || "all",
+          description: data.description || "",
+          imageUrl: data.imageUrls?.[0] || data.imagenUrl || `https://picsum.photos/seed/${doc.id}/400/300`,
+          contact: data.whatsapp || data.contactPhone || "",
+          schedule: data.operatingHours || data.horario || "",
+          locationId: data.ubicacionTienda || "loc-1"
+        } as Entrepreneur;
+      });
+      
+      setEntrepreneurs(docs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error cargando directorio:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     if (!user || !userData) return;
     if (!navigator.geolocation) return;
@@ -91,11 +119,6 @@ export default function Home() {
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [user, userData]);
-
-  useEffect(() => {
-    setEntrepreneurs(ENTREPRENEURS);
-    setLoading(false);
-  }, []);
 
   const filteredEntrepreneurs = entrepreneurs.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
@@ -216,13 +239,17 @@ export default function Home() {
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                {filteredEntrepreneurs.length > 0 ? (
+                {loading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="aspect-square bg-slate-100 animate-pulse rounded-2xl" />
+                  ))
+                ) : filteredEntrepreneurs.length > 0 ? (
                   filteredEntrepreneurs.map((entrepreneur) => (
                     <EntrepreneurCard key={entrepreneur.id} entrepreneur={entrepreneur} />
                   ))
                 ) : (
                   <div className="col-span-full py-12 text-center text-muted-foreground text-xs italic">
-                    No se encontraron resultados.
+                    No se encontraron resultados en el directorio.
                   </div>
                 )}
               </div>
