@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -107,18 +106,15 @@ export default function VendedorPage() {
     }
     
     setLoading(true);
-    console.log("Iniciando proceso de guardado...");
 
     try {
       let imageUrl = previewUrl;
 
       if (profileImage) {
         try {
-          console.log("Intentando subir imagen...");
           const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/${Date.now()}_${profileImage.name}`);
           const uploadResult = await uploadBytes(storageRef, profileImage);
           imageUrl = await getDownloadURL(uploadResult.ref);
-          console.log("Imagen subida con éxito.");
         } catch (storageError: any) {
           console.warn("Error en Storage (posiblemente no configurado):", storageError);
           toast({ 
@@ -129,7 +125,6 @@ export default function VendedorPage() {
         }
       }
 
-      console.log("Guardando textos en Firestore...");
       const profileRef = doc(db, "entrepreneur_profiles", auth.currentUser.uid);
       await setDoc(profileRef, {
         id: auth.currentUser.uid,
@@ -143,17 +138,16 @@ export default function VendedorPage() {
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       await setDoc(userRef, { nombreTienda: shopForm.nombreTienda }, { merge: true });
 
-      toast({ title: "Perfil actualizado", description: "La información de texto se guardó correctamente." });
+      toast({ title: "Perfil actualizado", description: "La información se guardó correctamente." });
       setView("dashboard");
     } catch (error: any) {
-      console.error("Error crítico en guardado:", error);
+      console.error("Error al guardar:", error);
       toast({ 
         variant: "destructive", 
         title: "Error al guardar", 
         description: error.message || "No se pudieron guardar los cambios." 
       });
     } finally {
-      console.log("Finalizando estado de carga.");
       setLoading(false);
     }
   };
@@ -451,6 +445,6 @@ export default function VendedorPage() {
           </div>
         </section>
       </div>
-    </nav>
+    </main>
   );
 }
