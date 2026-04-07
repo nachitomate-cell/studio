@@ -38,9 +38,13 @@ export default function ModeradorPage() {
   const [foundUsers, setFoundUsers] = useState<any[]>([]);
   const [entrepreneurs, setEntrepreneurs] = useState<any[]>([]);
   const [systemLogs, setSystemLogs] = useState<any[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
+  const [clientTime, setClientTime] = useState("");
 
-  // Cargar Emprendedores en Tiempo Real
   useEffect(() => {
+    setIsMounted(true);
+    setClientTime(new Date().toLocaleTimeString());
+
     const q = query(collection(db, "usuarios"), where("rol", "==", "emprendedor"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setEntrepreneurs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -52,7 +56,7 @@ export default function ModeradorPage() {
       errorEmitter.emit('permission-error', permissionError);
     });
 
-    // Cargar Logs (Simulados por ahora o desde colección si existe)
+    // Cargar Logs reales si existen
     const logsQ = query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(5));
     const unsubscribeLogs = onSnapshot(logsQ, (snapshot) => {
       setSystemLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -69,7 +73,6 @@ export default function ModeradorPage() {
     if (!searchTerm) return;
     setLoading(true);
     try {
-      // Búsqueda por correo (exacta)
       const q = query(collection(db, "usuarios"), where("correo", "==", searchTerm.toLowerCase().trim()));
       const snap = await getDocs(q);
       setFoundUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -99,7 +102,6 @@ export default function ModeradorPage() {
       });
 
       toast({ title: "Rol Actualizado", description: `El usuario ahora es ${newRole}.` });
-      // Refrescar búsqueda local si es necesario
       setFoundUsers(prev => prev.map(u => u.id === userId ? { ...u, rol: newRole } : u));
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo cambiar el rol." });
@@ -108,7 +110,6 @@ export default function ModeradorPage() {
 
   return (
     <main className="min-h-screen bg-[#0f172a] text-slate-100 pb-20 font-sans">
-      {/* Header Master */}
       <div className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-6 sticky top-0 z-50">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -132,7 +133,6 @@ export default function ModeradorPage() {
       </div>
 
       <div className="max-w-lg mx-auto p-6 space-y-8">
-        {/* Banner de Peligro */}
         <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-5 flex gap-4">
           <div className="w-10 h-10 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500 shrink-0">
             <AlertTriangle className="w-6 h-6" />
@@ -143,7 +143,6 @@ export default function ModeradorPage() {
           </p>
         </div>
 
-        {/* Buscador de Usuarios del Sistema */}
         <section className="space-y-4">
           <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Gestión de Usuarios</h2>
           <form onSubmit={handleSearch} className="relative group">
@@ -163,7 +162,6 @@ export default function ModeradorPage() {
             </Button>
           </form>
 
-          {/* Resultados de Búsqueda */}
           {foundUsers.length > 0 && (
             <div className="space-y-3 animate-in fade-in slide-in-from-top-4">
               {foundUsers.map(user => (
@@ -203,7 +201,6 @@ export default function ModeradorPage() {
           )}
         </section>
 
-        {/* Control de Aliados (Emprendedores) */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Aliados Activos</h2>
@@ -240,7 +237,6 @@ export default function ModeradorPage() {
           </div>
         </section>
 
-        {/* Logs de Sistema en Vivo */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-1">
             <Database className="w-4 h-4 text-blue-500" />
@@ -254,13 +250,13 @@ export default function ModeradorPage() {
                   <span className="text-slate-600">[{new Date(log.fecha).toLocaleTimeString()}]</span> {log.accion} - <span className="text-blue-400">{log.usuario}</span>
                 </p>
               ))
-            ) : (
+            ) : isMounted ? (
               <>
-                <p className="leading-relaxed animate-in fade-in duration-500"><span className="text-slate-600">[{new Date().toLocaleTimeString()}]</span> MASTER_AUTH: Success - Access granted to dev mode</p>
-                <p className="leading-relaxed opacity-80"><span className="text-slate-600">[{new Date().toLocaleTimeString()}]</span> DB_QUERY: Reading collection 'usuarios' (Filter: role=entrepreneur)</p>
-                <p className="leading-relaxed text-blue-400 opacity-60"><span className="text-slate-600">[{new Date().toLocaleTimeString()}]</span> SYSTEM: Geofencing active for 842 devices</p>
+                <p className="leading-relaxed animate-in fade-in duration-500"><span className="text-slate-600">[{clientTime}]</span> MASTER_AUTH: Success - Access granted to dev mode</p>
+                <p className="leading-relaxed opacity-80"><span className="text-slate-600">[{clientTime}]</span> DB_QUERY: Reading collection 'usuarios' (Filter: role=entrepreneur)</p>
+                <p className="leading-relaxed text-blue-400 opacity-60"><span className="text-slate-600">[{clientTime}]</span> SYSTEM: Geofencing active for 842 devices</p>
               </>
-            )}
+            ) : null}
             <div className="flex items-center gap-2 pt-2 text-[8px] text-slate-600">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
               Sincronizando con Firestore Live...
