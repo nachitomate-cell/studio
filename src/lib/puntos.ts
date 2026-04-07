@@ -1,4 +1,3 @@
-
 import { doc, getDoc, updateDoc, setDoc, Firestore, increment, collection, addDoc } from "firebase/firestore";
 import { enviarNotificacionLocal } from "./notificaciones";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -17,19 +16,12 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
     const userSnap = await getDoc(userRef);
     
     if (!userSnap.exists()) {
-      // Si el usuario no existe en la DB (raro pero posible), lo creamos
-      setDoc(userRef, {
+      await setDoc(userRef, {
         comprasRealizadas: 1,
         recompensaDisponible: false,
-        puntos: 50,
+        puntos: 100,
         totalCanjesHistoricos: 0,
         createdAt: new Date().toISOString()
-      }).catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: userRef.path,
-          operation: 'create',
-          requestResourceData: { comprasRealizadas: 1 }
-        }));
       });
       return;
     }
@@ -37,30 +29,38 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
     const data = userSnap.data();
     const nuevasCompras = (data.comprasRealizadas || 0) + 1;
     const timestamp = new Date().toISOString();
+    const clienteNombre = data.nombre || data.correo || "Miembro del Club";
     
-    // Actualizamos al cliente (No bloqueante)
+    // 1. Actualizar Cliente
     updateDoc(userRef, {
       comprasRealizadas: increment(1),
       recompensaDisponible: nuevasCompras >= 5,
       puntos: increment(50),
       lastPurchaseAt: timestamp,
       lastUpdate: timestamp
-    }).catch(async (error) => {
-      const permissionError = new FirestorePermissionError({
+    }).catch((error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: userRef.path,
         operation: 'update',
         requestResourceData: { comprasRealizadas: nuevasCompras },
-      } satisfies SecurityRuleContext);
-      errorEmitter.emit('permission-error', permissionError);
+      }));
     });
 
-    // Si hay un vendedor, registramos la venta en su historial (No bloqueante)
+    // 2. Notificar al Cliente (Recipient)
+    if (nuevasCompras % 5 === 0) {
+      await enviarNotificacionLocal(userId, "¡Premio Listo! 🎁", `¡Felicidades! Has completado ${nuevasCompras} sellos. Canjea tu premio ahora.`);
+    } else {
+      await enviarNotificacionLocal(userId, "¡Sello Recibido! ✨", `Has sumado un nuevo sello en Patio Curauma. ¡Te faltan pocos para tu premio!`);
+    }
+
+    // 3. Si hay un vendedor, registrar y NOTIFICAR al Emprendedor (Sender)
     if (vendedorId) {
+      // Registrar en historial de ventas
       const logRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
       addDoc(logRef, {
         vendedorId,
         clienteId: userId,
-        clienteNombre: data.nombre || data.correo || "Miembro del Club",
+        clienteNombre,
         fecha: timestamp
       }).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -68,13 +68,9 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
           operation: 'create'
         }));
       });
-    }
 
-    // Notificación de logro
-    if (nuevasCompras % 5 === 0) {
-      await enviarNotificacionLocal(userId, "¡Premio Disponible!", `Has alcanzado ${nuevasCompras} sellos. ¡Canjea tu premio en el Club Patio!`);
-    } else {
-      await enviarNotificacionLocal(userId, "Sello Sumado", "Has recibido un nuevo sello. ¡Sigue así!");
+      // Enviar notificación de sistema al emprendedor
+      await enviarNotificacionLocal(vendedorId, "Venta Exitosa ✅", `Has entregado un sello a ${clienteNombre}.`);
     }
     
   } catch (error) {
@@ -100,7 +96,7 @@ export async function canjearRecompensa(db: Firestore, userId: string, costo: nu
       recompensaDisponible: nuevasCompras >= 5,
       totalCanjesHistoricos: increment(1),
       lastCanjeAt: new Date().toISOString()
-    }).catch(async (error) => {
+    }).catch((error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: userRef.path,
         operation: 'update',
@@ -108,7 +104,7 @@ export async function canjearRecompensa(db: Firestore, userId: string, costo: nu
       }));
     });
 
-    await enviarNotificacionLocal(userId, "Canje Exitoso", `Has canjeado tu premio. ¡Gracias por ser parte del Club Patio!`);
+    await enviarNotificacionLocal(userId, "Canje Confirmado 🎫", `Has canjeado tu premio exitosamente. ¡Disfrútalo!`);
     
   } catch (error) {
     console.error("Error al canjear recompensa:", error);

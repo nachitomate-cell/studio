@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
+import { NotificationSystem } from "@/components/NotificationSystem";
 
 export const metadata: Metadata = {
   title: 'Club Patio',
@@ -47,6 +48,9 @@ export default function RootLayout({
         <div className="flex-1 overflow-x-hidden">
           {children}
         </div>
+        
+        {/* Sistema Global de Notificaciones de Sistema */}
+        <NotificationSystem />
         
         {/* Oyente global de errores de Firebase */}
         <FirebaseErrorListener />
