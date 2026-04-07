@@ -7,14 +7,15 @@ import {
   createUserWithEmailAndPassword,
   signOut 
 } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles } from "lucide-react";
+import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles, Ban } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const EMAIL_MASTER_ADMIN = 'ignaciiio.mate@gmail.com';
 const EMAILS_EMPRENDEDORES = [
@@ -29,8 +30,27 @@ export function Auth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
+  const [isBanned, setIsBanned] = useState(false);
+  const { toast } = useToast();
 
-  auth.onAuthStateChanged((u) => setUser(u));
+  auth.onAuthStateChanged(async (u) => {
+    setUser(u);
+    if (u) {
+      const userRef = doc(db, "usuarios", u.uid);
+      const snap = await getDoc(userRef);
+      if (snap.exists() && snap.data().baneado) {
+        setIsBanned(true);
+        await signOut(auth);
+        toast({
+          variant: "destructive",
+          title: "Cuenta Suspendida",
+          description: "Tu acceso al Club Patio ha sido revocado por el administrador.",
+        });
+      } else {
+        setIsBanned(false);
+      }
+    }
+  });
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +74,6 @@ export function Auth() {
           rolAsignado = "emprendedor";
         }
 
-        // REGALO DE BIENVENIDA: El usuario comienza con 1 sello gratis por unirse al club
         await setDoc(doc(db, "usuarios", newUser.uid), {
           correo: emailLimpio,
           telefono: phone,
@@ -65,6 +84,7 @@ export function Auth() {
           ticketsSorteo: 0,
           recompensaDisponible: false,
           avatarId: "User",
+          baneado: false,
           createdAt: new Date().toISOString()
         });
       }
@@ -78,6 +98,23 @@ export function Auth() {
   const handleLogout = async () => {
     await signOut(auth);
   };
+
+  if (isBanned) {
+    return (
+      <Card className="w-full max-w-md mx-auto border-red-500 shadow-2xl bg-red-50">
+        <CardHeader className="text-center">
+          <Ban className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <CardTitle className="text-red-700">Acceso Denegado</CardTitle>
+          <CardDescription>
+            Tu cuenta ha sido bloqueada. Si crees que esto es un error, contacta al administrador del Patio.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button onClick={() => setIsBanned(false)} variant="outline" className="w-full">Volver al inicio</Button>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   if (user) {
     return (

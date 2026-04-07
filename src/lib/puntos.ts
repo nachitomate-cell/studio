@@ -16,12 +16,20 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
         recompensaDisponible: false,
         puntos: 100,
         totalCanjesHistoricos: 0,
+        baneado: false,
         createdAt: new Date().toISOString()
       });
       return;
     }
 
     const data = userSnap.data();
+
+    // BLOQUEO DE SEGURIDAD: No sumar sellos si el usuario está baneado
+    if (data.baneado) {
+      console.warn("Intento de sumar sellos a usuario baneado:", userId);
+      return;
+    }
+
     const nuevasCompras = (data.comprasRealizadas || 0) + 1;
     const timestamp = new Date().toISOString();
     const clienteNombre = data.nombre || data.correo || "Miembro del Club";
@@ -40,6 +48,17 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       }));
     });
 
+    // Auditoría de Sistema (Para el Radar de Fraude)
+    const logRef = collection(db, "system_logs");
+    await addDoc(logRef, {
+      usuario: clienteNombre,
+      usuarioId: userId,
+      vendedorId: vendedorId || "simulacion",
+      accion: "recibió un sello",
+      fecha: timestamp,
+      tipo: "FIDELIZACION"
+    });
+
     if (nuevasCompras % 5 === 0) {
       await enviarNotificacionLocal(userId, "¡Premio Listo! 🎁", `¡Felicidades! Has completado ${nuevasCompras} sellos. Canjea tu premio ahora.`);
     } else {
@@ -47,17 +66,12 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
     }
 
     if (vendedorId) {
-      const logRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
-      addDoc(logRef, {
+      const vendedorLogRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
+      addDoc(vendedorLogRef, {
         vendedorId,
         clienteId: userId,
         clienteNombre,
         fecha: timestamp
-      }).catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: logRef.path,
-          operation: 'create'
-        }));
       });
 
       await enviarNotificacionLocal(vendedorId, "Venta Exitosa ✅", `Has entregado un sello a ${clienteNombre}.`);
@@ -76,6 +90,8 @@ export async function canjearRecompensa(db: Firestore, userId: string, costo: nu
     if (!userSnap.exists()) return;
 
     const data = userSnap.data();
+    if (data.baneado) return;
+
     const nuevasCompras = (data.comprasRealizadas || 0) - costo;
 
     updateDoc(userRef, {
@@ -83,12 +99,14 @@ export async function canjearRecompensa(db: Firestore, userId: string, costo: nu
       recompensaDisponible: nuevasCompras >= 5,
       totalCanjesHistoricos: increment(1),
       lastCanjeAt: new Date().toISOString()
-    }).catch((error) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: userRef.path,
-        operation: 'update',
-        requestResourceData: { comprasRealizadas: nuevasCompras }
-      }));
+    });
+
+    await addDoc(collection(db, "system_logs"), {
+      usuario: data.nombre || data.correo,
+      usuarioId: userId,
+      accion: "canjeó un premio",
+      fecha: new Date().toISOString(),
+      tipo: "CANJE"
     });
 
     await enviarNotificacionLocal(userId, "Canje Confirmado 🎫", `Has canjeado tu premio exitosamente. ¡Disfrútalo!`);
