@@ -2,16 +2,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   ShieldAlert, Settings, UserCog, Database, 
-  ArrowLeft, Search, MoreVertical, Store,
-  AlertTriangle, Lock, Unlock, Loader2,
-  UserPlus, UserMinus, RefreshCcw, FlaskConical,
+  ArrowLeft, Search, Store, AlertTriangle, 
+  Loader2, UserPlus, UserMinus, FlaskConical,
   Navigation, Sparkles, Gift, Ban, UserCheck, 
-  Edit3, Trash2, ShieldCheck, Eye, Zap
+  Edit3, ShieldCheck, Zap, Target
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -24,18 +23,15 @@ import {
   doc, 
   onSnapshot, 
   orderBy, 
-  limit,
-  serverTimestamp,
-  deleteDoc,
-  increment
+  limit
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/lib/notificaciones";
 import { registrarCompra } from "@/lib/puntos";
 import { cn } from "@/lib/utils";
+
+const TEST_TARGET_EMAIL = 'nachitomate@gmail.com';
 
 export default function ModeradorPage() {
   const router = useRouter();
@@ -43,27 +39,44 @@ export default function ModeradorPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [foundUsers, setFoundUsers] = useState<any[]>([]);
-  const [entrepreneurs, setEntrepreneurs] = useState<any[]>([]);
   const [recentTrans, setRecentTrans] = useState<any[]>([]);
-  const [isMounted, setIsMounted] = useState(false);
+  
+  // Estado para el usuario de prueba nachitomate@gmail.com
+  const [testUser, setTestUser] = useState<{id: string, nombre: string, sellos: number} | null>(null);
+  const [isSearchingTestUser, setIsSearchingTestUser] = useState(true);
 
   useEffect(() => {
-    setIsMounted(true);
+    // 1. Buscar al usuario de prueba nachitomate@gmail.com para el laboratorio
+    const fetchTestUser = async () => {
+      setIsSearchingTestUser(true);
+      try {
+        const q = query(collection(db, "usuarios"), where("correo", "==", TEST_TARGET_EMAIL));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          const data = d.data();
+          setTestUser({
+            id: d.id,
+            nombre: data.nombre || "Socio de Prueba",
+            sellos: data.comprasRealizadas || 0
+          });
+        }
+      } catch (e) {
+        console.error("Error buscando usuario de prueba:", e);
+      } finally {
+        setIsSearchingTestUser(false);
+      }
+    };
 
-    // Listener de Emprendedores
-    const q = query(collection(db, "usuarios"), where("rol", "==", "emprendedor"));
-    const unsubscribeEmp = onSnapshot(q, (snapshot) => {
-      setEntrepreneurs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    fetchTestUser();
 
-    // Listener de Transacciones para Radar de Fraude
+    // 2. Listener de Transacciones para Radar de Fraude
     const transQ = query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(10));
     const unsubscribeTrans = onSnapshot(transQ, (snapshot) => {
       setRecentTrans(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
     return () => {
-      unsubscribeEmp();
       unsubscribeTrans();
     };
   }, []);
@@ -108,6 +121,40 @@ export default function ModeradorPage() {
     }
   };
 
+  // HANDLERS DEL LABORATORIO (DIRIGIDOS A NACHITOMATE@GMAIL.COM)
+  const runGeofenceTest = async () => {
+    if (!testUser) {
+      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}` });
+      return;
+    }
+    setLoading(true);
+    await procesarProximidadGeofence(testUser.id, testUser.nombre, testUser.sellos, true);
+    setLoading(false);
+    toast({ title: "Simulación Geofence", description: `Enviada a ${TEST_TARGET_EMAIL}` });
+  };
+
+  const runAITest = async () => {
+    if (!testUser) {
+      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}` });
+      return;
+    }
+    setLoading(true);
+    await verificarYGenerarRecordatorioIA(testUser.id, testUser.nombre, testUser.sellos);
+    setLoading(false);
+    toast({ title: "Generación IA", description: `Mensaje Genkit enviado a ${TEST_TARGET_EMAIL}` });
+  };
+
+  const runAutoStampTest = async () => {
+    if (!testUser) {
+      toast({ variant: "destructive", title: "Error", description: `No se encontró al usuario ${TEST_TARGET_EMAIL}` });
+      return;
+    }
+    setLoading(true);
+    await registrarCompra(db, testUser.id, "TEST_LAB_ADMIN");
+    setLoading(false);
+    toast({ title: "Auto-Sello Lab", description: `Sello sumado a ${TEST_TARGET_EMAIL}` });
+  };
+
   return (
     <main className="min-h-screen bg-[#020617] text-slate-100 pb-32 font-sans selection:bg-primary/30">
       {/* Header Estilo "Hilos Detrás de la Cortina" */}
@@ -134,6 +181,82 @@ export default function ModeradorPage() {
 
       <div className="max-w-lg mx-auto p-6 space-y-8">
         
+        {/* ZONA DE LABORATORIO - DIRIGIDA A NACHITOMATE@GMAIL.COM */}
+        <section className="bg-primary/5 p-8 rounded-[2.5rem] border border-primary/20 space-y-4 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Target className="w-16 h-16 text-primary" />
+          </div>
+          
+          <div className="flex items-center gap-3 text-primary mb-2">
+            <FlaskConical className="w-6 h-6" />
+            <h2 className="text-[11px] font-black uppercase tracking-[0.3em]">Laboratorio de Pruebas</h2>
+          </div>
+          
+          <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary">
+              <Target className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Target de Pruebas:</p>
+              <p className="text-xs font-black text-white">{TEST_TARGET_EMAIL}</p>
+              {isSearchingTestUser ? (
+                <p className="text-[8px] text-slate-500 animate-pulse">Buscando UID en Firebase...</p>
+              ) : testUser ? (
+                <p className="text-[8px] text-primary font-bold">USUARIO CONECTADO (UID: {testUser.id.slice(0,8)}...)</p>
+              ) : (
+                <p className="text-[8px] text-red-500 font-bold">ERROR: USUARIO NO REGISTRADO</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <Button 
+              onClick={runGeofenceTest} 
+              disabled={loading || !testUser}
+              variant="outline" 
+              className="bg-slate-950 border-slate-800 h-14 gap-4 font-bold justify-start px-6 rounded-2xl group transition-all hover:border-primary/50"
+            >
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all">
+                <Navigation className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-[11px]">Simular Geofence en nachitomate</p>
+                <p className="text-[8px] text-slate-600">Alerta de proximidad remota</p>
+              </div>
+            </Button>
+            
+            <Button 
+              onClick={runAITest} 
+              disabled={loading || !testUser}
+              variant="outline" 
+              className="bg-slate-950 border-slate-800 h-14 gap-4 font-bold justify-start px-6 rounded-2xl group transition-all hover:border-primary/50"
+            >
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-[11px]">Forzar Mensaje IA en nachitomate</p>
+                <p className="text-[8px] text-slate-600">Generar notificación Genkit remota</p>
+              </div>
+            </Button>
+
+            <Button 
+              onClick={runAutoStampTest} 
+              disabled={loading || !testUser}
+              variant="outline" 
+              className="bg-slate-950 border-slate-800 h-14 gap-4 font-bold justify-start px-6 rounded-2xl group transition-all hover:border-primary/50"
+            >
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-all">
+                <Gift className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-[11px]">Auto-Sello Remoto</p>
+                <p className="text-[8px] text-slate-600">Sumar sello a nachitomate</p>
+              </div>
+            </Button>
+          </div>
+        </section>
+
         {/* RADAR DE FRAUDE */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-1">
@@ -142,13 +265,9 @@ export default function ModeradorPage() {
           </div>
           <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] overflow-hidden shadow-2xl">
             <CardContent className="p-0">
-              <div className="p-4 bg-amber-500/10 border-b border-slate-800 flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                <p className="text-[11px] font-bold text-amber-200/80">Monitoreando transacciones sospechosas...</p>
-              </div>
               <div className="divide-y divide-slate-800/50">
                 {recentTrans.length > 0 ? (
-                  recentTrans.map((log, i) => (
+                  recentTrans.map((log) => (
                     <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
                       <div className="space-y-1">
                         <p className="text-[11px] font-medium text-slate-300">
@@ -171,11 +290,11 @@ export default function ModeradorPage() {
 
         {/* BUSCADOR DE MIEMBROS */}
         <section className="space-y-4">
-          <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Gestión de Cuentas</h2>
+          <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Buscador Global</h2>
           <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
             <Input 
-              placeholder="Buscar por correo exacto..." 
+              placeholder="Correo del usuario..." 
               className="bg-slate-900 border-slate-800 rounded-2xl pl-11 h-14 text-white focus:ring-primary focus:border-primary"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -212,15 +331,8 @@ export default function ModeradorPage() {
                         <p className="text-[10px] text-slate-500 font-bold">{user.correo}</p>
                       </div>
                     </div>
-                    <Badge className={cn(
-                      "rounded-lg font-black text-[9px] uppercase tracking-tighter",
-                      user.rol === 'admin' ? "bg-red-500" : user.rol === 'emprendedor' ? "bg-primary" : "bg-slate-700"
-                    )}>
-                      {user.rol}
-                    </Badge>
                   </div>
 
-                  {/* Acciones de Moderación */}
                   <div className="grid grid-cols-2 gap-2">
                     <Button 
                       onClick={() => handleFixStamps(user.id, user.comprasRealizadas || 0)}
@@ -257,7 +369,7 @@ export default function ModeradorPage() {
                       )}
                     >
                       {user.baneado ? <UserCheck className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                      {user.baneado ? "Desbloquear Usuario" : "Banear Usuario del Club"}
+                      {user.baneado ? "Desbloquear Usuario" : "Banear Usuario"}
                     </Button>
                   </div>
                 </CardContent>
@@ -266,51 +378,9 @@ export default function ModeradorPage() {
           </div>
         </section>
 
-        {/* ZONA DE LABORATORIO */}
-        <section className="bg-primary/5 p-8 rounded-[2.5rem] border border-primary/20 space-y-4 shadow-xl">
-          <div className="flex items-center gap-3 text-primary mb-2">
-            <FlaskConical className="w-6 h-6" />
-            <h2 className="text-[11px] font-black uppercase tracking-[0.3em]">Laboratorio de Pruebas</h2>
-          </div>
-          <p className="text-[10px] text-slate-500 font-medium leading-relaxed mb-4">
-            Simula comportamientos de hardware y lógica de IA sin salir del panel.
-          </p>
-          <div className="grid grid-cols-1 gap-3">
-            <Button onClick={() => procesarProximidadGeofence(auth.currentUser?.uid!, "Admin", 0, true)} variant="outline" className="bg-slate-950 border-slate-800 h-14 gap-4 font-bold justify-start px-6 rounded-2xl group">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all">
-                <Navigation className="w-4 h-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-[11px]">Simular Geofence</p>
-                <p className="text-[8px] text-slate-600">Alerta por proximidad</p>
-              </div>
-            </Button>
-            
-            <Button onClick={() => verificarYGenerarRecordatorioIA(auth.currentUser?.uid!, "Admin", 5)} variant="outline" className="bg-slate-950 border-slate-800 h-14 gap-4 font-bold justify-start px-6 rounded-2xl group">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-[11px]">Forzar Mensaje IA</p>
-                <p className="text-[8px] text-slate-600">Generar notificación Genkit</p>
-              </div>
-            </Button>
-
-            <Button onClick={() => registrarCompra(db, auth.currentUser?.uid!)} variant="outline" className="bg-slate-950 border-slate-800 h-14 gap-4 font-bold justify-start px-6 rounded-2xl group">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-all">
-                <Gift className="w-4 h-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-[11px]">Auto-Sello</p>
-                <p className="text-[8px] text-slate-600">Sumar sello a mi cuenta</p>
-              </div>
-            </Button>
-          </div>
-        </section>
-
         <div className="text-center pt-8">
           <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.4em] bg-slate-950 py-3 rounded-full inline-block px-10 border border-slate-900">
-            Patio Curauma • Master Admin v2.0
+            Patio Curauma • Test Mode Active
           </p>
         </div>
       </div>
