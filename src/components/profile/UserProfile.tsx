@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { onAuthStateChanged, User, signOut, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
-import { doc, onSnapshot, updateDoc, collection, query, where, orderBy, limit, getDocs, deleteDoc } from "firebase/firestore";
+import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
+import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,20 +15,20 @@ import {
   Smile, Cat, Dog, Coffee, Star, Store,
   MessageCircle, MapPin, 
   Clock, Bell, CheckCircle2,
-  Info, ExternalLink, Instagram, Facebook, Sparkles,
-  ChevronRight, Calendar, FlaskConical, Navigation,
+  ExternalLink, Sparkles,
+  Calendar, FlaskConical, Navigation,
   LayoutDashboard, AlertTriangle, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { CatalogoPremios } from "./CatalogoPremios";
 import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
-import { Textarea } from "@/components/ui/textarea";
 import { verificarYGenerarRecordatorioIA, procesarProximidadGeofence, dispararAlertaSistema } from "@/lib/notificaciones";
 import {
   AlertDialog,
@@ -83,7 +83,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
-    if ("Notification" in window) {
+    if (typeof window !== "undefined" && "Notification" in window) {
       setPushEnabled(Notification.permission === "granted");
     }
     return () => unsubscribeAuth();
@@ -131,7 +131,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   }, [user]);
 
   const requestNotificationPermission = async () => {
-    if (!("Notification" in window)) {
+    if (typeof window === "undefined" || !("Notification" in window)) {
       toast({ title: "No compatible", description: "Tu navegador no soporta notificaciones." });
       return;
     }
@@ -183,9 +183,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     if (!user) return;
     setLoading(true);
     try {
-      // 1. Borrar datos de Firestore
       await deleteDoc(doc(db, "usuarios", user.uid));
-      // 2. Borrar usuario de Auth
       await deleteUser(user);
       toast({ title: "Cuenta eliminada", description: "Lamentamos verte partir. Tus datos han sido borrados." });
     } catch (error: any) {
