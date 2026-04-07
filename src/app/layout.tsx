@@ -1,7 +1,7 @@
-
 import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
+import { RoleSwitcher } from "@/components/RoleSwitcher";
 
 export const metadata: Metadata = {
   title: 'Club Patio',
@@ -46,6 +46,10 @@ export default function RootLayout({
         <div className="flex-1 overflow-x-hidden">
           {children}
         </div>
+        
+        {/* Simulador de Roles flotante para pruebas */}
+        <RoleSwitcher />
+        
         <Toaster />
       </body>
     </html>
