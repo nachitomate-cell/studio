@@ -195,19 +195,29 @@ export default function ClientScannerPage() {
     }
 
     try {
-      // 1. Verificar que el local exista en Firestore
+      // 1. Intentar obtener info del local (no bloqueante si no existe perfil)
       const vendorRef = doc(db, "entrepreneur_profiles", vendorId);
       const vendorSnap = await getDoc(vendorRef);
 
-      if (!vendorSnap.exists()) {
-        setScanError({ type: "not_found" });
-        setScanState("error");
-        isScanningRef.current = false;
-        return;
+      // Si no existe perfil, igual registramos el sello con nombre genérico
+      // (el emprendedor puede no haber configurado su perfil aún)
+      let shopName = "Local Aliado";
+      if (vendorSnap.exists()) {
+        const vendorData = vendorSnap.data();
+        shopName = vendorData.businessName || vendorData.nombre || "Local Aliado";
       }
 
-      const vendorData = vendorSnap.data();
-      const shopName = vendorData.businessName || vendorData.nombre || "Local Aliado";
+      // También intentar obtener nombre del usuario en colección usuarios
+      if (shopName === "Local Aliado") {
+        try {
+          const vendorUserRef = doc(db, "usuarios", vendorId);
+          const vendorUserSnap = await getDoc(vendorUserRef);
+          if (vendorUserSnap.exists()) {
+            const vData = vendorUserSnap.data();
+            shopName = vData.nombreTienda || vData.nombre || "Local Aliado";
+          }
+        } catch (_) {}
+      }
 
       // 2. Obtener datos del usuario antes de registrar (para mostrar total actualizado)
       const userRef = doc(db, "usuarios", currentUser.uid);
