@@ -37,6 +37,7 @@ function DetailContent() {
   const [entrepreneur, setEntrepreneur] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -131,15 +132,19 @@ function DetailContent() {
         </div>
       </div>
 
-      <div className="relative h-[45vh] w-full">
+      <div className="relative h-[45vh] w-full bg-slate-200">
+        {!imageLoaded && (
+          <div className="absolute inset-0 bg-slate-300 animate-pulse z-0" />
+        )}
         <Image
           src={entrepreneur.imagenUrl}
           alt={entrepreneur.nombre}
           fill
-          className="object-cover"
+          className={cn("object-cover z-10 transition-opacity duration-700", imageLoaded ? "opacity-100" : "opacity-0")}
+          onLoad={() => setImageLoaded(true)}
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#F2F4F0] via-transparent to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#F2F4F0] via-transparent to-black/20 z-20" />
       </div>
 
       <div className="max-w-lg mx-auto px-6 -mt-16 relative z-10">

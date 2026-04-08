@@ -20,6 +20,7 @@ import {
   LayoutDashboard, AlertTriangle, Trash2,
   Loader2
 } from "lucide-react";
+import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,8 @@ import { CatalogoPremios } from "./CatalogoPremios";
 import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
-import { verificarYGenerarRecordatorioIA, procesarProximidadGeofence, dispararAlertaSistema } from "@/lib/notificaciones";
+import { dispararAlertaSistema } from "@/lib/notificaciones";
+import { verificarYGenerarRecordatorioIA, procesarProximidadGeofence } from "@/lib/ai-actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +53,62 @@ const AVATAR_OPTIONS = [
   { id: 'Coffee', icon: Coffee, color: 'bg-amber-100 text-amber-800' },
   { id: 'Star', icon: Star, color: 'bg-purple-100 text-purple-600' },
 ];
+
+function SwipeableNotification({ notif, onDelete }: { notif: any, onDelete: (id: string) => void }) {
+  const [startX, setStartX] = useState(0);
+  const [offsetX, setOffsetX] = useState(0);
+
+  const handleTouchStart = (e: any) => {
+    setStartX(e.touches[0].clientX);
+  };
+  
+  const handleTouchMove = (e: any) => {
+    const diff = e.touches[0].clientX - startX;
+    if (diff < 0) {
+       setOffsetX(Math.max(diff, -100));
+    }
+  };
+  
+  const handleTouchEnd = () => {
+    if (offsetX < -60) {
+      setOffsetX(-150);
+      setTimeout(() => onDelete(notif.id), 200);
+    } else {
+      setOffsetX(0);
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+       <div className="absolute inset-0 bg-red-500 flex items-center justify-end pr-6 rounded-2xl">
+          <Trash2 className="text-white w-6 h-6 animate-pulse" />
+       </div>
+       
+       <div 
+          className="relative transition-transform duration-200" 
+          style={{ transform: `translateX(${offsetX}px)` }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+       >
+          <Card className={cn("border-none shadow-sm rounded-2xl overflow-hidden transition-all", notif.isAI ? "bg-gradient-to-br from-white to-primary/5 border-l-4 border-l-primary" : "bg-white")}>
+            <CardContent className="p-4 flex gap-4">
+              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", notif.isAI ? "bg-primary text-white" : "bg-slate-100 text-slate-400")}>
+                {notif.isAI ? <Sparkles className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-800">{notif.titulo}</h4>
+                  <span className="text-[8px] text-slate-400 uppercase font-bold">{new Date(notif.fecha).toLocaleDateString()}</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{notif.mensaje}</p>
+              </div>
+            </CardContent>
+          </Card>
+       </div>
+    </div>
+  );
+}
 
 interface UserProfileProps {
   onSwitchMode: () => void;
@@ -91,13 +149,18 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   }, []);
 
   useEffect(() => {
+    // Guard: si no hay usuario autenticado, limpiamos el estado y salimos
     if (!user) {
       setUserData(null);
+      setNotificaciones([]);
       return;
     }
 
+    let unsubscribeDoc: (() => void) | undefined;
+    let unsubscribeNotif: (() => void) | undefined;
+
     const userRef = doc(db, "usuarios", user.uid);
-    const unsubscribeDoc = onSnapshot(userRef, (docSnap) => {
+    unsubscribeDoc = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setUserData(data);
@@ -121,13 +184,38 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
     const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
     const qNotif = query(notifRef, orderBy("fecha", "desc"), limit(10));
-    const unsubscribeNotif = onSnapshot(qNotif, (snapshot) => {
-      setNotificaciones(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    unsubscribeNotif = onSnapshot(
+      qNotif,
+      (snapshot) => {
+        setNotificaciones(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        
+        // Lanzar Notificación Push OS para alertas recién llegadas
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+             const data = change.doc.data();
+             const ageEnMs = new Date().getTime() - new Date(data.fecha).getTime();
+             // Evitamos spam de notificaciones antiguas al cargar la bbdd.
+             // Solo si la notificación tiene menos de 10 segundos.
+             if (ageEnMs < 10000 && !data.leida) {
+                dispararAlertaSistema(data.titulo, data.mensaje);
+             }
+          }
+        });
+      },
+      // onError: si Firestore devuelve permiso denegado (usuario ya cerró sesión)
+      // simplemente ignoramos el error sin que rompa la app
+      (error) => {
+        if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+          console.warn("[Notificaciones] Listener detenido: sesión cerrada.");
+        } else {
+          console.error("[Notificaciones] Error inesperado:", error);
+        }
+      }
+    );
 
     return () => {
-      unsubscribeDoc();
-      unsubscribeNotif();
+      unsubscribeDoc?.();
+      unsubscribeNotif?.();
     };
   }, [user]);
 
@@ -222,6 +310,28 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     setLoading(true);
     await verificarYGenerarRecordatorioIA(user.uid, userData.nombre || "Miembro", userData.comprasRealizadas || 0);
     setLoading(false);
+  };
+
+  const handleDeleteNotif = async (notifId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, "usuarios", user.uid, "notificaciones", notifId));
+    } catch (e) {}
+  };
+
+  const handleClearAllNotifs = async () => {
+    if (!user || notificaciones.length === 0) return;
+    if (!confirm("¿Deseas eliminar todos los mensajes de tu bandeja?")) return;
+    
+    try {
+      const batchPromises = notificaciones.map(n => 
+        deleteDoc(doc(db, "usuarios", user.uid, "notificaciones", n.id))
+      );
+      await Promise.all(batchPromises);
+      toast({ title: "Bandeja limpiada", description: "Has eliminado todos tus mensajes." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo limpiar la bandeja." });
+    }
   };
 
   const handleLogout = async () => {
@@ -458,10 +568,15 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                 <Store className="w-5 h-5" /> Mi Tienda
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
-              <Link href="/vendedor">
+            <CardContent className="p-6 space-y-3">
+              <Link href="/vendedor?action=scan">
                 <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20">
-                  <QrCode className="w-6 h-6" /> Abrir Terminal de Sellos
+                  <QrCode className="w-6 h-6" /> Escanear Cliente
+                </Button>
+              </Link>
+              <Link href="/vendedor">
+                <Button variant="outline" className="w-full h-14 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-3 hover:bg-slate-50">
+                  <LayoutDashboard className="w-5 h-5 text-primary" /> Panel del Emprendedor
                 </Button>
               </Link>
             </CardContent>
@@ -472,27 +587,21 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       {!isEntrepreneur && !isDirector && !isEditing && (
         <>
           <section className="space-y-4">
-            <div className="flex items-center gap-2 px-1">
-              <Bell className="w-5 h-5 text-primary" />
-              <h3 className="font-bold text-lg text-primary">Mensajes del Club</h3>
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg text-primary">Mensajes del Club</h3>
+              </div>
+              {notificaciones.length > 0 && (
+                <Button variant="ghost" size="icon" onClick={handleClearAllNotifs} className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50" title="Borrar todos">
+                   <X className="w-5 h-5" />
+                </Button>
+              )}
             </div>
             <div className="space-y-3">
               {notificaciones.length > 0 ? (
                 notificaciones.map((notif) => (
-                  <Card key={notif.id} className={cn("border-none shadow-sm rounded-2xl overflow-hidden transition-all", notif.isAI ? "bg-gradient-to-br from-white to-primary/5 border-l-4 border-l-primary" : "bg-white")}>
-                    <CardContent className="p-4 flex gap-4">
-                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", notif.isAI ? "bg-primary text-white" : "bg-slate-100 text-slate-400")}>
-                        {notif.isAI ? <Sparkles className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
-                      </div>
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-bold text-slate-800">{notif.titulo}</h4>
-                          <span className="text-[8px] text-slate-400 uppercase font-bold">{new Date(notif.fecha).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">{notif.mensaje}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} />
                 ))
               ) : (
                 <div className="bg-slate-50 p-8 rounded-3xl text-center space-y-2 border-2 border-dashed border-slate-200">
@@ -503,49 +612,14 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </div>
           </section>
 
-          <Card className="border-none shadow-lg bg-gradient-to-br from-primary to-accent/40 rounded-3xl overflow-hidden text-white">
-            <CardContent className="p-6 flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Gran Sorteo del Mes</p>
-                <h3 className="text-2xl font-black flex items-center gap-2"><Trophy className="w-6 h-6 text-yellow-300" />{tickets} <span className="text-sm font-bold opacity-90">Tickets</span></h3>
-              </div>
-              <Sparkles className="w-10 h-10 opacity-20" />
-            </CardContent>
-          </Card>
-
-          <section className="space-y-4">
-            <h3 className="font-bold text-lg text-primary flex items-center gap-2 px-1"><Award className="w-5 h-5" />Mi Tarjeta de Sellos</h3>
-            <Card className="border-none shadow-xl bg-[#FDFCF0] rounded-[2rem] overflow-hidden relative">
-              <CardContent className="p-8">
-                <div className="grid grid-cols-5 gap-4 mb-8">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="aspect-square relative flex items-center justify-center">
-                      <div className={cn("w-full h-full rounded-full flex items-center justify-center", i < sellosEnTarjeta ? "bg-white shadow-inner" : "bg-primary/5 border-2 border-dashed border-primary/20")}>
-                        {i < sellosEnTarjeta ? <CheckCircle2 className="w-8 h-8 text-primary fill-primary/10" /> : <span className="text-[10px] font-bold text-primary/20">{i + 1}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-4 text-center">
-                  <p className="text-primary font-bold text-lg leading-tight px-4">{sellos % 5 === 0 && sellos > 0 ? "¡Tienes un premio listo para canjear!" : `¡Te faltan ${sellosRestantesParaPremio === 5 ? 5 : sellosRestantesParaPremio} sellos para tu próximo premio!`}</p>
-                  <Button className="w-full h-12 rounded-2xl bg-primary text-white font-bold" onClick={() => document.getElementById('premios-catalogo')?.scrollIntoView({ behavior: 'smooth' })}>Canjear Sellos por Premios</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-
-          <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden">
+          <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden mt-6">
             <CardContent className="flex flex-col items-center py-8">
-              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Escanea esto en el local</p>
-              <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner">
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${user.uid}&color=4EAD1F`} alt="QR" className="w-44 h-44" />
+              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Muestra tu QR en caja para obtener sellos</p>
+              <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
+                <QRCode value={user.uid} size={176} fgColor="#4EAD1F" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
               </div>
             </CardContent>
           </Card>
-
-          <div id="premios-catalogo">
-            <CatalogoPremios userId={user.uid} userEmail={user.email || undefined} comprasActuales={sellos} />
-          </div>
         </>
       )}
 

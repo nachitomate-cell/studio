@@ -1,11 +1,12 @@
 
 import { db } from "./firebase";
-import { collection, addDoc, query, where, getDocs, limit, orderBy } from "firebase/firestore";
-import { generatePromoMessage } from "@/ai/flows/generate-promo-message-flow";
+import { collection, addDoc, query, where, getDocs, limit } from "firebase/firestore";
 
 /**
  * Dispara una notificación nativa del sistema (Push) si el permiso está concedido.
  * En iOS PWA, requiere que el Service Worker esté activo.
+ *
+ * ✅ BROWSER-SAFE — no importa Genkit ni módulos de Node.js
  */
 export async function dispararAlertaSistema(titulo: string, mensaje: string) {
   if (typeof window === "undefined") return;
@@ -14,17 +15,14 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
     try {
       const registration = await navigator.serviceWorker.getRegistration();
       if (registration && 'showNotification' in registration) {
-        // Método preferido para PWA (permite segundo plano si el sistema no ha suspendido el proceso)
         await registration.showNotification(titulo, {
           body: mensaje,
           icon: "https://picsum.photos/seed/patio-icon/192/192",
           badge: "https://picsum.photos/seed/patio-icon/192/192",
-          vibrate: [200, 100, 200],
-          tag: 'club-patio-notification', // Evita duplicados
-          renotify: true
-        });
+          tag: 'club-patio-notification',
+          renotify: true,
+        } as NotificationOptions & { vibrate?: number[] });
       } else {
-        // Fallback para navegadores sin Service Worker activo
         new Notification(titulo, { body: mensaje });
       }
     } catch (e) {
@@ -35,6 +33,8 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
 
 /**
  * Registra una notificación en la subcolección del usuario en Firestore.
+ *
+ * ✅ BROWSER-SAFE — solo usa Firebase Client SDK
  */
 export async function enviarNotificacionLocal(userId: string, titulo: string, mensaje: string, metadata: any = {}) {
   if (!userId) return;
@@ -53,42 +53,7 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
   }
 }
 
-/**
- * Genera un mensaje persuasivo usando IA (Genkit) y lo envía al usuario.
- */
-export async function verificarYGenerarRecordatorioIA(userId: string, userName: string, stamps: number, force = false) {
-  try {
-    const notifRef = collection(db, "usuarios", userId, "notificaciones");
-    
-    if (!force) {
-      const q = query(notifRef, orderBy("fecha", "desc"), limit(1));
-      const querySnapshot = await getDocs(q);
 
-      if (!querySnapshot.empty) {
-        const lastNotif = querySnapshot.docs[0].data();
-        const lastDate = new Date(lastNotif.fecha);
-        const now = new Date();
-        const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
-        if (diffHours < 24) return false; // Evitar spam si no es forzado
-      }
-    }
-
-    const aiResponse = await generatePromoMessage({
-      userName: userName || "Miembro del Club",
-      stampsCount: stamps
-    });
-
-    await enviarNotificacionLocal(userId, aiResponse.title, aiResponse.message, {
-      cta: aiResponse.callToAction,
-      isAI: true,
-      tipo: "IA_REMINDER"
-    });
-    return true;
-  } catch (error) {
-    console.error("Error en motor de IA de notificaciones:", error);
-    return false;
-  }
-}
 
 /**
  * Simula el motor de Geofencing enviando una alerta si el usuario está cerca del Patio.

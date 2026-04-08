@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
 import { NotificationSystem } from "@/components/NotificationSystem";
+import { SplashScreen } from "@/components/ui/SplashScreen";
 
 export const metadata: Metadata = {
   title: 'Club Patio',
@@ -39,6 +40,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="https://picsum.photos/seed/patio-icon/180/180" />
       </head>
       <body className="font-body antialiased selection:bg-accent selection:text-accent-foreground overflow-x-hidden h-full flex flex-col bg-white">
+        <SplashScreen />
         
         {/* Header fijo con logo optimizado y manejo de safe area superior */}
         <header className="bg-white/95 backdrop-blur-sm shadow-sm py-3 flex justify-center w-full sticky top-0 z-50 pt-safe border-b border-slate-100">

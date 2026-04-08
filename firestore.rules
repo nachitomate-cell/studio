@@ -59,10 +59,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
 
-    // --- Colección: Puntos de Mapa ---
-    match /map_points/{pointId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+    // --- Colección: Leads de Marketing ---
+    match /leads_marketing/{leadId} {
+      allow create: if isSignedIn() && request.auth.uid == leadId;
+      allow read, update, delete: if isSignedIn() && request.auth.uid == leadId;
     }
   }
 }

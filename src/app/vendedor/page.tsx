@@ -16,6 +16,7 @@ import {
   X, Store, Save, ImagePlus, UserCircle, Upload
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import QRCode from "react-qr-code";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +26,7 @@ import { cn } from "@/lib/utils";
 export default function VendedorPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [view, setView] = useState<"dashboard" | "scanner" | "profile">("dashboard");
+  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr">("dashboard");
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
@@ -45,12 +46,21 @@ export default function VendedorPage() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(track => track.stop && track.stop());
       } catch (error) {
         setHasCameraPermission(false);
       }
     };
     checkPermission();
+
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("action") === "scan") {
+        setTimeout(() => {
+          startScanner();
+        }, 300);
+      }
+    }
 
     let unsubscribeProfile: () => void = () => {};
     let unsubscribeUser: () => void = () => {};
@@ -209,6 +219,40 @@ export default function VendedorPage() {
     }
   };
 
+  if (view === "myqr") {
+    return (
+      <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
+        <div className="bg-white border-b border-slate-200 p-6 sticky top-0 z-10 flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setView("dashboard")} className="text-slate-400">
+            <ArrowLeft className="w-6 h-6" />
+          </Button>
+          <h1 className="text-xl font-bold text-slate-800">Mi Código QR</h1>
+        </div>
+
+        <div className="max-w-lg mx-auto p-6 space-y-6">
+          <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white text-center p-8">
+            <h2 className="text-2xl font-black text-slate-900 mb-2">Código de Mostrador</h2>
+            <p className="text-sm text-slate-500 mb-8 max-w-[250px] mx-auto">
+              Los clientes deben escanear este código desde su app para sumar un sello.
+            </p>
+            
+            <div className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto">
+              <QRCode 
+                value={auth.currentUser?.uid ? `VND_${auth.currentUser.uid}` : "cargando"} 
+                size={250}
+                className="rounded-xl"
+              />
+            </div>
+            
+            <p className="mt-8 text-xs font-bold text-slate-400 uppercase tracking-widest">
+              ID: {auth.currentUser?.uid?.substring(0, 8)}...
+            </p>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
   if (view === "profile") {
     return (
       <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
@@ -348,21 +392,31 @@ export default function VendedorPage() {
           ) : (
             <div className="grid grid-cols-1 gap-3">
               <Button 
-                onClick={startScanner} 
-                className="w-full h-20 rounded-2xl bg-primary text-white font-bold text-xl gap-4 shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all active:scale-95"
-                disabled={loading}
+                onClick={() => setView("myqr")}
+                className="w-full h-20 rounded-2xl bg-slate-900 text-white font-bold text-xl gap-4 shadow-xl shadow-slate-900/20 hover:scale-[1.01] transition-all active:scale-95"
               >
-                {loading ? <Loader2 className="w-8 h-8 animate-spin" /> : <QrCode className="w-8 h-8" />}
-                Escanear Cliente
+                <QrCode className="w-8 h-8" />
+                Mi Código QR (Mostrador)
               </Button>
-              <Button 
-                onClick={() => setView("profile")}
-                variant="outline"
-                className="w-full h-16 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-3 hover:bg-slate-50"
-              >
-                <Store className="w-5 h-5 text-primary" />
-                Editar Perfil de mi Tienda
-              </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button 
+                  onClick={startScanner} 
+                  variant="outline"
+                  className="w-full h-16 rounded-2xl border-primary text-primary font-bold gap-2 hover:bg-primary/5"
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+                  Escanear Cliente
+                </Button>
+                <Button 
+                  onClick={() => setView("profile")}
+                  variant="outline"
+                  className="w-full h-16 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-2 hover:bg-slate-50"
+                >
+                  <Store className="w-5 h-5 text-primary" />
+                  Mi Tienda
+                </Button>
+              </div>
             </div>
           )}
 

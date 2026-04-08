@@ -5,21 +5,33 @@ import Image from "next/image";
 import { Entrepreneur } from "@/lib/data";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface EntrepreneurCardProps {
   entrepreneur: Entrepreneur;
 }
 
 export function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+
   return (
     <Link href={`/emprendedor/${entrepreneur.id}`} className="block group">
       <Card className="overflow-hidden border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl">
         <div className="relative aspect-square w-full overflow-hidden bg-slate-50">
+          {!imageLoaded && (
+            <div className="absolute inset-0 bg-slate-200 animate-pulse z-0" />
+          )}
           <Image
             src={entrepreneur.imageUrl}
             alt={entrepreneur.name}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-700"
+            sizes="(max-width: 768px) 50vw, 33vw"
+            className={cn(
+              "object-cover group-hover:scale-105 transition-all duration-700 z-10",
+              imageLoaded ? "opacity-100" : "opacity-0"
+            )}
+            onLoad={() => setImageLoaded(true)}
             data-ai-hint="business photo"
           />
           {/* Badge de rubro minimalista sobre la imagen */}

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles, Ban } from "lucide-react";
+import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles, Ban, User as UserIcon, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const EMAIL_MASTER_ADMIN = 'ignaciiio.mate@gmail.com';
@@ -29,6 +29,10 @@ export function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [aceptaMarketing, setAceptaMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -62,6 +66,23 @@ export function Auth() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Validaciones para registro
+    if (!isLogin) {
+      if (!aceptaTerminos) {
+        setError("Debes aceptar los términos de uso para continuar.");
+        return;
+      }
+      if (!nombre.trim()) {
+        setError("Por favor, ingresa tu nombre completo.");
+        return;
+      }
+      if (!fechaNacimiento) {
+        setError("Por favor, ingresa tu fecha de nacimiento.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -81,11 +102,16 @@ export function Auth() {
           rolAsignado = "emprendedor";
         }
 
+        const timestamp = new Date().toISOString();
+
+        // Guardar en colección principal de usuarios
         await setDoc(doc(db, "usuarios", newUser.uid), {
           id: newUser.uid,
+          nombre: nombre.trim(),
           correo: emailLimpio,
           telefono: phone,
-          rol: rolAsignado, 
+          fechaNacimiento: fechaNacimiento,
+          rol: rolAsignado,
           comprasRealizadas: 1, // Bono de bienvenida
           puntos: 100,
           totalCanjesHistoricos: 0,
@@ -93,7 +119,24 @@ export function Auth() {
           recompensaDisponible: false,
           avatarId: "User",
           baneado: false,
-          createdAt: new Date().toISOString()
+          // Consentimientos legales
+          aceptaTerminos: true,
+          aceptaMarketing: aceptaMarketing,
+          fechaConsentimiento: timestamp,
+          createdAt: timestamp
+        });
+
+        // También guardar en colección separada "leads_marketing" para acceso fácil
+        await setDoc(doc(db, "leads_marketing", newUser.uid), {
+          uid: newUser.uid,
+          nombre: nombre.trim(),
+          correo: emailLimpio,
+          telefono: phone,
+          fechaNacimiento: fechaNacimiento,
+          aceptaMarketing: aceptaMarketing,
+          aceptaTerminos: true,
+          fechaRegistro: timestamp,
+          fuente: "Club Patio App"
         });
       }
     } catch (err: any) {
@@ -166,6 +209,25 @@ export function Auth() {
             </Alert>
           )}
           
+          {/* Nombre completo — solo al registrarse */}
+          {!isLogin && (
+            <div className="space-y-2">
+              <Label htmlFor="nombre">Nombre Completo</Label>
+              <div className="relative">
+                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="nombre"
+                  type="text"
+                  placeholder="Juan Pérez"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  required
+                  className="rounded-xl pl-10"
+                />
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="email">Correo Electrónico</Label>
             <Input 
@@ -179,6 +241,7 @@ export function Auth() {
             />
           </div>
 
+          {/* Teléfono — solo al registrarse */}
           {!isLogin && (
             <div className="space-y-2">
               <Label htmlFor="phone">Teléfono (WhatsApp)</Label>
@@ -196,6 +259,25 @@ export function Auth() {
               </div>
             </div>
           )}
+
+          {/* Fecha de nacimiento — solo al registrarse */}
+          {!isLogin && (
+            <div className="space-y-2">
+              <Label htmlFor="fechaNacimiento">Fecha de Nacimiento</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  id="fechaNacimiento"
+                  type="date"
+                  value={fechaNacimiento}
+                  onChange={(e) => setFechaNacimiento(e.target.value)}
+                  required
+                  className="rounded-xl pl-10"
+                  max={new Date().toISOString().split("T")[0]}
+                />
+              </div>
+            </div>
+          )}
           
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña</Label>
@@ -209,6 +291,51 @@ export function Auth() {
               className="rounded-xl"
             />
           </div>
+
+          {/* Consentimientos — solo al registrarse */}
+          {!isLogin && (
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Términos y Privacidad</p>
+
+              {/* Checkbox 1: Términos de uso */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="mt-0.5 flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={aceptaTerminos}
+                    onChange={(e) => setAceptaTerminos(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary cursor-pointer"
+                  />
+                </div>
+                <span className="text-xs text-slate-600 leading-relaxed group-hover:text-slate-800 transition-colors">
+                  He leído y acepto los{" "}
+                  <a
+                    href="#"
+                    className="text-primary font-semibold underline underline-offset-2"
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    Términos de Uso
+                  </a>{" "}
+                  del Club Patio. <span className="text-red-500">*</span>
+                </span>
+              </label>
+
+              {/* Checkbox 2: Marketing */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="mt-0.5 flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={aceptaMarketing}
+                    onChange={(e) => setAceptaMarketing(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary cursor-pointer"
+                  />
+                </div>
+                <span className="text-xs text-slate-600 leading-relaxed group-hover:text-slate-800 transition-colors">
+                  Estoy de acuerdo en que mis datos personales (correo, teléfono) puedan ser utilizados y proporcionados para fines de marketing directo por parte de Club Patio y sus aliados comerciales.
+                </span>
+              </label>
+            </div>
+          )}
         </CardContent>
         
         <CardFooter className="flex flex-col gap-4">
@@ -223,6 +350,10 @@ export function Auth() {
             onClick={() => {
               setIsLogin(!isLogin);
               setError(null);
+              setNombre("");
+              setFechaNacimiento("");
+              setAceptaTerminos(false);
+              setAceptaMarketing(false);
             }}
           >
             {isLogin ? "¿No tienes cuenta? Regístrate" : "¿Ya tienes cuenta? Entra aquí"}

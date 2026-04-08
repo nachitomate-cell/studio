@@ -31,34 +31,44 @@ export const CATEGORIES: Category[] = [
  */
 export const ENTREPRENEURS: Entrepreneur[] = [
   { 
-    id: 'e1', 
-    name: 'Aromavida - Biogreen', 
+    id: 'demo1', 
+    name: 'EcoHogar', 
     category: 'deco', 
-    description: 'Productos eco-sostenibles para el hogar y cuidado personal. Fragancias que transforman tu espacio. 🌿', 
+    description: 'Boutique sustentable. Decoración minimalista y elementos orgánicos que llenan tu casa de calma. Todo fabricado localmente y libre de plástico. 🌿', 
     contact: '+56 9 1111 2222', 
-    schedule: 'Lun-Sáb 10:00 - 19:00', 
+    schedule: 'Lun-Sáb 10:00 - 19:30', 
     locationId: 'loc-1', 
-    imageUrl: 'https://picsum.photos/seed/biogreen/800/600' 
+    imageUrl: 'https://images.unsplash.com/photo-1540932239986-30128078f3c5?w=500&q=80' 
   },
   { 
-    id: 'e2', 
-    name: 'Curauma Sabor', 
+    id: 'demo2', 
+    name: 'Bodega Gourmet', 
     category: 'gourmet', 
-    description: 'Exclusiva selección de licores artesanales, snacks gourmet y delicias locales para compartir. 🍔', 
+    description: 'Vinos de autor, quesos madurados y charcutería fina artesanal de Valparaíso. El lugar perfecto, directo al paladar. 🍷', 
     contact: '+56 9 3333 4444', 
-    schedule: 'Mar-Dom 12:00 - 21:00', 
+    schedule: 'Mar-Dom 11:00 - 21:00', 
     locationId: 'loc-2', 
-    imageUrl: 'https://picsum.photos/seed/sabor/800/600' 
+    imageUrl: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500&q=80' 
   },
   { 
-    id: 'e3', 
-    name: 'Joyas del Mar', 
+    id: 'demo3', 
+    name: 'Áurea Joyas', 
     category: 'joyeria', 
-    description: 'Accesorios únicos inspirados en la costa central. Hechos a mano con metales nobles y piedras naturales. ✨', 
+    description: 'Accesorios exclusivos hechos a mano por orfebres locales bañados en oro. Diseños únicos que realzan tu belleza y presencia. ✨', 
     contact: '+56 9 5555 6666', 
-    schedule: 'Lun-Vie 11:00 - 18:00', 
+    schedule: 'Lun-Vie 10:30 - 18:30', 
     locationId: 'loc-3', 
-    imageUrl: 'https://picsum.photos/seed/joyas/800/600' 
+    imageUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&q=80' 
+  },
+  { 
+    id: 'demo4', 
+    name: 'Lumia Cosmética', 
+    category: 'belleza', 
+    description: 'Skincare cruelty-free inspirado en texturas naturales con vitaminas activas. Consiéntete como te mereces. 🌸', 
+    contact: '+56 9 7777 8888', 
+    schedule: 'Lun-Vie 09:00 - 19:00', 
+    locationId: 'loc-4', 
+    imageUrl: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&q=80' 
   }
 ];
 

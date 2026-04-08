@@ -1,7 +1,8 @@
 
 "use client";
 
-import { User, Map, LayoutGrid } from "lucide-react";
+import { User, Gift, LayoutGrid, QrCode } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface BottomNavProps {
@@ -10,9 +11,12 @@ interface BottomNavProps {
 }
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
+  const router = useRouter();
+
   const navItems = [
     { id: "directory", label: "Directorio", icon: LayoutGrid },
-    { id: "map", label: "Mapa", icon: Map },
+    { id: "scan", label: "Escanear", icon: QrCode, isAction: true },
+    { id: "rewards", label: "Premios", icon: Gift },
     { id: "profile", label: "Mi Perfil", icon: User },
   ];
 
@@ -23,6 +27,21 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           
+          if (item.isAction) {
+            return (
+              <button
+                key={item.id}
+                onClick={() => router.push('/scan')}
+                className="flex flex-col items-center justify-center gap-1 w-full h-full relative outline-none -mt-6 group"
+              >
+                <div className="bg-primary text-white p-4 rounded-full shadow-lg shadow-primary/30 group-hover:scale-105 transition-transform group-active:scale-95">
+                  <Icon className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-tighter text-slate-800 mt-1">{item.label}</span>
+              </button>
+            );
+          }
+
           return (
             <button
               key={item.id}

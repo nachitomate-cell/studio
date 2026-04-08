@@ -7,7 +7,7 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
-import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
+import { CATEGORIES, Entrepreneur, PATIO_INFO, ENTREPRENEURS } from "@/lib/data";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { UserProfile } from "@/components/profile/UserProfile";
-import { InteractiveMap } from "@/components/map/InteractiveMap";
+import { RewardsTab } from "@/components/profile/RewardsTab";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
 import { Auth } from "@/components/Auth";
 import { procesarProximidadGeofence } from "@/lib/notificaciones";
@@ -120,7 +120,9 @@ export default function Home() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [user, userData]);
 
-  const filteredEntrepreneurs = entrepreneurs.filter((e) => {
+  const combinedEntrepreneurs = [...entrepreneurs, ...ENTREPRENEURS.filter(d => !entrepreneurs.some(e => e.id === d.id))];
+
+  const filteredEntrepreneurs = combinedEntrepreneurs.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
     const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           e.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -178,22 +180,7 @@ export default function Home() {
 
             {renderHero()}
 
-            {user && (
-              <section className="px-6">
-                <Card className="border-none shadow-md bg-slate-50 rounded-2xl p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                      <Trophy className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Mis Tickets Sorteo</p>
-                      <p className="text-xl font-black text-slate-800">{userData?.ticketsSorteo || 0}</p>
-                    </div>
-                  </div>
-                  <Button size="sm" onClick={() => setActiveTab("profile")} variant="ghost" className="text-xs font-bold text-primary">Ver Perfil</Button>
-                </Card>
-              </section>
-            )}
+
 
             <section className="px-6 pt-4">
               <div className="relative group">
@@ -275,8 +262,8 @@ export default function Home() {
             <div className="h-24" />
           </div>
         );
-      case "map":
-        return <div className="pt-6 px-4 bg-white"><InteractiveMap /><div className="h-24" /></div>;
+      case "rewards":
+        return <RewardsTab user={user} userData={userData} onShowAuth={() => setShowAuth(true)} />;
       case "profile":
         return <div className="pt-6 px-4 bg-white"><UserProfile onSwitchMode={() => {}} onShowAuth={() => setShowAuth(true)} /><div className="h-24" /></div>;
       default:

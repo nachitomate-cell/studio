@@ -2,13 +2,14 @@
 import { doc, getDoc, updateDoc, setDoc, Firestore, increment, collection, addDoc } from "firebase/firestore";
 import { enviarNotificacionLocal } from "./notificaciones";
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError } from '@/firebase/errors';
 
-export async function registrarCompra(db: Firestore, userId: string, vendedorId?: string) {
+export async function registrarCompra(db: Firestore, userId: string, vendedorId?: string, isClientScan: boolean = false) {
   const userRef = doc(db, "usuarios", userId);
   
   try {
     const userSnap = await getDoc(userRef);
+    const timestamp = new Date().toISOString();
     
     if (!userSnap.exists()) {
       await setDoc(userRef, {
@@ -17,7 +18,8 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
         puntos: 100,
         totalCanjesHistoricos: 0,
         baneado: false,
-        createdAt: new Date().toISOString()
+        createdAt: timestamp,
+        lastVendorScans: vendedorId ? { [vendedorId]: timestamp } : {}
       });
       return;
     }
@@ -30,8 +32,20 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       return;
     }
 
+    // BLOQUEO ANTI-FRAUDE (COOLDOWN de 12 horas)
+    const lastScans = data.lastVendorScans || {};
+    if (isClientScan && vendedorId) {
+      const lastScanTime = lastScans[vendedorId];
+      if (lastScanTime) {
+        const hoursSinceLast = (Date.now() - new Date(lastScanTime).getTime()) / (1000 * 60 * 60);
+        if (hoursSinceLast < 12) {
+          throw new Error("Debes esperar 12 horas antes de volver a sumar un sello en este local.");
+        }
+      }
+      lastScans[vendedorId] = timestamp;
+    }
+
     const nuevasCompras = (data.comprasRealizadas || 0) + 1;
-    const timestamp = new Date().toISOString();
     const clienteNombre = data.nombre || data.correo || "Miembro del Club";
     
     updateDoc(userRef, {
@@ -39,7 +53,8 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       recompensaDisponible: nuevasCompras >= 5,
       puntos: increment(50),
       lastPurchaseAt: timestamp,
-      lastUpdate: timestamp
+      lastUpdate: timestamp,
+      lastVendorScans: lastScans
     }).catch((error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: userRef.path,
@@ -56,7 +71,8 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       vendedorId: vendedorId || "simulacion",
       accion: "recibió un sello",
       fecha: timestamp,
-      tipo: "FIDELIZACION"
+      tipo: "FIDELIZACION",
+      metodo: isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"
     });
 
     if (nuevasCompras % 5 === 0) {
@@ -71,14 +87,20 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
         vendedorId,
         clienteId: userId,
         clienteNombre,
-        fecha: timestamp
+        fecha: timestamp,
+        metodo: isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"
       });
 
-      await enviarNotificacionLocal(vendedorId, "Venta Exitosa ✅", `Has entregado un sello a ${clienteNombre}.`);
+      if (isClientScan) {
+        await enviarNotificacionLocal(vendedorId, "¡Cliente Auto-Verificado! ✅", `${clienteNombre} acaba de escanear tu código y ganó un sello.`);
+      } else {
+        await enviarNotificacionLocal(vendedorId, "Venta Exitosa ✅", `Has entregado un sello a ${clienteNombre}.`);
+      }
     }
     
   } catch (error) {
     console.error("Error crítico en registrarCompra:", error);
+    throw error;
   }
 }
 

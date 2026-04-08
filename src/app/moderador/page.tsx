@@ -27,7 +27,8 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/lib/notificaciones";
+import { dispararAlertaSistema } from "@/lib/notificaciones";
+import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/lib/ai-actions";
 import { registrarCompra } from "@/lib/puntos";
 import { cn } from "@/lib/utils";
 

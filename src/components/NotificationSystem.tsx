@@ -6,12 +6,11 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useToast } from "@/hooks/use-toast";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 
 /**
- * Componente que escucha nuevas notificaciones en Firestore
- * Intenta disparar alertas de sistema si la app está abierta o en memoria.
+ * Componente que escucha nuevas notificaciones en Firestore.
+ * El listener de Firestore se crea SOLO cuando hay sesión activa
+ * y se destruye automáticamente al cerrar sesión.
  */
 export function NotificationSystem() {
   const { toast } = useToast();
@@ -25,9 +24,18 @@ export function NotificationSystem() {
         .catch(err => console.warn("Fallo al registrar SW:", err));
     }
 
+    // Referencia interna al listener de notificaciones, para poder desmontarlo
+    let unsubscribeNotif: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      // --- LOGOUT: destruir el listener de notificaciones si existía ---
+      if (unsubscribeNotif) {
+        unsubscribeNotif();
+        unsubscribeNotif = null;
+      }
+
+      // --- LOGIN: montar el listener solo cuando hay sesión activa ---
       if (user) {
-        const notifPath = `usuarios/${user.uid}/notificaciones`;
         const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
         
         const q = query(
@@ -37,7 +45,8 @@ export function NotificationSystem() {
           limit(5)
         );
 
-        const unsubscribeNotif = onSnapshot(q, 
+        unsubscribeNotif = onSnapshot(
+          q, 
           (snapshot) => {
             snapshot.docChanges().forEach((change) => {
               if (change.type === "added") {
@@ -50,21 +59,32 @@ export function NotificationSystem() {
               }
             });
           }, 
-          async (serverError) => {
-            // Manejo de error contextual para el desarrollador
-            const permissionError = new FirestorePermissionError({
-              path: notifPath,
-              operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
+          (error) => {
+            // Al cerrar sesión Firestore dispara un error permission-denied.
+            // Lo manejamos silenciosamente: simplemente cancelamos el listener.
+            if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+              console.warn("[NotificationSystem] Listener cancelado: sesión cerrada.");
+              if (unsubscribeNotif) {
+                unsubscribeNotif();
+                unsubscribeNotif = null;
+              }
+            } else {
+              // Para errores genuinos (no relacionados con el logout) sí los logueamos
+              console.error("[NotificationSystem] Error inesperado en listener:", error);
+            }
           }
         );
-
-        return () => unsubscribeNotif();
       }
     });
 
-    return () => unsubscribeAuth();
+    // Cleanup al desmontar el componente
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeNotif) {
+        unsubscribeNotif();
+        unsubscribeNotif = null;
+      }
+    };
   }, [toast, mountTime]);
 
   return null;
