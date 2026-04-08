@@ -13,7 +13,7 @@ import {
   ArrowLeft, QrCode, Camera, CheckCircle2, 
   Loader2, AlertCircle, TrendingUp, Users, 
   Gift, Clock, ChevronRight, LayoutDashboard,
-  X, Store, Save, ImagePlus, UserCircle, Upload
+  X, Store, Save, ImagePlus, UserCircle, Upload, Copy
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -236,17 +236,32 @@ export default function VendedorPage() {
               Los clientes deben escanear este código desde su app para sumar un sello.
             </p>
             
-            <div className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto">
+            <div className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto mb-6">
               <QRCode 
-                value={auth.currentUser?.uid ? `VND_${auth.currentUser.uid}` : "cargando"} 
+                value={auth.currentUser?.uid ? `https://club-patio-curauma.vercel.app/canje?localId=${auth.currentUser.uid}` : "cargando"} 
                 size={250}
                 className="rounded-xl"
               />
             </div>
             
-            <p className="mt-8 text-xs font-bold text-slate-400 uppercase tracking-widest">
-              ID: {auth.currentUser?.uid?.substring(0, 8)}...
-            </p>
+            <div className="flex flex-col items-center gap-3">
+              <Button 
+                variant="outline" 
+                className="w-full max-w-[250px] rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 gap-2"
+                onClick={() => {
+                  if (auth.currentUser?.uid) {
+                    navigator.clipboard.writeText(`https://club-patio-curauma.vercel.app/canje?localId=${auth.currentUser.uid}`);
+                    toast({ title: "Enlace copiado", description: "¡Listo para compartir!" });
+                  }
+                }}
+              >
+                <Copy className="w-4 h-4" />
+                Copiar Enlace
+              </Button>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
+                ID: {auth.currentUser?.uid?.substring(0, 8)}...
+              </p>
+            </div>
           </Card>
         </div>
       </main>

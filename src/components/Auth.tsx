@@ -9,6 +9,7 @@ import {
   onAuthStateChanged,
   User 
 } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const EMAILS_EMPRENDEDORES = [
 ];
 
 export function Auth() {
+  const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +64,15 @@ export function Auth() {
     });
     return () => unsubscribe();
   }, [toast]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("register") === "true") {
+        setIsLogin(false);
+      }
+    }
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +149,13 @@ export function Auth() {
           fechaRegistro: timestamp,
           fuente: "Club Patio App"
         });
+      }
+
+      // Check if there is a pending canje redirection
+      const pendingCanjeLocalId = localStorage.getItem("pendingCanjeLocalId");
+      if (pendingCanjeLocalId) {
+        localStorage.removeItem("pendingCanjeLocalId");
+        router.push(`/canje?localId=${pendingCanjeLocalId}`);
       }
     } catch (err: any) {
       setError(err.message || "Ocurrió un error inesperado.");

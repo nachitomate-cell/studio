@@ -41,6 +41,15 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("login") === "true" || params.get("register") === "true") {
+        setShowAuth(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (!user) {
       setUserData(null);
       return;
