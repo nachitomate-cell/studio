@@ -19,7 +19,8 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
         totalCanjesHistoricos: 0,
         baneado: false,
         createdAt: timestamp,
-        lastVendorScans: vendedorId ? { [vendedorId]: timestamp } : {}
+        lastVendorScans: vendedorId ? { [vendedorId]: timestamp } : {},
+        sellosLocales: vendedorId ? { [vendedorId]: 1 } : {}
       });
       return;
     }
@@ -48,14 +49,20 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
     const nuevasCompras = (data.comprasRealizadas || 0) + 1;
     const clienteNombre = data.nombre || data.correo || "Miembro del Club";
     
-    updateDoc(userRef, {
+    const updateData: any = {
       comprasRealizadas: increment(1),
       recompensaDisponible: nuevasCompras >= 5,
       puntos: increment(50),
       lastPurchaseAt: timestamp,
       lastUpdate: timestamp,
       lastVendorScans: lastScans
-    }).catch((error) => {
+    };
+
+    if (vendedorId) {
+      updateData[`sellosLocales.${vendedorId}`] = increment(1);
+    }
+
+    updateDoc(userRef, updateData).catch((error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: userRef.path,
         operation: 'update',

@@ -218,7 +218,12 @@ export default function ClientScannerPage() {
       // 3. Registrar la compra (incluye cooldown check)
       await registrarCompra(db, currentUser.uid, vendorId, true);
 
-      // 4. Mostrar pantalla de éxito
+      // 4. Mostrar pantalla de éxito y notificación Toast
+      toast({
+        title: "¡Sello Exitoso! 🎉",
+        description: `Has sumado 1 sello en ${shopName}.`
+      });
+
       setSuccessData({
         vendorName: shopName,
         userDisplayName: displayName,
