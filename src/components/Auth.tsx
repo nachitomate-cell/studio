@@ -78,57 +78,33 @@ export function Auth() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    // PUNTO 2: Capturar la URL pendiente de forma síncrona al inicio,
-    // ANTES de cualquier await, para evitar race conditions con onAuthStateChanged.
-    // Se borra inmediatamente para que no persista si ocurre un error posterior.
-    const urlPendiente = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
-    if (urlPendiente) {
-      localStorage.removeItem("url_retorno");
-    }
-
-    // Validaciones para registro
-    if (!isLogin) {
-      if (!aceptaTerminos) {
-        setError("Debes aceptar los términos de uso para continuar.");
-        // Si hay error de validación, restaurar la llave para no perderla
-        if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
-        return;
-      }
-      if (!nombre.trim()) {
-        setError("Por favor, ingresa tu nombre completo.");
-        if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
-        return;
-      }
-      if (!fechaNacimiento) {
-        setError("Por favor, ingresa tu fecha de nacimiento.");
-        if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
-        return;
-      }
-    }
-
     setLoading(true);
 
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
+        const urlPendiente = localStorage.getItem("url_retorno");
+        if (urlPendiente) {
+          localStorage.removeItem("url_retorno");
+          setIsRedirectingPendingStamp(true);
+          window.location.href = urlPendiente;
+          return;
+        }
       } else {
+        if (!aceptaTerminos) throw new Error("Debes aceptar los términos de uso.");
+        if (!nombre.trim()) throw new Error("Ingresa tu nombre completo.");
+        if (!fechaNacimiento) throw new Error("Ingresa tu fecha de nacimiento.");
+
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
-
         const emailLimpio = email.toLowerCase().trim();
         
-        // ASIGNACIÓN DE ROLES
         let rolAsignado = "cliente";
-        if (emailLimpio === EMAIL_MASTER_ADMIN) {
-          rolAsignado = "admin";
-        } else if (EMAILS_EMPRENDEDORES.includes(emailLimpio)) {
-          rolAsignado = "emprendedor";
-        }
+        if (emailLimpio === EMAIL_MASTER_ADMIN) rolAsignado = "admin";
+        else if (EMAILS_EMPRENDEDORES.includes(emailLimpio)) rolAsignado = "emprendedor";
 
         const timestamp = new Date().toISOString();
 
-        // Guardar en colección principal de usuarios
         await setDoc(doc(db, "usuarios", newUser.uid), {
           id: newUser.uid,
           nombre: nombre.trim(),
@@ -136,21 +112,19 @@ export function Auth() {
           telefono: phone,
           fechaNacimiento: fechaNacimiento,
           rol: rolAsignado,
-          comprasRealizadas: 1, // Bono de bienvenida
+          comprasRealizadas: 1,
           puntos: 100,
           totalCanjesHistoricos: 0,
           ticketsSorteo: 0,
           recompensaDisponible: false,
           avatarId: "User",
           baneado: false,
-          // Consentimientos legales
           aceptaTerminos: true,
           aceptaMarketing: aceptaMarketing,
           fechaConsentimiento: timestamp,
           createdAt: timestamp
         });
 
-        // También guardar en colección separada "leads_marketing" para acceso fácil
         await setDoc(doc(db, "leads_marketing", newUser.uid), {
           uid: newUser.uid,
           nombre: nombre.trim(),
@@ -162,19 +136,16 @@ export function Auth() {
           fechaRegistro: timestamp,
           fuente: "Club Patio App"
         });
-      }
 
-      // PUNTO 2: Redirección post-éxito con la URL pendiente capturada al inicio
-      if (urlPendiente) {
-        setIsRedirectingPendingStamp(true);
-        // Pausa breve para que el usuario vea el mensaje "Procesando tu sello..."
-        await new Promise(res => setTimeout(res, 1200));
-        router.push(urlPendiente);
-        return; // No ejecutar el finally para mantener la pantalla de carga visible
+        const urlPendiente = localStorage.getItem("url_retorno");
+        if (urlPendiente) {
+          localStorage.removeItem("url_retorno");
+          setIsRedirectingPendingStamp(true);
+          window.location.href = urlPendiente;
+          return;
+        }
       }
     } catch (err: any) {
-      // Si hubo error y había URL pendiente, restaurarla en localStorage
-      if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
       setError(err.message || "Ocurrió un error inesperado.");
     } finally {
       setLoading(false);
