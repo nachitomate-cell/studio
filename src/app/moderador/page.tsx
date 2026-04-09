@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, deleteDoc, onSnapshot, limit, orderBy } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ export default function ModeradorPage() {
   const [loadingRole, setLoadingRole] = useState(false);
   const [recentTrans, setRecentTrans] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   
   // Estados Demo Celular
   const [showPhoneMockup, setShowPhoneMockup] = useState(false);
@@ -66,6 +67,7 @@ export default function ModeradorPage() {
         return;
       }
 
+      setCurrentUserEmail(user.email);
       setLoadingConfig(false);
       fetchClientes();
       fetchTestUser();
@@ -265,6 +267,24 @@ export default function ModeradorPage() {
     }
   };
 
+  // TODO: Implementar Cloud Function para borrar también de Firebase Auth en v2.
+  const handleDeleteUser = async (cliente: Cliente) => {
+    const confirmed = window.confirm(
+      `¿Estás seguro de que deseas eliminar la base de datos de ${cliente.nombre}? Esto borrará sus sellos y su rol.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, "usuarios", cliente.id));
+      // Actualiza el estado local para eliminar al usuario de la tabla inmediatamente
+      setClientes((prev) => prev.filter((c) => c.id !== cliente.id));
+      toast({ title: "Usuario eliminado de la base de datos", description: `El registro de ${cliente.nombre} fue eliminado correctamente.` });
+    } catch (error) {
+      console.error("Error al eliminar usuario:", error);
+      toast({ variant: "destructive", title: "Error al eliminar", description: "No se pudo eliminar el usuario de Firestore." });
+    }
+  };
+
   // --- Renderización Principal --- //
 
   if (loadingConfig) {
@@ -354,6 +374,9 @@ export default function ModeradorPage() {
                     <th scope="col" className="px-8 py-5">Correo Electrónico</th>
                     <th scope="col" className="px-8 py-5">Teléfono</th>
                     <th scope="col" className="px-8 py-5">Nacimiento</th>
+                    {currentUserEmail === MASTER_EMAIL && (
+                      <th scope="col" className="px-8 py-5">Acciones</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -378,11 +401,23 @@ export default function ModeradorPage() {
                             cliente.fechaNacimiento
                           )}
                         </td>
+                        {currentUserEmail === MASTER_EMAIL && (
+                          <td className="px-8 py-5">
+                            <button
+                              onClick={() => handleDeleteUser(cliente)}
+                              title={`Eliminar a ${cliente.nombre}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-all hover:scale-105 active:scale-95"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Eliminar
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-8 py-16 text-center">
+                      <td colSpan={currentUserEmail === MASTER_EMAIL ? 5 : 4} className="px-8 py-16 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <AlertTriangle className="w-8 h-8 text-slate-300" />
                           <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No hay clientes registrados en la base de datos.</p>

@@ -37,13 +37,14 @@ function CanjeContent() {
 
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (!user) {
-        // No hay usuario, guardar param y redirigir
-        localStorage.setItem("pendingCanjeLocalId", localId);
+        // Guardar la URL completa del canje pendiente para procesarla post-registro/login
+        const currentUrl = `/canje?localId=${localId}`;
+        localStorage.setItem("pending_stamp", currentUrl);
         toast({
-          title: "Inicia Sesión",
-          description: "Inicia sesión o regístrate para canjear tu sello.",
+          title: "Un paso más 🚀",
+          description: "Regístrate o inicia sesión y te llevamos directamente a tu sello.",
         });
-        router.push("/?register=true"); // Redirigir al inicio, la idea es que abra sesión
+        router.push("/?login=true");
         return;
       }
       if (!processingRef.current) {

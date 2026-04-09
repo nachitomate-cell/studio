@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles, Ban, User as UserIcon, Calendar } from "lucide-react";
+import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles, Ban, User as UserIcon, Calendar, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const EMAIL_MASTER_ADMIN = 'ignaciiio.mate@gmail.com';
@@ -37,6 +37,7 @@ export function Auth() {
   const [aceptaMarketing, setAceptaMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isRedirectingPendingStamp, setIsRedirectingPendingStamp] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isBanned, setIsBanned] = useState(false);
   const { toast } = useToast();
@@ -151,11 +152,16 @@ export function Auth() {
         });
       }
 
-      // Check if there is a pending canje redirection
-      const pendingCanjeLocalId = localStorage.getItem("pendingCanjeLocalId");
-      if (pendingCanjeLocalId) {
-        localStorage.removeItem("pendingCanjeLocalId");
-        router.push(`/canje?localId=${pendingCanjeLocalId}`);
+      // Verificar si hay un sello pendiente guardado en localStorage
+      const pendingStamp = localStorage.getItem("pending_stamp");
+      if (pendingStamp) {
+        // Mostrar feedback visual antes de redirigir
+        setIsRedirectingPendingStamp(true);
+        localStorage.removeItem("pending_stamp");
+        // Pausa breve para que el usuario vea el mensaje "Procesando tu sello..."
+        await new Promise(res => setTimeout(res, 1200));
+        router.push(pendingStamp);
+        return; // Salir antes del finally para mantener la pantalla visible
       }
     } catch (err: any) {
       setError(err.message || "Ocurrió un error inesperado.");
@@ -167,6 +173,26 @@ export function Auth() {
   const handleLogout = async () => {
     await signOut(auth);
   };
+
+  if (isRedirectingPendingStamp) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <Card className="border-primary/20 shadow-xl overflow-hidden animate-in fade-in zoom-in duration-300">
+          <CardContent className="flex flex-col items-center justify-center gap-5 py-16 px-8 text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-black text-slate-800">Procesando tu sello...</h2>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                Te estamos llevando directo a tu canje. ¡Ya casi! 🌟
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isBanned) {
     return (
