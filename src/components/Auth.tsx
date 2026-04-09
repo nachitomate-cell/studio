@@ -79,18 +79,30 @@ export function Auth() {
     e.preventDefault();
     setError(null);
 
+    // PUNTO 2: Capturar la URL pendiente de forma síncrona al inicio,
+    // ANTES de cualquier await, para evitar race conditions con onAuthStateChanged.
+    // Se borra inmediatamente para que no persista si ocurre un error posterior.
+    const urlPendiente = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
+    if (urlPendiente) {
+      localStorage.removeItem("url_retorno");
+    }
+
     // Validaciones para registro
     if (!isLogin) {
       if (!aceptaTerminos) {
         setError("Debes aceptar los términos de uso para continuar.");
+        // Si hay error de validación, restaurar la llave para no perderla
+        if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
         return;
       }
       if (!nombre.trim()) {
         setError("Por favor, ingresa tu nombre completo.");
+        if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
         return;
       }
       if (!fechaNacimiento) {
         setError("Por favor, ingresa tu fecha de nacimiento.");
+        if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
         return;
       }
     }
@@ -152,18 +164,17 @@ export function Auth() {
         });
       }
 
-      // Verificar si hay un sello pendiente guardado en localStorage
-      const pendingStamp = localStorage.getItem("pending_stamp");
-      if (pendingStamp) {
-        // Mostrar feedback visual antes de redirigir
+      // PUNTO 2: Redirección post-éxito con la URL pendiente capturada al inicio
+      if (urlPendiente) {
         setIsRedirectingPendingStamp(true);
-        localStorage.removeItem("pending_stamp");
         // Pausa breve para que el usuario vea el mensaje "Procesando tu sello..."
         await new Promise(res => setTimeout(res, 1200));
-        router.push(pendingStamp);
-        return; // Salir antes del finally para mantener la pantalla visible
+        router.push(urlPendiente);
+        return; // No ejecutar el finally para mantener la pantalla de carga visible
       }
     } catch (err: any) {
+      // Si hubo error y había URL pendiente, restaurarla en localStorage
+      if (urlPendiente) localStorage.setItem("url_retorno", urlPendiente);
       setError(err.message || "Ocurrió un error inesperado.");
     } finally {
       setLoading(false);

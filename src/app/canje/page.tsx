@@ -37,13 +37,16 @@ function CanjeContent() {
 
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (!user) {
-        // Guardar la URL completa del canje pendiente para procesarla post-registro/login
-        const currentUrl = `/canje?localId=${localId}`;
-        localStorage.setItem("pending_stamp", currentUrl);
+        // PUNTO 1: Guardar la URL completa ANTES de cualquier redirección
+        // Usamos window.location.href para capturar la URL real completa con origen
+        if (typeof window !== "undefined") {
+          localStorage.setItem("url_retorno", window.location.href);
+        }
         toast({
           title: "Un paso más 🚀",
           description: "Regístrate o inicia sesión y te llevamos directamente a tu sello.",
         });
+        // La redirección ocurre DESPUÉS de guardar en localStorage
         router.push("/?login=true");
         return;
       }
