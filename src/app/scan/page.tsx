@@ -32,8 +32,8 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
   const configs: Record<ScanError["type"], { icon: React.ReactNode; title: string; desc: string }> = {
     invalid_qr: {
       icon: <ShieldAlert className="w-6 h-6 text-red-400" />,
-      title: "QR inválido",
-      desc: "Este código no pertenece a un local aliado de Club Patio.",
+      title: "QR no reconocido",
+      desc: "Este código no corresponde a un local de Club Patio. Asegúrate de escanear el QR oficial del mostrador.",
     },
     not_found: {
       icon: <ShieldAlert className="w-6 h-6 text-red-400" />,
@@ -177,16 +177,46 @@ export default function ClientScannerPage() {
 
     const raw = decodedText.trim();
 
-    // Validar formato del QR (debe contener un ID de Firebase)
-    if (!raw || raw.length < 10) {
+    if (!raw) {
       setScanError({ type: "invalid_qr" });
       setScanState("error");
       isScanningRef.current = false;
       return;
     }
 
-    // Extraer el vendorId: soportamos "VND_{uid}" o directamente el uid
-    const vendorId = raw.startsWith("VND_") ? raw.replace("VND_", "") : raw;
+    // ── Extraer el vendorId — soporta 3 formatos ──────────────────────
+    // 1. URL con parámetro localId= (ej: http://localhost:9002/canje?localId=XXX
+    //    o https://clubpatio.app/canje?localId=XXX). Maneja HTTP y HTTPS por igual.
+    // 2. Formato legacy "VND_{uid}"
+    // 3. UID directo de Firebase
+    let vendorId = "";
+
+    if (raw.includes("localId=")) {
+      // Parsear como URL para extraer el parámetro localId de forma robusta
+      try {
+        // URL() no acepta protocolos relativos; normalizamos a https si hace falta
+        const normalized = raw.startsWith("http") ? raw : `https://${raw}`;
+        const url = new URL(normalized);
+        vendorId = url.searchParams.get("localId") || "";
+      } catch {
+        // Fallback con split manual si URL() falla
+        const match = raw.match(/[?&]localId=([^&]+)/);
+        vendorId = match ? match[1] : "";
+      }
+    } else if (raw.startsWith("VND_")) {
+      vendorId = raw.replace("VND_", "");
+    } else {
+      // Asumir que es un UID directo
+      vendorId = raw;
+    }
+
+    // Validar que tenemos un ID usable (mínimo 10 caracteres)
+    if (!vendorId || vendorId.length < 10) {
+      setScanError({ type: "invalid_qr" });
+      setScanState("error");
+      isScanningRef.current = false;
+      return;
+    }
 
     const currentUser = auth.currentUser;
     if (!currentUser) {
