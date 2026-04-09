@@ -16,8 +16,9 @@ import { useRouter } from "next/navigation";
 import { 
   collection, query, where, getDocs, 
   addDoc, deleteDoc, doc, updateDoc, 
-  onSnapshot, orderBy, limit 
+  onSnapshot, orderBy, limit, getDoc
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -30,10 +31,14 @@ const COLORS = ['#8dc63f', '#7fb339', '#71a033', '#638d2d'];
 export default function DirectorPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [ranking, setRanking] = useState<any[]>([]);
   const [premios, setPremios] = useState<any[]>([]);
   const [mensajeGlobal, setMensajeGlobal] = useState({ titulo: "", cuerpo: "" });
+
+  const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
+  const [premioForm, setPremioForm] = useState<{ id: string | null; nombre: string; sellos_requeridos: number; icono: string; esSorteo: boolean }>({ id: null, nombre: '', sellos_requeridos: 5, icono: 'Gift', esSorteo: false });
 
   // Datos para el gráfico de barras (simulados para el dashboard)
   const [chartData, setChartData] = useState([
@@ -44,6 +49,35 @@ export default function DirectorPage() {
   ]);
 
   useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        if (user.email === "ignaciiio.mate@gmail.com") {
+          setIsAuthorized(true);
+        } else {
+          try {
+             const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+             const userData = userDoc.data();
+             if (userDoc.exists() && (userData?.rol === "director_patio" || userData?.rol === "director")) {
+                setIsAuthorized(true);
+             } else {
+                toast({ variant: "destructive", title: "Acceso Denegado", description: "No cuentas con privilegios para ver este panel." });
+                router.replace("/");
+             }
+          } catch (e) {
+             router.replace("/");
+          }
+        }
+      } else {
+        router.replace("/");
+      }
+    });
+
+    return () => unsubAuth();
+  }, [router, toast]);
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+
     // 1. Cargar Ranking de Emprendedores (Simulamos por actividad de ventas registradas)
     const fetchRanking = async () => {
       const q = query(collection(db, "usuarios"), where("rol", "==", "emprendedor"));
@@ -59,7 +93,7 @@ export default function DirectorPage() {
 
     fetchRanking();
     return () => unsubscribePremios();
-  }, []);
+  }, [isAuthorized]);
 
   const handleSendGlobalMessage = async () => {
     if (!mensajeGlobal.titulo || !mensajeGlobal.cuerpo) {
@@ -92,17 +126,49 @@ export default function DirectorPage() {
     }
   };
 
-  const handleAddPremio = async () => {
-    const nombre = prompt("Nombre del premio:");
-    const costo = prompt("Costo en sellos:");
-    if (nombre && costo) {
-      await addDoc(collection(db, "config_premios"), {
-        nombre,
-        costo: parseInt(costo),
-        fechaCreacion: new Date().toISOString(),
-        activo: true
+  const handleOpenPremioModal = (premio?: any) => {
+    if (premio) {
+      setPremioForm({ 
+        id: premio.id, 
+        nombre: premio.nombre || '', 
+        sellos_requeridos: premio.sellos_requeridos || premio.costo || 5, 
+        icono: premio.icono || 'Gift',
+        esSorteo: premio.esSorteo || false
       });
-      toast({ title: "Premio Creado", description: "El nuevo beneficio ya está disponible." });
+    } else {
+      setPremioForm({ id: null, nombre: '', sellos_requeridos: 5, icono: 'Gift', esSorteo: false });
+    }
+    setIsPremioModalOpen(true);
+  };
+
+  const handleSavePremio = async () => {
+    if (!premioForm.nombre || !premioForm.sellos_requeridos) return;
+    setLoading(true);
+    try {
+      if (premioForm.id) {
+        await updateDoc(doc(db, "config_premios", premioForm.id), {
+          nombre: premioForm.nombre,
+          sellos_requeridos: Number(premioForm.sellos_requeridos),
+          icono: premioForm.icono,
+          esSorteo: premioForm.esSorteo
+        });
+        toast({ title: "Premio Actualizado" });
+      } else {
+        await addDoc(collection(db, "config_premios"), {
+          nombre: premioForm.nombre,
+          sellos_requeridos: Number(premioForm.sellos_requeridos),
+          icono: premioForm.icono,
+          esSorteo: premioForm.esSorteo,
+          fechaCreacion: new Date().toISOString(),
+          activo: true
+        });
+        toast({ title: "Premio Creado" });
+      }
+      setIsPremioModalOpen(false);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se guardaron los cambios." });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -112,6 +178,15 @@ export default function DirectorPage() {
       toast({ title: "Premio Eliminado" });
     }
   };
+
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+         <p className="text-sm font-bold text-slate-500 animate-pulse">Verificando credenciales...</p>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50/50 pb-32">
@@ -204,7 +279,7 @@ export default function DirectorPage() {
         <section className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Gestión de Premios</h2>
-            <Button onClick={handleAddPremio} size="sm" variant="ghost" className="text-primary font-bold h-8 gap-1">
+            <Button onClick={() => handleOpenPremioModal()} size="sm" variant="ghost" className="text-primary font-bold h-8 gap-1">
               <Plus className="w-4 h-4" /> Nuevo
             </Button>
           </div>
@@ -215,16 +290,16 @@ export default function DirectorPage() {
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-primary">
-                        <Ticket className="w-5 h-5" />
+                        {premio.esSorteo ? <Ticket className="w-5 h-5 text-yellow-600" /> : <Trophy className="w-5 h-5 text-primary" />}
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-800">{premio.nombre}</p>
-                        <p className="text-[10px] text-primary font-black uppercase">{premio.costo} Sellos</p>
+                        <p className="text-[10px] text-primary font-black uppercase">{premio.sellos_requeridos || premio.costo || 0} Sellos</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-primary"><Edit3 className="w-4 h-4" /></Button>
-                      <Button onClick={() => handleDeletePremio(premio.id)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                       <Button onClick={() => handleOpenPremioModal(premio)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-primary"><Edit3 className="w-4 h-4" /></Button>
+                       <Button onClick={() => handleDeletePremio(premio.id)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -268,6 +343,73 @@ export default function DirectorPage() {
         </Card>
 
       </div>
+
+      {/* MODAL CONFIGURACION DE PREMIOS */}
+      {isPremioModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm rounded-[2rem] border-none shadow-2xl animate-in zoom-in-95 duration-300">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4">
+              <CardTitle className="text-lg font-black text-slate-800">
+                {premioForm.id ? "Editar Recompensa" : "Nueva Recompensa"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-600">Nombre del Beneficio</label>
+                <Input 
+                   value={premioForm.nombre}
+                   onChange={e => setPremioForm({...premioForm, nombre: e.target.value})}
+                   placeholder="Ej: Taza de Murú..."
+                   className="h-12 rounded-xl"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-600">Requisito (Sellos)</label>
+                  <Input 
+                     type="number"
+                     value={premioForm.sellos_requeridos}
+                     onChange={e => setPremioForm({...premioForm, sellos_requeridos: parseInt(e.target.value) || 0})}
+                     className="h-12 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-600">Ícono Visual</label>
+                  <select 
+                     value={premioForm.icono}
+                     onChange={e => setPremioForm({...premioForm, icono: e.target.value})}
+                     className="flex h-12 w-full items-center justify-between rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                     <option value="Gift">Regalo Genérico</option>
+                     <option value="Coffee">Taza de Café</option>
+                     <option value="Pizza">Comida Rest.</option>
+                     <option value="Star">Estrella</option>
+                     <option value="Sparkles">Destellos Mag.</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+                <input 
+                  type="checkbox" 
+                  id="esSorteo" 
+                  checked={premioForm.esSorteo}
+                  onChange={e => setPremioForm({...premioForm, esSorteo: e.target.checked})}
+                  className="w-4 h-4 accent-primary"
+                />
+                <label htmlFor="esSorteo" className="text-xs font-bold text-slate-600">
+                  Es un Sorteo Especial (Ticket)
+                </label>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button variant="outline" onClick={() => setIsPremioModalOpen(false)} className="flex-1 h-12 rounded-xl font-bold border-slate-200">Cancelar</Button>
+                <Button onClick={handleSavePremio} disabled={loading} className="flex-1 h-12 rounded-xl font-bold bg-primary text-white hover:bg-primary/90">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </main>
   );
 }

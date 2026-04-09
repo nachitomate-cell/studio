@@ -13,7 +13,7 @@ import {
   ArrowLeft, QrCode, Camera, CheckCircle2, 
   Loader2, AlertCircle, TrendingUp, Users, 
   Gift, Clock, ChevronRight, LayoutDashboard,
-  X, Store, Save, ImagePlus, UserCircle, Upload, Copy
+  X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -219,6 +219,39 @@ export default function VendedorPage() {
     }
   };
 
+  const handleDownloadQR = () => {
+    const svg = document.querySelector("#qr-codigo-mostrador svg");
+    if (!svg) return;
+    
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = img.width + 40;
+      canvas.height = img.height + 40;
+      
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 20, 20);
+        
+        const pngFile = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        
+        const nombre = userData?.nombreTienda || shopForm.nombreTienda || "mi_tienda";
+        const nombreTiendaFiltrado = nombre.toLowerCase().replace(/[^a-z0-9]/g, "_");
+        downloadLink.download = `codigo_qr_${nombreTiendaFiltrado}.png`;
+        
+        downloadLink.href = pngFile;
+        downloadLink.click();
+      }
+    };
+    
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
   if (view === "myqr") {
     return (
       <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
@@ -236,7 +269,7 @@ export default function VendedorPage() {
               Los clientes deben escanear este código desde su app para sumar un sello.
             </p>
             
-            <div className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto mb-6">
+            <div id="qr-codigo-mostrador" className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto mb-6">
               <QRCode 
                 value={auth.currentUser?.uid ? `https://club-patio-curauma.vercel.app/canje?localId=${auth.currentUser.uid}` : "cargando"} 
                 size={250}
@@ -245,6 +278,13 @@ export default function VendedorPage() {
             </div>
             
             <div className="flex flex-col items-center gap-3">
+              <Button 
+                className="w-full max-w-[250px] rounded-xl font-bold bg-primary text-white gap-2 shadow-md hover:scale-[1.02] transition-all"
+                onClick={handleDownloadQR}
+              >
+                <Download className="w-5 h-5" />
+                Descargar Código QR
+              </Button>
               <Button 
                 variant="outline" 
                 className="w-full max-w-[250px] rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 gap-2"
