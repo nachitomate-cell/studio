@@ -29,8 +29,11 @@ import {
   Star,
   Trophy,
   ChevronRight,
+  Mail,
+  Lock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import TermsModal from "@/components/TermsModal";
 
 const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
@@ -51,7 +54,8 @@ export default function UnetePage() {
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
-  
+  const [showTerms, setShowTerms] = useState(false);
+
   const preventAutoRedirect = useRef(false);
 
   // Si ya está autenticado, redirigir al dashboard
@@ -340,15 +344,18 @@ export default function UnetePage() {
 
             <div className="unete-field">
               <Label htmlFor="unete-email">Correo Electrónico</Label>
-              <Input
-                id="unete-email"
-                type="email"
-                placeholder="tu@ejemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="rounded-xl"
-              />
+              <div className="unete-input-wrapper">
+                <Mail className="unete-input-icon" />
+                <Input
+                  id="unete-email"
+                  type="email"
+                  placeholder="tu@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="rounded-xl pl-10"
+                />
+              </div>
             </div>
 
             {!isLogin && (
@@ -388,16 +395,19 @@ export default function UnetePage() {
 
             <div className="unete-field">
               <Label htmlFor="unete-password">Contraseña</Label>
-              <Input
-                id="unete-password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="rounded-xl"
-                minLength={6}
-              />
+              <div className="unete-input-wrapper">
+                <Lock className="unete-input-icon" />
+                <Input
+                  id="unete-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="rounded-xl pl-10"
+                  minLength={6}
+                />
+              </div>
             </div>
 
             {/* === Términos === */}
@@ -405,30 +415,35 @@ export default function UnetePage() {
               <div className="unete-terms">
                 <p className="unete-terms-title">Términos y Privacidad</p>
 
-                <label className="unete-checkbox-label">
+                <label className={`unete-check-card ${aceptaTerminos ? "unete-check-card--checked" : ""}`}>
                   <input
                     type="checkbox"
                     checked={aceptaTerminos}
                     onChange={(e) => setAceptaTerminos(e.target.checked)}
                     className="unete-checkbox"
                   />
-                  <span>
+                  <span className="unete-check-text">
                     He leído y acepto los{" "}
-                    <a href="#" className="unete-link" onClick={(e) => e.preventDefault()}>
+                    <button
+                      type="button"
+                      className="unete-link"
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+                      onClick={(e) => { e.stopPropagation(); setShowTerms(true); }}
+                    >
                       Términos de Uso
-                    </a>{" "}
+                    </button>{" "}
                     del Club Patio. <span className="unete-required">*</span>
                   </span>
                 </label>
 
-                <label className="unete-checkbox-label">
+                <label className={`unete-check-card ${aceptaMarketing ? "unete-check-card--checked" : ""}`}>
                   <input
                     type="checkbox"
                     checked={aceptaMarketing}
                     onChange={(e) => setAceptaMarketing(e.target.checked)}
                     className="unete-checkbox"
                   />
-                  <span>
+                  <span className="unete-check-text">
                     Acepto recibir comunicaciones de marketing de Club Patio y sus aliados comerciales.
                   </span>
                 </label>
@@ -494,6 +509,8 @@ export default function UnetePage() {
           </>
         )}
       </div>
+
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
 
       {/* ========================================================= */}
       {/* Scoped Styles - Mobile First, Premium Design               */}
@@ -711,15 +728,17 @@ export default function UnetePage() {
           padding: 20px;
           display: flex;
           flex-direction: column;
-          gap: 14px;
+          gap: 18px;
         }
         .unete-field {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          width: 100%;
         }
         .unete-input-wrapper {
           position: relative;
+          width: 100%;
         }
         .unete-input-icon {
           position: absolute;
@@ -728,7 +747,7 @@ export default function UnetePage() {
           transform: translateY(-50%);
           width: 16px;
           height: 16px;
-          color: #94a3b8;
+          color: #D3B673;
           pointer-events: none;
           z-index: 1;
         }
@@ -738,7 +757,7 @@ export default function UnetePage() {
           display: flex;
           flex-direction: column;
           gap: 10px;
-          padding-top: 8px;
+          padding-top: 4px;
           border-top: 1px solid #f1f5f9;
         }
         .unete-terms-title {
@@ -749,25 +768,42 @@ export default function UnetePage() {
           letter-spacing: 1.5px;
           margin: 0;
         }
-        .unete-checkbox-label {
+
+        /* Checkbox cards — área de toque mínima 44px */
+        .unete-check-card {
           display: flex;
-          align-items: flex-start;
-          gap: 10px;
+          align-items: center;
+          gap: 12px;
+          min-height: 44px;
+          padding: 10px 14px;
+          border-radius: 14px;
+          background: #f8fafc;
+          border: 1.5px solid #e2e8f0;
           cursor: pointer;
+          transition: border-color 0.2s ease, background 0.2s ease;
+          width: 100%;
+        }
+        .unete-check-card:hover {
+          border-color: #D3B673;
+          background: rgba(211, 182, 115, 0.07);
+        }
+        .unete-check-card--checked {
+          border-color: #9DCC65;
+          background: rgba(157, 204, 101, 0.09);
+        }
+        .unete-checkbox {
+          width: 18px;
+          height: 18px;
+          min-width: 18px;
+          flex-shrink: 0;
+          accent-color: #9DCC65;
+          cursor: pointer;
+        }
+        .unete-check-text {
           font-size: 12px;
           color: #475569;
           line-height: 1.5;
-        }
-        .unete-checkbox-label:hover span {
-          color: #1e293b;
-        }
-        .unete-checkbox {
-          width: 16px;
-          height: 16px;
-          flex-shrink: 0;
-          margin-top: 2px;
-          accent-color: #9DCC65;
-          cursor: pointer;
+          flex: 1;
         }
         .unete-link {
           color: #D3B673;
@@ -827,7 +863,7 @@ export default function UnetePage() {
           }
           .unete-form {
             padding: 24px;
-            gap: 16px;
+            gap: 20px;
           }
         }
 

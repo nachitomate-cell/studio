@@ -1,12 +1,14 @@
 "use client";
 
+import { useRef, useState, useEffect, useMemo } from "react";
 import { User } from "firebase/auth";
 import { Card, CardContent } from "@/components/ui/card";
-import { Trophy, Sparkles, Award } from "lucide-react";
+import { Trophy, Sparkles, Award, Stamp, WifiOff } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CatalogoPremios } from "./CatalogoPremios";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface RewardsTabProps {
   user: User | null;
@@ -15,6 +17,69 @@ interface RewardsTabProps {
 }
 
 export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
+  const [showStampAnim, setShowStampAnim] = useState(false);
+  const [isOffline, setIsOffline] = useState(
+    typeof window !== "undefined" ? !navigator.onLine : false
+  );
+  const prevSellosRef = useRef<number | null>(null);
+
+  // Detectar cambios de conectividad
+  useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  // FIX: useMemo evita leer localStorage en cada render
+  const cachedData = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("cached_stamp_data");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo se lee una vez al montar — luego se actualiza vía el efecto de escritura
+
+  const sellos = userData?.comprasRealizadas ?? cachedData?.sellos ?? 0;
+  const tickets = userData?.ticketsSorteo ?? cachedData?.tickets ?? 0;
+  const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
+  const sellosRestantesParaPremio = 5 - (sellos % 5);
+
+  // FIX: usar campos primitivos como dep, no el objeto userData completo
+  const comprasRealizadas = userData?.comprasRealizadas;
+  const ticketsSorteo = userData?.ticketsSorteo;
+  const nombreUsuario = userData?.nombre;
+
+  useEffect(() => {
+    if (!isOffline && userData) {
+      localStorage.setItem(
+        "cached_stamp_data",
+        JSON.stringify({
+          sellos: comprasRealizadas || 0,
+          tickets: ticketsSorteo || 0,
+          nombre: nombreUsuario || "Miembro",
+        })
+      );
+    }
+  // FIX: deps son valores primitivos, no el objeto userData
+  }, [isOffline, comprasRealizadas, ticketsSorteo, nombreUsuario]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // FIX: siempre actualizar prevSellosRef, incluso cuando dispara la animación
+  useEffect(() => {
+    if (prevSellosRef.current !== null && sellosEnTarjeta > prevSellosRef.current) {
+      setShowStampAnim(true);
+      const t = setTimeout(() => setShowStampAnim(false), 1600);
+      prevSellosRef.current = sellosEnTarjeta; // FIX: actualizar ref en AMBAS ramas
+      return () => clearTimeout(t);
+    }
+    prevSellosRef.current = sellosEnTarjeta;
+  }, [sellosEnTarjeta]);
+
   if (!user) {
     return (
       <div className="pt-6 px-4 bg-white min-h-screen text-center space-y-6">
@@ -28,17 +93,30 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
     );
   }
 
-  const sellos = userData?.comprasRealizadas || 0;
-  const tickets = userData?.ticketsSorteo || 0;
-  const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
-  const sellosRestantesParaPremio = 5 - (sellos % 5);
-
   return (
     <div className="pt-4 px-4 bg-white pb-24 space-y-6 animate-in fade-in duration-300">
       <header className="px-2 pb-2">
         <h1 className="text-2xl font-black text-slate-800">Mis Beneficios</h1>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Club Patio Curauma</p>
       </header>
+
+      {/* Banner offline */}
+      <AnimatePresence>
+        {isOffline && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50"
+          >
+            <WifiOff className="w-5 h-5 text-amber-600 shrink-0" />
+            <p className="text-xs font-bold text-amber-800 leading-snug">
+              Modo consulta: Conéctate para actualizar tus puntos.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Card className="border-none shadow-lg bg-gradient-to-br from-primary to-accent/40 rounded-3xl overflow-hidden text-white">
         <CardContent className="p-6 flex items-center justify-between">
@@ -53,6 +131,36 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
       <section className="space-y-4">
         <h3 className="font-bold text-lg text-primary flex items-center gap-2 px-1"><Award className="w-5 h-5" />Mi Tarjeta de Sellos</h3>
         <Card className="border-none shadow-xl bg-[#FDFCF0] rounded-[2rem] overflow-hidden relative">
+          {/* Animación de sello */}
+          <AnimatePresence>
+            {showStampAnim && (
+              <>
+                {/* Destello verde */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: [0, 0.45, 0] }}
+                  transition={{ duration: 1.2, times: [0, 0.25, 1] }}
+                  className="absolute inset-0 z-10 pointer-events-none rounded-[2rem]"
+                  style={{ backgroundColor: "#9DCC65" }}
+                />
+                {/* Icono de sello estampado */}
+                <motion.div
+                  initial={{ scale: 3, rotate: -40, opacity: 0, y: -60 }}
+                  animate={{ scale: 1, rotate: 0, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.6, opacity: 0, y: 30 }}
+                  transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                >
+                  <div
+                    className="rounded-full p-5 shadow-2xl"
+                    style={{ backgroundColor: "#9DCC65" }}
+                  >
+                    <Stamp className="w-14 h-14 text-white" />
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
           <CardContent className="p-8">
             {/* Barra de progreso */}
             <div className="mb-6 space-y-2">

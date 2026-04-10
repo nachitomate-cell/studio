@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, where, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { registrarCompra } from "@/lib/puntos";
+// DESACTIVADO: import { registrarCompra } from "@/lib/puntos"; — reemplazado por Handshake Digital
 import { 
   ArrowLeft, QrCode, Camera, CheckCircle2, 
   Loader2, AlertCircle, TrendingUp, Users, 
@@ -207,16 +207,17 @@ export default function VendedorPage() {
     handleProcessSale(clientUid);
   };
 
-  const handleProcessSale = async (uid: string) => {
-    setLoading(true);
-    try {
-      await registrarCompra(db, uid, auth.currentUser?.uid);
-      toast({ title: "¡Sello Procesado!", description: "El cliente ha recibido su sello correctamente." });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo procesar el sello." });
-    } finally {
-      setLoading(false);
-    }
+  const handleProcessSale = async (_uid: string) => {
+    // DESACTIVADO: asignación directa de sellos reemplazada por flujo Handshake Digital.
+    // El sello solo se asigna cuando el CLIENTE escanea el QR del mostrador y
+    // el emprendedor confirma en su Panel de Validación (/validar/[vendorId]).
+    //
+    // await registrarCompra(db, uid, auth.currentUser?.uid); // DESACTIVADO
+    //
+    toast({
+      title: "Usa el Panel de Validación",
+      description: "Pide al cliente que escanee tu QR de mostrador. La solicitud aparecerá en tu panel.",
+    });
   };
 
   const handleDownloadQR = () => {
@@ -447,16 +448,28 @@ export default function VendedorPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 gap-3">
-              <Button 
+              <Button
                 onClick={() => setView("myqr")}
                 className="w-full h-20 rounded-2xl bg-slate-900 text-white font-bold text-xl gap-4 shadow-xl shadow-slate-900/20 hover:scale-[1.01] transition-all active:scale-95"
               >
                 <QrCode className="w-8 h-8" />
                 Mi Código QR (Mostrador)
               </Button>
+              {/* Panel de Validación — handshake digital */}
+              {auth.currentUser && (
+                <a href={`/validar/${auth.currentUser.uid}`}>
+                  <Button
+                    className="w-full h-16 rounded-2xl font-bold text-base gap-3 shadow-lg active:scale-[0.97] transition-transform"
+                    style={{ backgroundColor: "#D3B673", color: "#fff" }}
+                  >
+                    <span className="text-lg">🛠️</span>
+                    Panel de Validación (Caja)
+                  </Button>
+                </a>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                <Button 
-                  onClick={startScanner} 
+                <Button
+                  onClick={startScanner}
                   variant="outline"
                   className="w-full h-16 rounded-2xl border-primary text-primary font-bold gap-2 hover:bg-primary/5"
                   disabled={loading}
@@ -464,7 +477,7 @@ export default function VendedorPage() {
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
                   Escanear Cliente
                 </Button>
-                <Button 
+                <Button
                   onClick={() => setView("profile")}
                   variant="outline"
                   className="w-full h-16 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-2 hover:bg-slate-50"

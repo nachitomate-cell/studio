@@ -6,12 +6,13 @@ import { collection, getDocs, query, where, updateDoc, doc, deleteDoc, onSnapsho
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2 } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2, ClipboardList } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 // Importaciones de utilidades previas
 import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/lib/ai-actions";
@@ -259,9 +260,27 @@ export default function ModeradorPage() {
       await updateDoc(userRef, { rol: newRole, updatedAt: new Date().toISOString() });
       setFoundUser({ ...foundUser, rol: newRole });
       toast({ title: "¡Rol Actualizado!", description: `El usuario ahora tiene el rol: ${newRole}` });
-      fetchClientes(); // Refresh tabla principal silenciosamente en el fondo
+      fetchClientes();
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el rol." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const grantStampToFoundUser = async () => {
+    if (!foundUser) return;
+    setActionLoading(true);
+    try {
+      await registrarCompra(db, foundUser.id, "MODERADOR_GRANT");
+      const nuevosSell = (foundUser.comprasRealizadas || 0) + 1;
+      setFoundUser({ ...foundUser, comprasRealizadas: nuevosSell });
+      toast({
+        title: "✅ Sello otorgado",
+        description: `+1 sello acreditado a ${foundUser.nombre || foundUser.correo}. Total: ${nuevosSell}`,
+      });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo otorgar el sello." });
     } finally {
       setActionLoading(false);
     }
@@ -319,11 +338,22 @@ export default function ModeradorPage() {
       <div className="max-w-7xl mx-auto space-y-10">
         
         {/* ENCABEZADO */}
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            Base de Datos de Clientes <ShieldCheck className="w-8 h-8 md:w-10 md:h-10 text-primary hidden md:block" />
-          </h1>
-          <p className="text-slate-500 font-medium">Panel de administración global avanzado para Master Admin.</p>
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+              Base de Datos de Clientes <ShieldCheck className="w-8 h-8 md:w-10 md:h-10 text-primary hidden md:block" />
+            </h1>
+            <p className="text-slate-500 font-medium">Panel de administración global avanzado para Master Admin.</p>
+          </div>
+          <Link href="/admin-logs">
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 rounded-2xl h-12 px-5 border-slate-200 text-slate-600 font-bold shadow-sm hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+            >
+              <ClipboardList className="w-4 h-4" />
+              Ver Auditoría del Sistema
+            </Button>
+          </Link>
         </div>
 
         {/* METRICAS (TARJETAS SUPERIORES) */}
@@ -540,28 +570,47 @@ export default function ModeradorPage() {
                   <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-100">
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center mt-1">Nivel de Acceso</p>
                     <div className="flex gap-1.5 flex-col md:flex-row">
-                      <Button 
-                        size="sm" 
-                        variant={foundUser.rol === 'cliente' ? 'default' : 'outline'} 
+                      <Button
+                        size="sm"
+                        variant={foundUser.rol === 'cliente' ? 'default' : 'outline'}
                         className="flex-1 h-9 text-[10px] font-bold rounded-lg"
                         disabled={actionLoading}
                         onClick={() => updateUserRole('cliente')}
                       >Cliente</Button>
-                      <Button 
-                        size="sm" 
-                        variant={foundUser.rol === 'emprendedor' ? 'default' : 'outline'} 
+                      <Button
+                        size="sm"
+                        variant={foundUser.rol === 'emprendedor' ? 'default' : 'outline'}
                         className="flex-1 h-9 text-[10px] font-bold rounded-lg"
                         disabled={actionLoading}
                         onClick={() => updateUserRole('emprendedor')}
                       >Emprendedor</Button>
-                      <Button 
-                        size="sm" 
-                        variant={foundUser.rol === 'director_patio' ? 'default' : 'outline'} 
+                      <Button
+                        size="sm"
+                        variant={foundUser.rol === 'director_patio' ? 'default' : 'outline'}
                         className="flex-1 h-9 text-[10px] font-bold rounded-lg"
                         disabled={actionLoading}
                         onClick={() => updateUserRole('director_patio')}
                       >Director Patio</Button>
                     </div>
+                  </div>
+
+                  {/* Otorgar sello de prueba */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center mb-2">Sellos</p>
+                    <div className="flex items-center justify-between bg-amber-50 rounded-xl px-3 py-2 border border-amber-100 mb-2">
+                      <span className="text-xs font-bold text-amber-700">Sellos actuales</span>
+                      <span className="text-sm font-black text-amber-700">{foundUser.comprasRealizadas ?? 0}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full h-10 text-[11px] font-bold rounded-xl text-amber-700 bg-amber-50/50 hover:bg-amber-100 border-amber-200 gap-2 shadow-sm"
+                      disabled={actionLoading}
+                      onClick={grantStampToFoundUser}
+                    >
+                      {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gift className="w-3.5 h-3.5" />}
+                      Otorgar Sello de Prueba
+                    </Button>
                   </div>
                 </div>
               )}

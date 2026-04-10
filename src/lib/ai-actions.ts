@@ -126,8 +126,8 @@ export async function procesarProximidadGeofence(
 
     await _guardarNotificacionIA(
       userId,
-      "¡Estás cerca de un Sello! 📍",
-      `Hola ${userName}, detectamos que estás cerca de Patio Curauma. ¡Entra y suma tu sello de hoy!`,
+      "¡Estás cerca de Patio Curauma! 🛍️",
+      "Visítanos hoy y suma sellos en tus tiendas favoritas",
       { cta: "Ver Mapa", tipo: "geofence" }
     );
   } catch (error) {

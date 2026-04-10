@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
-import { registrarCompra } from "@/lib/puntos";
-import { SuccessScanner } from "@/components/loyalty/SuccessScanner";
+import { auth } from "@/lib/firebase";
+// DESACTIVADO: import { db } from "@/lib/firebase"; — no se usa en flujo Handshake
+// DESACTIVADO: import { doc, getDoc } from "firebase/firestore";
+// DESACTIVADO: import { registrarCompra } from "@/lib/puntos"; — reemplazado por Handshake
+import { SuccessScanner } from "@/components/loyalty/SuccessScanner"; // Mantenido para compatibilidad de tipos
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, Loader2, AlertCircle,
@@ -224,68 +225,25 @@ export default function ClientScannerPage() {
       return;
     }
 
-    try {
-      // 1. Intentar obtener info del local (no bloqueante si no existe perfil)
-      const vendorRef = doc(db, "entrepreneur_profiles", vendorId);
-      const vendorSnap = await getDoc(vendorRef);
+    // ── HANDSHAKE DIGITAL ─────────────────────────────────────────────────────
+    // DESACTIVADO: asignación directa reemplazada por flujo Handshake.
+    // El sello solo se otorga cuando el emprendedor confirma en /validar/[vendorId].
+    //
+    // await registrarCompra(db, currentUser.uid, vendorId, true); // DESACTIVADO
+    //
+    // En su lugar: redirigir a /canje?localId=X que implementa el flujo completo:
+    //   1. Verifica cooldown de 12h
+    //   2. Crea pending_stamp con status:'pending'
+    //   3. Muestra spinner "Esperando confirmación del local..."
+    //   4. onSnapshot: cuando emprendedor confirma → asigna sello + pantalla éxito
 
-      // Si no existe perfil, igual registramos el sello con nombre genérico
-      // (el emprendedor puede no haber configurado su perfil aún)
-      let shopName = "Local Aliado";
-      if (vendorSnap.exists()) {
-        const vendorData = vendorSnap.data();
-        shopName = vendorData.businessName || vendorData.nombre || "Local Aliado";
-      }
-
-      // También intentar obtener nombre del usuario en colección usuarios
-      if (shopName === "Local Aliado") {
-        try {
-          const vendorUserRef = doc(db, "usuarios", vendorId);
-          const vendorUserSnap = await getDoc(vendorUserRef);
-          if (vendorUserSnap.exists()) {
-            const vData = vendorUserSnap.data();
-            shopName = vData.nombreTienda || vData.nombre || "Local Aliado";
-          }
-        } catch (_) {}
-      }
-
-      // 2. Obtener datos del usuario antes de registrar (para mostrar total actualizado)
-      const userRef = doc(db, "usuarios", currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const prevSellos = userSnap.exists() ? (userSnap.data().comprasRealizadas || 0) : 0;
-      const displayName = userSnap.exists() ? (userSnap.data().nombre || "") : "";
-
-      // 3. Registrar la compra (incluye cooldown check)
-      await registrarCompra(db, currentUser.uid, vendorId, true);
-
-      // 4. Mostrar pantalla de éxito y notificación Toast
-      toast({
-        title: "¡Sello Exitoso! 🎉",
-        description: `Has sumado 1 sello en ${shopName}.`
-      });
-
-      setSuccessData({
-        vendorName: shopName,
-        userDisplayName: displayName,
-        newTotalSellos: prevSellos + 1,
-      });
-      setScanState("success");
-
-    } catch (error: any) {
-      console.error("Scan error:", error);
-
-      // Detectar error de cooldown por mensaje
-      if (error?.message?.toLowerCase().includes("esperar") || error?.message?.toLowerCase().includes("horas")) {
-        setScanError({ type: "cooldown", message: error.message });
-      } else if (error?.code === "unavailable" || error?.message?.toLowerCase().includes("network")) {
-        setScanError({ type: "network" });
-      } else {
-        setScanError({ type: "invalid_qr" });
-      }
-
-      setScanState("error");
-      isScanningRef.current = false;
+    // Guardar la URL de retorno post-auth si fuera necesario
+    if (typeof window !== "undefined") {
+      localStorage.setItem("url_retorno", `/canje?localId=${vendorId}`);
     }
+
+    // Navegar al flujo Handshake centralizado
+    router.replace(`/canje?localId=${vendorId}`);
   }, [router]);
 
   const handleRetry = useCallback(() => {

@@ -9,16 +9,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Gift, Award, LogOut, 
-  User as UserIcon, Phone, 
-  QrCode, Edit2, Check, X, Trophy, Save, 
+  Gift, Award, LogOut,
+  User as UserIcon, Phone,
+  QrCode, Edit2, Check, X, Trophy, Save,
   Smile, Cat, Dog, Coffee, Star, Store,
-  MessageCircle, MapPin, 
+  MessageCircle, MapPin,
   Clock, Bell, CheckCircle2,
   ExternalLink, Sparkles,
   Calendar, FlaskConical, Navigation,
   LayoutDashboard, AlertTriangle, Trash2,
-  Loader2
+  Loader2, Info, MessageSquare, ChevronRight
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { CatalogoPremios } from "./CatalogoPremios";
+import PermissionsModal from "@/components/PermissionsModal";
 import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
@@ -99,6 +100,183 @@ function NotifDetailModal({ notif, onClose }: { notif: any; onClose: () => void 
           Cerrar
         </button>
       </div>
+    </div>
+  );
+}
+
+function AcercaDeModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-lg bg-white rounded-t-[2rem] p-8 space-y-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+        style={{ maxHeight: "85vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Pastilla superior */}
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto -mt-2" />
+
+        {/* Cabecera */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+            <Info className="w-6 h-6" />
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Título y versión */}
+        <div className="space-y-2">
+          <h2 className="text-xl font-black leading-snug" style={{ color: "#4A4A4A" }}>
+            Acerca de la App
+          </h2>
+          <span className="inline-block text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-slate-100 text-slate-400">
+            v1.0.0
+          </span>
+        </div>
+
+        {/* Separador */}
+        <div className="h-px bg-slate-100 rounded-full" />
+
+        {/* Botón de contacto */}
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-widest">Contacto</p>
+          <a
+            href="https://wa.me/56983568212"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 w-full px-5 py-4 rounded-2xl font-bold text-white transition-all active:scale-95 shadow-lg"
+            style={{ backgroundColor: "#9DCC65", boxShadow: "0 4px 20px #9DCC6540" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MessageSquare className="w-5 h-5 shrink-0" />
+            Contacto para soporte o desarrollo
+          </a>
+        </div>
+
+        {/* Firma */}
+        <p className="text-center text-[11px] text-slate-300 font-light tracking-wide pt-2">
+          Desarrollado por Ignacio Mateluna · 2026
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TerminosModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col"
+        style={{ maxHeight: "88vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Pastilla superior */}
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4 shrink-0" />
+
+        {/* Cabecera fija */}
+        <div className="px-8 pt-5 pb-4 shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: "rgba(211,182,115,0.15)", color: "#D3B673" }}>
+              <Info className="w-6 h-6" />
+            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="mt-4 space-y-1">
+            <h2 className="text-xl font-black leading-snug" style={{ color: "#4A4A4A" }}>
+              Términos y Condiciones
+            </h2>
+            <span className="inline-block text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-slate-100 text-slate-400">
+              Club Patio Curauma
+            </span>
+          </div>
+        </div>
+
+        {/* Separador */}
+        <div className="h-px bg-slate-100 mx-8 shrink-0" />
+
+        {/* Scroll */}
+        <div className="overflow-y-auto px-8 py-5 space-y-5 flex-1">
+          <TermSection title="1. Aceptación de los Términos">
+            Al registrarse y utilizar la aplicación Club Patio Curauma (en adelante, <strong>"la App"</strong>), el usuario acepta estos Términos y Condiciones. Si no está de acuerdo, debe abstenerse de utilizar el servicio.
+          </TermSection>
+          <TermSection title="2. Descripción del Servicio">
+            Club Patio Curauma es una plataforma de fidelización digital para digitalizar la experiencia de compra en Patio Curauma. La App permite:
+            <ul className="mt-2 space-y-1 list-disc pl-5">
+              <li>Acumular sellos digitales por compras en locales adheridos.</li>
+              <li>Recibir sellos de bienvenida o bonos por inicio de sesión.</li>
+              <li>Canjear sellos por recompensas y beneficios exclusivos.</li>
+            </ul>
+          </TermSection>
+          <TermSection title="3. Registro y Privacidad">
+            El usuario se compromete a proporcionar información real y precisa (Nombre, Email, Teléfono, Fecha de Nacimiento).
+            <ul className="mt-2 space-y-1 list-disc pl-5">
+              <li><strong>Datos Personales:</strong> Usados para gestión de puntos, personalización y, si es aceptado, comunicaciones de marketing.</li>
+              <li><strong>Seguridad:</strong> El usuario es responsable de mantener la confidencialidad de su cuenta.</li>
+            </ul>
+          </TermSection>
+          <TermSection title="4. Sistema de Sellos y Recompensas">
+            <ul className="mt-2 space-y-1 list-disc pl-5">
+              <li><strong>Sello de Bienvenida:</strong> Un (1) sello automático al registrarse, por única vez.</li>
+              <li><strong>Bono de Inicio de Sesión:</strong> Un (1) sello extra por inicio de sesión, de única vez por usuario.</li>
+              <li><strong>Acumulación:</strong> Sellos por compra otorgados exclusivamente por locatarios autorizados.</li>
+              <li><strong>Valor:</strong> Los sellos no tienen valor monetario ni son transferibles.</li>
+            </ul>
+          </TermSection>
+          <TermSection title="5. Canje y Vigencia">
+            <ul className="mt-2 space-y-1 list-disc pl-5">
+              <li><strong>Ticket de Canje:</strong> Se genera al completar los sellos requeridos.</li>
+              <li><strong>Vigencia:</strong> Cada ticket tiene validez máxima de <strong>48 horas</strong>. Expirado el plazo, el beneficio se pierde.</li>
+              <li><strong>Validación:</strong> El beneficio se confirma cuando el locatario valida el ticket en el sistema.</li>
+            </ul>
+          </TermSection>
+          <TermSection title="6. Uso Justo y Anti-Fraude">
+            <ul className="mt-2 space-y-1 list-disc pl-5">
+              <li><strong>Cooldown:</strong> Máximo un sello por usuario cada <strong>12 horas</strong>.</li>
+              <li><strong>Auditoría:</strong> La administración puede auditar registros. Actividad sospechosa resultará en suspensión de cuenta.</li>
+            </ul>
+          </TermSection>
+          <TermSection title="7. Comunicaciones de Marketing">
+            Al marcar la casilla correspondiente, el usuario acepta recibir ofertas y promociones vía email o WhatsApp.
+          </TermSection>
+          <TermSection title="8. Limitación de Responsabilidad">
+            Club Patio Curauma actúa como intermediario tecnológico. La disponibilidad de premios es responsabilidad de cada local comercial.
+          </TermSection>
+          <TermSection title="9. Modificaciones">
+            La administración se reserva el derecho de modificar estos términos informando a los usuarios a través de la App.
+          </TermSection>
+        </div>
+
+        {/* Botón cerrar fijo */}
+        <div className="px-8 py-5 shrink-0 border-t border-slate-100">
+          <button
+            onClick={onClose}
+            className="w-full h-12 rounded-2xl font-black text-sm text-white transition-all active:scale-[0.98] shadow-lg"
+            style={{ backgroundColor: "#D3B673", boxShadow: "0 4px 20px rgba(211,182,115,0.4)" }}
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TermSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[11px] font-black uppercase tracking-widest mb-1" style={{ color: "#D3B673" }}>{title}</p>
+      <div className="text-[13px] text-slate-600 leading-relaxed">{children}</div>
     </div>
   );
 }
@@ -180,6 +358,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [showPermisos, setShowPermisos] = useState(false);
   const { toast } = useToast();
 
   const [editForm, setEditForm] = useState({
@@ -637,6 +816,17 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   <QrCode className="w-6 h-6" /> Escanear Cliente
                 </Button>
               </Link>
+              {/* Acceso rápido al Panel de Validación (handshake) */}
+              {user && (
+                <Link href={`/validar/${user.uid}`}>
+                  <Button
+                    className="w-full h-14 rounded-2xl font-bold gap-3 shadow-md active:scale-[0.97] transition-transform"
+                    style={{ backgroundColor: "#D3B673", color: "#fff" }}
+                  >
+                    <span className="text-base">🛠️</span> Panel de Validación (Caja)
+                  </Button>
+                </Link>
+              )}
               <Link href="/vendedor">
                 <Button variant="outline" className="w-full h-14 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-3 hover:bg-slate-50">
                   <LayoutDashboard className="w-5 h-5 text-primary" /> Panel del Emprendedor
@@ -689,14 +879,36 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </>
       )}
 
+      {showPermisos && <PermissionsModal onClose={() => setShowPermisos(false)} />}
+
+      {/* ── Configuración de permisos ── */}
+      <button
+        onClick={() => setShowPermisos(true)}
+        className="w-full flex items-center justify-between px-5 py-4 rounded-2xl border border-slate-100 bg-white shadow-sm hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "rgba(211,182,115,0.12)", color: "#D3B673" }}>
+            <Bell className="w-5 h-5" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-bold text-slate-800">Configuración de permisos</p>
+            <p className="text-[11px] text-slate-400 font-medium">Notificaciones, ubicación y cámara</p>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-slate-300" />
+      </button>
+
       {/* FOOTER DE CUMPLIMIENTO APP STORE */}
       <section className="px-8 space-y-4 pt-6">
         <div className="flex flex-col gap-3">
-          <Link href="#" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
+          <Link href="/privacidad" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
             POLÍTICA DE PRIVACIDAD <ExternalLink className="w-3 h-3" />
           </Link>
-          <Link href="#" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
+          <Link href="/terminos" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
             TÉRMINOS Y CONDICIONES <ExternalLink className="w-3 h-3" />
+          </Link>
+          <Link href="/acerca" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
+            ACERCA DE <Info className="w-3 h-3" />
           </Link>
         </div>
         <Separator className="bg-slate-100" />

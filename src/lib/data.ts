@@ -14,7 +14,7 @@ export const PATIO_INFO = {
   instagram: "patiocurauma",
   facebook: "100063522160910",
   tiktok: "patio_curauma",
-  coordinates: { lat: -33.1316449, lng: -71.5668639 }
+  coordinates: { lat: -33.1316449, lng: -71.564289 }
 };
 
 export const CATEGORIES: Category[] = [

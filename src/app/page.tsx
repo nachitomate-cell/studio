@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { doc, onSnapshot, collection, query } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
@@ -91,43 +91,61 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // FIX: usar ref para userData — evita que el efecto se reinicie en cada snapshot
+  const userDataRef = useRef<any>(null);
   useEffect(() => {
-    if (!user || !userData) return;
+    userDataRef.current = userData;
+  }, [userData]);
+
+  useEffect(() => {
+    if (!user) return;
     if (!navigator.geolocation) return;
+
+    const GEOFENCE_KEY = `geofence_last_${user.uid}`;
+    const GEOFENCE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+    const puedeEnviarNotif = () => {
+      const last = localStorage.getItem(GEOFENCE_KEY);
+      if (!last) return true;
+      return Date.now() - parseInt(last, 10) > GEOFENCE_COOLDOWN_MS;
+    };
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        const currentData = userDataRef.current;
+        if (!currentData) return;
+
         const { latitude, longitude } = position.coords;
         const targetLat = PATIO_INFO.coordinates.lat;
         const targetLng = PATIO_INFO.coordinates.lng;
 
         const R = 6371e3;
-        const φ1 = latitude * Math.PI/180;
-        const φ2 = targetLat * Math.PI/180;
-        const Δφ = (targetLat-latitude) * Math.PI/180;
-        const Δλ = (targetLng-longitude) * Math.PI/180;
+        const φ1 = latitude * Math.PI / 180;
+        const φ2 = targetLat * Math.PI / 180;
+        const Δφ = (targetLat - latitude) * Math.PI / 180;
+        const Δλ = (targetLng - longitude) * Math.PI / 180;
 
-        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ/2) * Math.sin(Δλ/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-        if (distance < 500) {
+        if (distance < 500 && puedeEnviarNotif()) {
+          localStorage.setItem(GEOFENCE_KEY, Date.now().toString());
           procesarProximidadGeofence(
-            user.uid, 
-            userData.nombre || "Miembro", 
-            userData.comprasRealizadas || 0,
+            user.uid,
+            currentData.nombre || "Miembro",
+            currentData.comprasRealizadas || 0,
             true
           );
         }
       },
-      (error) => {},
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      () => { /* geolocation error — silencioso */ },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [user, userData]);
+  }, [user]); // FIX: solo depende de user, no de userData (objeto)
 
   const combinedEntrepreneurs = [...entrepreneurs, ...ENTREPRENEURS.filter(d => !entrepreneurs.some(e => e.id === d.id))];
 
@@ -269,6 +287,19 @@ export default function Home() {
             </section>
 
             <section className="px-6 py-12 text-center space-y-4 bg-slate-50 mt-10">
+              {/* CTA Tienda Online */}
+              <div className="flex justify-center mb-6">
+                <a
+                  href="https://www.patiocuraumaonline.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 w-[88%] h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
+                  style={{ backgroundColor: "#6EBBD1" }}
+                >
+                  🛍️ Visita nuestra Tienda Online
+                </a>
+              </div>
+
               <p className="text-[10px] font-medium text-slate-400 tracking-[0.15em]">Síguenos y entérate de todo</p>
               <div className="flex justify-center gap-6">
                 <button onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')} className="text-pink-600 hover:scale-110 transition-transform">
