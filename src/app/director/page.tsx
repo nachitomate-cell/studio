@@ -82,7 +82,7 @@ export default function DirectorPage() {
     const fetchRanking = async () => {
       const q = query(collection(db, "usuarios"), where("rol", "==", "emprendedor"));
       const snap = await getDocs(q);
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
       setRanking(data.sort((a, b) => (b.sellosEntregados || 0) - (a.sellosEntregados || 0)));
     };
 

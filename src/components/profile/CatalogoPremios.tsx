@@ -28,7 +28,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
       const dbPremios = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      } as any));
       // Ordenar los premios del más barato al más caro
       dbPremios.sort((a, b) => (a.sellos_requeridos || 0) - (b.sellos_requeridos || 0));
       setPremios(dbPremios);
