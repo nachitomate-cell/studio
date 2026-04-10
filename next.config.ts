@@ -9,14 +9,6 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
-  experimental: {
-    // Configuración para permitir orígenes de desarrollo específicos
-    allowedDevOrigins: [
-      'localhost:9002', 
-      '*.cloudworkstations.dev',
-      '9000-firebase-studio-1775442021830.cluster-hlmk2l2htragyudeyf6f3tzsi6.cloudworkstations.dev'
-    ],
-  },
   images: {
     unoptimized: true,
     remotePatterns: [
