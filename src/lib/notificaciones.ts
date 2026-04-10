@@ -1,6 +1,6 @@
 
 import { db } from "./firebase";
-import { collection, addDoc, query, where, getDocs, limit } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, limit, doc, getDoc } from "firebase/firestore";
 
 /**
  * Dispara una notificación nativa del sistema (Push) si el permiso está concedido.
@@ -38,8 +38,9 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
  */
 export async function enviarNotificacionLocal(userId: string, titulo: string, mensaje: string, metadata: any = {}) {
   if (!userId) return;
-  
+
   try {
+    // 1. Guardar en Firestore (comportamiento existente)
     const notifRef = collection(db, "usuarios", userId, "notificaciones");
     await addDoc(notifRef, {
       titulo,
@@ -48,6 +49,27 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
       fecha: new Date().toISOString(),
       ...metadata
     });
+
+    // 2. Enviar push real si el usuario tiene FCM token registrado
+    try {
+      const userSnap = await getDoc(doc(db, "usuarios", userId));
+      const fcmToken = userSnap.exists() ? userSnap.data().fcmToken : null;
+
+      if (fcmToken) {
+        const baseUrl = typeof window !== "undefined"
+          ? window.location.origin
+          : process.env.NEXT_PUBLIC_BASE_URL || "https://club-patio-curauma.vercel.app";
+
+        await fetch(`${baseUrl}/api/send-notification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: fcmToken, title: titulo, body: mensaje }),
+        });
+      }
+    } catch (pushError) {
+      // El push es best-effort: si falla no interrumpe el flujo principal
+      console.warn("[Push] No se pudo enviar notificación push:", pushError);
+    }
   } catch (error) {
     console.error("Error al registrar notificación en Firestore:", error);
   }

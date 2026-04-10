@@ -49,7 +49,15 @@ const DEMO_STORES = [
   }
 ];
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const key = searchParams.get("key");
+  const expectedKey = process.env.SEED_SECRET_KEY;
+
+  if (!expectedKey || key !== expectedKey) {
+    return NextResponse.json({ success: false, error: "No autorizado." }, { status: 401 });
+  }
+
   try {
     for (const store of DEMO_STORES) {
       await setDoc(doc(db, "entrepreneur_profiles", store.id), store);

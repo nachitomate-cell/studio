@@ -14,7 +14,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const router = useRouter();
 
   const navItems = [
-    { id: "directory", label: "Directorio", icon: LayoutGrid },
+    { id: "directory", label: "Descubre", icon: LayoutGrid },
     { id: "scan", label: "Escanear", icon: QrCode, isAction: true },
     { id: "rewards", label: "Premios", icon: Gift },
     { id: "profile", label: "Mi Perfil", icon: User },

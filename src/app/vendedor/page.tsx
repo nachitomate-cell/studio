@@ -270,9 +270,10 @@ export default function VendedorPage() {
             </p>
             
             <div id="qr-codigo-mostrador" className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto mb-6">
-              <QRCode 
-                value={auth.currentUser?.uid ? `https://club-patio-curauma.vercel.app/canje?localId=${auth.currentUser.uid}` : "cargando"} 
+              <QRCode
+                value={auth.currentUser?.uid ? `https://club-patio-curauma.vercel.app/canje?localId=${auth.currentUser.uid}` : "cargando"}
                 size={250}
+                fgColor="#000000"
                 className="rounded-xl"
               />
             </div>

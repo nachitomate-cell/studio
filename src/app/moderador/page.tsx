@@ -18,7 +18,7 @@ import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/l
 import { registrarCompra } from "@/lib/puntos";
 import { enviarNotificacionLocal } from "@/lib/notificaciones";
 
-const MASTER_EMAIL = "ignaciiio.mate@gmail.com";
+const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 const TEST_TARGET_EMAIL = "nachitomate@gmail.com";
 
 interface Cliente {

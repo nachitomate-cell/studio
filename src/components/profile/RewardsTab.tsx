@@ -2,7 +2,7 @@
 
 import { User } from "firebase/auth";
 import { Card, CardContent } from "@/components/ui/card";
-import { Trophy, Sparkles, Award, CheckCircle2 } from "lucide-react";
+import { Trophy, Sparkles, Award } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -54,12 +54,37 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
         <h3 className="font-bold text-lg text-primary flex items-center gap-2 px-1"><Award className="w-5 h-5" />Mi Tarjeta de Sellos</h3>
         <Card className="border-none shadow-xl bg-[#FDFCF0] rounded-[2rem] overflow-hidden relative">
           <CardContent className="p-8">
+            {/* Barra de progreso */}
+            <div className="mb-6 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#C9A84C] uppercase tracking-widest">Progreso</span>
+                <span className="text-[11px] font-bold text-slate-500">
+                  <span className="text-[#C9A84C] text-sm font-black">{sellosEnTarjeta}</span>
+                  {" "}de 10 sellos
+                </span>
+              </div>
+              <div className="h-2.5 w-full bg-primary/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${(sellosEnTarjeta / 10) * 100}%`,
+                    background: "linear-gradient(90deg, #C9A84C, #D3B673)",
+                  }}
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-5 gap-4 mb-8">
               {Array.from({ length: 10 }).map((_, i) => (
                 <div key={i} className="aspect-square relative flex items-center justify-center">
-                  <div className={cn("w-full h-full rounded-full flex items-center justify-center", i < sellosEnTarjeta ? "bg-white shadow-inner" : "bg-primary/5 border-2 border-dashed border-primary/20")}>
-                    {i < sellosEnTarjeta ? <CheckCircle2 className="w-8 h-8 text-primary fill-primary/10" /> : <span className="text-[10px] font-bold text-primary/20">{i + 1}</span>}
-                  </div>
+                  <img
+                    src="/Logo2.png"
+                    alt={i < sellosEnTarjeta ? "Sello completado" : "Sello pendiente"}
+                    className="w-full h-full object-contain"
+                    style={i < sellosEnTarjeta
+                      ? { mixBlendMode: "multiply" }
+                      : { filter: "grayscale(100%) opacity(30%)", mixBlendMode: "multiply" }}
+                  />
                 </div>
               ))}
             </div>
@@ -75,7 +100,7 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
         <CardContent className="flex flex-col items-center py-8">
           <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Escanea esto en el local</p>
           <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
-            <QRCode value={user.uid} size={176} fgColor="#4EAD1F" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
+            <QRCode value={user.uid} size={176} fgColor="#000000" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
           </div>
         </CardContent>
       </Card>

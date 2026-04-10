@@ -5,8 +5,8 @@ export type Premio = { id: string; nombre: string; costo: number; icono: string;
 export type MapLocation = { id: string; name: string; x: number; y: number; };
 
 export const PATIO_INFO = {
-  name: "Outlet Curauma",
-  address: "Outlet Curauma. Av. Lomas de la Luz 4650, Curauma, Valparaíso.",
+  name: "Patio Curauma",
+  address: "Patio Curauma. Av. Lomas de la Luz 4650, Curauma, Valparaíso.",
   city: "Valparaíso",
   region: "V Región",
   phone: "+56 9 9969 0322",

@@ -95,7 +95,7 @@ function DetailContent() {
         </div>
         <h1 className="text-xl font-bold text-slate-800">Local no encontrado</h1>
         <Button onClick={() => router.push("/")} className="rounded-xl bg-primary">
-          Volver al Directorio
+          Volver a Descubre
         </Button>
       </div>
     );

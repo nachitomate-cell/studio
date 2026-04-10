@@ -140,7 +140,7 @@ function CanjeContent() {
               className="mt-4 w-full bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver al Directorio
+              Volver a Descubre
             </Button>
           </div>
         ) : null}

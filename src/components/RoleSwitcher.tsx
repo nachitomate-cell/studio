@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Shield } from "lucide-react";
 
-const ADMIN_EMAIL = 'ignaciiio.mate@gmail.com';
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 /**
  * Componente RoleSwitcher

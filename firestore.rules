@@ -4,9 +4,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CLUB PATIO CURAUMA - SECURITY RULES v2
-     * 
-     * Reglas optimizadas para evitar errores de snapshot listeners.
+     * CLUB PATIO CURAUMA - SECURITY RULES v3
+     * Reglas robustas con control de acceso por rol.
      */
 
     function isSignedIn() {
@@ -17,52 +16,89 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- Colección: Usuarios (Perfiles y Puntos) ---
+    // Leer rol del usuario autenticado sin recursividad en lista
+    function getUserData() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function isStaff() {
+      return isSignedIn() && getUserData().rol in ["moderador", "director_patio", "director", "admin"];
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getUserData().rol == "admin";
+    }
+
+    function isDirector() {
+      return isSignedIn() && getUserData().rol in ["director_patio", "director", "admin"];
+    }
+
+    // ── Usuarios ──────────────────────────────────────────────────────────────
     match /usuarios/{userId} {
-      // Simplificado para evitar recursividad pesada en reglas
-      allow get: if isOwner(userId) || isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isOwner(userId) || isSignedIn();
-      allow delete: if isSignedIn();
+      // Lectura: propio perfil o staff
+      allow get: if isOwner(userId) || isStaff();
+      // Lista: solo staff (moderador ve todos los usuarios)
+      allow list: if isStaff();
+      // Creación: solo el propio usuario en el momento de registro
+      allow create: if isOwner(userId);
+      // Actualización: el dueño o staff
+      allow update: if isOwner(userId) || isStaff();
+      // Borrado: solo staff
+      allow delete: if isStaff();
 
-      // Subcolección: Notificaciones Privadas
+      // Notificaciones privadas
       match /notificaciones/{notifId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) || isStaff();
         allow create: if isSignedIn();
-        allow update, delete: if isOwner(userId);
+        allow update, delete: if isOwner(userId) || isStaff();
       }
 
-      // Subcolección: Ventas Registradas (para Emprendedores)
+      // Registro de ventas del emprendedor
       match /ventas_registradas/{ventaId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId);
+        allow read: if isOwner(userId) || isStaff();
+        allow create: if isSignedIn();
+        allow update, delete: if isStaff();
       }
     }
 
-    // --- Colección: Perfiles de Emprendedores ---
-    // Sincronizado con EntrepreneurDetailView y VendedorPage
+    // ── Perfiles Emprendedores (directorio público) ───────────────────────────
     match /entrepreneur_profiles/{profileId} {
-      allow read: if true; // El directorio es público
-      allow write: if isSignedIn();
-    }
-
-    // --- Colección: Configuración de Premios ---
-    match /config_premios/{premioId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow create: if isOwner(profileId) || isStaff();
+      allow update: if isOwner(profileId) || isStaff();
+      allow delete: if isStaff();
     }
 
-    // --- Colección: Logs del Sistema ---
-    match /system_logs/{logId} {
-      allow create: if isSignedIn();
+    // ── Config Premios ─────────────────────────────────────────────────────────
+    match /config_premios/{premioId} {
       allow read: if isSignedIn();
+      allow create, update, delete: if isDirector();
     }
 
-    // --- Colección: Leads de Marketing ---
+    // ── Canjes Activos (vouchers generados) ────────────────────────────────────
+    match /canjes_activos/{canjeId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+      allow create: if isSignedIn();
+      // Solo staff puede marcar voucher como "usado"
+      allow update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // ── Logs del Sistema (inmutables) ──────────────────────────────────────────
+    match /system_logs/{logId} {
+      allow read: if isStaff();
+      allow create: if isSignedIn();
+      // Logs son inmutables: nadie puede modificar ni borrar
+      allow update, delete: if false;
+    }
+
+    // ── Leads de Marketing ─────────────────────────────────────────────────────
     match /leads_marketing/{leadId} {
-      allow create: if isSignedIn() && request.auth.uid == leadId;
-      allow read, update, delete: if isSignedIn() && request.auth.uid == leadId;
+      allow read: if isStaff();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
   }
 }

@@ -111,35 +111,73 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
   }
 }
 
-export async function canjearRecompensa(db: Firestore, userId: string, costo: number, userEmail?: string) {
+function generarCodigoVoucher(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let codigo = "CP-";
+  for (let i = 0; i < 8; i++) {
+    if (i === 4) codigo += "-";
+    codigo += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return codigo;
+}
+
+export async function canjearRecompensa(
+  db: Firestore,
+  userId: string,
+  costo: number,
+  premioNombre: string = "Premio",
+  userEmail?: string
+): Promise<{ codigoVoucher: string }> {
   const userRef = doc(db, "usuarios", userId);
-  
+
   try {
     const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) return;
+    if (!userSnap.exists()) throw new Error("Usuario no encontrado.");
 
     const data = userSnap.data();
-    if (data.baneado) return;
+    if (data.baneado) throw new Error("Usuario baneado.");
 
-    const nuevasCompras = (data.comprasRealizadas || 0) - costo;
+    const sellosActuales = data.comprasRealizadas || 0;
+    if (sellosActuales < costo) throw new Error("No tienes suficientes sellos.");
+
+    const nuevasCompras = sellosActuales - costo;
+    const timestamp = new Date().toISOString();
+    const codigoVoucher = generarCodigoVoucher();
+
+    // Guardar voucher en colección `canjes_activos`
+    await addDoc(collection(db, "canjes_activos"), {
+      userId,
+      usuarioNombre: data.nombre || data.correo,
+      premioNombre,
+      codigoVoucher,
+      costo,
+      estado: "pendiente",
+      fechaEmision: timestamp,
+      fechaExpiracion: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    });
 
     updateDoc(userRef, {
       comprasRealizadas: nuevasCompras,
       recompensaDisponible: nuevasCompras >= 5,
       totalCanjesHistoricos: increment(1),
-      lastCanjeAt: new Date().toISOString()
+      lastCanjeAt: timestamp,
     });
 
     await addDoc(collection(db, "system_logs"), {
       usuario: data.nombre || data.correo,
       usuarioId: userId,
-      accion: "canjeó un premio",
-      fecha: new Date().toISOString(),
-      tipo: "CANJE"
+      accion: `canjeó "${premioNombre}" (voucher: ${codigoVoucher})`,
+      fecha: timestamp,
+      tipo: "CANJE",
     });
 
-    await enviarNotificacionLocal(userId, "Canje Confirmado 🎫", `Has canjeado tu premio exitosamente. ¡Disfrútalo!`);
-    
+    await enviarNotificacionLocal(
+      userId,
+      "Canje Confirmado 🎫",
+      `Tu voucher para "${premioNombre}" es: ${codigoVoucher}. Válido por 7 días. ¡Muéstralo en caja!`
+    );
+
+    return { codigoVoucher };
   } catch (error) {
     console.error("Error al canjear recompensa:", error);
     throw error;

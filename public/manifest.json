@@ -6,7 +6,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#8dc63f",
+  "theme_color": "#D3B673",
   "icons": [
     {
       "src": "https://picsum.photos/seed/patio-icon/192/192",

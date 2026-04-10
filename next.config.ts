@@ -4,10 +4,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   // output: 'export', // Desactivado temporalmente para pruebas en desarrollo según solicitud
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   experimental: {
     // Configuración para permitir orígenes de desarrollo específicos

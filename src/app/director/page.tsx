@@ -26,7 +26,7 @@ import {
   Tooltip, ResponsiveContainer, Cell 
 } from 'recharts';
 
-const COLORS = ['#8dc63f', '#7fb339', '#71a033', '#638d2d'];
+const COLORS = ['#D3B673', '#9DCC65', '#6EBBD1', '#BFA05C'];
 
 export default function DirectorPage() {
   const router = useRouter();
@@ -51,7 +51,7 @@ export default function DirectorPage() {
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        if (user.email === "ignaciiio.mate@gmail.com") {
+        if (user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
           setIsAuthorized(true);
         } else {
           try {

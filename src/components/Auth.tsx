@@ -20,7 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles, Ban, User as UserIcon, Calendar, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const EMAIL_MASTER_ADMIN = 'ignaciiio.mate@gmail.com';
+const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 const EMAILS_EMPRENDEDORES = [
   'aliado@clubpatio.cl',
 ];

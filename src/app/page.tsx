@@ -185,6 +185,17 @@ export default function Home() {
                 Club <span className="text-primary">Patio</span>
               </h1>
               <p className="text-muted-foreground text-xs font-bold uppercase tracking-[0.2em]">Curauma • Fidelización</p>
+              {user && userData && (
+                <p className="text-xs font-medium text-slate-500 pt-1">
+                  Hola{" "}
+                  <span className="font-bold text-slate-700">{userData.nombre?.split(" ")[0] || "Club Member"}</span>
+                  {" · "}
+                  <span className="font-black text-[#C9A84C]">{userData.comprasRealizadas || 0}</span>
+                  {" sellos · "}
+                  <span className="font-black text-[#C9A84C]">{userData.ticketsSorteo || 0}</span>
+                  {" tickets"}
+                </p>
+              )}
             </header>
 
             {renderHero()}
@@ -211,9 +222,9 @@ export default function Home() {
                     onClick={() => setSelectedCategory(cat.id)}
                     className={cn(
                       "px-5 py-2 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border",
-                      selectedCategory === cat.id 
-                        ? "bg-primary text-white border-transparent shadow-md" 
-                        : "bg-white text-foreground border-slate-100 hover:border-primary/30"
+                      selectedCategory === cat.id
+                        ? "bg-primary text-white border-transparent shadow-md"
+                        : "bg-white text-[#444444] border-[#cccccc] hover:border-primary/50 hover:text-primary"
                     )}
                   >
                     {cat.name}
@@ -228,7 +239,7 @@ export default function Home() {
 
             <section className="space-y-6 px-6 pt-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h2 className="text-lg font-black text-foreground">Directorio</h2>
+                <h2 className="text-lg font-black text-foreground">Descubre</h2>
                 <Badge variant="outline" className="rounded-md border-slate-100 font-bold text-[10px]">
                   {filteredEntrepreneurs.length} Locales
                 </Badge>
@@ -240,9 +251,15 @@ export default function Home() {
                     <div key={i} className="aspect-square bg-slate-100 animate-pulse rounded-2xl" />
                   ))
                 ) : filteredEntrepreneurs.length > 0 ? (
-                  filteredEntrepreneurs.map((entrepreneur) => (
-                    <EntrepreneurCard key={entrepreneur.id} entrepreneur={entrepreneur} />
-                  ))
+                  filteredEntrepreneurs.map((entrepreneur, index) => {
+                    const isLast = index === filteredEntrepreneurs.length - 1;
+                    const isOdd = filteredEntrepreneurs.length % 2 !== 0;
+                    return (
+                      <div key={entrepreneur.id} className={cn(isLast && isOdd ? "col-span-2" : "")}>
+                        <EntrepreneurCard entrepreneur={entrepreneur} fullWidth={isLast && isOdd} />
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="col-span-full py-12 text-center text-muted-foreground text-xs italic">
                     No se encontraron resultados en el directorio.
@@ -252,7 +269,7 @@ export default function Home() {
             </section>
 
             <section className="px-6 py-12 text-center space-y-4 bg-slate-50 mt-10">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Síguenos y entérate de todo</p>
+              <p className="text-[10px] font-medium text-slate-400 tracking-[0.15em]">Síguenos y entérate de todo</p>
               <div className="flex justify-center gap-6">
                 <button onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')} className="text-pink-600 hover:scale-110 transition-transform">
                   <Instagram className="w-6 h-6" />

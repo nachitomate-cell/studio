@@ -5,36 +5,43 @@
 
 @layer base {
   :root {
-    /* Color oficial: #8dc63f (HSL 86 54% 51%) */
-    --primary: 86 54% 51%;
+    /* ═══ Paleta Patio Curauma ═══ */
+    /* Primary: Ocre Solar #D3B673 (Botones principales, CTAs, Headers) */
+    --primary: 42 52% 64%;
     --primary-foreground: 0 0% 100%;
-    
-    /* Fondo Blanco Minimalista */
+
+    /* Secondary: Verde Vegetal #9DCC65 (Éxito, highlights) */
+    --secondary: 87 50% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Accent: Azul Agua #6EBBD1 (Badges, links, detalles) */
+    --accent: 193 52% 63%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Fondo General: Blanco Puro #FFFFFF */
     --background: 0 0% 100%;
-    --foreground: 0 0% 15%;
-    
-    --accent: 86 54% 90%;
-    --accent-foreground: 86 54% 20%;
-    
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 15%;
-    
+    /* Texto Principal: #4A4A4A */
+    --foreground: 0 0% 29%;
+
+    /* Cards / Contenedores: #F8F9FA */
+    --card: 210 17% 98%;
+    --card-foreground: 0 0% 29%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
-    
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 20%;
-    
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
-    
+    --popover-foreground: 0 0% 29%;
+
+    /* Muted / Texto Secundario: #8E8E8E */
+    --muted: 210 17% 98%;
+    --muted-foreground: 0 0% 56%;
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 86 54% 51%;
-    
+
+    /* Bordes: #E0E0E0 */
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 42 52% 64%;
+
     --radius: 0.5rem;
   }
 }

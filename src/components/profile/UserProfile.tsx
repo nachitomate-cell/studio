@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
+import { registerFcmToken } from "@/lib/fcmTokenManager";
 import { verificarYGenerarRecordatorioIA, procesarProximidadGeofence } from "@/lib/ai-actions";
 import {
   AlertDialog,
@@ -54,21 +55,72 @@ const AVATAR_OPTIONS = [
   { id: 'Star', icon: Star, color: 'bg-purple-100 text-purple-600' },
 ];
 
-function SwipeableNotification({ notif, onDelete }: { notif: any, onDelete: (id: string) => void }) {
+function NotifDetailModal({ notif, onClose }: { notif: any; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-lg bg-white rounded-t-[2rem] p-8 space-y-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+        style={{ maxHeight: "85vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Pastilla superior */}
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto -mt-2" />
+
+        {/* Cabecera */}
+        <div className="flex items-start justify-between gap-4">
+          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", notif.isAI ? "bg-primary text-white" : "bg-slate-100 text-slate-500")}>
+            {notif.isAI ? <Sparkles className="w-6 h-6" /> : <Bell className="w-6 h-6" />}
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Título y fecha */}
+        <div className="space-y-1">
+          <h2 className="text-xl font-black text-slate-800 leading-snug">{notif.titulo}</h2>
+          <p className="text-[11px] font-bold text-[#C9A84C] uppercase tracking-widest">
+            {new Date(notif.fecha).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}
+          </p>
+        </div>
+
+        {/* Cuerpo */}
+        <p className="text-base text-slate-600 leading-relaxed">{notif.mensaje}</p>
+
+        {/* Botón cerrar */}
+        <button
+          onClick={onClose}
+          className="w-full h-12 rounded-2xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SwipeableNotification({ notif, onDelete, onOpen }: { notif: any; onDelete: (id: string) => void; onOpen: (notif: any) => void }) {
   const [startX, setStartX] = useState(0);
   const [offsetX, setOffsetX] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
 
   const handleTouchStart = (e: any) => {
     setStartX(e.touches[0].clientX);
+    setIsSwiping(false);
   };
-  
+
   const handleTouchMove = (e: any) => {
     const diff = e.touches[0].clientX - startX;
     if (diff < 0) {
-       setOffsetX(Math.max(diff, -100));
+      setIsSwiping(true);
+      setOffsetX(Math.max(diff, -100));
     }
   };
-  
+
   const handleTouchEnd = () => {
     if (offsetX < -60) {
       setOffsetX(-150);
@@ -78,18 +130,23 @@ function SwipeableNotification({ notif, onDelete }: { notif: any, onDelete: (id:
     }
   };
 
+  const handleClick = () => {
+    if (!isSwiping) onOpen(notif);
+  };
+
   return (
     <div className="relative overflow-hidden rounded-2xl">
        <div className="absolute inset-0 bg-red-500 flex items-center justify-end pr-6 rounded-2xl">
           <Trash2 className="text-white w-6 h-6 animate-pulse" />
        </div>
-       
-       <div 
-          className="relative transition-transform duration-200" 
+
+       <div
+          className="relative transition-transform duration-200 cursor-pointer"
           style={{ transform: `translateX(${offsetX}px)` }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onClick={handleClick}
        >
           <Card className={cn("border-none shadow-sm rounded-2xl overflow-hidden transition-all", notif.isAI ? "bg-gradient-to-br from-white to-primary/5 border-l-4 border-l-primary" : "bg-white")}>
             <CardContent className="p-4 flex gap-4">
@@ -101,7 +158,7 @@ function SwipeableNotification({ notif, onDelete }: { notif: any, onDelete: (id:
                   <h4 className="text-sm font-bold text-slate-800">{notif.titulo}</h4>
                   <span className="text-[8px] text-slate-400 uppercase font-bold">{new Date(notif.fecha).toLocaleDateString()}</span>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{notif.mensaje}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{notif.mensaje}</p>
               </div>
             </CardContent>
           </Card>
@@ -121,6 +178,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
+  const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const { toast } = useToast();
 
@@ -225,13 +283,13 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       return;
     }
 
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
+    const token = await registerFcmToken();
+    if (token) {
       setPushEnabled(true);
       toast({ title: "¡Alertas activadas!", description: "Recibirás notificaciones en tu celular." });
       dispararAlertaSistema("¡Club Patio activado!", "Gracias por habilitar las alertas.");
     } else {
-      toast({ variant: "destructive", title: "Permiso denegado", description: "Habilita las notificaciones en ajustes." });
+      toast({ variant: "destructive", title: "Permiso denegado", description: "Habilita las notificaciones en ajustes del navegador." });
     }
   };
 
@@ -598,10 +656,13 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                 </Button>
               )}
             </div>
+            {selectedNotif && (
+              <NotifDetailModal notif={selectedNotif} onClose={() => setSelectedNotif(null)} />
+            )}
             <div className="space-y-3">
               {notificaciones.length > 0 ? (
                 notificaciones.map((notif) => (
-                  <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} />
+                  <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
                 ))
               ) : (
                 <div className="bg-slate-50 p-8 rounded-3xl text-center space-y-2 border-2 border-dashed border-slate-200">
@@ -616,7 +677,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             <CardContent className="flex flex-col items-center py-8">
               <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Muestra tu QR en caja para obtener sellos</p>
               <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
-                <QRCode value={user.uid} size={176} fgColor="#4EAD1F" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
+                <QRCode value={user.uid} size={176} fgColor="#000000" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
               </div>
             </CardContent>
           </Card>
@@ -636,7 +697,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         <Separator className="bg-slate-100" />
         <div className="text-center">
           <Button onClick={handleLogout} variant="ghost" className="text-destructive font-bold text-xs gap-2"><LogOut className="w-4 h-4" /> Cerrar Sesión del Club</Button>
-          <p className="text-[10px] text-muted-foreground font-medium uppercase mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
+          <p className="text-[10px] text-slate-400 font-light mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
         </div>
       </section>
     </div>
