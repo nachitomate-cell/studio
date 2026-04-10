@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
 
 export default function UnetePage() {

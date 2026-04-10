@@ -51,7 +51,7 @@ export default function DirectorPage() {
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        if (user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+        if (user.email === (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com")) {
           setIsAuthorized(true);
         } else {
           try {
