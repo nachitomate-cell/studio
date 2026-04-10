@@ -17,10 +17,11 @@ export function NotificationSystem() {
   const [mountTime] = useState(new Date().toISOString());
 
   useEffect(() => {
-    // Registro del Service Worker para soporte PWA en iOS/Android
+    // Registrar el SW de Firebase Messaging como SW principal.
+    // Es el único SW para el scope raíz — evita conflicto con sw.js en iOS.
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log("SW registrado con éxito:", reg.scope))
+      navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })
+        .then(reg => console.log("SW Firebase registrado:", reg.scope))
         .catch(err => console.warn("Fallo al registrar SW:", err));
     }
 

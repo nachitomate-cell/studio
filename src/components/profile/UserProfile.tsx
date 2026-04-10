@@ -288,8 +288,13 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       setPushEnabled(true);
       toast({ title: "¡Alertas activadas!", description: "Recibirás notificaciones en tu celular." });
       dispararAlertaSistema("¡Club Patio activado!", "Gracias por habilitar las alertas.");
+    } else if (Notification.permission === "denied") {
+      toast({ variant: "destructive", title: "Permiso denegado", description: "Ve a Ajustes → Safari → Notificaciones y habilita Club Patio." });
+    } else if (Notification.permission === "granted") {
+      // Permiso OK pero fallo técnico (VAPID key no configurada en producción)
+      toast({ variant: "destructive", title: "Error de configuración", description: "Notificaciones no disponibles aún. Intenta más tarde." });
     } else {
-      toast({ variant: "destructive", title: "Permiso denegado", description: "Habilita las notificaciones en ajustes del navegador." });
+      toast({ variant: "destructive", title: "No disponible", description: "Instala la app en tu pantalla de inicio para activar notificaciones." });
     }
   };
 
