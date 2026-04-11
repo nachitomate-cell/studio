@@ -268,16 +268,37 @@ function CanjeContent() {
     };
   }, [phase]);
 
-  // ── onSnapshot sobre el pending_stamp ────────────────────────────────────
+  // ── onSnapshot + polling de respaldo + reconexión al volver del background ──
   useEffect(() => {
     if (!pendingId) return;
-    const ref = doc(db, "pending_stamps", pendingId);
-    const unsub = onSnapshot(ref, (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data();
 
-      if (data.status === "confirmed") {
-        // Guardar cooldown en localStorage para chequeo rápido en próximo escaneo
+    let confirmed = false; // flag para evitar doble disparo
+    let unsub: (() => void) | undefined;
+    let pollingInterval: ReturnType<typeof setInterval> | undefined;
+
+    // Declarar con let para que handleSnap pueda referenciarla antes de la asignación
+    // eslint-disable-next-line prefer-const
+    let handleVisibility: () => void;
+
+    // Cerrar todos los mecanismos de escucha
+    const cleanup = () => {
+      unsub?.();
+      clearInterval(pollingInterval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+
+    // Procesar snapshot (compartido entre onSnapshot y polling)
+    const handleSnap = (snap: { exists: () => boolean; data: () => any }) => {
+      if (confirmed || !snap.exists()) return;
+      const data = snap.data();
+      const status: string | undefined = data?.status;
+
+      console.log("[Celebración] Status recibido:", status);
+
+      if (status === "confirmed") {
+        confirmed = true;
+        cleanup();
+        // Guardar cooldown en localStorage
         const currentUser = auth.currentUser;
         if (currentUser && data.vendorId) {
           localStorage.setItem(
@@ -291,20 +312,65 @@ function CanjeContent() {
           newTotalSellos: data.nuevoTotal ?? 1,
           userDisplayName: data.userName ?? "",
         });
+        console.log("[Celebración] ¡Mostrando celebración!");
         setPhase("confirmed");
-      } else if (data.status === "expired") {
+      } else if (status === "expired") {
+        confirmed = true;
+        cleanup();
         pendingIdRef.current = null;
         setPendingId(null);
         setPhase("expired");
         setErrorMsg("La solicitud expiró. El vendedor no respondió a tiempo.");
-      } else if (data.status === "rejected") {
+      } else if (status === "rejected") {
+        confirmed = true;
+        cleanup();
         pendingIdRef.current = null;
         setPendingId(null);
         setPhase("rejected");
         setErrorMsg("El vendedor no pudo confirmar tu compra. Habla con él directamente.");
       }
-    });
-    return () => unsub();
+    };
+
+    // Suscribir onSnapshot (con reconexión automática si falla)
+    const subscribe = () => {
+      unsub?.(); // limpiar suscripción anterior si existe
+      console.log("[Celebración] Conectando onSnapshot para:", pendingId);
+      const ref = doc(db, "pending_stamps", pendingId);
+      unsub = onSnapshot(
+        ref,
+        (snap) => handleSnap(snap),
+        (error) => {
+          console.error("[Celebración] onSnapshot error:", error);
+          // Reintentar en 2 segundos si aún no confirmado
+          setTimeout(() => { if (!confirmed) subscribe(); }, 2000);
+        }
+      );
+    };
+
+    subscribe();
+
+    // Polling de respaldo cada 3 segundos — captura lo que onSnapshot pierda
+    pollingInterval = setInterval(async () => {
+      if (confirmed) return;
+      try {
+        console.log("[Polling] Verificando status de:", pendingId);
+        const snap = await getDoc(doc(db, "pending_stamps", pendingId));
+        handleSnap(snap);
+      } catch (e) {
+        console.error("[Polling] Error:", e);
+      }
+    }, 3000);
+
+    // Reconectar cuando la PWA vuelve al primer plano (iOS/Android suspende el WS)
+    handleVisibility = () => {
+      if (document.visibilityState === "visible" && !confirmed) {
+        console.log("[Celebración] App volvió al frente — reconectando onSnapshot...");
+        subscribe();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => cleanup();
   }, [pendingId]);
 
   // ── Arrancar flujo al conocer el usuario ─────────────────────────────────
