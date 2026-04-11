@@ -37,6 +37,8 @@ export default function DirectorPage() {
   const [premios, setPremios] = useState<any[]>([]);
   const [mensajeGlobal, setMensajeGlobal] = useState({ titulo: "", cuerpo: "" });
 
+  const [vendorToDelete, setVendorToDelete] = useState<{ id: string; nombre: string } | null>(null);
+  const [deletingVendor, setDeletingVendor] = useState(false);
   const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
   const [premioForm, setPremioForm] = useState<{ id: string | null; nombre: string; sellos_requeridos: number; icono: string; esSorteo: boolean }>({ id: null, nombre: '', sellos_requeridos: 5, icono: 'Gift', esSorteo: false });
 
@@ -239,6 +241,27 @@ export default function DirectorPage() {
     }
   };
 
+  const handleDeleteVendor = async () => {
+    if (!vendorToDelete || !auth.currentUser) return;
+    setDeletingVendor(true);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/delete-vendor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendorId: vendorToDelete.id, idToken }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      toast({ title: "Local eliminado correctamente" });
+      setVendorToDelete(null);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo eliminar el local." });
+    } finally {
+      setDeletingVendor(false);
+    }
+  };
+
   const handleDeletePremio = async (id: string) => {
     if (confirm("¿Estás seguro de eliminar este premio?")) {
       await deleteDoc(doc(db, "config_premios", id));
@@ -284,10 +307,10 @@ export default function DirectorPage() {
           <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
             <CardContent className="p-2">
               {ranking.length > 0 ? (
-                ranking.slice(0, 3).map((emp, i) => (
-                  <div key={emp.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors rounded-2xl">
+                ranking.slice(0, 5).map((emp, i) => (
+                  <div key={emp.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors rounded-2xl group">
                     <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-yellow-400 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-yellow-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : 'bg-slate-100 text-slate-400'}`}>
                         {i + 1}
                       </div>
                       <div>
@@ -295,9 +318,18 @@ export default function DirectorPage() {
                         <p className="text-[10px] text-slate-400 uppercase font-black">{emp.rubro || "General"}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-primary">{emp.sellosEntregados || 0}</p>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase">Sellos Mes</p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-black text-primary">{emp.sellosEntregados || 0}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase">Sellos Mes</p>
+                      </div>
+                      <button
+                        onClick={() => setVendorToDelete({ id: emp.id, nombre: emp.nombreTienda || emp.nombre || "Local Aliado" })}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50"
+                        title="Eliminar local"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))
@@ -410,6 +442,47 @@ export default function DirectorPage() {
         </Card>
 
       </div>
+
+      {/* MODAL ELIMINAR EMPRENDEDOR */}
+      {vendorToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm rounded-[2rem] border-none shadow-2xl animate-in zoom-in-95 duration-300">
+            <CardContent className="p-8 space-y-6">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-7 h-7 text-red-500" />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-lg font-black text-slate-800">¿Eliminar local?</h2>
+                  <p className="text-sm font-bold text-primary">"{vendorToDelete.nombre}"</p>
+                  <p className="text-xs text-slate-500 leading-relaxed pt-1">
+                    Se eliminarán su perfil, cuenta y solicitudes pendientes.
+                    <br />Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setVendorToDelete(null)}
+                  disabled={deletingVendor}
+                  className="flex-1 h-12 rounded-xl font-bold border-slate-200"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleDeleteVendor}
+                  disabled={deletingVendor}
+                  className="flex-1 h-12 rounded-xl font-black bg-red-500 hover:bg-red-600 text-white gap-2"
+                >
+                  {deletingVendor ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  Eliminar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* MODAL CONFIGURACION DE PREMIOS */}
       {isPremioModalOpen && (
