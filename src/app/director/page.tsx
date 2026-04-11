@@ -40,13 +40,13 @@ export default function DirectorPage() {
   const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
   const [premioForm, setPremioForm] = useState<{ id: string | null; nombre: string; sellos_requeridos: number; icono: string; esSorteo: boolean }>({ id: null, nombre: '', sellos_requeridos: 5, icono: 'Gift', esSorteo: false });
 
-  // Datos para el gráfico de barras (simulados para el dashboard)
   const [chartData, setChartData] = useState([
-    { name: 'Sem 1', sellos: 450 },
-    { name: 'Sem 2', sellos: 520 },
-    { name: 'Sem 3', sellos: 380 },
-    { name: 'Sem 4', sellos: 610 },
+    { name: 'Sem 1', sellos: 0 },
+    { name: 'Sem 2', sellos: 0 },
+    { name: 'Sem 3', sellos: 0 },
+    { name: 'Sem 4', sellos: 0 },
   ]);
+  const [mesLabel, setMesLabel] = useState("");
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
@@ -78,21 +78,88 @@ export default function DirectorPage() {
   useEffect(() => {
     if (!isAuthorized) return;
 
-    // 1. Cargar Ranking de Emprendedores (Simulamos por actividad de ventas registradas)
-    const fetchRanking = async () => {
-      const q = query(collection(db, "usuarios"), where("rol", "==", "emprendedor"));
-      const snap = await getDocs(q);
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-      setRanking(data.sort((a, b) => (b.sellosEntregados || 0) - (a.sellosEntregados || 0)));
-    };
+    const now = new Date();
+    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // 2. Escuchar Premios en Tiempo Real
-    const unsubscribePremios = onSnapshot(collection(db, "config_premios"), (snap) => {
+    // Label dinámico del mes actual
+    setMesLabel(
+      now.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }).toUpperCase()
+    );
+
+    // Semanas del mes para el gráfico
+    const SEMANAS = [
+      { name: 'Sem 1', start: 1, end: 7 },
+      { name: 'Sem 2', start: 8, end: 14 },
+      { name: 'Sem 3', start: 15, end: 21 },
+      { name: 'Sem 4', start: 22, end: 31 },
+    ];
+
+    // Listener en tiempo real a system_logs desde el inicio del mes
+    const logsQ = query(
+      collection(db, "system_logs"),
+      where("fecha", ">=", inicioMes.toISOString())
+    );
+
+    const unsubLogs = onSnapshot(logsQ, async (logsSnap) => {
+      // Solo sellos confirmados por handshake
+      const handshakeLogs = logsSnap.docs
+        .map(d => d.data())
+        .filter(d => d.tipo === "FIDELIZACION");
+
+      // ── Gráfico semanal ──────────────────────────────────────────────
+      setChartData(
+        SEMANAS.map(sem => ({
+          name: sem.name,
+          sellos: handshakeLogs.filter(log => {
+            const day = new Date(log.fecha).getDate();
+            return day >= sem.start && day <= sem.end;
+          }).length
+        }))
+      );
+
+      // ── Ranking por vendedor ─────────────────────────────────────────
+      const countByVendor: Record<string, number> = {};
+      handshakeLogs.forEach(log => {
+        if (log.vendedorId) {
+          countByVendor[log.vendedorId] = (countByVendor[log.vendedorId] || 0) + 1;
+        }
+      });
+
+      // Obtener nombres de los emprendedores
+      try {
+        const empSnap = await getDocs(
+          query(collection(db, "usuarios"), where("rol", "==", "emprendedor"))
+        );
+        const rankingData = empSnap.docs
+          .map(d => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              nombreTienda: data.nombreTienda || data.nombre || "Local Aliado",
+              rubro: data.rubro || "General",
+              sellosEntregados: countByVendor[d.id] || 0
+            };
+          })
+          .sort((a, b) => b.sellosEntregados - a.sellosEntregados);
+        setRanking(rankingData);
+      } catch {
+        // Si falla la lectura de usuarios, mostrar solo los que tienen logs
+        const fallback = Object.entries(countByVendor)
+          .map(([id, count]) => ({ id, nombreTienda: id.substring(0, 8), rubro: "General", sellosEntregados: count }))
+          .sort((a, b) => b.sellosEntregados - a.sellosEntregados);
+        setRanking(fallback);
+      }
+    });
+
+    // Escuchar premios en tiempo real
+    const unsubPremios = onSnapshot(collection(db, "config_premios"), (snap) => {
       setPremios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    fetchRanking();
-    return () => unsubscribePremios();
+    return () => {
+      unsubLogs();
+      unsubPremios();
+    };
   }, [isAuthorized]);
 
   const handleSendGlobalMessage = async () => {
@@ -212,7 +279,7 @@ export default function DirectorPage() {
             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Trophy className="w-4 h-4 text-yellow-500" /> Ranking de Locales
             </h2>
-            <Badge className="bg-primary/10 text-primary border-none text-[9px]">MARZO 2024</Badge>
+            <Badge className="bg-primary/10 text-primary border-none text-[9px]">{mesLabel}</Badge>
           </div>
           <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
             <CardContent className="p-2">

@@ -54,7 +54,7 @@ export default function RootLayout({
         
         {/* Header fijo con logo optimizado y manejo de safe area superior */}
         <header className="bg-white/95 backdrop-blur-sm shadow-sm py-3 flex flex-col items-center justify-center w-full sticky top-0 z-50 pt-safe border-b border-slate-100">
-          <img src="/Logo3.png" alt="Patio" className="h-10 object-contain" />
+          <img src="/Logo2.png" alt="Patio" className="h-10 object-contain" />
           <span style={{ fontSize: "10px", letterSpacing: "2px", color: "#666", fontWeight: 600, marginTop: "2px" }}>PATIO CURAUMA</span>
         </header>
 
