@@ -1,10 +1,18 @@
 import type {Metadata, Viewport} from 'next';
+import { Montserrat } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
 import { NotificationSystem } from "@/components/NotificationSystem";
 import { SplashScreen } from "@/components/ui/SplashScreen";
+
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-montserrat',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Club Patio',
@@ -32,11 +40,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="h-full">
+    <html lang="es" className={`h-full ${montserrat.variable}`}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96x96.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72x72.png" />
@@ -46,7 +54,7 @@ export default function RootLayout({
         
         {/* Header fijo con logo optimizado y manejo de safe area superior */}
         <header className="bg-white/95 backdrop-blur-sm shadow-sm py-3 flex flex-col items-center justify-center w-full sticky top-0 z-50 pt-safe border-b border-slate-100">
-          <img src="/Logo.png" alt="Patio" className="h-10 object-contain" />
+          <img src="/Logo3.png" alt="Patio" className="h-10 object-contain" />
           <span style={{ fontSize: "10px", letterSpacing: "2px", color: "#666", fontWeight: 600, marginTop: "2px" }}>PATIO CURAUMA</span>
         </header>
 

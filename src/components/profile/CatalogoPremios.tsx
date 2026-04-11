@@ -197,7 +197,9 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
             const costo = premio.sellos_requeridos || 0;
             const puedeCanjear = comprasActuales >= costo;
             
-            const vendorName = premio.vendorId ? vendorNames[premio.vendorId] : null;
+            const vendorName = premio.vendorId
+              ? (vendorNames[premio.vendorId] || "Patio Curauma")
+              : "Patio Curauma";
 
             return (
               <Card
@@ -215,11 +217,9 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
                     <p className={`font-bold text-sm leading-tight ${premio.esSorteo ? 'text-yellow-700' : 'text-slate-800'}`}>
                       {premio.nombre}
                     </p>
-                    {vendorName && (
-                      <p style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "2px" }} className="truncate">
-                        {vendorName}
-                      </p>
-                    )}
+                    <p style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "2px" }} className="truncate">
+                      {vendorName}
+                    </p>
                     <p style={{ fontSize: "11px", color: "#9B9B9B", marginTop: "2px" }}>
                       Valor: {costo} sellos
                     </p>

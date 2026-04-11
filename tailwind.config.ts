@@ -11,7 +11,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Inter', 'PT Sans', 'sans-serif'],
+        body: ['Montserrat', 'sans-serif'],
         headline: ['Playfair Display', 'Georgia', 'serif'],
         code: ['monospace'],
       },

@@ -35,15 +35,15 @@ export function SplashScreen() {
     >
       <div className="flex flex-col items-center animate-in zoom-in-95 duration-1000 ease-out">
         <img 
-          src="/Logo.png" 
+          src="/Logo3.png"
           alt="Patio Curauma" 
           className="w-56 object-contain drop-shadow-md" 
         />
         {/* Indicador de carga sutil */}
-        <div className="mt-12 flex gap-2">
-          <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="mt-12 flex gap-2 items-center">
+          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#CCCCCC", transition: "all 0.3s ease", flexShrink: 0 }} />
+          <div style={{ width: "24px", height: "8px", borderRadius: "4px", background: "#C9920A", transition: "all 0.3s ease", flexShrink: 0 }} />
+          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#CCCCCC", transition: "all 0.3s ease", flexShrink: 0 }} />
         </div>
       </div>
     </div>

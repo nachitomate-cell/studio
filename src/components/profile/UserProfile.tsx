@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
 import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -345,6 +344,17 @@ function SwipeableNotification({ notif, onDelete, onOpen }: { notif: any; onDele
   );
 }
 
+const getInitials = (name: string | undefined) => {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .map((word: string) => word[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+};
+
 interface UserProfileProps {
   onSwitchMode: () => void;
   onShowAuth: () => void;
@@ -580,12 +590,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     await signOut(auth);
   };
 
-  const renderAvatarIcon = (avatarId: string, className: string = "w-12 h-12") => {
-    const option = AVATAR_OPTIONS.find(opt => opt.id === avatarId) || AVATAR_OPTIONS[0];
-    const IconComponent = option.icon;
-    return <IconComponent className={cn(className, option.color.split(' ')[1])} />;
-  };
-
   if (!user) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
@@ -617,14 +621,38 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className={cn("h-24 bg-gradient-to-r", isEntrepreneur ? "from-accent/30 to-primary/20" : isDirector ? "from-indigo-100 to-primary/20" : "from-primary/20 to-accent/20")} />
-        <div className="px-6 pb-6 -mt-12">
+        <div
+          className="h-[120px]"
+          style={{
+            background: isEntrepreneur
+              ? "linear-gradient(135deg, rgba(91,184,212,0.3) 0%, rgba(201,146,10,0.2) 100%)"
+              : isDirector
+                ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.2) 100%)"
+                : "linear-gradient(135deg, #E8F4F8 0%, #D4EDD4 50%, #FFF8E8 100%)"
+          }}
+        />
+        <div className="px-6 pb-6 -mt-10">
           <div className="flex justify-between items-end mb-4">
-            <Avatar className="w-24 h-24 border-4 border-white shadow-md bg-white">
-              <AvatarFallback className="flex items-center justify-center bg-white">
-                {renderAvatarIcon(isEditing ? editForm.avatarId : (userData?.avatarId || 'User'), "w-10 h-10")}
-              </AvatarFallback>
-            </Avatar>
+            <div
+              style={{
+                width: "80px",
+                height: "80px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #C9920A, #8DC63F)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "28px",
+                fontWeight: 700,
+                color: "white",
+                fontFamily: "'Montserrat', sans-serif",
+                border: "4px solid white",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                flexShrink: 0,
+              }}
+            >
+              {getInitials(userData?.nombre)}
+            </div>
             {!isEditing ? (
               <Button variant="outline" size="sm" className="rounded-full border-primary/20 text-primary" onClick={() => setIsEditing(true)}>
                 <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Editar
@@ -913,7 +941,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
         <Separator className="bg-slate-100" />
         <div className="text-center">
-          <Button onClick={handleLogout} variant="ghost" className="text-destructive font-bold text-xs gap-2"><LogOut className="w-4 h-4" /> Cerrar Sesión del Club</Button>
+          <Button onClick={handleLogout} variant="ghost" className="font-bold text-xs gap-2" style={{ color: "#666666" }}><LogOut className="w-4 h-4" /> Cerrar Sesión del Club</Button>
           <p className="text-[10px] text-slate-400 font-light mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
         </div>
       </section>

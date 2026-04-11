@@ -168,9 +168,9 @@ export default function Home() {
       position: "relative",
     }}>
       <img
-        src="/Logo.png"
+        src="/Logo3.png"
         alt="Patio Curauma"
-        style={{ width: 150, height: "auto", marginBottom: 16, filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
+        style={{ width: 110, height: "auto", marginBottom: 16, filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
       />
       <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: 32, fontWeight: 700, color: "white", margin: "0 0 8px 0" }}>
         Club Patio <span style={{ color: "#FFD700" }}>Curauma</span>
@@ -198,7 +198,7 @@ export default function Home() {
 
             {/* Saludo personalizado */}
             {user && userData && (
-              <div className="px-6" style={{ marginTop: "20px", marginBottom: "12px" }}>
+              <div className="px-6" style={{ marginTop: "24px", marginBottom: "12px" }}>
                 <p className="text-sm font-medium text-slate-600">
                   Hola,{" "}
                   <span className="font-bold text-slate-800">{userData.nombre?.split(" ")[0] || "Club Member"}</span>
@@ -212,9 +212,9 @@ export default function Home() {
             )}
 
             {/* Banner de ubicación */}
-            <div className="mx-6 flex items-center gap-2 rounded-2xl px-4 py-3" style={{ background: "#F0F9FF", border: "1px solid rgba(91,184,212,0.25)" }}>
+            <div className="mx-6 flex items-center gap-2" style={{ background: "#F0F9FF", border: "1px solid rgba(91,184,212,0.3)", borderRadius: "12px", padding: "8px 14px", boxShadow: "none" }}>
               <MapPin className="w-4 h-4 shrink-0" style={{ color: "#5BB8D4" }} />
-              <p className="text-xs font-bold" style={{ color: "#2C6B8A" }}>Av. Lomas de la Luz 4650, Curauma, Valparaíso</p>
+              <p className="font-bold" style={{ color: "#2C6B8A", fontSize: "13px" }}>Av. Lomas de la Luz 4650, Curauma, Valparaíso</p>
             </div>
 
 
@@ -238,11 +238,12 @@ export default function Home() {
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
                     className={cn(
-                      "px-5 py-2 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border",
+                      "px-5 py-2 rounded-full text-[10px] font-bold whitespace-nowrap transition-all",
                       selectedCategory === cat.id
-                        ? "bg-primary text-white border-transparent shadow-md"
-                        : "bg-white text-[#444444] border-[#cccccc] hover:border-primary/50 hover:text-primary"
+                        ? "bg-primary text-white border-transparent shadow-md border"
+                        : "text-[#333333] hover:border-primary/50 hover:text-primary"
                     )}
+                    style={selectedCategory !== cat.id ? { background: "#F5F5F5", border: "1.5px solid #BBBBBB" } : {}}
                   >
                     {cat.name}
                   </button>
@@ -315,7 +316,7 @@ export default function Home() {
             </section>
 
             <section className="px-6 py-12 text-center space-y-4 bg-slate-50 mt-10">
-              <p className="text-[10px] font-medium text-slate-400 tracking-[0.15em]">Síguenos y entérate de todo</p>
+              <p style={{ fontSize: '12px', color: '#999999', letterSpacing: '2px', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px' }}>Síguenos</p>
               <div className="flex justify-center gap-6">
                 <button onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')} className="text-pink-600 hover:scale-110 transition-transform">
                   <Instagram className="w-6 h-6" />
