@@ -1,48 +1,56 @@
 
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&family=PT+Sans:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* ═══ Paleta Patio Curauma ═══ */
-    /* Primary: Ocre Solar #D3B673 (Botones principales, CTAs, Headers) */
-    --primary: 42 52% 64%;
+    /* ═══ Paleta Patio Curauma — identidad real del logo ═══ */
+
+    /* Primary: Dorado Solar #C9920A */
+    --primary: 43 91% 41%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary: Verde Vegetal #9DCC65 (Éxito, highlights) */
-    --secondary: 87 50% 60%;
+    /* Secondary: Verde Montaña #8DC63F */
+    --secondary: 85 54% 51%;
     --secondary-foreground: 0 0% 100%;
 
-    /* Accent: Azul Agua #6EBBD1 (Badges, links, detalles) */
-    --accent: 193 52% 63%;
+    /* Accent: Azul Agua #5BB8D4 */
+    --accent: 194 58% 59%;
     --accent-foreground: 0 0% 100%;
 
-    /* Fondo General: Blanco Puro #FFFFFF */
+    /* Backgrounds */
     --background: 0 0% 100%;
-    /* Texto Principal: #4A4A4A */
-    --foreground: 0 0% 29%;
-
-    /* Cards / Contenedores: #F8F9FA */
-    --card: 210 17% 98%;
-    --card-foreground: 0 0% 29%;
-
+    --foreground: 0 0% 17%;
+    --card: 60 25% 98%;
+    --card-foreground: 0 0% 17%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 29%;
+    --popover-foreground: 0 0% 17%;
 
-    /* Muted / Texto Secundario: #8E8E8E */
-    --muted: 210 17% 98%;
-    --muted-foreground: 0 0% 56%;
+    /* Muted */
+    --muted: 60 20% 96%;
+    --muted-foreground: 0 0% 43%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    /* Bordes: #E0E0E0 */
     --border: 0 0% 88%;
     --input: 0 0% 88%;
-    --ring: 42 52% 64%;
-
+    --ring: 43 91% 41%;
     --radius: 0.5rem;
+
+    /* ── Variables raw (hex) para uso en style= ────────────────── */
+    --color-primary:          #C9920A;
+    --color-primary-light:    #F0C84A;
+    --color-secondary:        #8DC63F;
+    --color-secondary-light:  #B8E07A;
+    --color-accent:           #5BB8D4;
+    --color-accent-light:     #A8DFF0;
+    --color-bg:               #FAFAF7;
+    --color-text:             #2C2C2C;
+    --color-text-muted:       #6B6B6B;
   }
 }
 
@@ -53,19 +61,16 @@
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
-    /* Evita el scroll horizontal y maneja safe areas */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
-    
-    /* Optimización iOS para scroll elástico */
     -webkit-overflow-scrolling: touch;
     height: 100%;
     overflow-y: auto;
   }
-  
-  /* Evita el zoom automático en inputs en iOS/Android */
+
+  /* Evita zoom automático en inputs en iOS/Android */
   input, textarea, select {
     font-size: 16px !important;
   }

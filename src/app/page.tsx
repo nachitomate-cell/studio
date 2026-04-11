@@ -156,34 +156,18 @@ export default function Home() {
     return matchesCategory && matchesSearch;
   });
 
-  const renderHero = () => {
-    if (user) return null;
-
-    return (
-      <section className="px-6 py-8">
-        <div className="bg-gradient-to-br from-primary to-accent/40 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl shadow-primary/20">
-          <div className="relative z-10 space-y-4">
-            <Badge className="bg-white/20 text-white border-none backdrop-blur-sm px-3 py-1 font-bold text-[10px] uppercase tracking-widest">
-              Promo Bienvenida
-            </Badge>
-            <h1 className="text-3xl font-black leading-tight">
-              ¡Gana tu primer sello gratis! 🎁
-            </h1>
-            <p className="text-sm opacity-90 font-medium leading-relaxed max-w-[220px]">
-              Regístrate hoy desde nuestras redes y comienza a participar en el Gran Sorteo.
-            </p>
-            <Button 
-              onClick={() => setShowAuth(true)} 
-              className="bg-white text-primary hover:bg-white/90 font-bold rounded-xl px-6 h-12 shadow-lg"
-            >
-              ¡Quiero mi Sello!
-            </Button>
-          </div>
-          <Sparkles className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10" />
-        </div>
-      </section>
-    );
-  };
+  const renderHero = () => (
+    <section className="relative h-[180px] overflow-hidden">
+      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 60%, #5BB8D4 100%)" }} />
+      <div className="absolute inset-0 bg-black/10" />
+      <div className="relative z-10 h-full flex flex-col justify-end p-6 pb-5">
+        <h1 className="font-headline text-3xl font-bold text-white leading-tight drop-shadow-sm">
+          Club Patio <span style={{ color: "#F0C84A" }}>Curauma</span>
+        </h1>
+        <p className="text-white/85 text-sm font-medium mt-1">Fidelización · Premios · Comunidad</p>
+      </div>
+    </section>
+  );
 
   const renderContent = () => {
     if (showAuth) {
@@ -197,26 +181,29 @@ export default function Home() {
     switch (activeTab) {
       case "directory":
         return (
-          <div className="space-y-4 py-6 bg-white">
-            <header className="px-6 text-center space-y-2">
-              <h1 className="text-3xl font-black text-foreground tracking-tighter">
-                Club <span className="text-primary">Patio</span>
-              </h1>
-              <p className="text-muted-foreground text-xs font-bold uppercase tracking-[0.2em]">Curauma • Fidelización</p>
-              {user && userData && (
-                <p className="text-xs font-medium text-slate-500 pt-1">
-                  Hola{" "}
-                  <span className="font-bold text-slate-700">{userData.nombre?.split(" ")[0] || "Club Member"}</span>
+          <div className="space-y-4 pb-6 bg-white">
+            {renderHero()}
+
+            {/* Saludo personalizado */}
+            {user && userData && (
+              <div className="px-6" style={{ marginTop: "20px", marginBottom: "12px" }}>
+                <p className="text-sm font-medium text-slate-600">
+                  Hola,{" "}
+                  <span className="font-bold text-slate-800">{userData.nombre?.split(" ")[0] || "Club Member"}</span>
                   {" · "}
-                  <span className="font-black text-[#C9A84C]">{userData.comprasRealizadas || 0}</span>
+                  <span className="font-black" style={{ color: "#C9920A" }}>{userData.comprasRealizadas || 0}</span>
                   {" sellos · "}
-                  <span className="font-black text-[#C9A84C]">{userData.ticketsSorteo || 0}</span>
+                  <span className="font-black" style={{ color: "#C9920A" }}>{userData.ticketsSorteo || 0}</span>
                   {" tickets"}
                 </p>
-              )}
-            </header>
+              </div>
+            )}
 
-            {renderHero()}
+            {/* Banner de ubicación */}
+            <div className="mx-6 flex items-center gap-2 rounded-2xl px-4 py-3" style={{ background: "#F0F9FF", border: "1px solid rgba(91,184,212,0.25)" }}>
+              <MapPin className="w-4 h-4 shrink-0" style={{ color: "#5BB8D4" }} />
+              <p className="text-xs font-bold" style={{ color: "#2C6B8A" }}>Av. Lomas de la Luz 4650, Curauma, Valparaíso</p>
+            </div>
 
 
 
@@ -263,43 +250,59 @@ export default function Home() {
                 </Badge>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
+              {loading ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="aspect-square bg-slate-100 animate-pulse rounded-2xl" />
-                  ))
-                ) : filteredEntrepreneurs.length > 0 ? (
-                  filteredEntrepreneurs.map((entrepreneur, index) => {
-                    const isLast = index === filteredEntrepreneurs.length - 1;
-                    const isOdd = filteredEntrepreneurs.length % 2 !== 0;
-                    return (
-                      <div key={entrepreneur.id} className={cn(isLast && isOdd ? "col-span-2" : "")}>
-                        <EntrepreneurCard entrepreneur={entrepreneur} fullWidth={isLast && isOdd} />
+                  ))}
+                </div>
+              ) : filteredEntrepreneurs.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-xs italic">
+                  No se encontraron resultados en el directorio.
+                </div>
+              ) : (
+                <>
+                  {/* Primeras 4 tarjetas */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {filteredEntrepreneurs.slice(0, 4).map((entrepreneur) => (
+                      <div key={entrepreneur.id}>
+                        <EntrepreneurCard entrepreneur={entrepreneur} />
                       </div>
-                    );
-                  })
-                ) : (
-                  <div className="col-span-full py-12 text-center text-muted-foreground text-xs italic">
-                    No se encontraron resultados en el directorio.
+                    ))}
                   </div>
-                )}
-              </div>
+
+                  {/* CTA Tienda Online — entre las primeras 4 y el resto */}
+                  <div className="flex justify-center pt-2 pb-1">
+                    <a
+                      href="https://www.patiocuraumaonline.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 w-full h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
+                      style={{ backgroundColor: "#5BB8D4" }}
+                    >
+                      🛍️ Visita nuestra Tienda Online
+                    </a>
+                  </div>
+
+                  {/* Resto de tarjetas */}
+                  {filteredEntrepreneurs.length > 4 && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {filteredEntrepreneurs.slice(4).map((entrepreneur, index, arr) => {
+                        const isLast = index === arr.length - 1;
+                        const isOdd = arr.length % 2 !== 0;
+                        return (
+                          <div key={entrepreneur.id} className={cn(isLast && isOdd ? "col-span-2" : "")}>
+                            <EntrepreneurCard entrepreneur={entrepreneur} fullWidth={isLast && isOdd} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
             </section>
 
             <section className="px-6 py-12 text-center space-y-4 bg-slate-50 mt-10">
-              {/* CTA Tienda Online */}
-              <div className="flex justify-center mb-6">
-                <a
-                  href="https://www.patiocuraumaonline.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 w-[88%] h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
-                  style={{ backgroundColor: "#6EBBD1" }}
-                >
-                  🛍️ Visita nuestra Tienda Online
-                </a>
-              </div>
-
               <p className="text-[10px] font-medium text-slate-400 tracking-[0.15em]">Síguenos y entérate de todo</p>
               <div className="flex justify-center gap-6">
                 <button onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')} className="text-pink-600 hover:scale-110 transition-transform">

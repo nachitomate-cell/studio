@@ -3,13 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Ticket, Gift, Coffee, Pizza, Sparkles, Star, Loader2, CheckCircle2, Clock, ArrowRight } from "lucide-react";
 import { canjearRecompensa } from "@/lib/puntos";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { updateDoc, doc, increment, collection, onSnapshot } from "firebase/firestore";
+import { updateDoc, doc, increment, collection, onSnapshot, getDoc } from "firebase/firestore";
 
 interface CatalogoPremiosProps {
   userId: string;
@@ -29,6 +27,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
   const [premios, setPremios] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+  const [vendorNames, setVendorNames] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,6 +41,18 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
       dbPremios.sort((a, b) => (a.sellos_requeridos || 0) - (b.sellos_requeridos || 0));
       setPremios(dbPremios);
       setIsFetching(false);
+
+      // Cargar nombres de locales para display
+      const vendorIds = [...new Set(dbPremios.map((p: any) => p.vendorId).filter(Boolean))] as string[];
+      if (vendorIds.length > 0) {
+        Promise.all(
+          vendorIds.map(vid =>
+            getDoc(doc(db, "entrepreneur_profiles", vid))
+              .then(snap => ({ [vid]: snap.exists() ? (snap.data().businessName || snap.data().nombre || "Local Aliado") : "Local Aliado" }))
+              .catch(() => ({ [vid]: "Local Aliado" }))
+          )
+        ).then(results => setVendorNames(Object.assign({}, ...results)));
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -173,7 +184,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-primary">
         <ShoppingBag className="w-5 h-5" />
-        <h3 className="font-bold text-lg">Catálogo de Beneficios</h3>
+        <h3 className="font-headline font-semibold text-lg">Catálogo de Beneficios</h3>
       </div>
       
       <div className="grid grid-cols-1 gap-3">
@@ -186,31 +197,68 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
             const costo = premio.sellos_requeridos || 0;
             const puedeCanjear = comprasActuales >= costo;
             
+            const vendorName = premio.vendorId ? vendorNames[premio.vendorId] : null;
+
             return (
-              <Card 
-                key={premio.id} 
-                className={`overflow-hidden border-2 transition-all duration-300 ${premio.esSorteo ? 'border-yellow-400 bg-yellow-50/30' : 'border-slate-50'} ${puedeCanjear ? 'shadow-sm' : 'opacity-70'}`}
+              <Card
+                key={premio.id}
+                className={`overflow-hidden border transition-all duration-300 ${premio.esSorteo ? 'border-yellow-300 bg-yellow-50/20' : 'border-slate-100'} ${puedeCanjear ? 'shadow-md' : 'opacity-75'}`}
               >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${premio.esSorteo ? 'bg-yellow-400 text-white' : 'bg-accent/10 text-primary'}`}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  {/* Ícono */}
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${premio.esSorteo ? 'bg-yellow-400 text-white' : 'bg-accent/10 text-primary'}`}>
                     {renderIcon(premio.icono, premio.esSorteo)}
                   </div>
-                  
-                  <div className="flex-1">
-                    <h4 className={`font-bold ${premio.esSorteo ? 'text-yellow-700' : 'text-primary'}`}>{premio.nombre}</h4>
-                    <Badge variant="outline" className={`text-[10px] border-none font-bold ${premio.esSorteo ? 'text-yellow-600' : 'text-primary/40'}`}>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-bold text-sm leading-tight ${premio.esSorteo ? 'text-yellow-700' : 'text-slate-800'}`}>
+                      {premio.nombre}
+                    </p>
+                    {vendorName && (
+                      <p style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "2px" }} className="truncate">
+                        {vendorName}
+                      </p>
+                    )}
+                    <p style={{ fontSize: "11px", color: "#9B9B9B", marginTop: "2px" }}>
                       Valor: {costo} sellos
-                    </Badge>
+                    </p>
                   </div>
 
-                  <Button 
-                    size="sm"
-                    disabled={!puedeCanjear || loadingId !== null}
-                    onClick={() => handleCanje(premio)}
-                    className={`rounded-lg h-9 px-4 font-bold ${premio.esSorteo ? 'bg-yellow-400 hover:bg-yellow-500 text-white' : 'bg-primary text-white'}`}
-                  >
-                    {loadingId === premio.id ? "Espere..." : puedeCanjear ? (premio.esSorteo ? "Participar" : "Canjear") : `Faltan ${costo - comprasActuales}`}
-                  </Button>
+                  {/* Badge de estado / acción */}
+                  {puedeCanjear ? (
+                    <button
+                      disabled={loadingId !== null}
+                      onClick={() => handleCanje(premio)}
+                      style={{
+                        backgroundColor: premio.esSorteo ? "#EAB308" : "#8DC63F",
+                        color: "white",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        borderRadius: "20px",
+                        padding: "6px 14px",
+                        whiteSpace: "nowrap",
+                        opacity: loadingId !== null ? 0.6 : 1,
+                        cursor: loadingId !== null ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {loadingId === premio.id ? "..." : premio.esSorteo ? "Participar" : "¡Canjear!"}
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        backgroundColor: "rgba(201,146,10,0.12)",
+                        color: "#C9920A",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        borderRadius: "20px",
+                        padding: "6px 14px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Faltan {costo - comprasActuales}
+                    </span>
+                  )}
                 </CardContent>
               </Card>
             );

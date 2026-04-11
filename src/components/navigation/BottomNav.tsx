@@ -48,12 +48,11 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
               onClick={() => onTabChange(item.id)}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 transition-all duration-300 w-full h-full relative outline-none",
-                isActive ? "text-primary" : "text-muted-foreground hover:text-primary/60"
+                isActive
+                  ? "text-primary border-t-[3px] border-primary"
+                  : "text-muted-foreground hover:text-primary/60 border-t-[3px] border-transparent"
               )}
             >
-              {isActive && (
-                <div className="absolute top-0 w-8 h-1 bg-primary rounded-full animate-in fade-in zoom-in duration-300" />
-              )}
               <Icon className={cn("w-6 h-6", isActive && "fill-current animate-bounce-short")} />
               <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
             </button>

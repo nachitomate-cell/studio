@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { User } from "firebase/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Trophy, Sparkles, Award, Stamp, WifiOff } from "lucide-react";
@@ -17,6 +18,7 @@ interface RewardsTabProps {
 }
 
 export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
+  const router = useRouter();
   const [showStampAnim, setShowStampAnim] = useState(false);
   const [isOffline, setIsOffline] = useState(
     typeof window !== "undefined" ? !navigator.onLine : false
@@ -96,7 +98,7 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
   return (
     <div className="pt-4 px-4 bg-white pb-24 space-y-6 animate-in fade-in duration-300">
       <header className="px-2 pb-2">
-        <h1 className="text-2xl font-black text-slate-800">Mis Beneficios</h1>
+        <h1 className="font-headline font-bold text-2xl text-slate-800">Mis Beneficios</h1>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Club Patio Curauma</p>
       </header>
 
@@ -123,14 +125,17 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
           <div className="space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Gran Sorteo del Mes</p>
             <h3 className="text-2xl font-black flex items-center gap-2"><Trophy className="w-6 h-6 text-yellow-300" />{tickets} <span className="text-sm font-bold opacity-90">Tickets</span></h3>
+            <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", marginTop: "4px" }}>
+              Acumula 10 sellos para ganar 1 ticket al sorteo del mes
+            </p>
           </div>
           <Sparkles className="w-10 h-10 opacity-20" />
         </CardContent>
       </Card>
 
       <section className="space-y-4">
-        <h3 className="font-bold text-lg text-primary flex items-center gap-2 px-1"><Award className="w-5 h-5" />Mi Tarjeta de Sellos</h3>
-        <Card className="border-none shadow-xl bg-[#FDFCF0] rounded-[2rem] overflow-hidden relative">
+        <h3 className="font-headline font-semibold text-lg text-primary flex items-center gap-2 px-1"><Award className="w-5 h-5" />Mi Tarjeta de Sellos</h3>
+        <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden relative" style={{ background: "linear-gradient(135deg, #F7F9F0 0%, #EEF5E8 100%)", borderLeft: "3px solid var(--color-secondary)" }}>
           {/* Animación de sello */}
           <AnimatePresence>
             {showStampAnim && (
@@ -171,14 +176,20 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
                   {" "}de 10 sellos
                 </span>
               </div>
-              <div className="h-2.5 w-full bg-primary/10 rounded-full overflow-hidden">
+              <div style={{ height: "10px", width: "100%", background: "#E8E8E8", borderRadius: "10px", overflow: "hidden" }}>
                 <div
-                  className="h-full rounded-full transition-all duration-700"
                   style={{
+                    height: "100%",
                     width: `${(sellosEnTarjeta / 10) * 100}%`,
-                    background: "linear-gradient(90deg, #C9A84C, #D3B673)",
+                    background: "linear-gradient(90deg, #C9920A, #8DC63F)",
+                    borderRadius: "10px",
+                    transition: "width 0.7s ease",
                   }}
                 />
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[10px] text-slate-400 font-medium">0</span>
+                <span className="text-[10px] text-slate-400 font-medium">10 sellos</span>
               </div>
             </div>
 
@@ -196,9 +207,39 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
                 </div>
               ))}
             </div>
-            <div className="space-y-4 text-center">
-              <p className="text-primary font-bold text-lg leading-tight px-4">{sellos % 5 === 0 && sellos > 0 ? "¡Tienes un premio listo para canjear!" : `¡Te faltan ${sellosRestantesParaPremio === 5 ? 5 : sellosRestantesParaPremio} sellos para tu próximo premio!`}</p>
-              <Button className="w-full h-12 rounded-2xl bg-primary text-white font-bold" onClick={() => document.getElementById('premios-catalogo')?.scrollIntoView({ behavior: 'smooth' })}>Canjear Sellos por Premios</Button>
+            <div className="space-y-3 text-center">
+              {sellos === 0 ? (
+                <div style={{ padding: "12px" }}>
+                  <p style={{ fontSize: "15px", fontWeight: 600, color: "#2C2C2C" }}>
+                    ¡Escanea tu primer QR para comenzar!
+                  </p>
+                  <p style={{ fontSize: "13px", color: "#6B6B6B", marginTop: "4px" }}>
+                    Visita cualquier local y muestra tu código en caja
+                  </p>
+                </div>
+              ) : (
+                <p className="font-bold text-lg leading-tight px-4" style={{ color: sellos % 5 === 0 && sellos > 0 ? "var(--color-primary)" : "var(--color-secondary)" }}>
+                  {sellos % 5 === 0 && sellos > 0 ? "¡Tienes un premio listo para canjear!" : `¡Te faltan ${sellosRestantesParaPremio === 5 ? 5 : sellosRestantesParaPremio} sellos para tu próximo premio!`}
+                </p>
+              )}
+
+              {sellos > 0 && (
+                <Button
+                  className="w-full h-12 rounded-2xl bg-primary text-white font-bold"
+                  onClick={() => document.getElementById('premios-catalogo')?.scrollIntoView({ behavior: 'smooth' })}
+                >
+                  🎁 Ver premios disponibles
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                className="w-full h-11 rounded-2xl font-bold"
+                style={{ borderColor: "var(--color-primary)", color: "var(--color-primary)", backgroundColor: "white" }}
+                onClick={() => router.push('/scan')}
+              >
+                📷 Ir a Escanear
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -206,7 +247,7 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
 
       <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden mt-6">
         <CardContent className="flex flex-col items-center py-8">
-          <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Escanea esto en el local</p>
+          <p style={{ fontSize: "13px", color: "#6B6B6B", marginBottom: "16px" }}>Muestra este código en caja</p>
           <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
             <QRCode value={user.uid} size={176} fgColor="#000000" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
           </div>
