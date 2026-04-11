@@ -296,10 +296,12 @@ export async function confirmarHandshake(
     const currentSellos = userSnap.exists() ? (userSnap.data().comprasRealizadas || 0) : 0;
     const nuevoTotal = currentSellos + 1;
 
-    // Confirmar solicitud
+    // Confirmar solicitud (nuevoTotal se escribe para que el cliente
+    // pueda leerlo desde el onSnapshot y mostrar el total correcto)
     transaction.update(pendingRef, {
       status: "confirmed",
       monto,
+      nuevoTotal,
       confirmedAt: serverTimestamp(),
     });
 

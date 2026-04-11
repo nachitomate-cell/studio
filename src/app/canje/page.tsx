@@ -428,6 +428,11 @@ function CanjeContent() {
 
     const verifyUser = getDoc(doc(db, "usuarios", userId))
       .then((userSnap) => {
+        // Guard: si el sello ya fue confirmado/cancelado, no sobrescribir la fase.
+        // Sin este guard, verifyUser puede resolver DESPUÉS de que el onSnapshot
+        // haya seteado phase="confirmed", y al ver lastVendorScans recién actualizado
+        // por confirmarHandshake, confundiría la confirmación con un cooldown activo.
+        if (pendingIdRef.current !== pendingId) return;
         if (!userSnap.exists()) return;
         const data = userSnap.data();
 
