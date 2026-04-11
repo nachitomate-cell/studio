@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, updateDoc, doc, deleteDoc, onSnapsho
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2, ClipboardList } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2, ClipboardList, BarChart2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -345,15 +345,26 @@ export default function ModeradorPage() {
             </h1>
             <p className="text-slate-500 font-medium">Panel de administración global avanzado para Master Admin.</p>
           </div>
-          <Link href="/admin-logs">
-            <Button
-              variant="outline"
-              className="flex items-center gap-2 rounded-2xl h-12 px-5 border-slate-200 text-slate-600 font-bold shadow-sm hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
-            >
-              <ClipboardList className="w-4 h-4" />
-              Ver Auditoría del Sistema
-            </Button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/moderador/sellos">
+              <Button
+                variant="outline"
+                className="flex items-center gap-2 rounded-2xl h-12 px-5 border-primary/30 text-primary font-bold shadow-sm hover:bg-primary/5 hover:border-primary/60 transition-all whitespace-nowrap"
+              >
+                <BarChart2 className="w-4 h-4" />
+                Registro de Sellos
+              </Button>
+            </Link>
+            <Link href="/admin-logs">
+              <Button
+                variant="outline"
+                className="flex items-center gap-2 rounded-2xl h-12 px-5 border-slate-200 text-slate-600 font-bold shadow-sm hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+              >
+                <ClipboardList className="w-4 h-4" />
+                Ver Auditoría del Sistema
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* METRICAS (TARJETAS SUPERIORES) */}

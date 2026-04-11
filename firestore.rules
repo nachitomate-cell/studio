@@ -40,10 +40,18 @@ service cloud.firestore {
       return isSignedIn() && getUserRol() in ["director_patio", "director", "admin"];
     }
 
+    // Función helper: verifica si el usuario tiene rol de emprendedor
+    function isEmprendedor() {
+      return isSignedIn() && getUserRol() == "emprendedor";
+    }
+
     // ── Usuarios ──────────────────────────────────────────────────────────────
     match /usuarios/{userId} {
-      // Lectura: propio perfil o staff
-      allow get: if isOwner(userId) || isStaff();
+      // Lectura individual: cualquier usuario autenticado puede leer un perfil específico.
+      // Necesario para que el handshake (confirmarHandshake) pueda hacer get()
+      // sobre el documento del cliente dentro de la transacción.
+      // La operación list (enumerar todos) sigue siendo solo staff.
+      allow get: if isSignedIn();
       // Lista: solo staff (moderador ve todos los usuarios)
       allow list: if isStaff();
       // Creación: solo el propio usuario, y NUNCA con rol privilegiado (CRÍTICO-03)
@@ -51,8 +59,15 @@ service cloud.firestore {
       // Admin/moderador/director JAMÁS se pueden auto-asignar client-side.
       allow create: if isOwner(userId)
         && !(request.resource.data.rol in ["admin", "moderador", "director", "director_patio"]);
-      // Actualización: el dueño o staff
-      allow update: if isOwner(userId) || isStaff();
+      // Actualización: el dueño, staff, o un emprendedor actualizando solo campos de sellos.
+      // Los emprendedores necesitan incrementar comprasRealizadas/sellosLocales durante el handshake,
+      // pero nunca pueden modificar campos sensibles como rol, baneado, email o correo.
+      allow update: if isOwner(userId) || isStaff() ||
+        (isEmprendedor() &&
+         !('rol' in request.resource.data.diff(resource.data).affectedKeys()) &&
+         !('baneado' in request.resource.data.diff(resource.data).affectedKeys()) &&
+         !('email' in request.resource.data.diff(resource.data).affectedKeys()) &&
+         !('correo' in request.resource.data.diff(resource.data).affectedKeys()));
       // Borrado: solo staff
       allow delete: if isStaff();
 
