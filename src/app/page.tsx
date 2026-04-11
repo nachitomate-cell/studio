@@ -157,15 +157,27 @@ export default function Home() {
   });
 
   const renderHero = () => (
-    <section className="relative h-[180px] overflow-hidden">
-      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 60%, #5BB8D4 100%)" }} />
-      <div className="absolute inset-0 bg-black/10" />
-      <div className="relative z-10 h-full flex flex-col justify-end p-6 pb-5">
-        <h1 className="font-headline text-3xl font-bold text-white leading-tight drop-shadow-sm">
-          Club Patio <span style={{ color: "#F0C84A" }}>Curauma</span>
-        </h1>
-        <p className="text-white/85 text-sm font-medium mt-1">Fidelización · Premios · Comunidad</p>
-      </div>
+    <section style={{
+      background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 50%, #5BB8D4 100%)",
+      padding: "40px 20px 32px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      textAlign: "center",
+      position: "relative",
+    }}>
+      <img
+        src="/Logo.png"
+        alt="Patio Curauma"
+        style={{ width: 150, height: "auto", marginBottom: 16, filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
+      />
+      <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: 32, fontWeight: 700, color: "white", margin: "0 0 8px 0" }}>
+        Club Patio <span style={{ color: "#FFD700" }}>Curauma</span>
+      </h1>
+      <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, margin: 0, letterSpacing: "0.5px" }}>
+        Fidelización · Premios · Comunidad
+      </p>
     </section>
   );
 
