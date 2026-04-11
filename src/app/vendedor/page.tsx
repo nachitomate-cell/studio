@@ -38,7 +38,13 @@ export default function VendedorPage() {
 
   const [shopForm, setShopForm] = useState({
     nombreTienda: "",
-    descripcion: ""
+    descripcion: "",
+    mediosPago: [] as string[],
+    otroMedio: "",
+    whatsapp: "",
+    instagram: "",
+    ubicacion: "",
+    horario: ""
   });
 
   useEffect(() => {
@@ -72,9 +78,20 @@ export default function VendedorPage() {
         unsubscribeProfile = onSnapshot(profileRef, (snap) => {
           if (snap.exists()) {
             const data = snap.data();
+            const mp: string[] = data.mediosPago || [];
+            const isOtro = mp.some(m => !['efectivo', 'debito', 'transferencia'].includes(m));
+            const otroVal = isOtro ? mp.find(m => !['efectivo', 'debito', 'transferencia'].includes(m)) || "" : "";
             setShopForm({
               nombreTienda: data.businessName || data.nombre || "",
-              descripcion: data.description || data.descripcion || ""
+              descripcion: data.description || data.descripcion || "",
+              mediosPago: isOtro
+                ? [...mp.filter(m => ['efectivo', 'debito', 'transferencia'].includes(m)), 'otro']
+                : mp,
+              otroMedio: otroVal === 'otro' ? "" : otroVal,
+              whatsapp: data.whatsapp || data.contactPhone || "",
+              instagram: data.instagram ? data.instagram.replace('@', '') : "",
+              ubicacion: data.ubicacionTienda || data.address || "",
+              horario: data.operatingHours || data.horario || ""
             });
             setPreviewUrl(data.imageUrl || data.imageUrls?.[0] || null);
           }
@@ -116,12 +133,35 @@ export default function VendedorPage() {
     }
   };
 
+  const toggleMedioPago = (key: string) => {
+    setShopForm(prev => ({
+      ...prev,
+      mediosPago: prev.mediosPago.includes(key)
+        ? prev.mediosPago.filter(m => m !== key)
+        : [...prev.mediosPago, key]
+    }));
+  };
+
   const handleSaveShopInfo = async () => {
     if (!auth.currentUser) {
       toast({ variant: "destructive", title: "No autenticado", description: "Debes iniciar sesión para realizar cambios." });
       return;
     }
     
+    // Validación WhatsApp
+    const waClean = shopForm.whatsapp.replace(/\s/g, '');
+    if (waClean && !/^\+56\d{9}$/.test(waClean)) {
+      toast({ variant: "destructive", title: "WhatsApp inválido", description: "Debe comenzar con +56 y tener 11 dígitos totales. Ej: +56912345678" });
+      return;
+    }
+
+    // Construir array mediosPago final
+    const mediosFinal = shopForm.mediosPago.filter(m => m !== 'otro');
+    if (shopForm.mediosPago.includes('otro')) {
+      const otroTexto = shopForm.otroMedio.trim();
+      mediosFinal.push(otroTexto || 'otro');
+    }
+
     setLoading(true);
 
     try {
@@ -150,6 +190,11 @@ export default function VendedorPage() {
         description: shopForm.descripcion,
         imageUrl: finalImageUrl || null,
         imageUrls: finalImageUrl ? [finalImageUrl] : [],
+        mediosPago: mediosFinal,
+        whatsapp: waClean || null,
+        instagram: shopForm.instagram.replace('@', '').trim() || null,
+        ubicacionTienda: shopForm.ubicacion.trim() || null,
+        operatingHours: shopForm.horario.trim() || null,
         updatedAt: new Date().toISOString()
       };
 
@@ -385,10 +430,94 @@ export default function VendedorPage() {
                     )}
                   </div>
                 </div>
-              </div>
+
+                {/* Medios de pago */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-bold text-slate-700">¿Qué medios de pago aceptas?</Label>
+                  <div className="space-y-2">
+                    {[
+                      { key: "efectivo", label: "Efectivo" },
+                      { key: "debito", label: "Débito/Crédito" },
+                      { key: "transferencia", label: "Transferencia" },
+                      { key: "otro", label: "Otro" },
+                    ].map((medio) => (
+                      <div key={medio.key} className="space-y-2">
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={shopForm.mediosPago.includes(medio.key)}
+                            onChange={() => toggleMedioPago(medio.key)}
+                            className="w-4 h-4 accent-[#C9920A]"
+                          />
+                          <span className="text-sm text-slate-700">{medio.label}</span>
+                        </label>
+                        {medio.key === 'otro' && shopForm.mediosPago.includes('otro') && (
+                          <Input
+                            placeholder="Ej: Pago en especie, criptomoneda..."
+                            className="h-10 border-slate-200 focus:border-primary rounded-lg text-sm ml-7"
+                            value={shopForm.otroMedio}
+                            onChange={(e) => setShopForm({...shopForm, otroMedio: e.target.value})}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* WhatsApp */}
+                <div className="space-y-3">
+                  <Label htmlFor="whatsapp" className="text-sm font-bold text-slate-700">Número de WhatsApp</Label>
+                  <Input
+                    id="whatsapp"
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="+56 9 XXXX XXXX"
+                    className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
+                    value={shopForm.whatsapp}
+                    onChange={(e) => setShopForm({...shopForm, whatsapp: e.target.value})}
+                  />
+                </div>
+
+                {/* Instagram */}
+                <div className="space-y-3">
+                  <Label htmlFor="instagram" className="text-sm font-bold text-slate-700">Instagram</Label>
+                  <Input
+                    id="instagram"
+                    placeholder="@tunegocio"
+                    className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
+                    value={shopForm.instagram}
+                    onChange={(e) => setShopForm({...shopForm, instagram: e.target.value})}
+                  />
+                </div>
+
+                {/* Ubicación */}
+                <div className="space-y-3">
+                  <Label htmlFor="ubicacion" className="text-sm font-bold text-slate-700">¿Dónde estás dentro del patio?</Label>
+                  <Input
+                    id="ubicacion"
+                    placeholder="Ej: Pasillo A, Local 12"
+                    className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
+                    value={shopForm.ubicacion}
+                    onChange={(e) => setShopForm({...shopForm, ubicacion: e.target.value})}
+                  />
+                </div>
+
+                {/* Horario */}
+                <div className="space-y-3">
+                  <Label htmlFor="horario" className="text-sm font-bold text-slate-700">Horario de atención</Label>
+                  <Input
+                    id="horario"
+                    placeholder="Ej: Lunes a Domingo 10:00 - 20:00"
+                    className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
+                    value={shopForm.horario}
+                    onChange={(e) => setShopForm({...shopForm, horario: e.target.value})}
+                  />
+                </div>
+
+              </div>{/* end space-y-6 */}
 
               <div className="pt-4">
-                <Button 
+                <Button
                   onClick={handleSaveShopInfo}
                   disabled={loading}
                   className="w-full h-14 bg-primary text-white font-black rounded-xl text-lg gap-3 shadow-lg shadow-primary/20"

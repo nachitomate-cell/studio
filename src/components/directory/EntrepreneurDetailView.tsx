@@ -25,15 +25,17 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 function DetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+  const { toast } = useToast();
+
   // Soporta tanto /emprendedor/[id] como /detalle?id=...
   const id = params?.id || searchParams.get('id');
-  
+
   const [entrepreneur, setEntrepreneur] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -54,9 +56,10 @@ function DetailContent() {
           imagenUrl: data.imageUrls?.[0] || data.imagenUrl || `https://picsum.photos/seed/${docSnap.id}/800/600`,
           whatsapp: data.whatsapp || data.contactPhone || "",
           instagram: data.instagram || "",
-          ubicacion: data.address || data.ubicacionTienda || "Patio Curauma",
-          horario: data.operatingHours || data.horario || "Consultar en local",
-          ...data 
+          ubicacion: data.address || data.ubicacionTienda || "",
+          horario: data.operatingHours || data.horario || "",
+          mediosPago: data.mediosPago || [],
+          ...data
         });
       }
       setLoading(false);
@@ -173,7 +176,7 @@ function DetailContent() {
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase">Sector</p>
-                    <p className="text-xs font-bold text-slate-700">{entrepreneur.ubicacion}</p>
+                    <p className="text-xs font-bold text-slate-700">{entrepreneur.ubicacion || "Consultar en local"}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -182,7 +185,7 @@ function DetailContent() {
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase">Horario</p>
-                    <p className="text-xs font-bold text-slate-700">{entrepreneur.horario}</p>
+                    <p className="text-xs font-bold text-slate-700">{entrepreneur.horario || "Consultar en local"}</p>
                   </div>
                 </div>
               </div>
@@ -192,45 +195,105 @@ function DetailContent() {
           <section className="space-y-3 px-2">
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Aceptamos</h2>
             <div className="flex gap-3 overflow-x-auto no-scrollbar">
-              {[
-                { icon: Banknote, label: "Efectivo" },
-                { icon: CreditCard, label: "Débito/Crédito" },
-                { icon: Wallet, label: "Transferencia" }
-              ].map((pay, i) => (
-                <div key={i} className="bg-white px-4 py-3 rounded-2xl flex items-center gap-3 shadow-sm border border-slate-100 min-w-[140px]">
-                  <pay.icon className="w-4 h-4 text-primary" />
-                  <span className="text-[10px] font-bold text-slate-600 uppercase">{pay.label}</span>
-                </div>
-              ))}
+              {(() => {
+                const medios: string[] = entrepreneur.mediosPago || [];
+                const hasConfig = medios.length > 0;
+                const standardMedios = [
+                  { key: "efectivo", icon: Banknote, label: "Efectivo" },
+                  { key: "debito", icon: CreditCard, label: "Débito/Crédito" },
+                  { key: "transferencia", icon: Wallet, label: "Transferencia" },
+                ];
+                const extraMedios = medios.filter(m => !['efectivo', 'debito', 'transferencia'].includes(m));
+                const allItems = [
+                  ...standardMedios,
+                  ...extraMedios.map(m => ({ key: m, icon: CreditCard, label: m.charAt(0).toUpperCase() + m.slice(1) }))
+                ];
+                return allItems.map((pay, i) => {
+                  const isActive = !hasConfig || medios.includes(pay.key);
+                  const PayIcon = pay.icon;
+                  return (
+                    <div
+                      key={i}
+                      className="px-4 py-3 rounded-2xl flex items-center gap-3 shadow-sm border min-w-[140px] cursor-pointer select-none"
+                      style={{
+                        background: isActive ? "white" : "#F5F5F5",
+                        borderColor: isActive ? "#E2E8F0" : "#E5E5E5",
+                        opacity: hasConfig && !medios.includes(pay.key) ? 0.45 : 1,
+                      }}
+                      onClick={() => {
+                        if (!hasConfig) {
+                          toast({ description: "Consulta los medios de pago directamente en el local" });
+                        }
+                      }}
+                    >
+                      <PayIcon className="w-4 h-4" style={{ color: isActive ? "#C9920A" : "#999999" }} />
+                      <span className="text-[10px] font-bold uppercase" style={{ color: isActive ? "#4A4A4A" : "#999999" }}>{pay.label}</span>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </section>
 
           <div className="space-y-3">
-            <Button 
-              className="w-full h-16 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-black text-lg gap-4 shadow-xl shadow-[#25D366]/20 transition-all active:scale-95"
-              onClick={() => window.open(`https://wa.me/${entrepreneur.whatsapp?.replace(/\D/g, '')}`, '_blank')}
+            {/* WhatsApp */}
+            <Button
+              className="w-full h-16 rounded-2xl font-black text-lg gap-4 transition-all active:scale-95"
+              style={entrepreneur.whatsapp
+                ? { backgroundColor: "#25D366", color: "white", boxShadow: "0 10px 25px rgba(37,211,102,0.2)" }
+                : { backgroundColor: "#CCCCCC", color: "#666666", opacity: 0.7, cursor: "pointer" }
+              }
+              onClick={() => {
+                if (entrepreneur.whatsapp) {
+                  window.open(`https://wa.me/${entrepreneur.whatsapp.replace(/\D/g, '')}`, '_blank');
+                } else {
+                  toast({ description: "Este emprendedor aún no ha agregado su WhatsApp. ¡Visítalos en el patio para más información!" });
+                }
+              }}
             >
               <MessageCircle className="w-7 h-7 fill-current" />
-              Contactar por WhatsApp
+              {entrepreneur.whatsapp ? "Contactar por WhatsApp" : "WhatsApp no disponible"}
             </Button>
-            
+
             <div className="grid grid-cols-2 gap-3">
-              <Button 
+              {/* Instagram */}
+              <Button
                 variant="outline"
-                className="h-14 rounded-2xl border-primary/20 bg-white text-primary font-bold gap-3 hover:bg-primary/5"
-                onClick={() => window.open(`https://instagram.com/${entrepreneur.instagram?.replace('@', '')}`, '_blank')}
-                disabled={!entrepreneur.instagram}
+                className="h-14 rounded-2xl font-bold gap-3"
+                style={entrepreneur.instagram
+                  ? { borderColor: "rgba(201,146,10,0.2)", background: "white", color: "#C9920A" }
+                  : { background: "#F5F5F5", borderColor: "#E5E5E5", color: "#999999", opacity: 0.7 }
+                }
+                onClick={() => {
+                  if (entrepreneur.instagram) {
+                    window.open(`https://instagram.com/${entrepreneur.instagram.replace('@', '')}`, '_blank');
+                  } else {
+                    toast({ description: "Aún no hay Instagram registrado. ¡Encuéntralos en Patio Curauma!" });
+                  }
+                }}
               >
                 <Instagram className="w-5 h-5" />
-                Instagram
+                {entrepreneur.instagram ? "Instagram" : "Sin Instagram"}
               </Button>
-              <Button 
+
+              {/* Ver Mapa */}
+              <Button
                 variant="outline"
-                className="h-14 rounded-2xl border-primary/20 bg-white text-primary font-bold gap-3 hover:bg-primary/5"
-                onClick={() => router.push("/map")}
+                className="h-14 rounded-2xl font-bold gap-3"
+                style={entrepreneur.ubicacion
+                  ? { borderColor: "rgba(201,146,10,0.2)", background: "white", color: "#C9920A" }
+                  : { background: "#F5F5F5", borderColor: "#E5E5E5", color: "#999999", opacity: 0.7 }
+                }
+                onClick={() => {
+                  if (entrepreneur.ubicacion) {
+                    window.open("https://maps.google.com/?q=-33.1316449,-71.564289", '_blank');
+                  } else {
+                    toast({ description: "Pregunta por este local en la entrada del patio" });
+                  }
+                }}
               >
                 <MapPin className="w-5 h-5" />
-                Ver Mapa
+                {entrepreneur.ubicacion ? "Ver Mapa" : "Sin Ubicación"}
               </Button>
             </div>
           </div>
