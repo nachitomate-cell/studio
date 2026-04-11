@@ -37,7 +37,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
-        <link rel="apple-touch-icon" href="https://picsum.photos/seed/patio-icon/180/180" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96x96.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72x72.png" />
       </head>
       <body className="font-body antialiased selection:bg-accent selection:text-accent-foreground overflow-x-hidden h-full flex flex-col bg-white">
         <SplashScreen />
@@ -57,8 +59,8 @@ export default function RootLayout({
         {/* Oyente global de errores de Firebase */}
         <FirebaseErrorListener />
         
-        {/* Simulador de Roles flotante para pruebas */}
-        <RoleSwitcher />
+        {/* Simulador de Roles flotante — solo en desarrollo */}
+        {process.env.NODE_ENV === "development" && <RoleSwitcher />}
         
         <Toaster />
       </body>

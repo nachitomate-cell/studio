@@ -6,7 +6,6 @@ import { auth } from "@/lib/firebase";
 // DESACTIVADO: import { db } from "@/lib/firebase"; — no se usa en flujo Handshake
 // DESACTIVADO: import { doc, getDoc } from "firebase/firestore";
 // DESACTIVADO: import { registrarCompra } from "@/lib/puntos"; — reemplazado por Handshake
-import { SuccessScanner } from "@/components/loyalty/SuccessScanner"; // Mantenido para compatibilidad de tipos
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, Loader2, AlertCircle,
@@ -21,12 +20,6 @@ type ScanError =
   | { type: "cooldown"; message: string }
   | { type: "network" }
   | { type: "camera" };
-
-interface SuccessData {
-  vendorName: string;
-  userDisplayName: string;
-  newTotalSellos: number;
-}
 
 // ── utilidades ─────────────────────────────────────────────────────────────
 function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void }) {
@@ -90,9 +83,8 @@ export default function ClientScannerPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [scanState, setScanState] = useState<"idle" | "loading" | "error" | "success">("idle");
+  const [scanState, setScanState] = useState<"idle" | "loading" | "error">("idle");
   const [scanError, setScanError] = useState<ScanError | null>(null);
-  const [successData, setSuccessData] = useState<SuccessData | null>(null);
   const [scannerReady, setScannerReady] = useState(false);
 
   const scannerInstance = useRef<any>(null);
@@ -140,12 +132,26 @@ export default function ClientScannerPage() {
         scannerInstance.current = null;
       }
 
-      const scanner = new Html5Qrcode("client-reader");
+      const scanner = new Html5Qrcode("client-reader", { verbose: false });
       scannerInstance.current = scanner;
 
+      // qrbox dinámico: 72% del lado más corto del contenedor
+      const shortSide = Math.min(container.offsetWidth, container.offsetHeight);
+      const boxSize = Math.round(shortSide * 0.72);
+
       await scanner.start(
-        { facingMode: "environment" },
-        { fps: 12, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 },
+        // facingMode como ideal para mayor compatibilidad en iOS/Android
+        { facingMode: { ideal: "environment" } },
+        {
+          fps: 15,
+          qrbox: { width: boxSize, height: boxSize },
+          // SIN aspectRatio — dejar que la cámara use su ratio nativo (evita fallo silencioso)
+          videoConstraints: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        },
         (decoded) => onScanSuccess(decoded),
         () => {} // frame-level error, silencioso
       );
@@ -252,18 +258,6 @@ export default function ClientScannerPage() {
     startScanner();
   }, [startScanner]);
 
-  // ── pantalla de éxito ─────────────────────────────────────────────────
-  if (scanState === "success" && successData) {
-    return (
-      <SuccessScanner
-        vendorName={successData.vendorName}
-        userDisplayName={successData.userDisplayName}
-        newTotalSellos={successData.newTotalSellos}
-        onTimerEnd={() => router.replace("/")}
-      />
-    );
-  }
-
   // ── UI del escáner ────────────────────────────────────────────────────
   return (
     <main className="fixed inset-0 bg-black flex flex-col">
@@ -338,11 +332,36 @@ export default function ClientScannerPage() {
         <p className="text-slate-400 text-xs">Club Patio · Sistema de fidelización</p>
       </div>
 
-      {/* Keyframe para la línea de scan — inyectado inline */}
+      {/* Keyframe de scan + correcciones de layout html5-qrcode */}
       <style>{`
         @keyframes scanLine {
           0%, 100% { top: 10%; opacity: 0.4; }
           50% { top: 90%; opacity: 1; }
+        }
+
+        /* Ocultar dashboard interno de html5-qrcode (status text, switch camera button)
+           que roba altura y muestra UI redundante */
+        #client-reader__dashboard {
+          display: none !important;
+        }
+
+        /* Forzar que el scan_region llene todo el contenedor */
+        #client-reader__scan_region {
+          position: absolute !important;
+          inset: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+
+        /* Video que llena el contenedor con object-fit: cover
+           (sin esto el video flota con su ratio nativo sin escalar) */
+        #client-reader video {
+          object-fit: cover !important;
+          width: 100% !important;
+          height: 100% !important;
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
         }
       `}</style>
     </main>

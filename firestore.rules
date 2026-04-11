@@ -16,21 +16,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Leer rol del usuario autenticado sin recursividad en lista
-    function getUserData() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    // Leer rol del usuario autenticado.
+    // Usa exists() para evitar que la regla falle si el documento aún no existe.
+    function userDoc() {
+      return /databases/$(database)/documents/usuarios/$(request.auth.uid);
+    }
+
+    function getUserRol() {
+      return isSignedIn() && exists(userDoc())
+        ? get(userDoc()).data.rol
+        : "";
     }
 
     function isStaff() {
-      return isSignedIn() && getUserData().rol in ["moderador", "director_patio", "director", "admin"];
+      return isSignedIn() && getUserRol() in ["moderador", "director_patio", "director", "admin"];
     }
 
     function isAdmin() {
-      return isSignedIn() && getUserData().rol == "admin";
+      return isSignedIn() && getUserRol() == "admin";
     }
 
     function isDirector() {
-      return isSignedIn() && getUserData().rol in ["director_patio", "director", "admin"];
+      return isSignedIn() && getUserRol() in ["director_patio", "director", "admin"];
     }
 
     // ── Usuarios ──────────────────────────────────────────────────────────────
@@ -39,8 +46,11 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isStaff();
       // Lista: solo staff (moderador ve todos los usuarios)
       allow list: if isStaff();
-      // Creación: solo el propio usuario en el momento de registro
-      allow create: if isOwner(userId);
+      // Creación: solo el propio usuario, y NUNCA con rol privilegiado (CRÍTICO-03)
+      // Roles permitidos en auto-registro: "cliente" y "emprendedor".
+      // Admin/moderador/director JAMÁS se pueden auto-asignar client-side.
+      allow create: if isOwner(userId)
+        && !(request.resource.data.rol in ["admin", "moderador", "director", "director_patio"]);
       // Actualización: el dueño o staff
       allow update: if isOwner(userId) || isStaff();
       // Borrado: solo staff
@@ -80,10 +90,34 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || isStaff()
       );
-      allow create: if isSignedIn();
+      // SUGERENCIA-02: validar que el userId del canje pertenece al caller
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
       // Solo staff puede marcar voucher como "usado"
       allow update: if isStaff();
       allow delete: if isAdmin();
+    }
+
+    // ── Pending Stamps (Handshake Digital) ────────────────────────────────────
+    // CRÍTICO-01: sin estas reglas la colección es deny-all en producción,
+    // lo que rompe el flujo de canje de sellos completamente.
+    match /pending_stamps/{stampId} {
+      // El cliente que creó la solicitud o el vendedor pueden leerla
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.vendorId == request.auth.uid ||
+        isStaff()
+      );
+      // Cualquier usuario autenticado puede crear una solicitud de sello
+      allow create: if isSignedIn();
+      // Solo el vendedor (o staff) puede actualizar el estado (confirmar/rechazar)
+      allow update: if isSignedIn() && (
+        resource.data.vendorId == request.auth.uid || isStaff()
+      );
+      // El cliente puede cancelar su propia solicitud; el staff también
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
     }
 
     // ── Logs del Sistema (inmutables) ──────────────────────────────────────────

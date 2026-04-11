@@ -68,12 +68,15 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       updateData[`sellosLocales.${vendedorId}`] = increment(1);
     }
 
+    // CRÍTICO-06: re-throw para que el flujo no continúe con una escritura fallida.
+    // Sin esto, el usuario recibía notificación "¡Sello Recibido!" aunque el sello nunca se acreditó.
     await updateDoc(userRef, updateData).catch((error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: userRef.path,
         operation: 'update',
         requestResourceData: { comprasRealizadas: nuevasCompras },
       }));
+      throw error;
     });
 
     // Auditoría de Sistema (Para el Radar de Fraude)
@@ -96,13 +99,14 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
 
     if (vendedorId) {
       const vendedorLogRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
+      // CRÍTICO-07: agregar .catch() para que el fallo no desaparezca silenciosamente
       addDoc(vendedorLogRef, {
         vendedorId,
         clienteId: userId,
         clienteNombre,
         fecha: timestamp,
         metodo: isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"
-      });
+      }).catch((e) => console.warn("[registrarCompra] Log de venta falló:", e));
 
       if (isClientScan) {
         await enviarNotificacionLocal(vendedorId, "¡Cliente Auto-Verificado! ✅", `${clienteNombre} acaba de escanear tu código y ganó un sello.`);
@@ -135,50 +139,55 @@ export async function canjearRecompensa(
   userEmail?: string
 ): Promise<{ codigoVoucher: string; canjeId: string }> {
   const userRef = doc(db, "usuarios", userId);
+  const codigoVoucher = generarCodigoVoucher();
+  const timestamp = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
   try {
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) throw new Error("Usuario no encontrado.");
+    // CRÍTICO-05: operación atómica — lectura + crear voucher + descontar sellos
+    // en una sola transacción. Elimina la race condition de doble-click/doble-pestaña.
+    const result = await runTransaction(db, async (transaction) => {
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists()) throw new Error("Usuario no encontrado.");
 
-    const data = userSnap.data();
-    if (data.baneado) throw new Error("Usuario baneado.");
+      const data = userSnap.data();
+      if (data.baneado) throw new Error("Usuario baneado.");
 
-    const sellosActuales = data.comprasRealizadas || 0;
-    if (sellosActuales < costo) throw new Error("No tienes suficientes sellos.");
+      const sellosActuales = data.comprasRealizadas || 0;
+      if (sellosActuales < costo) throw new Error("No tienes suficientes sellos.");
 
-    const nuevasCompras = sellosActuales - costo;
-    const timestamp = new Date().toISOString();
-    const codigoVoucher = generarCodigoVoucher();
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      const nuevasCompras = sellosActuales - costo;
+      const usuarioNombre = data.nombre || data.correo || userEmail || "Miembro";
 
-    // 1. Crear el ticket (crítico — si falla, abortamos todo)
-    const canjeRef = await addDoc(collection(db, "canjes_activos"), {
-      userId,
-      usuarioNombre: data.nombre || data.correo || userEmail || "Miembro",
-      premioNombre,
-      codigoVoucher,
-      costo,
-      estado: "pendiente",
-      fechaEmision: timestamp,
-      fechaExpiracion: expiresAt,
+      // Crear voucher con ref pre-generado (sin await dentro de transaction)
+      const canjeRef = doc(collection(db, "canjes_activos"));
+      transaction.set(canjeRef, {
+        userId,
+        usuarioNombre,
+        premioNombre,
+        codigoVoucher,
+        costo,
+        estado: "pendiente",
+        fechaEmision: timestamp,
+        fechaExpiracion: expiresAt,
+      });
+
+      // Descontar sellos atómicamente
+      transaction.update(userRef, {
+        comprasRealizadas: nuevasCompras,
+        recompensaDisponible: nuevasCompras >= 5,
+        totalCanjesHistoricos: increment(1),
+        lastCanjeAt: timestamp,
+      });
+
+      return { canjeId: canjeRef.id, usuarioNombre };
     });
 
-    // 2. Descontar sellos del usuario (crítico)
-    await updateDoc(userRef, {
-      comprasRealizadas: nuevasCompras,
-      recompensaDisponible: nuevasCompras >= 5,
-      totalCanjesHistoricos: increment(1),
-      lastCanjeAt: timestamp,
-    });
-
-    // 3. Retornar resultado YA — antes de operaciones auxiliares que pueden fallar
-    const result = { codigoVoucher, canjeId: canjeRef.id };
-
-    // 4. Operaciones no-críticas: no bloquean ni lanzan error al caller
+    // Operaciones no-críticas fuera de la transacción
     (async () => {
       try {
         await addDoc(collection(db, "system_logs"), {
-          usuario: data.nombre || data.correo,
+          usuario: result.usuarioNombre,
           usuarioId: userId,
           accion: `canjeó "${premioNombre}" (voucher: ${codigoVoucher})`,
           fecha: timestamp,
@@ -194,7 +203,7 @@ export async function canjearRecompensa(
       }
     })();
 
-    return result;
+    return { codigoVoucher, canjeId: result.canjeId };
   } catch (error) {
     console.error("Error al canjear recompensa:", error);
     throw error;

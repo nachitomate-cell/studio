@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 /**
  * An invisible component that listens for globally emitted 'permission-error' events.
@@ -11,6 +13,11 @@ import { FirestorePermissionError } from '@/firebase/errors';
 export function FirebaseErrorListener() {
   // Use the specific error type for the state for type safety.
   const [error, setError] = useState<FirestorePermissionError | null>(null);
+
+  // Precalentar conexión Firestore al montar (establece WebSocket antes de cualquier escaneo QR)
+  useEffect(() => {
+    getDoc(doc(db, 'config', 'app')).catch(() => {});
+  }, []);
 
   useEffect(() => {
     // The callback now expects a strongly-typed error, matching the event payload.

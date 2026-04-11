@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
-import { crearPendingStamp, cancelarPendingStamp } from "@/lib/puntos";
+import { doc, onSnapshot, collection, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { cancelarPendingStamp } from "@/lib/puntos";
 import { SuccessScanner } from "@/components/loyalty/SuccessScanner";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -225,6 +225,11 @@ function CanjeContent() {
   const processingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Precalentar conexión Firestore al montar (establece WebSocket antes del escaneo) ──
+  useEffect(() => {
+    getDoc(doc(db, "config", "app")).catch(() => {});
+  }, []);
+
   // ── Limpiar pending al desmontar si sigue en espera ─────────────────────
   useEffect(() => {
     return () => {
@@ -272,6 +277,14 @@ function CanjeContent() {
       const data = snap.data();
 
       if (data.status === "confirmed") {
+        // Guardar cooldown en localStorage para chequeo rápido en próximo escaneo
+        const currentUser = auth.currentUser;
+        if (currentUser && data.vendorId) {
+          localStorage.setItem(
+            `cooldown_${currentUser.uid}_${data.vendorId}`,
+            Date.now().toString()
+          );
+        }
         pendingIdRef.current = null;
         setPendingId(null);
         setSuccessData({
@@ -323,58 +336,133 @@ function CanjeContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localId]);
 
-  // ── Crear pending_stamp ───────────────────────────────────────────────────
+  // ── Crear pending_stamp (optimizado: spinner primero, Firestore después) ──
   const iniciarHandshake = async (
     userId: string,
     userName: string,
     vendorId: string,
     isRetry = false
   ) => {
+    console.time("total-scan");
     if (isRetry) {
       processingRef.current = true;
       setSecondsElapsed(0);
     }
-    setPhase("creating");
 
-    // Resolver nombre del local
-    try {
-      const { doc: firestoreDoc, getDoc } = await import("firebase/firestore");
-      const snap = await getDoc(firestoreDoc(db, "entrepreneur_profiles", vendorId));
-      if (snap.exists()) {
-        const d = snap.data();
-        setVendorName(d.businessName || d.nombre || "el local");
-      } else {
-        const snap2 = await getDoc(firestoreDoc(db, "usuarios", vendorId));
-        if (snap2.exists()) {
-          const d = snap2.data();
-          setVendorName(d.nombreTienda || d.nombre || "el local");
-        }
-      }
-    } catch {
-      // nombre de local es cosmético — no bloqueante
-    }
+    // ── 1. Cooldown check en localStorage (síncrono, <1ms) ─────────────────
+    console.time("1-cooldown-check");
+    const COOLDOWN_MS = 12 * 60 * 60 * 1000;
+    const cooldownKey = `cooldown_${userId}_${vendorId}`;
+    const lastStampTs = localStorage.getItem(cooldownKey);
+    const elapsed = Date.now() - parseInt(lastStampTs || "0");
+    console.timeEnd("1-cooldown-check");
 
-    try {
-      const id = await crearPendingStamp(db, userId, userName, vendorId);
-      pendingIdRef.current = id;
-      setPendingId(id);
-      setPhase("waiting");
-    } catch (err: any) {
-      if (
-        err?.message?.toLowerCase().includes("esperar") ||
-        err?.message?.toLowerCase().includes("horas")
-      ) {
-        setPhase("cooldown");
-        setErrorMsg(err.message);
-      } else if (err?.message?.toLowerCase().includes("baneado")) {
-        setPhase("error");
-        setErrorMsg("Tu cuenta ha sido suspendida.");
-      } else {
-        setPhase("error");
-        setErrorMsg(err?.message || "No se pudo iniciar la solicitud. Inténtalo de nuevo.");
-      }
+    if (elapsed < COOLDOWN_MS) {
+      const horasRestantes = Math.ceil((COOLDOWN_MS - elapsed) / 3600000);
+      setPhase("cooldown");
+      setErrorMsg(
+        `Debes esperar ${horasRestantes} hora${horasRestantes !== 1 ? "s" : ""} antes de volver a sumar un sello en este local.`
+      );
       processingRef.current = false;
+      console.timeEnd("total-scan");
+      return;
     }
+
+    // ── 2. Nombre del local desde caché localStorage ────────────────────────
+    const nameCacheKey = `vendor_name_${vendorId}`;
+    const cachedName = localStorage.getItem(nameCacheKey);
+    if (cachedName) setVendorName(cachedName);
+
+    // ── 3. Pre-generar ref local (sin red) y registrar pendingId ───────────
+    console.time("2-create-pending-stamp");
+    const pendingRef = doc(collection(db, "pending_stamps"));
+    const pendingId = pendingRef.id;
+    pendingIdRef.current = pendingId;
+    setPendingId(pendingId);
+
+    // ── 4. Mostrar spinner INMEDIATAMENTE ───────────────────────────────────
+    console.time("3-show-spinner");
+    setPhase("waiting");
+    console.timeEnd("3-show-spinner");
+    console.timeEnd("total-scan");
+
+    // ── 5. Escribir en Firestore en background (sin await) ──────────────────
+    setDoc(pendingRef, {
+      userId,
+      userName: userName || "Miembro del Club",
+      vendorId,
+      status: "pending",
+      createdAt: serverTimestamp(),
+    })
+      .then(() => console.timeEnd("2-create-pending-stamp"))
+      .catch(() => {
+        if (pendingIdRef.current !== pendingId) return; // ya fue cancelado
+        setPhase("error");
+        setErrorMsg("No se pudo iniciar la solicitud. Inténtalo de nuevo.");
+        pendingIdRef.current = null;
+        setPendingId(null);
+        processingRef.current = false;
+      });
+
+    // ── 6. Fetch nombre del local + verificar ban en paralelo (background) ──
+    const fetchName = cachedName
+      ? Promise.resolve()
+      : getDoc(doc(db, "entrepreneur_profiles", vendorId))
+          .then((snap) => {
+            if (snap.exists()) {
+              const name = snap.data().businessName || snap.data().nombre || "el local";
+              setVendorName(name);
+              localStorage.setItem(nameCacheKey, name);
+              return;
+            }
+            return getDoc(doc(db, "usuarios", vendorId)).then((snap2) => {
+              if (snap2.exists()) {
+                const d = snap2.data();
+                const name = d.nombreTienda || d.nombre || "el local";
+                setVendorName(name);
+                localStorage.setItem(nameCacheKey, name);
+              }
+            });
+          })
+          .catch(() => {});
+
+    const verifyUser = getDoc(doc(db, "usuarios", userId))
+      .then((userSnap) => {
+        if (!userSnap.exists()) return;
+        const data = userSnap.data();
+
+        if (data.baneado) {
+          cancelarPendingStamp(db, pendingId).catch(() => {});
+          pendingIdRef.current = null;
+          setPendingId(null);
+          setPhase("error");
+          setErrorMsg("Tu cuenta ha sido suspendida.");
+          processingRef.current = false;
+          return;
+        }
+
+        // Cooldown real (valida si localStorage fue manipulado)
+        const lastScans = data.lastVendorScans || {};
+        const lastScanTime = lastScans[vendorId];
+        if (lastScanTime) {
+          const hoursSinceLast =
+            (Date.now() - new Date(lastScanTime).getTime()) / 3600000;
+          if (hoursSinceLast < 12) {
+            cancelarPendingStamp(db, pendingId).catch(() => {});
+            pendingIdRef.current = null;
+            setPendingId(null);
+            const horasRestantes = Math.ceil(12 - hoursSinceLast);
+            setPhase("cooldown");
+            setErrorMsg(
+              `Debes esperar ${horasRestantes} hora${horasRestantes !== 1 ? "s" : ""} antes de volver a sumar un sello en este local.`
+            );
+            processingRef.current = false;
+          }
+        }
+      })
+      .catch(() => {});
+
+    Promise.all([fetchName, verifyUser]).catch(() => {});
   };
 
   // ── Cancelar manualmente ──────────────────────────────────────────────────
