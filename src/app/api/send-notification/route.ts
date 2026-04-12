@@ -51,8 +51,8 @@ export async function POST(request: Request) {
         notification: {
           title,
           body,
-          icon: "/Logo.png",
-          badge: "/Logo.png",
+          icon: "/Logo3.png",
+          badge: "/Logo3.png",
         },
         fcmOptions: {
           link: url || "/",

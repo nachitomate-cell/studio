@@ -10,7 +10,7 @@ import {
   User 
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, query, where, collection, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,6 +94,14 @@ export function Auth() {
         if (!aceptaTerminos) throw new Error("Debes aceptar los términos de uso.");
         if (!nombre.trim()) throw new Error("Ingresa tu nombre completo.");
         if (!fechaNacimiento) throw new Error("Ingresa tu fecha de nacimiento.");
+        if (!phone.trim()) throw new Error("Ingresa tu número de teléfono.");
+
+        // Validar teléfono duplicado
+        const phoneQuery = query(collection(db, "usuarios"), where("telefono", "==", phone.trim()));
+        const phoneSnap = await getDocs(phoneQuery);
+        if (!phoneSnap.empty) {
+          throw new Error("Este número de teléfono ya está registrado.");
+        }
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;

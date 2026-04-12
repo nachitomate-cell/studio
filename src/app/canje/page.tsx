@@ -8,7 +8,7 @@ import { cancelarPendingStamp } from "@/lib/puntos";
 import { SuccessScanner } from "@/components/loyalty/SuccessScanner";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2, AlertCircle, ArrowLeft, XCircle, Clock, WifiOff, RefreshCw,
+  Loader2, AlertCircle, ArrowLeft, XCircle, Clock, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -21,7 +21,6 @@ type Phase =
   | "confirmed"   // sello confirmado ✅
   | "expired"     // expiró (5 min sin respuesta)
   | "rejected"    // vendedor rechazó
-  | "cooldown"    // cooldown de 12h activo
   | "error";      // error genérico
 
 // ─── Waiting UI ─────────────────────────────────────────────────────────────
@@ -140,7 +139,6 @@ function ResultScreen({
 }) {
   const isExpired = phase === "expired";
   const isRejected = phase === "rejected";
-  const isCooldown = phase === "cooldown";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-50 to-slate-100">
@@ -150,15 +148,11 @@ function ResultScreen({
           style={{
             backgroundColor: isExpired
               ? "rgba(245,158,11,0.12)"
-              : isCooldown
-              ? "rgba(110,187,209,0.12)"
               : "rgba(239,68,68,0.1)",
           }}
         >
           {isExpired ? (
             <Clock className="w-10 h-10 text-amber-500" />
-          ) : isCooldown ? (
-            <WifiOff className="w-10 h-10" style={{ color: "#6EBBD1" }} />
           ) : (
             <AlertCircle className="w-10 h-10 text-red-500" />
           )}
@@ -170,8 +164,6 @@ function ResultScreen({
               ? "Solicitud expirada"
               : isRejected
               ? "Sello no confirmado"
-              : isCooldown
-              ? "Cooldown activo"
               : "Algo salió mal"}
           </h2>
           <p className="text-sm text-slate-500 font-medium leading-relaxed">{errorMsg}</p>
@@ -228,6 +220,15 @@ function CanjeContent() {
   // ── Precalentar conexión Firestore al montar (establece WebSocket antes del escaneo) ──
   useEffect(() => {
     getDoc(doc(db, "config", "app")).catch(() => {});
+  }, []);
+
+  // ── Limpiar cooldowns legacy guardados en localStorage ───────────────────
+  useEffect(() => {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("cooldown_")) {
+        localStorage.removeItem(key);
+      }
+    });
   }, []);
 
   // ── Limpiar pending al desmontar si sigue en espera ─────────────────────
@@ -298,14 +299,6 @@ function CanjeContent() {
       if (status === "confirmed") {
         confirmed = true;
         cleanup();
-        // Guardar cooldown en localStorage
-        const currentUser = auth.currentUser;
-        if (currentUser && data.vendorId) {
-          localStorage.setItem(
-            `cooldown_${currentUser.uid}_${data.vendorId}`,
-            Date.now().toString()
-          );
-        }
         pendingIdRef.current = null;
         setPendingId(null);
         setSuccessData({
@@ -415,44 +408,25 @@ function CanjeContent() {
       setSecondsElapsed(0);
     }
 
-    // ── 1. Cooldown check en localStorage (síncrono, <1ms) ─────────────────
-    console.time("1-cooldown-check");
-    const COOLDOWN_MS = 12 * 60 * 60 * 1000;
-    const cooldownKey = `cooldown_${userId}_${vendorId}`;
-    const lastStampTs = localStorage.getItem(cooldownKey);
-    const elapsed = Date.now() - parseInt(lastStampTs || "0");
-    console.timeEnd("1-cooldown-check");
-
-    if (elapsed < COOLDOWN_MS) {
-      const horasRestantes = Math.ceil((COOLDOWN_MS - elapsed) / 3600000);
-      setPhase("cooldown");
-      setErrorMsg(
-        `Debes esperar ${horasRestantes} hora${horasRestantes !== 1 ? "s" : ""} antes de volver a sumar un sello en este local.`
-      );
-      processingRef.current = false;
-      console.timeEnd("total-scan");
-      return;
-    }
-
-    // ── 2. Nombre del local desde caché localStorage ────────────────────────
+    // ── 1. Nombre del local desde caché localStorage ────────────────────────
     const nameCacheKey = `vendor_name_${vendorId}`;
     const cachedName = localStorage.getItem(nameCacheKey);
     if (cachedName) setVendorName(cachedName);
 
-    // ── 3. Pre-generar ref local (sin red) y registrar pendingId ───────────
+    // ── 2. Pre-generar ref local (sin red) y registrar pendingId ───────────
     console.time("2-create-pending-stamp");
     const pendingRef = doc(collection(db, "pending_stamps"));
     const pendingId = pendingRef.id;
     pendingIdRef.current = pendingId;
     setPendingId(pendingId);
 
-    // ── 4. Mostrar spinner INMEDIATAMENTE ───────────────────────────────────
+    // ── 3. Mostrar spinner INMEDIATAMENTE ───────────────────────────────────
     console.time("3-show-spinner");
     setPhase("waiting");
     console.timeEnd("3-show-spinner");
     console.timeEnd("total-scan");
 
-    // ── 5. Escribir en Firestore en background (sin await) ──────────────────
+    // ── 4. Escribir en Firestore en background (sin await) ──────────────────
     setDoc(pendingRef, {
       userId,
       userName: userName || "Miembro del Club",
@@ -470,7 +444,7 @@ function CanjeContent() {
         processingRef.current = false;
       });
 
-    // ── 6. Fetch nombre del local + verificar ban en paralelo (background) ──
+    // ── 5. Fetch nombre del local + verificar ban en paralelo (background) ──
     const fetchName = cachedName
       ? Promise.resolve()
       : getDoc(doc(db, "entrepreneur_profiles", vendorId))
@@ -497,7 +471,7 @@ function CanjeContent() {
         // Guard: si el sello ya fue confirmado/cancelado, no sobrescribir la fase.
         // Sin este guard, verifyUser puede resolver DESPUÉS de que el onSnapshot
         // haya seteado phase="confirmed", y al ver lastVendorScans recién actualizado
-        // por confirmarHandshake, confundiría la confirmación con un cooldown activo.
+        // por confirmarHandshake, confundiría la confirmación con una fase activa.
         if (pendingIdRef.current !== pendingId) return;
         if (!userSnap.exists()) return;
         const data = userSnap.data();
@@ -510,25 +484,6 @@ function CanjeContent() {
           setErrorMsg("Tu cuenta ha sido suspendida.");
           processingRef.current = false;
           return;
-        }
-
-        // Cooldown real (valida si localStorage fue manipulado)
-        const lastScans = data.lastVendorScans || {};
-        const lastScanTime = lastScans[vendorId];
-        if (lastScanTime) {
-          const hoursSinceLast =
-            (Date.now() - new Date(lastScanTime).getTime()) / 3600000;
-          if (hoursSinceLast < 12) {
-            cancelarPendingStamp(db, pendingId).catch(() => {});
-            pendingIdRef.current = null;
-            setPendingId(null);
-            const horasRestantes = Math.ceil(12 - hoursSinceLast);
-            setPhase("cooldown");
-            setErrorMsg(
-              `Debes esperar ${horasRestantes} hora${horasRestantes !== 1 ? "s" : ""} antes de volver a sumar un sello en este local.`
-            );
-            processingRef.current = false;
-          }
         }
       })
       .catch(() => {});
@@ -591,7 +546,7 @@ function CanjeContent() {
     );
   }
 
-  if (phase === "expired" || phase === "rejected" || phase === "cooldown" || phase === "error") {
+  if (phase === "expired" || phase === "rejected" || phase === "error") {
     return (
       <ResultScreen
         phase={phase}

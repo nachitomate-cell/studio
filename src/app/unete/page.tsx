@@ -257,7 +257,7 @@ export default function UnetePage() {
             {/* ===== Header: Logo + mensaje ===== */}
             <header className="unete-header">
           <div className="unete-logo-wrapper">
-            <img src="/Logo.png" alt="Club Patio Curauma" className="unete-logo" />
+            <img src="/Logo3.png" alt="Club Patio Curauma" className="unete-logo" />
           </div>
           <div className="unete-hero-text">
             <h1 className="unete-title">

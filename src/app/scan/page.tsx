@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 type ScanError =
   | { type: "invalid_qr" }
   | { type: "not_found" }
-  | { type: "cooldown"; message: string }
   | { type: "network" }
   | { type: "camera" };
 
@@ -33,11 +32,6 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
       icon: <ShieldAlert className="w-6 h-6 text-red-400" />,
       title: "Local no encontrado",
       desc: "El local asociado a este código ya no está disponible.",
-    },
-    cooldown: {
-      icon: <AlertCircle className="w-6 h-6 text-amber-400" />,
-      title: "Espera antes de volver",
-      desc: "Ya acumulaste un sello en este local recientemente. Necesitas esperar 12 horas.",
     },
     network: {
       icon: <WifiOff className="w-6 h-6 text-slate-400" />,
@@ -61,9 +55,6 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
           <div>
             <p className="text-white font-bold text-sm">{cfg.title}</p>
             <p className="text-slate-400 text-xs mt-0.5 leading-relaxed">{cfg.desc}</p>
-            {error.type === "cooldown" && "message" in error && (
-              <p className="text-amber-400 text-xs mt-1 font-medium">{error.message}</p>
-            )}
           </div>
         </div>
         <Button
@@ -238,8 +229,7 @@ export default function ClientScannerPage() {
     // await registrarCompra(db, currentUser.uid, vendorId, true); // DESACTIVADO
     //
     // En su lugar: redirigir a /canje?localId=X que implementa el flujo completo:
-    //   1. Verifica cooldown de 12h
-    //   2. Crea pending_stamp con status:'pending'
+    //   1. Crea pending_stamp con status:'pending'
     //   3. Muestra spinner "Esperando confirmación del local..."
     //   4. onSnapshot: cuando emprendedor confirma → asigna sello + pantalla éxito
 

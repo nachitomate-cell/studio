@@ -40,9 +40,13 @@ service cloud.firestore {
       return isSignedIn() && getUserRol() in ["director_patio", "director", "admin"];
     }
 
-    // Función helper: verifica si el usuario tiene rol de emprendedor
+    // Función helper: verifica si el usuario tiene rol de emprendedor.
+    // Soporta tanto rol string (legacy) como array roles (nuevo sistema multi-rol).
     function isEmprendedor() {
-      return isSignedIn() && getUserRol() == "emprendedor";
+      return isSignedIn() && exists(userDoc()) && (
+        get(userDoc()).data.rol == "emprendedor" ||
+        get(userDoc()).data.get("roles", []).hasAny(["emprendedor"])
+      );
     }
 
     // ── Usuarios ──────────────────────────────────────────────────────────────
@@ -58,16 +62,18 @@ service cloud.firestore {
       // Roles permitidos en auto-registro: "cliente" y "emprendedor".
       // Admin/moderador/director JAMÁS se pueden auto-asignar client-side.
       allow create: if isOwner(userId)
-        && !(request.resource.data.rol in ["admin", "moderador", "director", "director_patio"]);
+        && !(request.resource.data.rol in ["admin", "moderador", "director", "director_patio"])
+        && request.resource.data.comprasRealizadas == 1
+        && request.resource.data.puntos == 100;
       // Actualización: el dueño, staff, o un emprendedor actualizando solo campos de sellos.
-      // Los emprendedores necesitan incrementar comprasRealizadas/sellosLocales durante el handshake,
-      // pero nunca pueden modificar campos sensibles como rol, baneado, email o correo.
-      allow update: if isOwner(userId) || isStaff() ||
-        (isEmprendedor() &&
-         !('rol' in request.resource.data.diff(resource.data).affectedKeys()) &&
-         !('baneado' in request.resource.data.diff(resource.data).affectedKeys()) &&
-         !('email' in request.resource.data.diff(resource.data).affectedKeys()) &&
-         !('correo' in request.resource.data.diff(resource.data).affectedKeys()));
+      // Los emprendedores necesitan incrementar comprasRealizadas/puntos durante el handshake,
+      // pero nunca pueden modificar campos sensibles o asignar valores arbitrarios.
+      allow update: if isOwner(userId) || isStaff() || (
+        isEmprendedor() && 
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['comprasRealizadas', 'puntos', 'lastVendorScans', 'sellosLocales', 'lastPurchaseAt', 'lastUpdate']) &&
+        request.resource.data.comprasRealizadas == resource.data.comprasRealizadas + 1
+      );
       // Borrado: solo staff
       allow delete: if isStaff();
 
@@ -94,10 +100,34 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
-    // ── Config Premios ─────────────────────────────────────────────────────────
+    // ── Config Premios (legacy) ────────────────────────────────────────────────
     match /config_premios/{premioId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isDirector();
+    }
+
+    // ── Premios (catálogo oficial) ─────────────────────────────────────────────
+    match /premios/{premioId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isDirector();
+    }
+
+    // ── Canjes de Premios ──────────────────────────────────────────────────────
+    match /canjes/{canjeId} {
+      // Cliente crea su propio canje (clienteId debe coincidir con su uid)
+      allow create: if isSignedIn()
+        && request.resource.data.clienteId == request.auth.uid;
+      // Cliente lee sus propios canjes; emprendedor lee los de su local; staff lee todo
+      allow read: if isSignedIn() && (
+        resource.data.clienteId == request.auth.uid ||
+        resource.data.vendorId == request.auth.uid ||
+        isStaff()
+      );
+      // Emprendedor o staff pueden actualizar (marcar como usado)
+      allow update: if isSignedIn() && (
+        resource.data.vendorId == request.auth.uid || isStaff()
+      );
+      allow delete: if isAdmin();
     }
 
     // ── Canjes Activos (vouchers generados) ────────────────────────────────────

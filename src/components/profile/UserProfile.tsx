@@ -45,6 +45,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { hasRole } from "@/lib/roles";
 
 const AVATAR_OPTIONS = [
   { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
@@ -501,7 +502,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         updatedAt: new Date().toISOString()
       };
 
-      if (userData?.rol === "emprendedor") {
+      if (hasRole(userData, "emprendedor")) {
         updateData.nombreTienda = editForm.nombreTienda;
         updateData.rubro = editForm.rubro;
         updateData.descripcion = editForm.descripcion;
@@ -609,10 +610,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     );
   }
 
-  const rol = userData?.rol || "cliente";
-  const isAdmin = rol === "admin";
-  const isEntrepreneur = rol === "emprendedor";
-  const isDirector = rol === "director";
+  const isAdmin = hasRole(userData, "admin");
+  const isEntrepreneur = hasRole(userData, "emprendedor");
+  const isDirector = hasRole(userData, "director") || hasRole(userData, "director_patio");
   const sellos = userData?.comprasRealizadas || 0;
   const tickets = userData?.ticketsSorteo || 0;
   const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
@@ -624,11 +624,13 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         <div
           className="h-[120px]"
           style={{
-            background: isEntrepreneur
-              ? "linear-gradient(135deg, rgba(91,184,212,0.3) 0%, rgba(201,146,10,0.2) 100%)"
-              : isDirector
-                ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.2) 100%)"
-                : "linear-gradient(135deg, #E8F4F8 0%, #D4EDD4 50%, #FFF8E8 100%)"
+            background: (isDirector && isEntrepreneur)
+              ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.25) 50%, rgba(91,184,212,0.2) 100%)"
+              : isEntrepreneur
+                ? "linear-gradient(135deg, rgba(91,184,212,0.3) 0%, rgba(201,146,10,0.2) 100%)"
+                : isDirector
+                  ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.2) 100%)"
+                  : "linear-gradient(135deg, #E8F4F8 0%, #D4EDD4 50%, #FFF8E8 100%)"
           }}
         />
         <div className="px-6 pb-6 -mt-10">
@@ -666,9 +668,20 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h2 className="text-2xl font-bold text-primary">{userData?.nombre || "Usuario"}</h2>
-              <Badge variant={isAdmin ? "destructive" : isDirector ? "secondary" : isEntrepreneur ? "default" : "outline"} className="text-[10px] font-bold uppercase">
-                {isAdmin ? "Master Admin" : isDirector ? "Director de Patio" : isEntrepreneur ? "Emprendedor" : "Miembro Club"}
-              </Badge>
+              {isAdmin ? (
+                <Badge variant="destructive" className="text-[10px] font-bold uppercase">Master Admin</Badge>
+              ) : (isDirector && isEntrepreneur) ? (
+                <div className="flex gap-1">
+                  <Badge variant="secondary" className="text-[10px] font-bold uppercase">Director</Badge>
+                  <Badge variant="default" className="text-[10px] font-bold uppercase">Emprendedor</Badge>
+                </div>
+              ) : isDirector ? (
+                <Badge variant="secondary" className="text-[10px] font-bold uppercase">Director de Patio</Badge>
+              ) : isEntrepreneur ? (
+                <Badge variant="default" className="text-[10px] font-bold uppercase">Emprendedor</Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] font-bold uppercase">Miembro Club</Badge>
+              )}
             </div>
             {!isEditing && userData?.telefono && (
               <p className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
@@ -865,7 +878,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
       )}
 
-      {!isEntrepreneur && !isDirector && !isEditing && (
+      {!isEntrepreneur && !isDirector && !isAdmin && !isEditing && (
         <>
           <section className="space-y-4">
             <div className="flex items-center justify-between px-1">

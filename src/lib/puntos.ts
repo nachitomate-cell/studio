@@ -1,7 +1,8 @@
 
 import {
   doc, getDoc, updateDoc, setDoc, Firestore, increment,
-  collection, addDoc, runTransaction, serverTimestamp, deleteDoc
+  collection, addDoc, runTransaction, serverTimestamp, deleteDoc,
+  query, where, getDocs, writeBatch,
 } from "firebase/firestore";
 import { enviarNotificacionLocal } from "./notificaciones";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -36,18 +37,6 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       return;
     }
 
-    // BLOQUEO ANTI-FRAUDE: cooldown de 12 horas POR LOCAL
-    if (isClientScan && vendedorId) {
-      const lastScans = data.lastVendorScans || {};
-      const lastScanTime = lastScans[vendedorId];
-      if (lastScanTime) {
-        const hoursSinceLast = (Date.now() - new Date(lastScanTime).getTime()) / (1000 * 60 * 60);
-        if (hoursSinceLast < 12) {
-          throw new Error("Debes esperar 12 horas antes de volver a sumar un sello en este local.");
-        }
-      }
-    }
-
     const nuevasCompras = (data.comprasRealizadas || 0) + 1;
     const clienteNombre = data.nombre || data.correo || "Miembro del Club";
 
@@ -59,7 +48,7 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       lastUpdate: timestamp,
     };
 
-    // Cooldown por local: escritura con clave específica para evitar race conditions
+    // Registro de último sello por local (auditoría)
     if (isClientScan && vendedorId) {
       updateData[`lastVendorScans.${vendedorId}`] = timestamp;
     }
@@ -214,7 +203,7 @@ export async function canjearRecompensa(
 // HANDSHAKE DIGITAL
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Crea un pending_stamp. Lanza error si hay cooldown activo (12h por local). */
+/** Crea un pending_stamp en Firestore para el flujo Handshake Digital. */
 export async function crearPendingStamp(
   db: Firestore,
   userId: string,
@@ -227,18 +216,6 @@ export async function crearPendingStamp(
   if (userSnap.exists()) {
     const data = userSnap.data();
     if (data.baneado) throw new Error("Usuario baneado.");
-
-    const lastScans = data.lastVendorScans || {};
-    const lastScanTime = lastScans[vendorId];
-    if (lastScanTime) {
-      const hoursSinceLast = (Date.now() - new Date(lastScanTime).getTime()) / (1000 * 60 * 60);
-      if (hoursSinceLast < 12) {
-        const horasRestantes = Math.ceil(12 - hoursSinceLast);
-        throw new Error(
-          `Debes esperar ${horasRestantes} hora${horasRestantes !== 1 ? "s" : ""} antes de volver a sumar un sello en este local.`
-        );
-      }
-    }
   }
 
   const pendingRef = await addDoc(collection(db, "pending_stamps"), {
@@ -295,6 +272,8 @@ export async function confirmarHandshake(
     const timestamp = new Date().toISOString();
     const currentSellos = userSnap.exists() ? (userSnap.data().comprasRealizadas || 0) : 0;
     const nuevoTotal = currentSellos + 1;
+    // Usar el nombre real del perfil, no el del pending_stamps (que puede ser genérico)
+    const realUserName = (userSnap.exists() ? userSnap.data().nombre : null) || userName || "Miembro";
 
     // Confirmar solicitud (nuevoTotal se escribe para que el cliente
     // pueda leerlo desde el onSnapshot y mostrar el total correcto)
@@ -329,7 +308,7 @@ export async function confirmarHandshake(
       });
     }
 
-    return { userId, vendorId, userName, nuevoTotal };
+    return { userId, vendorId, userName: realUserName, nuevoTotal };
   });
 
   // Operaciones no críticas (fuera de la transacción)
@@ -370,6 +349,150 @@ export async function confirmarHandshake(
   return result;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CANJES DE PREMIOS (colección 'canjes')
+// ─────────────────────────────────────────────────────────────────────────────
+
+function generarCodigoCanje(premioNombre: string): string {
+  const prefijo = premioNombre
+    .substring(0, 4)
+    .toUpperCase()
+    .replace(/\s/g, "X")
+    .replace(/[^A-Z0-9X]/g, "X");
+  const aleatorio = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefijo}-${aleatorio}`;
+}
+
+async function generarCodigoUnico(db: Firestore, premioNombre: string): Promise<string> {
+  for (let i = 0; i < 5; i++) {
+    const codigo = generarCodigoCanje(premioNombre);
+    const snap = await getDocs(query(collection(db, "canjes"), where("codigo", "==", codigo)));
+    if (snap.empty) return codigo;
+  }
+  const fallback = premioNombre.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, "X");
+  return `${fallback}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+}
+
+export interface PremioParaCanje {
+  id: string;
+  nombre: string;
+  icono: string;
+  vendorId: string;
+  vendorNombre: string;
+  sellosRequeridos: number;
+}
+
+/** Crea un canje en la colección 'canjes'. Transacción atómica: descuenta sellos + crea documento. */
+export async function canjearPremio(
+  db: Firestore,
+  userId: string,
+  userName: string,
+  premio: PremioParaCanje
+): Promise<{ canjeId: string; codigo: string }> {
+  const codigo = await generarCodigoUnico(db, premio.nombre);
+  const expiraEn = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const userRef = doc(db, "usuarios", userId);
+  const premioRef = doc(db, "premios", premio.id);
+
+  const canjeId = await runTransaction(db, async (transaction) => {
+    // 1. Obtener usuario y premio en paralelo dentro de la transacción
+    const [userSnap, premioSnap] = await Promise.all([
+      transaction.get(userRef),
+      transaction.get(premioRef),
+    ]);
+
+    if (!userSnap.exists()) throw new Error("Usuario no encontrado.");
+    const userData = userSnap.data();
+    if (userData.baneado) throw new Error("Usuario baneado.");
+
+    // 2. Validar Stock (si el campo existe y es número)
+    if (premioSnap.exists()) {
+      const pData = premioSnap.data();
+      if (typeof pData.stock === "number" && pData.stock <= 0) {
+        throw new Error("Lo sentimos, este premio se ha agotado.");
+      }
+    }
+
+    // 3. Validar Sellos
+    const sellosActuales = userData.comprasRealizadas || 0;
+    if (sellosActuales < premio.sellosRequeridos) {
+      throw new Error("No tienes suficientes sellos.");
+    }
+
+    const nuevoTotal = sellosActuales - premio.sellosRequeridos;
+    const canjeRef = doc(collection(db, "canjes"));
+
+    // 4. Crear el canje
+    transaction.set(canjeRef, {
+      clienteId: userId,
+      clienteNombre: userData.nombre || userName || "Miembro del Club",
+      premioId: premio.id,
+      premioNombre: premio.nombre,
+      premioIcono: premio.icono,
+      vendorId: premio.vendorId,
+      vendorNombre: premio.vendorNombre,
+      sellosDescontados: premio.sellosRequeridos,
+      codigo,
+      status: "pending",
+      creadoEn: serverTimestamp(),
+      expiraEn,
+    });
+
+    // 5. Descontar sellos
+    transaction.update(userRef, {
+      comprasRealizadas: increment(-premio.sellosRequeridos),
+      recompensaDisponible: nuevoTotal >= 5,
+    });
+
+    // 6. Decrementar stock si aplica
+    if (premioSnap.exists() && typeof premioSnap.data()?.stock === "number") {
+      transaction.update(premioRef, { stock: increment(-1) });
+    }
+
+    return canjeRef.id;
+  });
+
+  // Log no crítico
+  (async () => {
+    try {
+      await addDoc(collection(db, "system_logs"), {
+        usuario: userName || "Miembro del Club",
+        usuarioId: userId,
+        vendedorId: premio.vendorId,
+        accion: `canjeó premio "${premio.nombre}" (código: ${codigo})`,
+        fecha: new Date().toISOString(),
+        tipo: "CANJE_PREMIO",
+      });
+    } catch (e) {
+      console.warn("[canjearPremio] Log falló:", e);
+    }
+  })();
+
+  return { canjeId, codigo };
+}
+
+/** Marca como expirados los canjes del usuario que superaron las 48h. */
+export async function verificarCanjesExpirados(db: Firestore, userId: string): Promise<void> {
+  try {
+    const ahora = new Date().toISOString();
+    const snap = await getDocs(
+      query(collection(db, "canjes"), where("clienteId", "==", userId), where("status", "==", "pending"))
+    );
+    const batch = writeBatch(db);
+    let changed = false;
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.expiraEn && data.expiraEn < ahora) {
+        batch.update(docSnap.ref, { status: "expired" });
+        changed = true;
+      }
+    });
+    if (changed) await batch.commit();
+  } catch (e) {
+    console.warn("[verificarCanjesExpirados]", e);
+  }
+}
+
 /** Rechaza un pending_stamp. No incrementa sellos. */
 export async function rechazarHandshake(
   db: Firestore,
@@ -382,13 +505,20 @@ export async function rechazarHandshake(
   const { userId, vendorId, userName } = pendingSnap.data();
   const timestamp = new Date().toISOString();
 
+  // Resolver nombre real del usuario
+  let realUserName = userName;
+  try {
+    const userSnap = await getDoc(doc(db, "usuarios", userId));
+    if (userSnap.exists()) realUserName = userSnap.data().nombre || userName;
+  } catch { /* no crítico */ }
+
   await updateDoc(pendingRef, { status: "rejected" });
 
   // Log no crítico
   (async () => {
     try {
       await addDoc(collection(db, "system_logs"), {
-        usuario: userName,
+        usuario: realUserName,
         usuarioId: userId,
         vendedorId: vendorId,
         accion: "sello rechazado (handshake)",

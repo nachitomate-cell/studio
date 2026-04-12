@@ -7,16 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { 
-  BarChart3, Users, Ticket, TrendingUp, 
-  ArrowLeft, Download, Send, Plus, Trash2, 
-  Edit3, Trophy, Megaphone, Loader2, Store
+import {
+  BarChart3, Users, Ticket, TrendingUp,
+  ArrowLeft, Download, Send, Plus, Trash2,
+  Edit3, Trophy, Megaphone, Loader2, Store, ToggleLeft
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { 
-  collection, query, where, getDocs, 
-  addDoc, deleteDoc, doc, updateDoc, 
-  onSnapshot, orderBy, limit, getDoc
+import {
+  collection, query, where, getDocs,
+  addDoc, deleteDoc, doc, updateDoc,
+  onSnapshot, orderBy, limit, getDoc,
+  arrayUnion, setDoc, serverTimestamp
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
@@ -33,6 +34,9 @@ export default function DirectorPage() {
   const { toast } = useToast();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [hasVendorRole, setHasVendorRole] = useState(false);
+  const [activatingStore, setActivatingStore] = useState(false);
   const [ranking, setRanking] = useState<any[]>([]);
   const [premios, setPremios] = useState<any[]>([]);
   const [mensajeGlobal, setMensajeGlobal] = useState({ titulo: "", cuerpo: "" });
@@ -40,7 +44,18 @@ export default function DirectorPage() {
   const [vendorToDelete, setVendorToDelete] = useState<{ id: string; nombre: string } | null>(null);
   const [deletingVendor, setDeletingVendor] = useState(false);
   const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
-  const [premioForm, setPremioForm] = useState<{ id: string | null; nombre: string; sellos_requeridos: number; icono: string; esSorteo: boolean }>({ id: null, nombre: '', sellos_requeridos: 5, icono: 'Gift', esSorteo: false });
+  const [vendorList, setVendorList] = useState<{ id: string; nombre: string }[]>([]);
+  const [premioForm, setPremioForm] = useState<{
+    id: string | null;
+    nombre: string;
+    descripcion: string;
+    sellosRequeridos: number;
+    icono: string;
+    vendorId: string;
+    esSorteo: boolean;
+    activo: boolean;
+    stock: number;
+  }>({ id: null, nombre: '', descripcion: '', sellosRequeridos: 5, icono: '🎁', vendorId: '', esSorteo: false, activo: true, stock: 0 });
 
   const [chartData, setChartData] = useState([
     { name: 'Sem 1', sellos: 0 },
@@ -53,14 +68,21 @@ export default function DirectorPage() {
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        setCurrentUserId(user.uid);
         if (user.email === (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com")) {
           setIsAuthorized(true);
         } else {
           try {
              const userDoc = await getDoc(doc(db, "usuarios", user.uid));
              const userData = userDoc.data();
-             if (userDoc.exists() && (userData?.rol === "director_patio" || userData?.rol === "director")) {
+             const rolStr: string = userData?.rol ?? "";
+             const rolesArr: string[] = Array.isArray(userData?.roles) ? userData.roles : [];
+             const isDirector = rolesArr.includes("director") || rolesArr.includes("director_patio") ||
+               rolStr === "director" || rolStr === "director_patio";
+             if (userDoc.exists() && isDirector) {
                 setIsAuthorized(true);
+                const isVendor = rolesArr.includes("emprendedor") || rolStr === "emprendedor";
+                setHasVendorRole(isVendor);
              } else {
                 toast({ variant: "destructive", title: "Acceso Denegado", description: "No cuentas con privilegios para ver este panel." });
                 router.replace("/");
@@ -153,10 +175,20 @@ export default function DirectorPage() {
       }
     });
 
-    // Escuchar premios en tiempo real
-    const unsubPremios = onSnapshot(collection(db, "config_premios"), (snap) => {
+    // Escuchar premios en tiempo real (nueva colección)
+    const unsubPremios = onSnapshot(collection(db, "premios"), (snap) => {
       setPremios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
+
+    // Cargar lista de vendors para el formulario
+    getDocs(collection(db, "entrepreneur_profiles"))
+      .then((snap) => {
+        const list = snap.docs
+          .map((d) => ({ id: d.id, nombre: d.data().businessName || d.data().nombre || d.id.substring(0, 8) }))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre));
+        setVendorList(list);
+      })
+      .catch(() => {});
 
     return () => {
       unsubLogs();
@@ -197,39 +229,50 @@ export default function DirectorPage() {
 
   const handleOpenPremioModal = (premio?: any) => {
     if (premio) {
-      setPremioForm({ 
-        id: premio.id, 
-        nombre: premio.nombre || '', 
-        sellos_requeridos: premio.sellos_requeridos || premio.costo || 5, 
-        icono: premio.icono || 'Gift',
-        esSorteo: premio.esSorteo || false
+      setPremioForm({
+        id: premio.id,
+        nombre: premio.nombre || '',
+        descripcion: premio.descripcion || '',
+        sellosRequeridos: premio.sellosRequeridos || premio.sellos_requeridos || 5,
+        icono: premio.icono || '🎁',
+        vendorId: premio.vendorId || '',
+        esSorteo: premio.esSorteo || false,
+        activo: premio.activo !== false,
+        stock: premio.stock || 0,
       });
     } else {
-      setPremioForm({ id: null, nombre: '', sellos_requeridos: 5, icono: 'Gift', esSorteo: false });
+      setPremioForm({ id: null, nombre: '', descripcion: '', sellosRequeridos: 5, icono: '🎁', vendorId: '', esSorteo: false, activo: true, stock: 0 });
     }
     setIsPremioModalOpen(true);
   };
 
   const handleSavePremio = async () => {
-    if (!premioForm.nombre || !premioForm.sellos_requeridos) return;
+    if (!premioForm.nombre || !premioForm.sellosRequeridos) return;
     setLoading(true);
     try {
+      const vendorInfo = vendorList.find((v) => v.id === premioForm.vendorId);
+      const vendorNombre = vendorInfo?.nombre || "Patio Curauma";
+
+      const data: Record<string, any> = {
+        nombre: premioForm.nombre,
+        descripcion: premioForm.descripcion,
+        sellosRequeridos: Number(premioForm.sellosRequeridos),
+        icono: premioForm.icono,
+        vendorId: premioForm.vendorId || "",
+        vendorNombre,
+        esSorteo: premioForm.esSorteo,
+        activo: premioForm.activo,
+        stock: Number(premioForm.stock),
+      };
+
       if (premioForm.id) {
-        await updateDoc(doc(db, "config_premios", premioForm.id), {
-          nombre: premioForm.nombre,
-          sellos_requeridos: Number(premioForm.sellos_requeridos),
-          icono: premioForm.icono,
-          esSorteo: premioForm.esSorteo
-        });
+        await updateDoc(doc(db, "premios", premioForm.id), data);
         toast({ title: "Premio Actualizado" });
       } else {
-        await addDoc(collection(db, "config_premios"), {
-          nombre: premioForm.nombre,
-          sellos_requeridos: Number(premioForm.sellos_requeridos),
-          icono: premioForm.icono,
-          esSorteo: premioForm.esSorteo,
-          fechaCreacion: new Date().toISOString(),
-          activo: true
+        await addDoc(collection(db, "premios"), {
+          ...data,
+          creadoEn: serverTimestamp(),
+          creadoPor: currentUserId,
         });
         toast({ title: "Premio Creado" });
       }
@@ -238,6 +281,30 @@ export default function DirectorPage() {
       toast({ variant: "destructive", title: "Error", description: "No se guardaron los cambios." });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleActivateStore = async () => {
+    if (!currentUserId || !auth.currentUser) return;
+    setActivatingStore(true);
+    try {
+      await updateDoc(doc(db, "usuarios", currentUserId), {
+        roles: arrayUnion("emprendedor")
+      });
+      await setDoc(doc(db, "entrepreneur_profiles", currentUserId), {
+        businessName: "",
+        description: "",
+        category: "",
+        imageUrls: [],
+        createdAt: new Date().toISOString(),
+        active: true
+      }, { merge: true });
+      setHasVendorRole(true);
+      toast({ title: "¡Tienda activada!", description: "Ya puedes gestionar tu tienda desde el perfil." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo activar la tienda." });
+    } finally {
+      setActivatingStore(false);
     }
   };
 
@@ -264,9 +331,14 @@ export default function DirectorPage() {
 
   const handleDeletePremio = async (id: string) => {
     if (confirm("¿Estás seguro de eliminar este premio?")) {
-      await deleteDoc(doc(db, "config_premios", id));
+      await deleteDoc(doc(db, "premios", id));
       toast({ title: "Premio Eliminado" });
     }
+  };
+
+  const handleToggleActivo = async (id: string, activo: boolean) => {
+    await updateDoc(doc(db, "premios", id), { activo: !activo });
+    toast({ title: activo ? "Premio desactivado" : "Premio activado" });
   };
 
   if (isAuthorized === null) {
@@ -386,25 +458,37 @@ export default function DirectorPage() {
             {premios.length > 0 ? (
               premios.map(premio => (
                 <Card key={premio.id} className="border-none shadow-sm bg-white rounded-2xl">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-primary">
-                        {premio.esSorteo ? <Ticket className="w-5 h-5 text-yellow-600" /> : <Trophy className="w-5 h-5 text-primary" />}
+                  <CardContent className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 text-xl">
+                        {premio.esSorteo ? <Ticket className="w-5 h-5 text-yellow-600" /> : (premio.icono || '🎁')}
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{premio.nombre}</p>
-                        <p className="text-[10px] text-primary font-black uppercase">{premio.sellos_requeridos || premio.costo || 0} Sellos</p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-slate-800 truncate">{premio.nombre}</p>
+                          <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full ${premio.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                            {premio.activo ? 'ACTIVO' : 'INACTIVO'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium truncate">{premio.vendorNombre || 'Sin local asignado'}</p>
+                        <p className="text-[10px] text-primary font-black uppercase">
+                          {premio.sellosRequeridos || 0} sellos
+                          {premio.stock > 0 ? ` · Stock: ${premio.stock}` : ' · Stock ilimitado'}
+                        </p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                       <Button onClick={() => handleOpenPremioModal(premio)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-primary"><Edit3 className="w-4 h-4" /></Button>
-                       <Button onClick={() => handleDeletePremio(premio.id)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                    <div className="flex gap-1 shrink-0">
+                      <Button onClick={() => handleToggleActivo(premio.id, premio.activo)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-amber-500" title={premio.activo ? "Desactivar" : "Activar"}>
+                        {premio.activo ? <Users className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+                      </Button>
+                      <Button onClick={() => handleOpenPremioModal(premio)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-primary"><Edit3 className="w-4 h-4" /></Button>
+                      <Button onClick={() => handleDeletePremio(premio.id)} variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </CardContent>
                 </Card>
               ))
             ) : (
-              <div className="py-8 text-center text-xs text-slate-400 italic">No hay premios configurados en la nube.</div>
+              <div className="py-8 text-center text-xs text-slate-400 italic">No hay premios configurados. Crea el primero.</div>
             )}
           </div>
         </section>
@@ -440,6 +524,42 @@ export default function DirectorPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* MI TIENDA COMO EMPRENDEDOR */}
+        <section className="space-y-4">
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
+            <Store className="w-4 h-4" /> Mi Tienda
+          </h2>
+          {hasVendorRole ? (
+            <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+              <CardContent className="p-6 flex items-center gap-4">
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0">
+                  <Store className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-black text-slate-800">Tienda activa</p>
+                  <p className="text-xs text-slate-400 font-medium">Gestiona tu local desde el perfil o el panel de emprendedor.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Activa tu propio local en el patio para gestionar sellos y aparecer en el directorio.
+                </p>
+                <Button
+                  onClick={handleActivateStore}
+                  disabled={activatingStore}
+                  className="w-full h-12 rounded-2xl font-black gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+                >
+                  {activatingStore ? <Loader2 className="w-4 h-4 animate-spin" /> : <Store className="w-4 h-4" />}
+                  Activar mi tienda como emprendedor
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </section>
 
       </div>
 
@@ -486,61 +606,125 @@ export default function DirectorPage() {
 
       {/* MODAL CONFIGURACION DE PREMIOS */}
       {isPremioModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <Card className="w-full max-w-sm rounded-[2rem] border-none shadow-2xl animate-in zoom-in-95 duration-300">
-            <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm rounded-[2rem] border-none shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4 sticky top-0 z-10">
               <CardTitle className="text-lg font-black text-slate-800">
-                {premioForm.id ? "Editar Recompensa" : "Nueva Recompensa"}
+                {premioForm.id ? "Editar Premio" : "Nuevo Premio"}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-600">Nombre del Beneficio</label>
-                <Input 
-                   value={premioForm.nombre}
-                   onChange={e => setPremioForm({...premioForm, nombre: e.target.value})}
-                   placeholder="Ej: Taza de Murú..."
-                   className="h-12 rounded-xl"
+              {/* Nombre */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Premio</label>
+                <Input
+                  value={premioForm.nombre}
+                  onChange={e => setPremioForm({ ...premioForm, nombre: e.target.value })}
+                  placeholder="Ej: Café gratis..."
+                  className="h-12 rounded-xl"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-600">Requisito (Sellos)</label>
-                  <Input 
-                     type="number"
-                     value={premioForm.sellos_requeridos}
-                     onChange={e => setPremioForm({...premioForm, sellos_requeridos: parseInt(e.target.value) || 0})}
-                     className="h-12 rounded-xl"
+
+              {/* Descripción */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Descripción corta</label>
+                <Input
+                  value={premioForm.descripcion}
+                  onChange={e => setPremioForm({ ...premioForm, descripcion: e.target.value })}
+                  placeholder="Ej: Un café de especialidad"
+                  className="h-12 rounded-xl"
+                />
+              </div>
+
+              {/* Sellos + Ícono */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Sellos requeridos</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={premioForm.sellosRequeridos}
+                    onChange={e => setPremioForm({ ...premioForm, sellosRequeridos: parseInt(e.target.value) || 0 })}
+                    className="h-12 rounded-xl"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-600">Ícono Visual</label>
-                  <select 
-                     value={premioForm.icono}
-                     onChange={e => setPremioForm({...premioForm, icono: e.target.value})}
-                     className="flex h-12 w-full items-center justify-between rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ícono</label>
+                  <select
+                    value={premioForm.icono}
+                    onChange={e => setPremioForm({ ...premioForm, icono: e.target.value })}
+                    className="flex h-12 w-full rounded-xl border border-input bg-transparent px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                     <option value="Gift">Regalo Genérico</option>
-                     <option value="Coffee">Taza de Café</option>
-                     <option value="Pizza">Comida Rest.</option>
-                     <option value="Star">Estrella</option>
-                     <option value="Sparkles">Destellos Mag.</option>
+                    <option value="☕">☕ Café</option>
+                    <option value="🍦">🍦 Helado</option>
+                    <option value="🍕">🍕 Pizza</option>
+                    <option value="🎁">🎁 Regalo</option>
+                    <option value="⭐">⭐ Especial</option>
+                    <option value="🎟️">🎟️ Entrada</option>
+                    <option value="🏷️">🏷️ Descuento</option>
+                    <option value="🍷">🍷 Bebida</option>
                   </select>
                 </div>
               </div>
-              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
-                <input 
-                  type="checkbox" 
-                  id="esSorteo" 
-                  checked={premioForm.esSorteo}
-                  onChange={e => setPremioForm({...premioForm, esSorteo: e.target.checked})}
-                  className="w-4 h-4 accent-primary"
+
+              {/* Vendor */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Emprendedor que lo ofrece</label>
+                <select
+                  value={premioForm.vendorId}
+                  onChange={e => setPremioForm({ ...premioForm, vendorId: e.target.value })}
+                  className="flex h-12 w-full rounded-xl border border-input bg-transparent px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">— Patio Curauma (general) —</option>
+                  {vendorList.map(v => (
+                    <option key={v.id} value={v.id}>{v.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Stock */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Stock disponible</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={premioForm.stock}
+                  onChange={e => setPremioForm({ ...premioForm, stock: parseInt(e.target.value) || 0 })}
+                  placeholder="0 = ilimitado"
+                  className="h-12 rounded-xl"
                 />
-                <label htmlFor="esSorteo" className="text-xs font-bold text-slate-600">
-                  Es un Sorteo Especial (Ticket)
+                <p className="text-[10px] text-slate-400">0 = ilimitado</p>
+              </div>
+
+              {/* Toggles */}
+              <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={premioForm.esSorteo}
+                    onChange={e => setPremioForm({ ...premioForm, esSorteo: e.target.checked })}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-slate-700">Es un Sorteo</p>
+                    <p className="text-[10px] text-slate-400">No descuenta sellos, genera un ticket</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={premioForm.activo}
+                    onChange={e => setPremioForm({ ...premioForm, activo: e.target.checked })}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-slate-700">Activo (visible al cliente)</p>
+                    <p className="text-[10px] text-slate-400">Desactiva para ocultarlo sin eliminar</p>
+                  </div>
                 </label>
               </div>
-              <div className="flex gap-3 pt-4">
+
+              <div className="flex gap-3 pt-2">
                 <Button variant="outline" onClick={() => setIsPremioModalOpen(false)} className="flex-1 h-12 rounded-xl font-bold border-slate-200">Cancelar</Button>
                 <Button onClick={handleSavePremio} disabled={loading} className="flex-1 h-12 rounded-xl font-bold bg-primary text-white hover:bg-primary/90">
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}

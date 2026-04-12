@@ -5,12 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import {
   collection, onSnapshot, query, where, Timestamp,
+  getDocs, doc, updateDoc, addDoc, serverTimestamp,
 } from "firebase/firestore";
 import { confirmarHandshake, rechazarHandshake } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Users, CheckCircle2, XCircle, Clock, ShieldCheck,
-  ChevronLeft, User, AlertTriangle, Store, RefreshCw,
+  ChevronLeft, User, AlertTriangle, Store, RefreshCw, Gift, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -241,6 +242,13 @@ export default function ValidarPage() {
   const [pendingStamps, setPendingStamps] = useState<PendingStamp[]>([]);
   const [selectedStamp, setSelectedStamp] = useState<PendingStamp | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // ── Estado de validación de premios ──────────────────────────────────────
+  const [prizeCode, setPrizeCode] = useState("");
+  const [verifyingPrize, setVerifyingPrize] = useState(false);
+  const [prizeCanjeData, setPrizeCanjeData] = useState<any>(null);
+  const [prizeConfirmLoading, setPrizeConfirmLoading] = useState(false);
+  const [prizeSuccess, setPrizeSuccess] = useState<string | null>(null);
   // FIX: eliminado el estado `tick` — causaba que la suscripción se destruyera y
   // recreara cada 15s, haciendo que Firebase devolviera el cache vacío brevemente
   // antes de re-sincronizar con el servidor ("aparecer y desaparecer")
@@ -340,6 +348,85 @@ export default function ValidarPage() {
 
     return () => unsub();
   }, [authorized, vendorId]); // FIX: sin `tick` — suscripción estable
+
+  // ── Verificar código de premio ────────────────────────────────────────────
+  const handleVerifyPrize = async () => {
+    const codigoNormalizado = prizeCode.trim().toUpperCase();
+    if (!codigoNormalizado) return;
+    setVerifyingPrize(true);
+    try {
+      // Buscar por código (single-field query — no requiere índice compuesto)
+      const q = query(collection(db, "canjes"), where("codigo", "==", codigoNormalizado));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        toast({ variant: "destructive", title: "Código no encontrado", description: "Verifica el código e intenta de nuevo." });
+        return;
+      }
+
+      const canjeDoc = snap.docs[0];
+      const data = canjeDoc.data();
+
+      // Validar que pertenece a este local
+      if (data.vendorId !== vendorId) {
+        toast({ variant: "destructive", title: "Código inválido", description: "Este código no corresponde a tu local." });
+        return;
+      }
+
+      if (data.status === "used") {
+        toast({ variant: "destructive", title: "Código ya utilizado", description: "Este premio ya fue entregado anteriormente." });
+        return;
+      }
+
+      // Verificar expiración
+      if (data.expiraEn && data.expiraEn < new Date().toISOString()) {
+        await updateDoc(doc(db, "canjes", canjeDoc.id), { status: "expired" });
+        toast({ variant: "destructive", title: "Código expirado", description: "Este código ya no es válido." });
+        return;
+      }
+
+      if (data.status === "expired") {
+        toast({ variant: "destructive", title: "Código expirado", description: "Este código ya no es válido." });
+        return;
+      }
+
+      // ¡Código válido! Mostrar modal de confirmación
+      setPrizeCanjeData({ id: canjeDoc.id, ...data });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo verificar el código." });
+    } finally {
+      setVerifyingPrize(false);
+    }
+  };
+
+  // ── Confirmar entrega de premio ───────────────────────────────────────────
+  const handleConfirmPrize = async () => {
+    if (!prizeCanjeData) return;
+    setPrizeConfirmLoading(true);
+    try {
+      await updateDoc(doc(db, "canjes", prizeCanjeData.id), {
+        status: "used",
+        usadoEn: serverTimestamp(),
+      });
+      await addDoc(collection(db, "system_logs"), {
+        usuario: prizeCanjeData.clienteNombre,
+        usuarioId: prizeCanjeData.clienteId,
+        vendedorId: vendorId,
+        accion: `Premio entregado: "${prizeCanjeData.premioNombre}" (código: ${prizeCanjeData.codigo})`,
+        fecha: new Date().toISOString(),
+        tipo: "CANJE_PREMIO",
+      });
+      const msg = `${prizeCanjeData.clienteNombre} — ${prizeCanjeData.premioNombre}`;
+      setPrizeSuccess(msg);
+      setPrizeCanjeData(null);
+      setPrizeCode("");
+      toast({ title: "Premio entregado correctamente ✅", description: msg });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error al confirmar" });
+    } finally {
+      setPrizeConfirmLoading(false);
+    }
+  };
 
   // ── Confirmar ─────────────────────────────────────────────────────────────
   const handleConfirm = async (monto: number) => {
@@ -510,9 +597,129 @@ export default function ValidarPage() {
             Menos de 1 min
           </div>
         </div>
+
+        {/* ── SECCIÓN VALIDAR PREMIO ─────────────────────────────────────── */}
+        <div className="mt-8 space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Gift className="w-4 h-4" style={{ color: "#D3B673" }} />
+            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Validar Premio</h2>
+          </div>
+
+          <div
+            className="rounded-3xl border p-5 space-y-4"
+            style={{ borderColor: "rgba(211,182,115,0.25)", backgroundColor: "rgba(211,182,115,0.05)" }}
+          >
+            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              Ingresa el código que te muestra el cliente para entregar el premio.
+            </p>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                inputMode="text"
+                autoCapitalize="characters"
+                placeholder="Ej: CAFE-X7K2"
+                value={prizeCode}
+                onChange={(e) => setPrizeCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === "Enter" && handleVerifyPrize()}
+                className="flex-1 h-12 px-4 rounded-2xl border-2 border-slate-200 focus:border-primary focus:outline-none text-base font-black text-slate-800 bg-white tracking-widest transition-colors"
+                disabled={verifyingPrize}
+              />
+              <Button
+                onClick={handleVerifyPrize}
+                disabled={verifyingPrize || !prizeCode.trim()}
+                className="h-12 px-4 rounded-2xl font-bold gap-2 shrink-0"
+                style={{ backgroundColor: "#D3B673" }}
+              >
+                {verifyingPrize ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Verificar
+              </Button>
+            </div>
+
+            {prizeSuccess && (
+              <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-black text-emerald-800">Premio entregado correctamente ✅</p>
+                  <p className="text-xs text-emerald-600 font-medium mt-0.5">{prizeSuccess}</p>
+                </div>
+                <button
+                  onClick={() => setPrizeSuccess(null)}
+                  className="ml-auto text-emerald-400 hover:text-emerald-600"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal confirmación de premio */}
+      {prizeCanjeData && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) setPrizeCanjeData(null); }}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4" />
+            <div className="px-7 pt-5 pb-8 space-y-5">
+              {/* Header */}
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-emerald-50">
+                  {prizeCanjeData.premioIcono || "🎁"}
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-emerald-600">✅ Código válido</p>
+                  <h3 className="text-lg font-black text-slate-800">{prizeCanjeData.premioNombre}</h3>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="space-y-2 bg-slate-50 rounded-2xl p-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500 font-medium">Cliente</span>
+                  <span className="font-black text-slate-800">{prizeCanjeData.clienteNombre}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500 font-medium">Sellos descontados</span>
+                  <span className="font-black text-primary">{prizeCanjeData.sellosDescontados}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500 font-medium">Código</span>
+                  <span className="font-black text-slate-700 tracking-widest">{prizeCanjeData.codigo}</span>
+                </div>
+              </div>
+
+              {/* Botones */}
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={handleConfirmPrize}
+                  disabled={prizeConfirmLoading}
+                  className="w-full h-14 rounded-2xl font-black text-base gap-2 shadow-lg bg-emerald-500 hover:bg-emerald-600 text-white"
+                >
+                  {prizeConfirmLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle2 className="w-5 h-5" /> Confirmar canje</>}
+                </Button>
+                <Button
+                  onClick={() => setPrizeCanjeData(null)}
+                  disabled={prizeConfirmLoading}
+                  variant="outline"
+                  className="w-full h-12 rounded-2xl font-bold gap-2 text-slate-500 border-slate-200"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal sello */}
       {selectedStamp && (
         <ConfirmModal
           stamp={selectedStamp}

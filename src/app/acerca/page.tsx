@@ -34,7 +34,7 @@ export default function AcercaPage() {
             style={{ background: "linear-gradient(135deg, #D3B673, #9DCC65)" }}
           >
             <img
-              src="/Logo.png"
+              src="/Logo3.png"
               alt="Club Patio Curauma"
               className="w-14 h-14 object-contain"
               onError={(e) => {

@@ -20,7 +20,13 @@ import { registrarCompra } from "@/lib/puntos";
 import { enviarNotificacionLocal } from "@/lib/notificaciones";
 
 const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
+const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
 const TEST_TARGET_EMAIL = "nachitomate@gmail.com";
+
+const PIN_MAP: Record<string, string> = {
+  [MASTER_EMAIL]: "482917",
+  "fgcservicios@gmail.com": "736254",
+};
 
 interface Cliente {
   id: string;
@@ -53,13 +59,18 @@ export default function ModeradorPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   
+  // PIN de acceso
+  const [pinVerified, setPinVerified] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
+
   // Estados Demo Celular
   const [showPhoneMockup, setShowPhoneMockup] = useState(false);
   const [phoneMessage, setPhoneMessage] = useState({ type: '', title: '', text: '' });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user || user.email !== MASTER_EMAIL) {
+      if (!user || !ALLOWED_EMAILS.includes(user.email ?? "")) {
         setAccessDenied(true);
         setLoadingConfig(false);
         setTimeout(() => {
@@ -324,11 +335,62 @@ export default function ModeradorPage() {
           <AlertTriangle className="h-6 w-6 text-red-600" />
           <AlertTitle className="text-xl font-black text-red-700 ml-2">Acceso Denegado</AlertTitle>
           <AlertDescription className="text-sm text-slate-600 mt-2 ml-2 leading-relaxed font-medium">
-            No tienes los permisos de Master Admin necesarios para acceder a este panel de control de datos.
+            No tienes los permisos necesarios para acceder a este panel.
             <br/><br/>
             <span className="text-xs text-slate-400">Serás redirigido automáticamente a la página principal...</span>
           </AlertDescription>
         </Alert>
+      </div>
+    );
+  }
+
+  if (!pinVerified) {
+    const handlePinSubmit = () => {
+      const expected = currentUserEmail ? PIN_MAP[currentUserEmail] : null;
+      if (expected && pinInput === expected) {
+        setPinVerified(true);
+        setPinError(false);
+      } else {
+        setPinError(true);
+        setPinInput("");
+      }
+    };
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 animate-in fade-in duration-500">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="text-xl font-black text-slate-800">Verificación de acceso</h1>
+            <p className="text-xs text-slate-400 font-medium">Ingresa tu PIN personal para continuar</p>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-lg p-8 space-y-5">
+            <Input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="• • • • • •"
+              value={pinInput}
+              onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, "")); setPinError(false); }}
+              onKeyDown={(e) => e.key === "Enter" && handlePinSubmit()}
+              className={`text-center text-2xl tracking-[0.5em] font-black h-14 rounded-2xl border-2 ${pinError ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+              autoFocus
+            />
+            {pinError && (
+              <p className="text-xs text-red-500 font-bold text-center animate-in shake">PIN incorrecto. Intenta de nuevo.</p>
+            )}
+            <Button
+              onClick={handlePinSubmit}
+              disabled={pinInput.length < 4}
+              className="w-full h-12 rounded-2xl font-black text-base bg-primary hover:bg-primary/90"
+            >
+              Ingresar
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -365,6 +427,51 @@ export default function ModeradorPage() {
               </Button>
             </Link>
           </div>
+        </div>
+
+        {/* NAVEGACIÓN RÁPIDA */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            {
+              href: "/moderador/sellos",
+              emoji: "📊",
+              titulo: "Registro de Sellos",
+              desc: "Historial completo · Filtros · Exportar Excel",
+              color: "#D3B673",
+              bg: "#D3B67312",
+            },
+            {
+              href: "/moderador/usuarios",
+              emoji: "👥",
+              titulo: "Directorio de Usuarios",
+              desc: "Filtros de cumpleaños · Exportar lista",
+              color: "#6366f1",
+              bg: "#6366f112",
+            },
+            {
+              href: "/moderador/auditoria",
+              emoji: "🔍",
+              titulo: "Auditoría del Sistema",
+              desc: "Backup · Limpieza para marcha blanca",
+              color: "#ef4444",
+              bg: "#ef444412",
+            },
+          ].map(({ href, emoji, titulo, desc, color, bg }) => (
+            <Link key={href} href={href}>
+              <div
+                className="rounded-3xl p-6 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 group"
+                style={{ backgroundColor: bg, border: `1.5px solid ${color}28` }}
+              >
+                <div className="flex items-start gap-4">
+                  <span className="text-3xl">{emoji}</span>
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-800 text-base group-hover:underline">{titulo}</p>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">{desc}</p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
 
         {/* METRICAS (TARJETAS SUPERIORES) */}

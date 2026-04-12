@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingBag, Ticket, Gift, Coffee, Pizza, Sparkles, Star, Loader2, CheckCircle2, Clock, ArrowRight } from "lucide-react";
-import { canjearRecompensa } from "@/lib/puntos";
-import { db } from "@/lib/firebase";
+import { ShoppingBag, Ticket, Gift, Loader2, CheckCircle2, Clock, ArrowRight } from "lucide-react";
+import { canjearPremio } from "@/lib/puntos";
+import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { updateDoc, doc, increment, collection, onSnapshot, getDoc } from "firebase/firestore";
+import { updateDoc, doc, increment, collection, onSnapshot, where, query } from "firebase/firestore";
 
 interface CatalogoPremiosProps {
   userId: string;
@@ -17,8 +17,9 @@ interface CatalogoPremiosProps {
 
 interface CelebrationData {
   canjeId: string;
-  codigoVoucher: string;
+  codigo: string;
   premioNombre: string;
+  premioIcono: string;
 }
 
 export function CatalogoPremios({ userId, userEmail, comprasActuales }: CatalogoPremiosProps) {
@@ -31,75 +32,60 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
   const { toast } = useToast();
 
   useEffect(() => {
-    const q = collection(db, "config_premios");
+    // Leer solo premios activos de la nueva colección
+    const q = query(collection(db, "premios"), where("activo", "==", true));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const dbPremios = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as any));
-      // Ordenar los premios del más barato al más caro
-      dbPremios.sort((a, b) => (a.sellos_requeridos || 0) - (b.sellos_requeridos || 0));
+      const dbPremios = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      dbPremios.sort((a, b) => (a.sellosRequeridos || 0) - (b.sellosRequeridos || 0));
       setPremios(dbPremios);
       setIsFetching(false);
 
-      // Cargar nombres de locales para display
-      const vendorIds = [...new Set(dbPremios.map((p: any) => p.vendorId).filter(Boolean))] as string[];
-      if (vendorIds.length > 0) {
-        Promise.all(
-          vendorIds.map(vid =>
-            getDoc(doc(db, "entrepreneur_profiles", vid))
-              .then(snap => ({ [vid]: snap.exists() ? (snap.data().businessName || snap.data().nombre || "Local Aliado") : "Local Aliado" }))
-              .catch(() => ({ [vid]: "Local Aliado" }))
-          )
-        ).then(results => setVendorNames(Object.assign({}, ...results)));
-      }
+      // vendorNombre ya viene en el documento, pero construir mapa por si acaso
+      const map: Record<string, string> = {};
+      dbPremios.forEach((p: any) => {
+        if (p.vendorId && p.vendorNombre) map[p.vendorId] = p.vendorNombre;
+      });
+      setVendorNames(map);
     });
     return () => unsubscribe();
   }, []);
 
-  const renderIcon = (iconoName: string, esSorteo: boolean) => {
+  const renderIcon = (icono: string, esSorteo: boolean) => {
     if (esSorteo) return <Ticket className="w-6 h-6" />;
-    switch(iconoName?.toLowerCase()) {
-      case "coffee": return <Coffee className="w-6 h-6" />;
-      case "pizza": return <Pizza className="w-6 h-6" />;
-      case "star": return <Star className="w-6 h-6" />;
-      case "sparkles": return <Sparkles className="w-6 h-6" />;
-      default: return <Gift className="w-6 h-6" />;
+    // Si el ícono es un emoji (1–2 caracteres unicode), renderizar directamente
+    if (icono && icono.length <= 4 && /\p{Emoji}/u.test(icono)) {
+      return <span className="text-2xl leading-none">{icono}</span>;
     }
+    return <Gift className="w-6 h-6" />;
   };
 
   const handleCanje = async (premio: any) => {
     setLoadingId(premio.id);
     try {
-      // Si el premio es para el sorteo, actualizamos el contador de tickets
       if (premio.esSorteo) {
+        // Sorteo: solo incrementa tickets, sin voucher
         const userRef = doc(db, "usuarios", userId);
         await updateDoc(userRef, {
-          comprasRealizadas: increment(-(premio.sellos_requeridos || 0)),
-          ticketsSorteo: increment(1)
+          comprasRealizadas: increment(-(premio.sellosRequeridos || 0)),
+          ticketsSorteo: increment(1),
         });
-        toast({
-          title: "¡Ticket de Sorteo generado!",
-          description: "Ya estás participando en el Gran Sorteo del Mes. 🎉",
-        });
+        toast({ title: "¡Ticket de Sorteo generado!", description: "Ya estás participando en el Gran Sorteo del Mes. 🎉" });
       } else {
-        // 4º arg = premioNombre (nombre del premio), 5º arg = userEmail
-        const { canjeId, codigoVoucher } = await canjearRecompensa(
-          db,
-          userId,
-          premio.sellos_requeridos || 0,
-          premio.nombre,
-          userEmail
-        );
-        setCelebration({ canjeId, codigoVoucher, premioNombre: premio.nombre });
+        const userName = auth.currentUser?.displayName || "";
+        const vendorNombre = premio.vendorNombre || vendorNames[premio.vendorId] || "Patio Curauma";
+        const { canjeId, codigo } = await canjearPremio(db, userId, userName, {
+          id: premio.id,
+          nombre: premio.nombre,
+          icono: premio.icono || "🎁",
+          vendorId: premio.vendorId || "",
+          vendorNombre,
+          sellosRequeridos: premio.sellosRequeridos || 0,
+        });
+        setCelebration({ canjeId, codigo, premioNombre: premio.nombre, premioIcono: premio.icono || "🎁" });
       }
     } catch (error: any) {
       console.error("Error handleCanje:", error);
-      toast({
-        variant: "destructive",
-        title: "Error al canjear",
-        description: error?.message || "No se pudo procesar el canje.",
-      });
+      toast({ variant: "destructive", title: "Error al canjear", description: error?.message || "No se pudo procesar el canje." });
     } finally {
       setLoadingId(null);
     }
@@ -140,6 +126,9 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
             </div>
           </div>
 
+          {/* Ícono del premio */}
+          <div className="text-6xl drop-shadow-lg">{celebration.premioIcono}</div>
+
           {/* Título */}
           <div className="space-y-1">
             <h1 className="text-4xl font-black tracking-tight drop-shadow-lg">¡Premio canjeado!</h1>
@@ -154,7 +143,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
                   Tu código único
                 </p>
                 <p className="text-3xl font-black tracking-[0.15em] drop-shadow">
-                  {celebration.codigoVoucher}
+                  {celebration.codigo}
                 </p>
               </div>
 
@@ -169,11 +158,11 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
 
           {/* Botón */}
           <button
-            onClick={() => router.push(`/canje/${celebration.canjeId}`)}
+            onClick={() => router.push("/premios")}
             className="w-full h-14 rounded-2xl font-black text-base flex items-center justify-center gap-2 shadow-2xl active:scale-[0.97] transition-transform"
             style={{ backgroundColor: "rgba(255,255,255,0.25)", border: "2px solid rgba(255,255,255,0.5)" }}
           >
-            Ver mi ticket completo <ArrowRight className="w-5 h-5" />
+            Ver mis canjes activos <ArrowRight className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -194,12 +183,11 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
           </div>
         ) : premios.length > 0 ? (
           premios.map((premio) => {
-            const costo = premio.sellos_requeridos || 0;
+            const costo = premio.sellosRequeridos || 0;
             const puedeCanjear = comprasActuales >= costo;
-            
-            const vendorName = premio.vendorId
-              ? (vendorNames[premio.vendorId] || "Patio Curauma")
-              : "Patio Curauma";
+
+            const vendorName = premio.vendorNombre
+              || (premio.vendorId ? (vendorNames[premio.vendorId] || "Patio Curauma") : "Patio Curauma");
 
             return (
               <Card
@@ -208,7 +196,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
               >
                 <CardContent className="p-4 flex items-center gap-3">
                   {/* Ícono */}
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${premio.esSorteo ? 'bg-yellow-400 text-white' : 'bg-accent/10 text-primary'}`}>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${premio.esSorteo ? 'bg-yellow-400 text-white' : 'bg-primary/10 text-primary'}`}>
                     {renderIcon(premio.icono, premio.esSorteo)}
                   </div>
 

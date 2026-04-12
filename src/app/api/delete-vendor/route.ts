@@ -58,12 +58,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Token inválido" }, { status: 401 });
     }
 
-    // 2. Verificar rol del llamador
+    // 2. Verificar rol del llamador (soporta rol string legacy y roles array)
     const callerDoc = await adminDb.collection("usuarios").doc(decoded.uid).get();
-    const callerRol = callerDoc.exists ? (callerDoc.data()?.rol ?? "") : "";
+    const callerData = callerDoc.exists ? callerDoc.data() : null;
+    const callerRol: string = callerData?.rol ?? "";
+    const callerRoles: string[] = Array.isArray(callerData?.roles) ? callerData.roles : [];
     const isAdminEmail = decoded.email === (process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "ignaciiio.mate@gmail.com");
 
-    if (!ROLES_PERMITIDOS.includes(callerRol) && !isAdminEmail) {
+    const hasPermission = ROLES_PERMITIDOS.includes(callerRol) ||
+      callerRoles.some((r: string) => ROLES_PERMITIDOS.includes(r));
+
+    if (!hasPermission && !isAdminEmail) {
       return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
     }
 

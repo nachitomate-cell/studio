@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   collection, onSnapshot, query, orderBy, limit, getDocs, getDoc, doc,
@@ -9,15 +9,19 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import {
   Loader2, ChevronLeft, Download, Search, BarChart2,
-  TrendingUp, Store, Star, Stamp,
+  TrendingUp, Store, Star, Stamp, Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 
 const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const PAGE_SIZE = 20;
+
+// Nombres genéricos que indican que el registro no tiene nombre real
+const GENERIC_NAMES = new Set(["miembro del club", "miembro", "desconocido", ""]);
 
 interface LogEntry {
   id: string;
@@ -29,6 +33,8 @@ interface LogEntry {
   tipo: string;
   metodo?: string;
   monto?: number;
+  // nombre resuelto si el original era genérico
+  usuarioResuelto?: string;
 }
 
 interface VendorInfo {
@@ -36,17 +42,21 @@ interface VendorInfo {
   nombre: string;
 }
 
-function formatFecha(fecha: string): string {
+function formatFecha(fecha: string): { fecha: string; hora: string } {
   try {
     const d = new Date(fecha);
-    return (
-      d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }) +
-      " · " +
-      d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })
-    );
+    return {
+      fecha: d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }),
+      hora: d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
+    };
   } catch {
-    return fecha;
+    return { fecha, hora: "" };
   }
+}
+
+function formatFechaCompleta(fecha: string): string {
+  const { fecha: f, hora: h } = formatFecha(fecha);
+  return `${f} · ${h}`;
 }
 
 function formatMonto(monto?: number): string {
@@ -120,11 +130,15 @@ export default function ModeradorSellosPage() {
   const [vendorList, setVendorList] = useState<VendorInfo[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
 
+  // Cache de nombres resueltos por userId
+  const nameCache = useRef<Record<string, string>>({});
+
   // Filtros
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [vendorFilter, setVendorFilter] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
+  const [estadoFilter, setEstadoFilter] = useState("");
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -192,13 +206,37 @@ export default function ModeradorSellosPage() {
       .catch(() => {});
   }, [authorized]);
 
+  // ── Resolver nombre de usuario si es genérico ──────────────────────────────
+  const resolveUserName = async (entry: LogEntry): Promise<string> => {
+    const raw = entry.usuario || "";
+    if (!GENERIC_NAMES.has(raw.toLowerCase())) return raw;
+
+    const uid = entry.usuarioId;
+    if (!uid) return `Usuario #${raw.slice(-4) || "???"}`;
+
+    if (nameCache.current[uid]) return nameCache.current[uid];
+
+    try {
+      const snap = await getDoc(doc(db, "usuarios", uid));
+      if (snap.exists()) {
+        const nombre = snap.data().nombre || snap.data().correo;
+        if (nombre) {
+          nameCache.current[uid] = nombre;
+          return nombre;
+        }
+      }
+    } catch { /* silencioso */ }
+
+    const fallback = `Usuario #${uid.slice(-4)}`;
+    nameCache.current[uid] = fallback;
+    return fallback;
+  };
+
   // ── Suscripción en tiempo real a system_logs ───────────────────────────────
   useEffect(() => {
     if (!authorized) return;
     setLogsLoading(true);
 
-    // Cargamos los últimos 500 registros ordenados por fecha desc.
-    // Filtramos por tipo client-side para evitar índice compuesto.
     const q = query(
       collection(db, "system_logs"),
       orderBy("fecha", "desc"),
@@ -207,11 +245,11 @@ export default function ModeradorSellosPage() {
 
     const unsub = onSnapshot(
       q,
-      (snap) => {
-        const data: LogEntry[] = snap.docs
+      async (snap) => {
+        const rawData: LogEntry[] = snap.docs
           .map((d) => ({
             id: d.id,
-            usuario: d.data().usuario || "Desconocido",
+            usuario: d.data().usuario || "",
             usuarioId: d.data().usuarioId || "",
             vendedorId: d.data().vendedorId || "",
             accion: d.data().accion || "",
@@ -222,8 +260,16 @@ export default function ModeradorSellosPage() {
           }))
           .filter((l) => l.tipo === "FIDELIZACION" || l.tipo === "SELLO_RECHAZADO");
 
-        setLogs(data);
-        computeKpis(data);
+        // Resolver nombres genéricos en paralelo
+        const resolved = await Promise.all(
+          rawData.map(async (entry) => ({
+            ...entry,
+            usuarioResuelto: await resolveUserName(entry),
+          }))
+        );
+
+        setLogs(resolved);
+        computeKpis(resolved);
         setLogsLoading(false);
       },
       (err) => {
@@ -247,7 +293,6 @@ export default function ModeradorSellosPage() {
     const totalSellos = thisMonth.length;
     const totalVentas = thisMonth.reduce((sum, l) => sum + (l.monto || 0), 0);
 
-    // Local más activo
     const byVendor: Record<string, number> = {};
     thisMonth.forEach((l) => {
       if (l.vendedorId) byVendor[l.vendedorId] = (byVendor[l.vendedorId] || 0) + 1;
@@ -255,11 +300,11 @@ export default function ModeradorSellosPage() {
     const topVendorEntry = Object.entries(byVendor).sort((a, b) => b[1] - a[1])[0];
     const localActivoId = topVendorEntry?.[0] || "";
 
-    // Cliente más frecuente
     const byClient: Record<string, { count: number; nombre: string }> = {};
     thisMonth.forEach((l) => {
       if (l.usuarioId) {
-        if (!byClient[l.usuarioId]) byClient[l.usuarioId] = { count: 0, nombre: l.usuario };
+        const nombre = l.usuarioResuelto || l.usuario;
+        if (!byClient[l.usuarioId]) byClient[l.usuarioId] = { count: 0, nombre };
         byClient[l.usuarioId].count++;
       }
     });
@@ -268,7 +313,7 @@ export default function ModeradorSellosPage() {
     setKpis({
       totalSellos,
       totalVentas,
-      localActivo: "",       // se resuelve con vendors map en el render
+      localActivo: "",
       localActivoId,
       clienteFrecuente: topClient?.[1].nombre || "—",
     });
@@ -279,11 +324,13 @@ export default function ModeradorSellosPage() {
     if (desde && l.fecha < desde) return false;
     if (hasta && l.fecha > hasta + "T23:59:59") return false;
     if (vendorFilter && l.vendedorId !== vendorFilter) return false;
-    if (
-      clienteFilter &&
-      !l.usuario.toLowerCase().includes(clienteFilter.toLowerCase())
-    )
-      return false;
+    if (estadoFilter) {
+      if (estadoFilter === "confirmado" && l.tipo !== "FIDELIZACION") return false;
+      if (estadoFilter === "rechazado" && l.tipo !== "SELLO_RECHAZADO") return false;
+      if (estadoFilter === "expirado" && l.tipo === "FIDELIZACION") return false;
+    }
+    const nombre = (l.usuarioResuelto || l.usuario).toLowerCase();
+    if (clienteFilter && !nombre.includes(clienteFilter.toLowerCase())) return false;
     return true;
   });
 
@@ -293,25 +340,35 @@ export default function ModeradorSellosPage() {
     currentPage * PAGE_SIZE
   );
 
-  // ── Exportar CSV ───────────────────────────────────────────────────────────
-  const exportCSV = () => {
-    const header = ["Fecha y hora", "Cliente", "Local", "Sellos", "Monto", "Estado"];
-    const rows = filtered.map((l) => [
-      `"${l.fecha}"`,
-      `"${l.usuario}"`,
-      `"${vendors[l.vendedorId] || l.vendedorId || "—"}"`,
-      "+1 sello",
-      l.monto && l.monto > 0 ? l.monto : 0,
-      l.tipo === "FIDELIZACION" ? "Confirmado" : "Rechazado",
-    ]);
-    const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sellos_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // ── Exportar Excel ─────────────────────────────────────────────────────────
+  const exportExcel = () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const rows = filtered.map((l) => {
+      const dt = formatFecha(l.fecha);
+      const estado =
+        l.tipo === "FIDELIZACION" ? "Confirmado" :
+        l.tipo === "SELLO_RECHAZADO" ? "Rechazado" : "Expirado";
+      return {
+        Fecha: dt.fecha,
+        Hora: dt.hora,
+        Cliente: l.usuarioResuelto || l.usuario,
+        "RUT/Tel": l.usuarioId,
+        Local: vendors[l.vendedorId] || l.vendedorId || "—",
+        Monto: l.monto && l.monto > 0 ? l.monto : 0,
+        Sellos: "+1",
+        Estado: estado,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Ancho de columnas
+    ws["!cols"] = [
+      { wch: 18 }, { wch: 8 }, { wch: 28 }, { wch: 20 },
+      { wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 12 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sellos");
+    XLSX.writeFile(wb, `sellos_patiocurauma_${hoy}.xlsx`);
   };
 
   const resetFiltros = () => {
@@ -319,10 +376,11 @@ export default function ModeradorSellosPage() {
     setHasta("");
     setVendorFilter("");
     setClienteFilter("");
+    setEstadoFilter("");
     setCurrentPage(1);
   };
 
-  const hayFiltros = desde || hasta || vendorFilter || clienteFilter;
+  const hayFiltros = desde || hasta || vendorFilter || clienteFilter || estadoFilter;
 
   // ── Render: loading / no autorizado ───────────────────────────────────────
   if (authLoading) {
@@ -365,13 +423,22 @@ export default function ModeradorSellosPage() {
               Historial completo de transacciones
             </p>
           </div>
+          <Link href="/moderador/canjes">
+            <Button
+              variant="outline"
+              className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+            >
+              <Gift className="w-4 h-4" />
+              Ver Canjes
+            </Button>
+          </Link>
           <Button
-            onClick={exportCSV}
+            onClick={exportExcel}
             variant="outline"
             className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
           >
             <Download className="w-4 h-4" />
-            Exportar CSV
+            Exportar Excel
           </Button>
         </div>
       </div>
@@ -415,10 +482,7 @@ export default function ModeradorSellosPage() {
             <input
               type="date"
               value={desde}
-              onChange={(e) => {
-                setDesde(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => { setDesde(e.target.value); setCurrentPage(1); }}
               className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
             />
           </div>
@@ -429,10 +493,7 @@ export default function ModeradorSellosPage() {
             <input
               type="date"
               value={hasta}
-              onChange={(e) => {
-                setHasta(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => { setHasta(e.target.value); setCurrentPage(1); }}
               className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
             />
           </div>
@@ -442,18 +503,28 @@ export default function ModeradorSellosPage() {
             </label>
             <select
               value={vendorFilter}
-              onChange={(e) => {
-                setVendorFilter(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => { setVendorFilter(e.target.value); setCurrentPage(1); }}
               className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
             >
               <option value="">Todos los locales</option>
               {vendorList.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nombre}
-                </option>
+                <option key={v.id} value={v.id}>{v.nombre}</option>
               ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Estado
+            </label>
+            <select
+              value={estadoFilter}
+              onChange={(e) => { setEstadoFilter(e.target.value); setCurrentPage(1); }}
+              className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+            >
+              <option value="">Todos</option>
+              <option value="confirmado">Confirmado</option>
+              <option value="rechazado">Rechazado</option>
+              <option value="expirado">Expirado</option>
             </select>
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
@@ -465,10 +536,7 @@ export default function ModeradorSellosPage() {
               <Input
                 placeholder="Nombre del cliente..."
                 value={clienteFilter}
-                onChange={(e) => {
-                  setClienteFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => { setClienteFilter(e.target.value); setCurrentPage(1); }}
                 className="pl-9 h-10 rounded-xl border-slate-200 text-sm font-medium"
               />
             </div>
@@ -495,7 +563,6 @@ export default function ModeradorSellosPage() {
             </div>
           ) : (
             <>
-              {/* Cabecera de la tabla con contador */}
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-500">
                   {filtered.length}{" "}
@@ -537,10 +604,10 @@ export default function ModeradorSellosPage() {
                           className="hover:bg-slate-50/80 transition-colors group"
                         >
                           <td className="px-6 py-4 text-slate-400 font-medium whitespace-nowrap text-xs">
-                            {formatFecha(log.fecha)}
+                            {formatFechaCompleta(log.fecha)}
                           </td>
                           <td className="px-6 py-4 font-bold text-slate-800">
-                            {log.usuario}
+                            {log.usuarioResuelto || log.usuario || "—"}
                           </td>
                           <td className="px-6 py-4 text-slate-500 font-medium">
                             {vendors[log.vendedorId] || log.vendedorId || "—"}
@@ -563,7 +630,6 @@ export default function ModeradorSellosPage() {
                 </table>
               </div>
 
-              {/* Paginación */}
               {totalPages > 1 && (
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
                   <p className="text-xs text-slate-400 font-bold">
@@ -588,9 +654,7 @@ export default function ModeradorSellosPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setCurrentPage((p) => Math.min(totalPages, p + 1))
-                      }
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
                       className="rounded-xl border-slate-200 text-xs font-bold h-9"
                     >
