@@ -473,18 +473,35 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       return;
     }
 
-    const token = await registerFcmToken();
-    if (token) {
+    const result = await registerFcmToken();
+
+    if (result.ok) {
       setPushEnabled(true);
       toast({ title: "¡Alertas activadas!", description: "Recibirás notificaciones en tu celular." });
       dispararAlertaSistema("¡Club Patio activado!", "Gracias por habilitar las alertas.");
-    } else if (Notification.permission === "denied") {
-      toast({ variant: "destructive", title: "Permiso denegado", description: "Ve a Ajustes → Safari → Notificaciones y habilita Club Patio." });
-    } else if (Notification.permission === "granted") {
-      // Permiso OK pero fallo técnico (VAPID key no configurada en producción)
-      toast({ variant: "destructive", title: "Error de configuración", description: "Notificaciones no disponibles aún. Intenta más tarde." });
-    } else {
-      toast({ variant: "destructive", title: "No disponible", description: "Instala la app en tu pantalla de inicio para activar notificaciones." });
+      return;
+    }
+
+    switch (result.reason) {
+      case "unsupported":
+        toast({ title: "No disponible", description: "Instala la app en tu pantalla de inicio y vuelve a intentarlo." });
+        break;
+      case "denied":
+        toast({ variant: "destructive", title: "Permiso denegado", description: "Ve a Ajustes → [tu navegador] → Notificaciones y habilita Club Patio." });
+        break;
+      case "no_vapid_key":
+        toast({ variant: "destructive", title: "Error de configuración", description: "Falta clave del servidor. Contacta al administrador." });
+        console.error("[FCM] Agrega NEXT_PUBLIC_FIREBASE_VAPID_KEY en Vercel → Settings → Environment Variables.");
+        break;
+      case "sw_error":
+        toast({ variant: "destructive", title: "Error al registrar notificaciones", description: "Recarga la app e intenta de nuevo." });
+        break;
+      case "token_error":
+        toast({ variant: "destructive", title: "No se pudo activar", description: "Verifica tu conexión e intenta de nuevo." });
+        break;
+      case "no_user":
+        toast({ variant: "destructive", title: "Sesión expirada", description: "Vuelve a iniciar sesión e intenta de nuevo." });
+        break;
     }
   };
 

@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import {
   collection, onSnapshot, query, where, Timestamp,
-  getDocs, doc, updateDoc, addDoc, serverTimestamp,
+  getDocs, doc, updateDoc, addDoc, serverTimestamp, runTransaction,
 } from "firebase/firestore";
 import { confirmarHandshake, rechazarHandshake } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
@@ -229,6 +229,117 @@ function StampCard({
   );
 }
 
+// ─── Pantalla de celebración ──────────────────────────────────────────────────
+
+function CelebracionEmprendedor({
+  canje,
+  onClose,
+}: {
+  canje: { premioNombre: string; premioIcono: string; clienteNombre: string };
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 4000);
+    return () => clearTimeout(t);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 60%, #5BB8D4 100%)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        padding: "40px 24px",
+        textAlign: "center",
+      }}
+      onClick={onClose}
+    >
+      {/* Logo principal */}
+      <img
+        src="/Logo1.png"
+        alt="Patio Curauma"
+        style={{
+          width: "100px",
+          marginBottom: "24px",
+          filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))",
+        }}
+      />
+
+      {/* Ícono del premio */}
+      <div style={{ fontSize: "80px", marginBottom: "16px", lineHeight: 1 }}>
+        {canje.premioIcono || "🎁"}
+      </div>
+
+      {/* Título */}
+      <h1
+        style={{
+          color: "white",
+          fontSize: "36px",
+          fontFamily: "Playfair Display, Georgia, serif",
+          fontWeight: 700,
+          margin: "0 0 8px",
+        }}
+      >
+        ¡Felicidades!
+      </h1>
+
+      {/* Subtítulo */}
+      <p style={{ color: "white", fontSize: "18px", margin: "0 0 8px" }}>
+        Premio entregado con éxito
+      </p>
+
+      {/* Detalle */}
+      <p
+        style={{
+          color: "rgba(255,255,255,0.85)",
+          fontSize: "16px",
+          margin: "0 0 32px",
+        }}
+      >
+        {canje.clienteNombre} disfrutará su {canje.premioNombre}
+      </p>
+
+      {/* Separador + branding */}
+      <div
+        style={{
+          borderTop: "1px solid rgba(255,255,255,0.3)",
+          paddingTop: "24px",
+          width: "100%",
+          maxWidth: "320px",
+        }}
+      >
+        <p
+          style={{
+            color: "#FFE082",
+            fontSize: "14px",
+            letterSpacing: "2px",
+            textTransform: "uppercase",
+            margin: "0 0 12px",
+          }}
+        >
+          Patio Curauma
+        </p>
+        <img src="/Logo1.png" alt="" style={{ width: "50px", opacity: 0.7 }} />
+      </div>
+
+      <p
+        style={{
+          color: "rgba(255,255,255,0.6)",
+          fontSize: "12px",
+          marginTop: "24px",
+        }}
+      >
+        Toca para continuar
+      </p>
+    </div>
+  );
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function ValidarPage() {
@@ -249,6 +360,8 @@ export default function ValidarPage() {
   const [prizeCanjeData, setPrizeCanjeData] = useState<any>(null);
   const [prizeConfirmLoading, setPrizeConfirmLoading] = useState(false);
   const [prizeSuccess, setPrizeSuccess] = useState<string | null>(null);
+  const [mostrarCelebracion, setMostrarCelebracion] = useState(false);
+  const [celebracionData, setCelebracionData] = useState<{ premioNombre: string; premioIcono: string; clienteNombre: string } | null>(null);
   // FIX: eliminado el estado `tick` — causaba que la suscripción se destruyera y
   // recreara cada 15s, haciendo que Firebase devolviera el cache vacío brevemente
   // antes de re-sincronizar con el servidor ("aparecer y desaparecer")
@@ -399,30 +512,50 @@ export default function ValidarPage() {
     }
   };
 
-  // ── Confirmar entrega de premio ───────────────────────────────────────────
+  // ── Confirmar entrega de premio (transacción atómica) ────────────────────
   const handleConfirmPrize = async () => {
     if (!prizeCanjeData) return;
     setPrizeConfirmLoading(true);
     try {
-      await updateDoc(doc(db, "canjes", prizeCanjeData.id), {
-        status: "used",
-        usadoEn: serverTimestamp(),
+      await runTransaction(db, async (transaction) => {
+        const canjeRef = doc(db, "canjes", prizeCanjeData.id);
+        const canjeSnap = await transaction.get(canjeRef);
+
+        if (!canjeSnap.exists()) throw new Error("El código ya no existe.");
+        if (canjeSnap.data().status !== "pending") throw new Error("El código ya fue utilizado.");
+
+        transaction.update(canjeRef, {
+          status: "used",
+          usadoEn: serverTimestamp(),
+          confirmadoPor: vendorId,
+        });
+
+        const logRef = doc(collection(db, "system_logs"));
+        transaction.set(logRef, {
+          tipo: "canje_premio",
+          premioNombre: prizeCanjeData.premioNombre,
+          premioIcono: prizeCanjeData.premioIcono,
+          clienteId: prizeCanjeData.clienteId,
+          clienteNombre: prizeCanjeData.clienteNombre,
+          vendorId,
+          codigo: prizeCanjeData.codigo,
+          sellosDescontados: prizeCanjeData.sellosDescontados,
+          timestamp: serverTimestamp(),
+        });
       });
-      await addDoc(collection(db, "system_logs"), {
-        usuario: prizeCanjeData.clienteNombre,
-        usuarioId: prizeCanjeData.clienteId,
-        vendedorId: vendorId,
-        accion: `Premio entregado: "${prizeCanjeData.premioNombre}" (código: ${prizeCanjeData.codigo})`,
-        fecha: new Date().toISOString(),
-        tipo: "CANJE_PREMIO",
+
+      // Mostrar celebración
+      setCelebracionData({
+        premioNombre: prizeCanjeData.premioNombre,
+        premioIcono: prizeCanjeData.premioIcono,
+        clienteNombre: prizeCanjeData.clienteNombre,
       });
-      const msg = `${prizeCanjeData.clienteNombre} — ${prizeCanjeData.premioNombre}`;
-      setPrizeSuccess(msg);
       setPrizeCanjeData(null);
       setPrizeCode("");
-      toast({ title: "Premio entregado correctamente ✅", description: msg });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error al confirmar" });
+      setPrizeSuccess(`${prizeCanjeData.clienteNombre} — ${prizeCanjeData.premioNombre}`);
+      setMostrarCelebracion(true);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error al confirmar", description: e?.message || "Intenta de nuevo." });
     } finally {
       setPrizeConfirmLoading(false);
     }
@@ -717,6 +850,17 @@ export default function ValidarPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Pantalla de celebración */}
+      {mostrarCelebracion && celebracionData && (
+        <CelebracionEmprendedor
+          canje={celebracionData}
+          onClose={() => {
+            setMostrarCelebracion(false);
+            setCelebracionData(null);
+          }}
+        />
       )}
 
       {/* Modal sello */}
