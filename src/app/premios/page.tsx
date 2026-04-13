@@ -417,7 +417,8 @@ export default function PremiosPage() {
           ) : (
             <div className="grid grid-cols-1 gap-3">
               {premios.map((premio) => {
-                const puedeCanjear = userSellos >= premio.sellosRequeridos;
+                const stockDisponible = typeof premio.stock !== "number" || premio.stock > 0;
+                const puedeCanjear = userSellos >= premio.sellosRequeridos && stockDisponible;
                 return (
                   <Card
                     key={premio.id}

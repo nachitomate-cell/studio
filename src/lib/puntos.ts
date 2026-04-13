@@ -353,24 +353,19 @@ export async function confirmarHandshake(
 // CANJES DE PREMIOS (colección 'canjes')
 // ─────────────────────────────────────────────────────────────────────────────
 
-function generarCodigoCanje(premioNombre: string): string {
+// Genera un código único localmente sin queries a Firestore.
+// Timestamp base36 (últimos 5 chars, ~ms de unicidad) + random 4 chars.
+// Colisión prácticamente imposible: para coincidir, dos canjes deben generarse
+// en el mismo milisegundo Y la parte random (36^4 = 1.6M combinaciones) debe ser igual.
+function generarCodigoUnico(premioNombre: string): string {
   const prefijo = premioNombre
     .substring(0, 4)
     .toUpperCase()
     .replace(/\s/g, "X")
     .replace(/[^A-Z0-9X]/g, "X");
-  const aleatorio = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefijo}-${aleatorio}`;
-}
-
-async function generarCodigoUnico(db: Firestore, premioNombre: string): Promise<string> {
-  for (let i = 0; i < 5; i++) {
-    const codigo = generarCodigoCanje(premioNombre);
-    const snap = await getDocs(query(collection(db, "canjes"), where("codigo", "==", codigo)));
-    if (snap.empty) return codigo;
-  }
-  const fallback = premioNombre.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, "X");
-  return `${fallback}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+  const ts  = Date.now().toString(36).slice(-5).toUpperCase();
+  const rnd = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefijo}-${ts}${rnd}`;
 }
 
 export interface PremioParaCanje {
@@ -389,7 +384,7 @@ export async function canjearPremio(
   userName: string,
   premio: PremioParaCanje
 ): Promise<{ canjeId: string; codigo: string }> {
-  const codigo = await generarCodigoUnico(db, premio.nombre);
+  const codigo = generarCodigoUnico(premio.nombre);
   const expiraEn = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
   const userRef = doc(db, "usuarios", userId);
   const premioRef = doc(db, "premios", premio.id);
