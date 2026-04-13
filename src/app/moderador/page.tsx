@@ -70,7 +70,14 @@ export default function ModeradorPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user || !ALLOWED_EMAILS.includes(user.email ?? "")) {
+      if (!user) {
+        // No logueado → redirigir al login directamente
+        setLoadingConfig(false);
+        router.push("/");
+        return;
+      }
+      if (!ALLOWED_EMAILS.includes(user.email ?? "")) {
+        // Logueado pero sin permisos
         setAccessDenied(true);
         setLoadingConfig(false);
         setTimeout(() => {

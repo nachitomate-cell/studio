@@ -14,6 +14,7 @@ import Link from "next/link";
 import * as XLSX from "xlsx";
 
 const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
+const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
 const PAGE_SIZE = 25;
 
 const MESES = [
@@ -79,7 +80,7 @@ export default function ModeradorUsuariosPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { router.replace("/"); setAuthLoading(false); return; }
-      if (user.email === MASTER_EMAIL) { setAuthorized(true); setAuthLoading(false); return; }
+      if (ALLOWED_EMAILS.includes(user.email ?? "")) { setAuthorized(true); setAuthLoading(false); return; }
       try {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
         const rol = snap.exists() ? (snap.data().rol as string) : "";
