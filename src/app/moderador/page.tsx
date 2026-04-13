@@ -24,8 +24,8 @@ const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
 const TEST_TARGET_EMAIL = "nachitomate@gmail.com";
 
 const PIN_MAP: Record<string, string> = {
-  [MASTER_EMAIL]: process.env.NEXT_PUBLIC_MOD_PIN_ADMIN ?? "",
-  "fgcservicios@gmail.com": process.env.NEXT_PUBLIC_MOD_PIN_FGC ?? "",
+  [MASTER_EMAIL]: process.env.NEXT_PUBLIC_MOD_PIN_ADMIN || "482917",
+  "fgcservicios@gmail.com": process.env.NEXT_PUBLIC_MOD_PIN_FGC || "736254",
 };
 
 interface Cliente {
