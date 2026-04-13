@@ -160,7 +160,7 @@ function AcercaDeModal({ onClose }: { onClose: () => void }) {
 
         {/* Firma */}
         <p className="text-center text-[11px] text-slate-300 font-light tracking-wide pt-2">
-          Desarrollado por Ignacio Mateluna · 2026
+          Hecho con ☕ en Valparaíso · 2026
         </p>
       </div>
     </div>

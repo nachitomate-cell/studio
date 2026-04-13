@@ -184,7 +184,8 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
         ) : premios.length > 0 ? (
           premios.map((premio) => {
             const costo = premio.sellosRequeridos || 0;
-            const puedeCanjear = comprasActuales >= costo;
+            const sinStock = !premio.esSorteo && typeof premio.stock === "number" && premio.stock <= 0;
+            const puedeCanjear = comprasActuales >= costo && !sinStock;
 
             const vendorName = premio.vendorNombre
               || (premio.vendorId ? (vendorNames[premio.vendorId] || "Patio Curauma") : "Patio Curauma");
@@ -192,7 +193,7 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
             return (
               <Card
                 key={premio.id}
-                className={`overflow-hidden border transition-all duration-300 ${premio.esSorteo ? 'border-yellow-300 bg-yellow-50/20' : 'border-slate-100'} ${puedeCanjear ? 'shadow-md' : 'opacity-75'}`}
+                className={`overflow-hidden border transition-all duration-300 ${premio.esSorteo ? 'border-yellow-300 bg-yellow-50/20' : 'border-slate-100'} ${sinStock ? 'opacity-50 grayscale' : puedeCanjear ? 'shadow-md' : 'opacity-75'}`}
               >
                 <CardContent className="p-4 flex items-center gap-3">
                   {/* Ícono */}
@@ -208,9 +209,16 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
                     <p style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "2px" }} className="truncate">
                       {vendorName}
                     </p>
-                    <p style={{ fontSize: "11px", color: "#9B9B9B", marginTop: "2px" }}>
-                      Valor: {costo} sellos
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p style={{ fontSize: "11px", color: "#9B9B9B" }}>
+                        {costo} sellos
+                      </p>
+                      {!premio.esSorteo && typeof premio.stock === "number" && (
+                        <p style={{ fontSize: "11px", fontWeight: 700, color: premio.stock <= 3 ? "#ef4444" : "#9B9B9B" }}>
+                          · {premio.stock === 0 ? "Sin stock" : `${premio.stock} disponibles`}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Badge de estado / acción */}

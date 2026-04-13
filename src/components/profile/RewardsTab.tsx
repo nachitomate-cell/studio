@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CatalogoPremios } from "./CatalogoPremios";
 import { motion, AnimatePresence } from "framer-motion";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface RewardsTabProps {
   user: User | null;
@@ -23,7 +25,21 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
   const [isOffline, setIsOffline] = useState(
     typeof window !== "undefined" ? !navigator.onLine : false
   );
+  const [premiosRequeridos, setPremiosRequeridos] = useState<number[]>([]);
   const prevSellosRef = useRef<number | null>(null);
+
+  // Cargar requisitos reales de premios
+  useEffect(() => {
+    const q = query(collection(db, "premios"), where("activo", "==", true));
+    const unsub = onSnapshot(q, (snap) => {
+      const reqs = snap.docs
+        .map(d => d.data().sellosRequeridos as number)
+        .filter(n => typeof n === "number" && n > 0)
+        .sort((a, b) => a - b);
+      setPremiosRequeridos(reqs);
+    });
+    return () => unsub();
+  }, []);
 
   // Detectar cambios de conectividad
   useEffect(() => {
@@ -50,7 +66,11 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
   const sellos = userData?.comprasRealizadas ?? cachedData?.sellos ?? 0;
   const tickets = userData?.ticketsSorteo ?? cachedData?.tickets ?? 0;
   const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
-  const sellosRestantesParaPremio = 5 - (sellos % 5);
+
+  // Próximo premio alcanzable basado en Firestore
+  const proximoPremioReq = premiosRequeridos.find(r => r > sellos) ?? null;
+  const tienePremioDisponible = premiosRequeridos.some(r => r <= sellos);
+  const sellosRestantesParaPremio = proximoPremioReq !== null ? proximoPremioReq - sellos : null;
 
   // FIX: usar campos primitivos como dep, no el objeto userData completo
   const comprasRealizadas = userData?.comprasRealizadas;
@@ -217,9 +237,17 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
                     Visita cualquier local y muestra tu código en caja
                   </p>
                 </div>
+              ) : tienePremioDisponible ? (
+                <p className="font-bold text-lg leading-tight px-4" style={{ color: "var(--color-primary)" }}>
+                  ¡Tienes un premio listo para canjear!
+                </p>
+              ) : sellosRestantesParaPremio !== null ? (
+                <p className="font-bold text-lg leading-tight px-4" style={{ color: "var(--color-secondary)" }}>
+                  ¡Te faltan {sellosRestantesParaPremio} sellos para tu próximo premio!
+                </p>
               ) : (
-                <p className="font-bold text-lg leading-tight px-4" style={{ color: sellos % 5 === 0 && sellos > 0 ? "var(--color-primary)" : "var(--color-secondary)" }}>
-                  {sellos % 5 === 0 && sellos > 0 ? "¡Tienes un premio listo para canjear!" : `¡Te faltan ${sellosRestantesParaPremio === 5 ? 5 : sellosRestantesParaPremio} sellos para tu próximo premio!`}
+                <p className="font-bold text-lg leading-tight px-4" style={{ color: "var(--color-secondary)" }}>
+                  ¡Sigue acumulando sellos!
                 </p>
               )}
 

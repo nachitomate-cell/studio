@@ -116,9 +116,12 @@ export default function AcercaPage() {
           </a>
         </div>
 
-        <div className="pt-4 border-t border-slate-100 text-center space-y-1">
-          <p className="text-xs text-slate-400">Desarrollado por Ignacio Mateluna</p>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Club Patio Curauma</p>
+        <div className="pt-6 pb-8 border-t border-slate-100 text-center space-y-2">
+          <p className="text-xs font-medium text-slate-500">© {new Date().getFullYear()} Club Patio Curauma</p>
+          <p className="text-[11px] text-slate-300">
+            Hecho con ☕ en Valparaíso ·{" "}
+            <span style={{ color: "#D3B673" }}>@mateluna</span>
+          </p>
         </div>
       </div>
     </div>

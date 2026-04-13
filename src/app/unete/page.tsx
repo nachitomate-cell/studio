@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
   onAuthStateChanged,
   User,
 } from "firebase/auth";
@@ -55,6 +57,25 @@ export default function UnetePage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      setError("Ingresa tu correo para recuperar la contraseña.");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetSent(true);
+      setError(null);
+    } catch (err: any) {
+      setError("No se encontró una cuenta con ese correo.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const preventAutoRedirect = useRef(false);
 
@@ -70,7 +91,9 @@ export default function UnetePage() {
           setCheckingAuth(false);
           return;
         }
-        router.replace("/");
+        const retornoAuto = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
+        if (retornoAuto) localStorage.removeItem("url_retorno");
+        router.replace(retornoAuto || "/");
       } else {
         setCheckingAuth(false);
       }
@@ -121,15 +144,23 @@ export default function UnetePage() {
             });
           }
         }
-        router.replace("/");
+        const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
+        if (retorno) localStorage.removeItem("url_retorno");
+        router.replace(retorno || "/");
       } else {
         if (!aceptaTerminos) throw new Error("Debes aceptar los términos de uso.");
         if (!nombre.trim()) throw new Error("Ingresa tu nombre completo.");
         if (!fechaNacimiento) throw new Error("Ingresa tu fecha de nacimiento.");
+        if (phone && !/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
+          throw new Error("Teléfono inválido. Usa formato +56 9 XXXX XXXX.");
+        }
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
         const emailLimpio = email.toLowerCase().trim();
+
+        // Setear displayName en Firebase Auth para que aparezca en el panel del vendedor
+        await updateProfile(newUser, { displayName: nombre.trim() });
 
         let rolAsignado = "cliente";
         if (emailLimpio === EMAIL_MASTER_ADMIN) rolAsignado = "admin";
@@ -248,7 +279,11 @@ export default function UnetePage() {
             <p className="unete-subtitle" style={{ fontSize: '15px', padding: '0 10px', marginBottom: '32px', color: '#4A4A4A', fontWeight: '500', lineHeight: 1.6 }}>
               Patio Curauma te ha regalado tu primer sello de bienvenida. ¡Ya estás más cerca de tu premio!
             </p>
-            <Button onClick={() => router.replace("/")} style={{ width: '100%', height: '56px', borderRadius: '16px', backgroundColor: '#9DCC65', color: 'white', fontWeight: '900', fontSize: '16px' }} className="shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]">
+            <Button onClick={() => {
+              const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
+              if (retorno) localStorage.removeItem("url_retorno");
+              router.replace(retorno || "/");
+            }} style={{ width: '100%', height: '56px', borderRadius: '16px', backgroundColor: '#9DCC65', color: 'white', fontWeight: '900', fontSize: '16px' }} className="shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]">
               Ver mi tarjeta de sellos
             </Button>
           </div>
@@ -409,6 +444,27 @@ export default function UnetePage() {
                 />
               </div>
             </div>
+
+            {/* === Recuperar contraseña === */}
+            {isLogin && (
+              <div className="text-right" style={{ marginTop: -8 }}>
+                {resetSent ? (
+                  <p className="text-xs font-bold" style={{ color: "#9DCC65" }}>
+                    ✅ Revisa tu correo para restablecer tu contraseña.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePasswordReset}
+                    disabled={resetLoading}
+                    className="unete-link text-xs font-bold"
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                  >
+                    {resetLoading ? "Enviando..." : "¿Olvidaste tu contraseña?"}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* === Términos === */}
             {!isLogin && (

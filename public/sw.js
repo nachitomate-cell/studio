@@ -29,12 +29,14 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: 'https://picsum.photos/seed/patio-icon/192/192',
-    badge: 'https://picsum.photos/seed/patio-icon/192/192',
-    vibrate: [100, 50, 100],
+    icon: '/Logo3.png',
+    badge: '/Logo3.png',
+    vibrate: [200, 100, 200, 100, 200],
+    tag: 'club-patio',
+    renotify: true,
     data: {
+      url: data.url || '/',
       dateOfArrival: Date.now(),
-      primaryKey: '1'
     }
   };
 
@@ -46,7 +48,15 @@ self.addEventListener('push', (event) => {
 // Al hacer clic en la notificación
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const url = event.notification.data?.url || '/';
   event.waitUntil(
-    clients.openWindow('/')
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow(url);
+    })
   );
 });

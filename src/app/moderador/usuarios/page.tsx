@@ -98,30 +98,49 @@ export default function ModeradorUsuariosPage() {
   useEffect(() => {
     if (!authorized) return;
     setLoading(true);
-    getDocs(collection(db, "usuarios"))
-      .then((snap) => {
-        const data: Usuario[] = snap.docs.map((d) => {
-          const u = d.data();
-          const nacRaw = parseFecha(u.fechaNacimiento);
-          const regRaw = parseFecha(u.createdAt || u.fechaRegistro || u.lastUpdate);
+
+    (async () => {
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) throw new Error("Sin sesión");
+
+        const res = await fetch("/api/admin/usuarios", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const { usuarios: docs } = await res.json();
+
+        const data: Usuario[] = (docs as any[]).map((d) => {
+          const nacRaw = parseFecha(d.fechaNacimiento?._seconds
+            ? new Date(d.fechaNacimiento._seconds * 1000).toISOString()
+            : d.fechaNacimiento);
+          const regRaw = parseFecha(
+            d.createdAt?._seconds ? new Date(d.createdAt._seconds * 1000).toISOString()
+            : d.fechaRegistro?._seconds ? new Date(d.fechaRegistro._seconds * 1000).toISOString()
+            : d.createdAt || d.fechaRegistro || d.lastUpdate
+          );
           return {
             id: d.id,
-            nombre: u.nombre || u.correo || "Sin nombre",
-            telefono: u.telefono || u.phone || "—",
-            email: u.email || u.correo || "—",
+            nombre: d.nombre || d.correo || "Sin nombre",
+            telefono: d.telefono || d.phone || "—",
+            email: d.email || d.correo || "—",
             fechaNacimiento: fmtFecha(nacRaw),
             fechaNacimientoRaw: nacRaw,
             fechaRegistro: fmtFecha(regRaw),
             fechaRegistroRaw: regRaw,
-            totalSellos: u.comprasRealizadas || 0,
-            rol: u.rol || "cliente",
+            totalSellos: d.comprasRealizadas || 0,
+            rol: d.rol || "cliente",
           };
         });
         data.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
         setUsuarios(data);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      } catch (err) {
+        console.error("Error al cargar usuarios:", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [authorized]);
 
   // ── Filtrado ──────────────────────────────────────────────────────────────

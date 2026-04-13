@@ -53,7 +53,7 @@ function DetailContent() {
           nombre: data.businessName || data.nombre || "Local del Patio",
           descripcion: data.description || data.descripcion || "Sin descripción disponible.",
           rubro: data.category || data.rubro || "General",
-          imagenUrl: data.imageUrls?.[0] || data.imagenUrl || `https://picsum.photos/seed/${docSnap.id}/800/600`,
+          imagenUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo3.png",
           whatsapp: data.whatsapp || data.contactPhone || "",
           instagram: data.instagram || "",
           ubicacion: data.address || data.ubicacionTienda || "",

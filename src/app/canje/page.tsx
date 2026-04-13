@@ -388,7 +388,13 @@ function CanjeContent() {
       }
       if (processingRef.current) return;
       processingRef.current = true;
-      await iniciarHandshake(user.uid, user.displayName || "Miembro", localId);
+      // Preferir nombre de Firestore — displayName es null en cuentas email/password
+      let nombreCliente = user.displayName || "Miembro";
+      try {
+        const snap = await getDoc(doc(db, "usuarios", user.uid));
+        if (snap.exists()) nombreCliente = snap.data().nombre || nombreCliente;
+      } catch { /* best-effort */ }
+      await iniciarHandshake(user.uid, nombreCliente, localId);
     });
 
     return () => unsub();

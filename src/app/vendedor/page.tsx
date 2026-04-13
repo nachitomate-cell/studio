@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { CATEGORIES } from "@/lib/data";
 
 export default function VendedorPage() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function VendedorPage() {
   const [shopForm, setShopForm] = useState({
     nombreTienda: "",
     descripcion: "",
+    categoria: "",
     mediosPago: [] as string[],
     otroMedio: "",
     whatsapp: "",
@@ -84,6 +86,7 @@ export default function VendedorPage() {
             setShopForm({
               nombreTienda: data.businessName || data.nombre || "",
               descripcion: data.description || data.descripcion || "",
+              categoria: data.category || data.rubro || "",
               mediosPago: isOtro
                 ? [...mp.filter(m => ['efectivo', 'debito', 'transferencia'].includes(m)), 'otro']
                 : mp,
@@ -188,6 +191,7 @@ export default function VendedorPage() {
         userId: auth.currentUser.uid,
         businessName: shopForm.nombreTienda,
         description: shopForm.descripcion,
+        category: shopForm.categoria || null,
         imageUrl: finalImageUrl || null,
         imageUrls: finalImageUrl ? [finalImageUrl] : [],
         mediosPago: mediosFinal,
@@ -388,13 +392,34 @@ export default function VendedorPage() {
 
                 <div className="space-y-3">
                   <Label htmlFor="shopDesc" className="text-sm font-bold text-slate-700">¿De qué trata tu tienda?</Label>
-                  <Textarea 
-                    id="shopDesc" 
-                    placeholder="Describe tus productos o servicios..." 
+                  <Textarea
+                    id="shopDesc"
+                    placeholder="Describe tus productos o servicios..."
                     className="min-h-[120px] border-slate-200 focus:border-primary rounded-lg text-base p-4"
                     value={shopForm.descripcion}
                     onChange={(e) => setShopForm({...shopForm, descripcion: e.target.value})}
                   />
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-bold text-slate-700">Categoría de tu emprendimiento</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CATEGORIES.filter(c => c.id !== 'all').map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setShopForm({...shopForm, categoria: cat.id})}
+                        className={cn(
+                          "h-12 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-2",
+                          shopForm.categoria === cat.id
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+                        )}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="space-y-3">

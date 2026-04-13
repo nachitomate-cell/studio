@@ -7,7 +7,7 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
-import { CATEGORIES, Entrepreneur, PATIO_INFO, ENTREPRENEURS } from "@/lib/data";
+import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,7 @@ export default function Home() {
           name: data.businessName || data.nombre || "Local Aliado",
           category: data.category || data.rubro || "all",
           description: data.description || "",
-          imageUrl: data.imageUrls?.[0] || data.imagenUrl || `https://picsum.photos/seed/${doc.id}/400/300`,
+          imageUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo3.png",
           contact: data.whatsapp || data.contactPhone || "",
           schedule: data.operatingHours || data.horario || "",
           locationId: data.ubicacionTienda || "loc-1"
@@ -130,7 +130,7 @@ export default function Home() {
           Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
         const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-        if (distance < 500 && puedeEnviarNotif()) {
+        if (distance < 800 && puedeEnviarNotif()) {
           localStorage.setItem(GEOFENCE_KEY, Date.now().toString());
           procesarProximidadGeofence(
             user.uid,
@@ -147,9 +147,7 @@ export default function Home() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [user]); // FIX: solo depende de user, no de userData (objeto)
 
-  const combinedEntrepreneurs = [...entrepreneurs, ...ENTREPRENEURS.filter(d => !entrepreneurs.some(e => e.id === d.id))];
-
-  const filteredEntrepreneurs = combinedEntrepreneurs.filter((e) => {
+  const filteredEntrepreneurs = entrepreneurs.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
     const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           e.description.toLowerCase().includes(searchQuery.toLowerCase());

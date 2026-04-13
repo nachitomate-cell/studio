@@ -24,8 +24,8 @@ const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
 const TEST_TARGET_EMAIL = "nachitomate@gmail.com";
 
 const PIN_MAP: Record<string, string> = {
-  [MASTER_EMAIL]: "482917",
-  "fgcservicios@gmail.com": "736254",
+  [MASTER_EMAIL]: process.env.NEXT_PUBLIC_MOD_PIN_ADMIN ?? "",
+  "fgcservicios@gmail.com": process.env.NEXT_PUBLIC_MOD_PIN_FGC ?? "",
 };
 
 interface Cliente {
@@ -101,39 +101,41 @@ export default function ModeradorPage() {
 
   const fetchClientes = async () => {
     try {
-      const q = query(collection(db, "usuarios"));
-      const snapshot = await getDocs(q);
-      const data: Cliente[] = snapshot.docs.map((doc) => {
-        const d = doc.data();
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión");
+
+      const res = await fetch("/api/admin/usuarios", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const { usuarios: docs } = await res.json();
+
+      const data: Cliente[] = (docs as any[]).map((d) => {
         let formattedDate = "N/A";
-        
-        if (d.fechaNacimiento) {
-          if (typeof d.fechaNacimiento.toDate === "function") {
-            formattedDate = new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d.fechaNacimiento.toDate());
-          } else if (typeof d.fechaNacimiento === "string") {
-            try {
-              const dt = new Date(d.fechaNacimiento);
-              if (!isNaN(dt.getTime())) {
-                formattedDate = new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(dt);
-              } else {
-                 formattedDate = d.fechaNacimiento;
-               }
-            } catch (e) {
-              formattedDate = d.fechaNacimiento;
-            }
+        const fn = d.fechaNacimiento;
+        if (fn) {
+          // Firestore timestamp serializado como { _seconds, _nanoseconds }
+          const dt = fn._seconds
+            ? new Date(fn._seconds * 1000)
+            : typeof fn === "string" ? new Date(fn) : null;
+          if (dt && !isNaN(dt.getTime())) {
+            formattedDate = new Intl.DateTimeFormat("es-CL", {
+              day: "2-digit", month: "2-digit", year: "numeric",
+            }).format(dt);
           }
         }
 
         return {
-          id: doc.id,
+          id: d.id,
           nombre: d.nombre || "Sin nombre",
           email: d.email || d.correo || "Sin correo",
           telefono: d.telefono || "Sin teléfono",
           fechaNacimiento: formattedDate,
-          rol: d.rol || "cliente"
+          rol: d.rol || "cliente",
         };
       });
-      
+
       data.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
       setClientes(data);
     } catch (error) {

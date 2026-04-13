@@ -17,8 +17,8 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
       if (registration && 'showNotification' in registration) {
         await registration.showNotification(titulo, {
           body: mensaje,
-          icon: "https://picsum.photos/seed/patio-icon/192/192",
-          badge: "https://picsum.photos/seed/patio-icon/192/192",
+          icon: "/Logo3.png",
+          badge: "/Logo3.png",
           tag: 'club-patio-notification',
           renotify: true,
         } as NotificationOptions & { vibrate?: number[] });
@@ -101,7 +101,14 @@ export async function procesarProximidadGeofence(userId: string, userName: strin
       if (yaRecibioHoy) return;
     }
 
-    await enviarNotificacionLocal(userId, `¡Estás cerca de un Sello! 📍`, `Hola ${userName}, detectamos que estás cerca de Patio Curauma. ¡Entra y suma tu sello de hoy!`, {
+    const titulo  = `¡Estás cerca de un Sello! 📍`;
+    const mensaje = `Hola ${userName}, detectamos que estás cerca de Patio Curauma. ¡Entra y suma tu sello de hoy!`;
+
+    // Notificación de sistema — visible en pantalla de bloqueo
+    await dispararAlertaSistema(titulo, mensaje);
+
+    // Guardar en Firestore + enviar FCM push
+    await enviarNotificacionLocal(userId, titulo, mensaje, {
       cta: "Ver Mapa",
       tipo: "geofence",
       isAI: true
