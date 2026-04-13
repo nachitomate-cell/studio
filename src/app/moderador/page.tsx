@@ -19,7 +19,7 @@ import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/l
 import { registrarCompra } from "@/lib/puntos";
 import { enviarNotificacionLocal } from "@/lib/notificaciones";
 
-const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
+const MASTER_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
 const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
 const TEST_TARGET_EMAIL = "nachitomate@gmail.com";
 
@@ -76,7 +76,7 @@ export default function ModeradorPage() {
         router.push("/");
         return;
       }
-      if (!ALLOWED_EMAILS.includes(user.email ?? "")) {
+      if (!ALLOWED_EMAILS.includes((user.email ?? "").trim().toLowerCase())) {
         // Logueado pero sin permisos
         setAccessDenied(true);
         setLoadingConfig(false);
@@ -86,7 +86,7 @@ export default function ModeradorPage() {
         return;
       }
 
-      setCurrentUserEmail(user.email);
+      setCurrentUserEmail((user.email ?? "").trim().toLowerCase());
       setLoadingConfig(false);
       fetchClientes();
       fetchTestUser();
