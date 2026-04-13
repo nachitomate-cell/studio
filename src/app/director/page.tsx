@@ -69,7 +69,8 @@ export default function DirectorPage() {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUserId(user.uid);
-        if (user.email === (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com")) {
+        const masterEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
+        if ((user.email ?? "").trim().toLowerCase() === masterEmail) {
           setIsAuthorized(true);
         } else {
           try {
