@@ -16,7 +16,13 @@ function getAdminApp(): App {
 
   const projectId   = process.env.FIREBASE_ADMIN_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const privateKey  = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const rawKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY ?? "";
+  // Soporta dos formatos:
+  // 1) Base64 (recomendado en Vercel): la variable empieza por "LS0t" (base64 de "---")
+  // 2) PEM directo con \\n literales (formato legacy)
+  const privateKey = rawKey.startsWith("LS0t")
+    ? Buffer.from(rawKey, "base64").toString("utf8")
+    : rawKey.replace(/\\n/g, "\n").replace(/^["']|["']$/g, "").trim();
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
