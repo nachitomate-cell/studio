@@ -26,6 +26,15 @@ const GEOFENCE_ZONES = [
     mensaje: "Visítanos hoy y suma sellos en tus tiendas favoritas.",
   },
   {
+    id: "entrada",
+    lat: -33.144649,
+    lng: -71.5715651,
+    radius: 300,
+    cooldownMs: 24 * 60 * 60 * 1000,
+    titulo: "¡Estás a pasos de Patio! 🏪",
+    mensaje: "Abre tu código y cobra tus premios.",
+  },
+  {
     id: "test",
     lat: -33.0313645,
     lng: -71.5642368,
