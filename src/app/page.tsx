@@ -116,21 +116,26 @@ export default function Home() {
         if (!currentData) return;
 
         const { latitude, longitude } = position.coords;
-        const targetLat = PATIO_INFO.coordinates.lat;
-        const targetLng = PATIO_INFO.coordinates.lng;
+
+        // Zonas geofence: producción + zona de pruebas Base Luna Labs
+        const GEOFENCE_ZONES = [
+          { lat: PATIO_INFO.coordinates.lat, lng: PATIO_INFO.coordinates.lng, radius: 800 },
+          { lat: -33.0313645, lng: -71.5642368, radius: 200 }, // Base Luna Labs (pruebas)
+        ];
 
         const R = 6371e3;
-        const φ1 = latitude * Math.PI / 180;
-        const φ2 = targetLat * Math.PI / 180;
-        const Δφ = (targetLat - latitude) * Math.PI / 180;
-        const Δλ = (targetLng - longitude) * Math.PI / 180;
+        const isNearAnyZone = GEOFENCE_ZONES.some(({ lat, lng, radius }) => {
+          const φ1 = latitude * Math.PI / 180;
+          const φ2 = lat * Math.PI / 180;
+          const Δφ = (lat - latitude) * Math.PI / 180;
+          const Δλ = (lng - longitude) * Math.PI / 180;
+          const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) < radius;
+        });
 
-        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-          Math.cos(φ1) * Math.cos(φ2) *
-          Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        if (distance < 800 && puedeEnviarNotif()) {
+        if (isNearAnyZone && puedeEnviarNotif()) {
           localStorage.setItem(GEOFENCE_KEY, Date.now().toString());
           procesarProximidadGeofence(
             user.uid,
