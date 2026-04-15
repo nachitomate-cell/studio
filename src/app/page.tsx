@@ -18,7 +18,7 @@ import { UserProfile } from "@/components/profile/UserProfile";
 import { RewardsTab } from "@/components/profile/RewardsTab";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
 import { Auth } from "@/components/Auth";
-import { procesarProximidadGeofence } from "@/lib/notificaciones";
+import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -32,7 +32,8 @@ export default function Home() {
   const [userData, setUserData] = useState<any>(null);
   const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
   const [loading, setLoading] = useState(true);
-  const [debugGps, setDebugGps] = useState<{ lat: number; lng: number; zona: string; dist: string } | null>(null);
+  const [debugGps, setDebugGps] = useState<{ lat: number; lng: number; zona: string; dist: string; server?: string } | null>(null);
+  const lastGeoApiCallRef = useRef<number>(0);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -102,73 +103,77 @@ export default function Home() {
     if (!user) return;
     if (!navigator.geolocation) return;
 
-    const GEOFENCE_KEY = `geofence_last_${user.uid}`;
-    const GEOFENCE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+    // Throttle: llamar a la API máximo 1 vez cada 2 minutos
+    const API_THROTTLE_MS = 2 * 60 * 1000;
 
-    // Zonas geofence: producción (800m, cooldown 24h) + pruebas Base Luna Labs (500m, cooldown 5min)
-    const GEOFENCE_ZONES = [
-      { lat: PATIO_INFO.coordinates.lat, lng: PATIO_INFO.coordinates.lng, radius: 800, cooldown: GEOFENCE_COOLDOWN_MS },
-      { lat: -33.0313645, lng: -71.5642368, radius: 500, cooldown: 5 * 60 * 1000 }, // Base Luna Labs
-    ];
-
-    const puedeEnviarNotif = (zoneCooldown: number) => {
-      const last = localStorage.getItem(GEOFENCE_KEY);
-      if (!last) return true;
-      return Date.now() - parseInt(last, 10) > zoneCooldown;
-    };
-
-    const calcDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-      const R = 6371e3;
-      const φ1 = lat1 * Math.PI / 180;
-      const φ2 = lat2 * Math.PI / 180;
-      const Δφ = (lat2 - lat1) * Math.PI / 180;
-      const Δλ = (lng2 - lng1) * Math.PI / 180;
-      const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    };
-
-    const checkGeofence = (position: GeolocationPosition) => {
-      const currentData = userDataRef.current;
-      if (!currentData) return;
-
+    const checkGeofence = async (position: GeolocationPosition) => {
       const { latitude, longitude } = position.coords;
 
-      const matchedZone = GEOFENCE_ZONES.find(({ lat, lng, radius }) =>
-        calcDistance(latitude, longitude, lat, lng) < radius
-      );
-
-      const distancias = GEOFENCE_ZONES.map(({ lat, lng }, i) => {
-        const d = calcDistance(latitude, longitude, lat, lng);
-        return `Z${i + 1}:${Math.round(d)}m`;
-      }).join(" ");
-      console.log(`[Geofence] GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} | ${distancias} | Zona: ${matchedZone ? "DETECTADA" : "fuera"}`);
-      setDebugGps({
+      // Mostrar GPS en el panel debug inmediatamente (antes de llamar al servidor)
+      setDebugGps(prev => ({
         lat: latitude,
         lng: longitude,
-        zona: matchedZone ? "DENTRO ✅" : "Fuera ❌",
-        dist: distancias,
-      });
+        zona: prev?.zona ?? "Consultando…",
+        dist: prev?.dist ?? "",
+        server: "⏳ consultando…",
+      }));
 
-      if (matchedZone && puedeEnviarNotif(matchedZone.cooldown)) {
-        localStorage.setItem(GEOFENCE_KEY, Date.now().toString());
-        procesarProximidadGeofence(
-          user.uid,
-          currentData.nombre || "Miembro",
-          currentData.comprasRealizadas || 0,
-          true,
-          true // force=true: omitir dedup de Firestore en zona de pruebas
-        );
+      // Throttle: no llamar a la API si ya se llamó hace menos de 2 minutos
+      if (Date.now() - lastGeoApiCallRef.current < API_THROTTLE_MS) return;
+      lastGeoApiCallRef.current = Date.now();
+
+      try {
+        const res  = await fetch("/api/check-geofence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.uid, latitude, longitude }),
+        });
+        const data = await res.json();
+
+        // Construir texto de distancias para el debug panel
+        const distStr = data.distances
+          ? data.distances.map((d: any) => `${d.id}:${d.distance}m`).join("  ")
+          : data.distance != null ? `${data.zone}:${data.distance}m` : "";
+
+        let zonaLabel = "Fuera ❌";
+        let serverLabel = "";
+
+        if (data.triggered) {
+          zonaLabel  = `DENTRO ✅ (${data.zone})`;
+          serverLabel = data.pushSent ? "Push enviado 🔔" : "Sin FCM token ⚠️";
+          // Mostrar notificación local también (app en primer plano)
+          await dispararAlertaSistema(
+            data.zone === "test" ? "¡Modo Pruebas Base Luna Labs! 🛰️" : "¡Estás cerca de Patio Curauma! 🛍️",
+            data.zone === "test" ? "GPS detectado correctamente." : "Visítanos hoy y suma sellos."
+          );
+        } else if (data.reason === "cooldown") {
+          zonaLabel  = `DENTRO ✅ (${data.zone})`;
+          serverLabel = "Cooldown activo ⏱";
+        } else {
+          serverLabel = "Sin zona activa";
+        }
+
+        setDebugGps({ lat: latitude, lng: longitude, zona: zonaLabel, dist: distStr, server: serverLabel });
+
+      } catch (err) {
+        console.error("[Geofence] Error API:", err);
+        setDebugGps(prev => prev ? { ...prev, server: "Error API ❌" } : null);
       }
     };
 
     const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
 
-    // Verificar inmediatamente al cargar (no esperar cambio de posición)
-    navigator.geolocation.getCurrentPosition(checkGeofence, (err) => {
-      console.warn("[Geofence] Error GPS inicial:", err.message);
-    }, geoOptions);
+    // Verificar inmediatamente al cargar
+    navigator.geolocation.getCurrentPosition(
+      checkGeofence,
+      (err) => {
+        console.warn("[Geofence] Error GPS:", err.message);
+        setDebugGps({ lat: 0, lng: 0, zona: `Error GPS ❌`, dist: err.message, server: "" });
+      },
+      geoOptions
+    );
 
-    // Continuar monitoreando cambios
+    // Monitorear cambios de posición
     const watchId = navigator.geolocation.watchPosition(
       checkGeofence,
       (err) => console.warn("[Geofence] Error GPS watch:", err.message),
@@ -397,12 +402,15 @@ export default function Home() {
           <div style={{ color: "#facc15", fontWeight: "bold", marginBottom: "2px" }}>🛰 GPS Debug</div>
           {debugGps ? (
             <>
-              <div>Lat: {debugGps.lat.toFixed(7)}</div>
-              <div>Lng: {debugGps.lng.toFixed(7)}</div>
-              <div>{debugGps.dist}</div>
+              <div>Lat: {debugGps.lat !== 0 ? debugGps.lat.toFixed(7) : "—"}</div>
+              <div>Lng: {debugGps.lng !== 0 ? debugGps.lng.toFixed(7) : "—"}</div>
+              {debugGps.dist && <div style={{ color: "#94a3b8" }}>{debugGps.dist}</div>}
               <div style={{ color: debugGps.zona.includes("✅") ? "#4ade80" : "#f87171", fontWeight: "bold" }}>
                 {debugGps.zona}
               </div>
+              {debugGps.server && (
+                <div style={{ color: "#facc15", marginTop: "2px" }}>{debugGps.server}</div>
+              )}
             </>
           ) : (
             <div style={{ color: "#94a3b8" }}>Esperando GPS…</div>
