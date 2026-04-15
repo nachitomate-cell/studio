@@ -46,13 +46,58 @@ export async function POST(request: Request) {
 
     await messaging.send({
       token,
+      // Notificación genérica (fallback para plataformas sin config específica)
       notification: { title, body },
+
+      // ── Android (PWA en Chrome + Capacitor nativo) ──────────────────────────
+      // priority: 'high' garantiza que el mensaje despierte el dispositivo
+      // aunque esté en Doze Mode o con la pantalla bloqueada.
+      android: {
+        priority: "high",
+        notification: {
+          title,
+          body,
+          icon: "ic_notification", // drawable en Android nativo (Capacitor)
+          sound: "default",
+          channelId: "club_patio_default",
+          visibility: "public", // Visible en pantalla de bloqueo
+        },
+      },
+
+      // ── iOS / iPadOS (PWA instalada en pantalla de inicio, iOS 16.4+) ──────
+      // apns-priority: 10 = entrega inmediata (vs. 5 = entrega que puede diferirse)
+      // content-available: 1 = despierta el SW en background para procesarla
+      apns: {
+        headers: {
+          "apns-priority": "10",
+          "apns-push-type": "alert",
+        },
+        payload: {
+          aps: {
+            alert: { title, body },
+            sound: "default",
+            badge: 1,
+            "content-available": 1,
+            "mutable-content": 1,
+          },
+        },
+      },
+
+      // ── Web / PWA en navegador (Chrome, Edge, Firefox, Safari 16.4+) ────────
+      // Urgency: high → el navegador entrega la notificación de inmediato
+      // aunque la pestaña esté cerrada o el dispositivo bloqueado.
       webpush: {
+        headers: {
+          Urgency: "high",
+          TTL: "86400", // Tiempo de vida: 24 horas (en segundos)
+        },
         notification: {
           title,
           body,
           icon: "/Logo3.png",
           badge: "/Logo3.png",
+          requireInteraction: false,
+          silent: false,
         },
         fcmOptions: {
           link: url || "/",

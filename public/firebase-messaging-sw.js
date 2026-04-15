@@ -131,7 +131,11 @@ messaging.onBackgroundMessage((payload) => {
     body,
     icon: '/Logo.png',
     badge: '/Logo.png',
-    vibrate: [100, 50, 100],
+    vibrate: [200, 100, 200, 100, 200],
+    // Tag único para que cada notificación se muestre independientemente.
+    // Si se usara un tag fijo, FCM podría reemplazar/descartar la anterior.
+    tag: 'club-patio-' + Date.now(),
+    renotify: true,
     data: { url: payload.data?.url || '/' },
   });
 });

@@ -370,6 +370,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [showPermisos, setShowPermisos] = useState(false);
+  // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
+  // pero NO instaló la app en su pantalla de inicio (modo standalone).
+  const [showIosHint, setShowIosHint] = useState(false);
   const { toast } = useToast();
 
   const [editForm, setEditForm] = useState({
@@ -390,8 +393,19 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPushEnabled(Notification.permission === "granted");
+    if (typeof window !== "undefined") {
+      if ("Notification" in window) {
+        setPushEnabled(Notification.permission === "granted");
+      }
+      // Detectar iOS fuera de modo standalone (no instalada como PWA).
+      // Las notificaciones push en iOS SOLO funcionan en modo standalone.
+      const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true;
+      if (isIos && !isStandalone) {
+        setShowIosHint(true);
+      }
     }
     return () => unsubscribeAuth();
   }, []);
@@ -806,7 +820,56 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </Card>
       )}
 
-      {!pushEnabled && !isEditing && (
+      {/* ── Banner iOS: instalar como PWA ─────────────────────────────────── */}
+      {showIosHint && !isEditing && (
+        <div
+          className="relative overflow-hidden rounded-2xl px-5 py-4 flex items-start gap-4 animate-in slide-in-from-top-2 duration-500"
+          style={{
+            background: "linear-gradient(135deg, #1C1C1E 0%, #2C2C2E 100%)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
+          }}
+        >
+          {/* Botón cerrar */}
+          <button
+            onClick={() => setShowIosHint(false)}
+            className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Ícono */}
+          <div
+            className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
+          >
+            <Bell className="w-5 h-5 text-white" />
+          </div>
+
+          {/* Texto */}
+          <div className="space-y-1.5 flex-1 pr-4">
+            <p className="text-sm font-black text-white leading-snug">
+              Instala la app para recibir notificaciones 🔔
+            </p>
+            <p className="text-[11px] text-white/60 leading-relaxed">
+              En iPhone, las alertas solo llegan si la app está en tu pantalla de inicio.
+            </p>
+            <div className="flex items-center gap-1.5 mt-2 text-[11px] font-bold text-[#D3B673]">
+              <span>Toca</span>
+              <span
+                className="inline-flex items-center justify-center w-5 h-5 rounded bg-white/10 text-white text-[10px] font-black"
+                style={{ fontFamily: "system-ui" }}
+              >⎙</span>
+              <span>→</span>
+              <span className="italic">&quot;Añadir a pantalla de inicio&quot;</span>
+              <span>→</span>
+              <span className="italic">&quot;Añadir&quot;</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Banner Android / Web: activar alertas push ────────────────────── */}
+      {!pushEnabled && !isEditing && !showIosHint && (
         <Card className="border-none shadow-md bg-blue-50/50 rounded-2xl">
           <CardContent className="p-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
