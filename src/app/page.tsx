@@ -104,53 +104,68 @@ export default function Home() {
     const GEOFENCE_KEY = `geofence_last_${user.uid}`;
     const GEOFENCE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
-    const puedeEnviarNotif = () => {
+    // Zonas geofence: producción (800m, cooldown 24h) + pruebas Base Luna Labs (500m, cooldown 5min)
+    const GEOFENCE_ZONES = [
+      { lat: PATIO_INFO.coordinates.lat, lng: PATIO_INFO.coordinates.lng, radius: 800, cooldown: GEOFENCE_COOLDOWN_MS },
+      { lat: -33.0313645, lng: -71.5642368, radius: 500, cooldown: 5 * 60 * 1000 }, // Base Luna Labs
+    ];
+
+    const puedeEnviarNotif = (zoneCooldown: number) => {
       const last = localStorage.getItem(GEOFENCE_KEY);
       if (!last) return true;
-      return Date.now() - parseInt(last, 10) > GEOFENCE_COOLDOWN_MS;
+      return Date.now() - parseInt(last, 10) > zoneCooldown;
     };
 
+    const calcDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+      const R = 6371e3;
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    const checkGeofence = (position: GeolocationPosition) => {
+      const currentData = userDataRef.current;
+      if (!currentData) return;
+
+      const { latitude, longitude } = position.coords;
+
+      const matchedZone = GEOFENCE_ZONES.find(({ lat, lng, radius }) =>
+        calcDistance(latitude, longitude, lat, lng) < radius
+      );
+
+      console.log(`[Geofence] GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} | Zona: ${matchedZone ? "DETECTADA" : "fuera de rango"}`);
+
+      if (matchedZone && puedeEnviarNotif(matchedZone.cooldown)) {
+        localStorage.setItem(GEOFENCE_KEY, Date.now().toString());
+        procesarProximidadGeofence(
+          user.uid,
+          currentData.nombre || "Miembro",
+          currentData.comprasRealizadas || 0,
+          true,
+          true // force=true: omitir dedup de Firestore en zona de pruebas
+        );
+      }
+    };
+
+    const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+
+    // Verificar inmediatamente al cargar (no esperar cambio de posición)
+    navigator.geolocation.getCurrentPosition(checkGeofence, (err) => {
+      console.warn("[Geofence] Error GPS inicial:", err.message);
+    }, geoOptions);
+
+    // Continuar monitoreando cambios
     const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const currentData = userDataRef.current;
-        if (!currentData) return;
-
-        const { latitude, longitude } = position.coords;
-
-        // Zonas geofence: producción + zona de pruebas Base Luna Labs
-        const GEOFENCE_ZONES = [
-          { lat: PATIO_INFO.coordinates.lat, lng: PATIO_INFO.coordinates.lng, radius: 800 },
-          { lat: -33.0313645, lng: -71.5642368, radius: 200 }, // Base Luna Labs (pruebas)
-        ];
-
-        const R = 6371e3;
-        const isNearAnyZone = GEOFENCE_ZONES.some(({ lat, lng, radius }) => {
-          const φ1 = latitude * Math.PI / 180;
-          const φ2 = lat * Math.PI / 180;
-          const Δφ = (lat - latitude) * Math.PI / 180;
-          const Δλ = (lng - longitude) * Math.PI / 180;
-          const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) < radius;
-        });
-
-        if (isNearAnyZone && puedeEnviarNotif()) {
-          localStorage.setItem(GEOFENCE_KEY, Date.now().toString());
-          procesarProximidadGeofence(
-            user.uid,
-            currentData.nombre || "Miembro",
-            currentData.comprasRealizadas || 0,
-            true
-          );
-        }
-      },
-      () => { /* geolocation error — silencioso */ },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      checkGeofence,
+      (err) => console.warn("[Geofence] Error GPS watch:", err.message),
+      geoOptions
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [user]); // FIX: solo depende de user, no de userData (objeto)
+  }, [user]);
 
   const filteredEntrepreneurs = entrepreneurs.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
