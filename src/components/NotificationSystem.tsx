@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, orderBy, onSnapshot, limit, where } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, limit, where, doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
@@ -11,6 +11,10 @@ import { useToast } from "@/hooks/use-toast";
  * Componente que escucha nuevas notificaciones en Firestore.
  * El listener de Firestore se crea SOLO cuando hay sesión activa
  * y se destruye automáticamente al cerrar sesión.
+ *
+ * También recupera automáticamente el FCM token si el usuario tiene
+ * permiso concedido pero el token no está guardado en Firestore
+ * (ej: registró el permiso antes de que el sistema estuviera listo).
  */
 export function NotificationSystem() {
   const { toast } = useToast();
@@ -21,14 +25,14 @@ export function NotificationSystem() {
     // Es el único SW para el scope raíz — evita conflicto con sw.js en iOS.
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })
-        .then(reg => console.log("SW Firebase registrado:", reg.scope))
-        .catch(err => console.warn("Fallo al registrar SW:", err));
+        .then(reg => console.log("[SW] Firebase Messaging SW registrado:", reg.scope))
+        .catch(err => console.warn("[SW] Fallo al registrar SW:", err));
     }
 
     // Referencia interna al listener de notificaciones, para poder desmontarlo
     let unsubscribeNotif: (() => void) | null = null;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       // --- LOGOUT: destruir el listener de notificaciones si existía ---
       if (unsubscribeNotif) {
         unsubscribeNotif();
@@ -37,6 +41,38 @@ export function NotificationSystem() {
 
       // --- LOGIN: montar el listener solo cuando hay sesión activa ---
       if (user) {
+
+        // ── AUTO-RECUPERACIÓN DEL TOKEN FCM ─────────────────────────────────
+        // Si el usuario ya tiene permiso concedido pero NO tiene fcmToken en
+        // Firestore (registro fallido en sesión anterior), lo re-registramos
+        // en silencio. Así no necesita tocar nada manualmente.
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          try {
+            const userSnap = await getDoc(doc(db, "usuarios", user.uid));
+            const tokenExistente = userSnap.exists() ? userSnap.data()?.fcmToken : null;
+
+            if (!tokenExistente) {
+              console.info("[FCM] Token ausente en Firestore — re-registrando automáticamente...");
+              // Import dinámico para no bloquear el render y evitar errores en SSR
+              const { registerFcmToken } = await import("@/lib/fcmTokenManager");
+              const result = await registerFcmToken();
+              if (result.ok) {
+                console.info("[FCM] Token re-registrado exitosamente:", result.token.substring(0, 20) + "...");
+              } else {
+                console.warn("[FCM] Re-registro automático falló:", result.reason);
+              }
+            }
+          } catch (err) {
+            // No es fatal — el flujo de notificaciones en-app sigue funcionando
+            console.warn("[FCM] Error en auto-recuperación de token:", err);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
         
         const q = query(
