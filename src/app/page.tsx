@@ -32,6 +32,7 @@ export default function Home() {
   const [userData, setUserData] = useState<any>(null);
   const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
   const [loading, setLoading] = useState(true);
+  const [debugGps, setDebugGps] = useState<{ lat: number; lng: number; zona: string; dist: string } | null>(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -136,7 +137,17 @@ export default function Home() {
         calcDistance(latitude, longitude, lat, lng) < radius
       );
 
-      console.log(`[Geofence] GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} | Zona: ${matchedZone ? "DETECTADA" : "fuera de rango"}`);
+      const distancias = GEOFENCE_ZONES.map(({ lat, lng }, i) => {
+        const d = calcDistance(latitude, longitude, lat, lng);
+        return `Z${i + 1}:${Math.round(d)}m`;
+      }).join(" ");
+      console.log(`[Geofence] GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} | ${distancias} | Zona: ${matchedZone ? "DETECTADA" : "fuera"}`);
+      setDebugGps({
+        lat: latitude,
+        lng: longitude,
+        zona: matchedZone ? "DENTRO ✅" : "Fuera ❌",
+        dist: distancias,
+      });
 
       if (matchedZone && puedeEnviarNotif(matchedZone.cooldown)) {
         localStorage.setItem(GEOFENCE_KEY, Date.now().toString());
@@ -362,6 +373,8 @@ export default function Home() {
     }
   };
 
+  const isAdmin = user?.email?.toLowerCase().trim() === "ignaciiio.mate@gmail.com";
+
   return (
     <main className="min-h-screen bg-white">
       <div className="max-w-lg mx-auto pb-4">
@@ -371,6 +384,31 @@ export default function Home() {
         setActiveTab(tab);
         setShowAuth(false);
       }} />
+
+      {/* Panel debug GPS — solo visible para admin */}
+      {isAdmin && (
+        <div style={{
+          position: "fixed", bottom: "80px", left: "8px", right: "8px",
+          background: "rgba(0,0,0,0.85)", borderRadius: "10px",
+          padding: "10px 14px", zIndex: 9999, fontSize: "11px",
+          color: "#fff", fontFamily: "monospace", lineHeight: "1.6",
+          pointerEvents: "none",
+        }}>
+          <div style={{ color: "#facc15", fontWeight: "bold", marginBottom: "2px" }}>🛰 GPS Debug</div>
+          {debugGps ? (
+            <>
+              <div>Lat: {debugGps.lat.toFixed(7)}</div>
+              <div>Lng: {debugGps.lng.toFixed(7)}</div>
+              <div>{debugGps.dist}</div>
+              <div style={{ color: debugGps.zona.includes("✅") ? "#4ade80" : "#f87171", fontWeight: "bold" }}>
+                {debugGps.zona}
+              </div>
+            </>
+          ) : (
+            <div style={{ color: "#94a3b8" }}>Esperando GPS…</div>
+          )}
+        </div>
+      )}
     </main>
   );
 }
