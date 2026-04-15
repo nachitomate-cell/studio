@@ -111,14 +111,19 @@ export async function POST(request: Request) {
     const notifRef = adminDb.collection("usuarios").doc(userId).collection("notificaciones");
 
     // Dedup: ¿ya recibió una notificación geofence dentro del cooldown?
+    // Usamos orderBy en un solo campo (índice simple, no requiere índice compuesto)
+    // y filtramos tipo en memoria para evitar el error "query requires an index".
     const cooldownStart = new Date(Date.now() - matched.cooldownMs).toISOString();
-    const existing = await notifRef
-      .where("tipo", "==", "geofence")
-      .where("fecha", ">=", cooldownStart)
-      .limit(1)
+    const recentSnap = await notifRef
+      .orderBy("fecha", "desc")
+      .limit(20)
       .get();
 
-    if (!existing.empty) {
+    const yaNotificado = recentSnap.docs.some(
+      (d) => d.data().tipo === "geofence" && d.data().fecha >= cooldownStart
+    );
+
+    if (yaNotificado) {
       return NextResponse.json({
         triggered: false,
         reason: "cooldown",

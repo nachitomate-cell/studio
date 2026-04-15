@@ -130,6 +130,12 @@ export default function Home() {
         });
         const data = await res.json();
 
+        if (!res.ok) {
+          console.error("[Geofence] Error del servidor:", data.error);
+          setDebugGps(prev => prev ? { ...prev, server: `Error servidor ❌: ${data.error?.slice(0, 40)}` } : null);
+          return;
+        }
+
         // Construir texto de distancias para el debug panel
         const distStr = data.distances
           ? data.distances.map((d: any) => `${d.id}:${d.distance}m`).join("  ")
