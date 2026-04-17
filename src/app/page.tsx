@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { doc, onSnapshot, collection, query } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
@@ -19,6 +19,7 @@ import { RewardsTab } from "@/components/profile/RewardsTab";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
 import { Auth } from "@/components/Auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
+import { useBackgroundGeolocation } from "@/hooks/useBackgroundGeolocation";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -99,95 +100,83 @@ export default function Home() {
     userDataRef.current = userData;
   }, [userData]);
 
+  // Ref para acceder al usuario actual sin cerrar sobre él (evita stale closures)
+  const userRef = useRef<typeof user>(null);
   useEffect(() => {
-    if (!user) return;
-    if (!navigator.geolocation) return;
-
-    // Throttle: llamar a la API máximo 1 vez cada 2 minutos
-    const API_THROTTLE_MS = 2 * 60 * 1000;
-
-    const checkGeofence = async (position: GeolocationPosition) => {
-      const { latitude, longitude } = position.coords;
-
-      // Mostrar GPS en el panel debug inmediatamente (antes de llamar al servidor)
-      setDebugGps(prev => ({
-        lat: latitude,
-        lng: longitude,
-        zona: prev?.zona ?? "Consultando…",
-        dist: prev?.dist ?? "",
-        server: "⏳ consultando…",
-      }));
-
-      // Throttle: no llamar a la API si ya se llamó hace menos de 2 minutos
-      if (Date.now() - lastGeoApiCallRef.current < API_THROTTLE_MS) return;
-      lastGeoApiCallRef.current = Date.now();
-
-      try {
-        const res  = await fetch("/api/check-geofence", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.uid, latitude, longitude }),
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-          console.error("[Geofence] Error del servidor:", data.error);
-          setDebugGps(prev => prev ? { ...prev, server: `Error servidor ❌: ${data.error?.slice(0, 40)}` } : null);
-          return;
-        }
-
-        // Construir texto de distancias para el debug panel
-        const distStr = data.distances
-          ? data.distances.map((d: any) => `${d.id}:${d.distance}m`).join("  ")
-          : data.distance != null ? `${data.zone}:${data.distance}m` : "";
-
-        let zonaLabel = "Fuera ❌";
-        let serverLabel = "";
-
-        if (data.triggered) {
-          zonaLabel  = `DENTRO ✅ (${data.zone})`;
-          serverLabel = data.pushSent ? "Push enviado 🔔" : "Sin FCM token ⚠️";
-          // Mostrar notificación local también (app en primer plano)
-          await dispararAlertaSistema(
-            data.zone === "test" ? "¡Modo Pruebas Base Luna Labs! 🛰️" : "¡Estás cerca de Patio Curauma! 🛍️",
-            data.zone === "test" ? "GPS detectado correctamente." : "Visítanos hoy y suma sellos."
-          );
-        } else if (data.reason === "cooldown") {
-          zonaLabel  = `DENTRO ✅ (${data.zone})`;
-          serverLabel = "Cooldown activo ⏱";
-        } else {
-          serverLabel = "Sin zona activa";
-        }
-
-        setDebugGps({ lat: latitude, lng: longitude, zona: zonaLabel, dist: distStr, server: serverLabel });
-
-      } catch (err) {
-        console.error("[Geofence] Error API:", err);
-        setDebugGps(prev => prev ? { ...prev, server: "Error API ❌" } : null);
-      }
-    };
-
-    const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
-
-    // Verificar inmediatamente al cargar
-    navigator.geolocation.getCurrentPosition(
-      checkGeofence,
-      (err) => {
-        console.warn("[Geofence] Error GPS:", err.message);
-        setDebugGps({ lat: 0, lng: 0, zona: `Error GPS ❌`, dist: err.message, server: "" });
-      },
-      geoOptions
-    );
-
-    // Monitorear cambios de posición
-    const watchId = navigator.geolocation.watchPosition(
-      checkGeofence,
-      (err) => console.warn("[Geofence] Error GPS watch:", err.message),
-      geoOptions
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
+    userRef.current = user;
   }, [user]);
+
+  // Throttle: llamar a la API máximo 1 vez cada 2 minutos
+  const API_THROTTLE_MS = 2 * 60 * 1000;
+
+  const handleGeolocationPosition = useCallback(async ({ latitude, longitude }: { latitude: number; longitude: number }) => {
+    const currentUser = userRef.current;
+    if (!currentUser) return;
+
+    setDebugGps(prev => ({
+      lat: latitude,
+      lng: longitude,
+      zona: prev?.zona ?? "Consultando…",
+      dist: prev?.dist ?? "",
+      server: "⏳ consultando…",
+    }));
+
+    if (Date.now() - lastGeoApiCallRef.current < API_THROTTLE_MS) return;
+    lastGeoApiCallRef.current = Date.now();
+
+    try {
+      const res = await fetch("/api/check-geofence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser.uid, latitude, longitude }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("[Geofence] Error del servidor:", data.error);
+        setDebugGps(prev => prev ? { ...prev, server: `Error servidor ❌: ${data.error?.slice(0, 40)}` } : null);
+        return;
+      }
+
+      const distStr = data.distances
+        ? data.distances.map((d: any) => `${d.id}:${d.distance}m`).join("  ")
+        : data.distance != null ? `${data.zone}:${data.distance}m` : "";
+
+      let zonaLabel = "Fuera ❌";
+      let serverLabel = "";
+
+      if (data.triggered) {
+        zonaLabel = `DENTRO ✅ (${data.zone})`;
+        serverLabel = data.pushSent ? "Push enviado 🔔" : "Sin FCM token ⚠️";
+        await dispararAlertaSistema(
+          data.zone === "test" ? "¡Modo Pruebas Base Luna Labs! 🛰️" : "¡Estás cerca de Patio Curauma! 🛍️",
+          data.zone === "test" ? "GPS detectado correctamente." : "Visítanos hoy y suma sellos."
+        );
+      } else if (data.reason === "cooldown") {
+        zonaLabel = `DENTRO ✅ (${data.zone})`;
+        serverLabel = "Cooldown activo ⏱";
+      } else {
+        serverLabel = "Sin zona activa";
+      }
+
+      setDebugGps({ lat: latitude, lng: longitude, zona: zonaLabel, dist: distStr, server: serverLabel });
+    } catch (err) {
+      console.error("[Geofence] Error API:", err);
+      setDebugGps(prev => prev ? { ...prev, server: "Error API ❌" } : null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Geolocalización en segundo plano — usa Capacitor en Android/iOS, watchPosition en web
+  useBackgroundGeolocation({
+    enabled: !!user,
+    onPosition: handleGeolocationPosition,
+    onError: (msg) => {
+      console.warn("[Geofence] Error GPS:", msg);
+      setDebugGps({ lat: 0, lng: 0, zona: `Error GPS ❌`, dist: msg, server: "" });
+    },
+    distanceFilter: 50,
+  });
 
   const filteredEntrepreneurs = entrepreneurs.filter((e) => {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
