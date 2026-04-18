@@ -1,6 +1,19 @@
 
 export type Category = { id: string; name: string; icon: string; };
-export type Entrepreneur = { id: string; name: string; category: string; description: string; contact: string; schedule: string; locationId: string; imageUrl: string; };
+export type Entrepreneur = {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  contact: string;
+  schedule: string;
+  locationId: string;
+  imageUrl: string;
+  // Campos opcionales para locales Premium / Marcas Ancla
+  imagenTarjeta?: string;   // imagen para el carrusel de inicio
+  imagenPerfil?: string;    // portada del detalle del local
+  logoHeader?: string;      // logo/avatar del local
+};
 export type Premio = { id: string; nombre: string; costo: number; icono: string; esSorteo?: boolean; };
 export type MapLocation = { id: string; name: string; x: number; y: number; };
 

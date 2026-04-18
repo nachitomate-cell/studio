@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Users, Ticket, TrendingUp,
   ArrowLeft, Download, Send, Plus, Trash2,
-  Edit3, Trophy, Megaphone, Loader2, Store, ToggleLeft
+  Edit3, Trophy, Megaphone, Loader2, Store, Crown, Check, X, ImagePlus, FolderOpen
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useRouter } from "next/navigation";
 import {
   collection, query, where, getDocs,
@@ -20,7 +21,8 @@ import {
   arrayUnion, setDoc, serverTimestamp
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { db, auth } from "@/lib/firebase";
+import { db, auth, storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -42,6 +44,13 @@ export default function DirectorPage() {
   const [mensajeGlobal, setMensajeGlobal] = useState({ titulo: "", cuerpo: "" });
 
   const [vendorToDelete, setVendorToDelete] = useState<{ id: string; nombre: string } | null>(null);
+
+  // Marcas Ancla
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [savingPremiumId, setSavingPremiumId] = useState<string | null>(null);
+  const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
+  const [promoTextDraft, setPromoTextDraft] = useState("");
+  const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
   const [deletingVendor, setDeletingVendor] = useState(false);
   const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
   const [vendorList, setVendorList] = useState<{ id: string; nombre: string }[]>([]);
@@ -181,19 +190,25 @@ export default function DirectorPage() {
       setPremios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Cargar lista de vendors para el formulario
-    getDocs(collection(db, "entrepreneur_profiles"))
-      .then((snap) => {
-        const list = snap.docs
-          .map((d) => ({ id: d.id, nombre: d.data().businessName || d.data().nombre || d.id.substring(0, 8) }))
-          .sort((a, b) => a.nombre.localeCompare(b.nombre));
-        setVendorList(list);
-      })
-      .catch(() => {});
+    // Cargar lista de vendors + listener completo de perfiles (para Marcas Ancla)
+    const unsubProfiles = onSnapshot(collection(db, "entrepreneur_profiles"), (snap) => {
+      const profiles = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      profiles.sort((a: any, b: any) =>
+        (a.businessName || a.nombre || "").localeCompare(b.businessName || b.nombre || "")
+      );
+      setAllProfiles(profiles);
+      setVendorList(
+        profiles.map((p: any) => ({
+          id: p.id,
+          nombre: p.businessName || p.nombre || p.id.substring(0, 8),
+        }))
+      );
+    });
 
     return () => {
       unsubLogs();
       unsubPremios();
+      unsubProfiles();
     };
   }, [isAuthorized]);
 
@@ -342,6 +357,53 @@ export default function DirectorPage() {
     toast({ title: activo ? "Premio desactivado" : "Premio activado" });
   };
 
+  const handleTogglePremium = async (id: string, current: boolean) => {
+    setSavingPremiumId(id);
+    try {
+      await updateDoc(doc(db, "entrepreneur_profiles", id), { isPremium: !current });
+      toast({ title: !current ? "✦ Local marcado como Destacado" : "Local removido de Destacados" });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado Premium." });
+    } finally {
+      setSavingPremiumId(null);
+    }
+  };
+
+  const handleSavePromoText = async (id: string) => {
+    setSavingPremiumId(id);
+    try {
+      await updateDoc(doc(db, "entrepreneur_profiles", id), {
+        promoText: promoTextDraft.trim() || null,
+      });
+      toast({ title: "Texto promocional guardado" });
+      setEditingPromoId(null);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el texto." });
+    } finally {
+      setSavingPremiumId(null);
+    }
+  };
+
+  const handleImageUpload = async (vendorId: string, file: File) => {
+    setUploadingImageId(vendorId);
+    try {
+      const storageRef = ref(storage, `entrepreneur_photos/${vendorId}/profile_${Date.now()}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, "entrepreneur_profiles", vendorId), {
+        imageUrl: url,
+        imageUrls: [url],
+        imagenTarjeta: url,
+        imagenPerfil: url,
+      });
+      toast({ title: "Foto actualizada", description: "La imagen del local se actualizó correctamente." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error al subir imagen", description: err.message || "Intenta de nuevo." });
+    } finally {
+      setUploadingImageId(null);
+    }
+  };
+
   if (isAuthorized === null) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
@@ -361,9 +423,18 @@ export default function DirectorPage() {
             </Button>
             <h1 className="text-xl font-black text-slate-800 tracking-tight">Panel Directivo</h1>
           </div>
-          <Button size="sm" variant="outline" className="rounded-xl gap-2 font-bold text-[10px] uppercase">
-            <Download className="w-3 h-3" /> Reporte Mes
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm" variant="outline"
+              onClick={() => router.push("/directorio")}
+              className="rounded-xl gap-1.5 font-bold text-[10px] uppercase"
+            >
+              <FolderOpen className="w-3 h-3" /> Directorio
+            </Button>
+            <Button size="sm" variant="outline" className="rounded-xl gap-2 font-bold text-[10px] uppercase">
+              <Download className="w-3 h-3" /> Reporte
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -525,6 +596,156 @@ export default function DirectorPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* MARCAS ANCLA / LOCALES DESTACADOS */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Crown className="w-4 h-4 text-amber-500" />
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+              Marcas Ancla · Locales Destacados
+            </h2>
+          </div>
+          <p className="text-[11px] text-slate-400 px-1">
+            Activa el modo Patrocinado para que el local aparezca en el carrusel "Destacados del Patio".
+          </p>
+
+          {allProfiles.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400 italic">
+              No hay perfiles de locales cargados aún.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {allProfiles.map((profile: any) => {
+                const nombre = profile.businessName || profile.nombre || profile.id.substring(0, 8);
+                const isPremium = profile.isPremium === true;
+                const promoText = profile.promoText || "";
+                const isEditingThis = editingPromoId === profile.id;
+                const isSaving = savingPremiumId === profile.id;
+
+                return (
+                  <Card
+                    key={profile.id}
+                    className={`border-none shadow-sm rounded-2xl transition-all ${
+                      isPremium
+                        ? "bg-amber-50 outline outline-1 outline-amber-200"
+                        : "bg-white"
+                    }`}
+                  >
+                    <CardContent className="p-4 space-y-3">
+                      {/* Fila principal: nombre + switch */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-slate-800 truncate">{nombre}</p>
+                            {isPremium && (
+                              <span className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 uppercase tracking-wider">
+                                ✦ PATROCINADO
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium uppercase mt-0.5">
+                            {profile.category || profile.rubro || "Sin categoría"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isSaving && <Loader2 className="w-4 h-4 animate-spin text-amber-500" />}
+                          <Switch
+                            checked={isPremium}
+                            disabled={isSaving}
+                            onCheckedChange={() => handleTogglePremium(profile.id, isPremium)}
+                            className="data-[state=checked]:bg-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Subir foto del local */}
+                      <label className="flex items-center gap-2 cursor-pointer w-full">
+                        <div
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-colors w-full ${
+                            uploadingImageId === profile.id
+                              ? "border-amber-200 bg-amber-50"
+                              : "border-slate-100 bg-slate-50 hover:bg-amber-50 hover:border-amber-200"
+                          }`}
+                        >
+                          {uploadingImageId === profile.id ? (
+                            <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin shrink-0" />
+                          ) : (
+                            <ImagePlus className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                          )}
+                          <span className="text-[11px] text-slate-500">
+                            {uploadingImageId === profile.id ? "Subiendo imagen..." : "Cambiar foto del local"}
+                          </span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImageId !== null}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImageUpload(profile.id, file);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+
+                      {/* Texto promocional — editable inline */}
+                      {isEditingThis ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={promoTextDraft}
+                            onChange={(e) => setPromoTextDraft(e.target.value)}
+                            placeholder="Ej: Gana doble sello en compras sobre $15.000"
+                            className="text-xs min-h-[72px] rounded-xl border-amber-200 focus:border-amber-400 resize-none"
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              disabled={isSaving}
+                              onClick={() => handleSavePromoText(profile.id)}
+                              className="h-8 px-3 rounded-xl font-bold bg-amber-500 hover:bg-amber-600 text-white gap-1 text-xs"
+                            >
+                              {isSaving ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5" />
+                              )}
+                              Guardar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setEditingPromoId(null)}
+                              className="h-8 px-3 rounded-xl font-bold text-slate-400 text-xs gap-1"
+                            >
+                              <X className="w-3.5 h-3.5" /> Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingPromoId(profile.id);
+                            setPromoTextDraft(promoText);
+                          }}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-100 hover:border-amber-200 transition-colors">
+                            <Edit3 className="w-3.5 h-3.5 text-slate-300 mt-0.5 shrink-0" />
+                            <p className="text-[11px] text-slate-500 italic line-clamp-2 leading-relaxed">
+                              {promoText || "Agregar texto promocional…"}
+                            </p>
+                          </div>
+                        </button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* MI TIENDA COMO EMPRENDEDOR */}
         <section className="space-y-4">

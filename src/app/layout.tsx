@@ -1,4 +1,5 @@
 import type {Metadata, Viewport} from 'next';
+import Link from 'next/link';
 import { Montserrat } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -6,6 +7,7 @@ import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
 import { NotificationSystem } from "@/components/NotificationSystem";
 import { SplashScreen } from "@/components/ui/SplashScreen";
+import { Providers } from "@/components/Providers";
 
 const montserrat = Montserrat({
   subsets: ['latin'],
@@ -54,13 +56,20 @@ export default function RootLayout({
         
         {/* Header fijo con logo optimizado y manejo de safe area superior */}
         <header className="bg-white/95 backdrop-blur-sm shadow-sm py-3 flex flex-col items-center justify-center w-full sticky top-0 z-50 pt-safe border-b border-slate-100">
-          <img src="/Logo2.png" alt="Patio" className="h-10 object-contain" />
-          <span style={{ fontSize: "10px", letterSpacing: "2px", color: "#666", fontWeight: 600, marginTop: "2px" }}>PATIO CURAUMA</span>
+          <Link
+            href="/"
+            className="flex flex-col items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <img src="/Logo2.png" alt="Patio" className="h-10 object-contain" />
+            <span style={{ fontSize: "10px", letterSpacing: "2px", color: "#666", fontWeight: 600, marginTop: "2px" }}>PATIO CURAUMA</span>
+          </Link>
         </header>
 
-        <div className="flex-1 overflow-x-hidden">
-          {children}
-        </div>
+        <Providers>
+          <div className="flex-1 overflow-x-hidden">
+            {children}
+          </div>
+        </Providers>
         
         {/* Sistema Global de Notificaciones de Sistema */}
         <NotificationSystem />

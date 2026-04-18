@@ -1,0 +1,51 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isDirectorOrAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "ignaciiio.mate@gmail.com" ||
+        firestore.get(
+          /databases/(default)/documents/usuarios/$(request.auth.uid)
+        ).data.get("rol", "") in ["director", "director_patio", "admin"] ||
+        firestore.get(
+          /databases/(default)/documents/usuarios/$(request.auth.uid)
+        ).data.get("roles", []).hasAny(["director", "director_patio", "admin"])
+      );
+    }
+
+    function isOwnerOrDirector(vendorId) {
+      return isSignedIn() && (
+        request.auth.uid == vendorId || isDirectorOrAdmin()
+      );
+    }
+
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*')
+        && request.resource.size < 10 * 1024 * 1024; // máx 10 MB
+    }
+
+    // ── Fotos de locales ─────────────────────────────────────────────────────
+    // Ruta: entrepreneur_photos/{vendorId}/{filename}
+    match /entrepreneur_photos/{vendorId}/{fileName} {
+      // Lectura pública (para mostrar imágenes en la app sin autenticación)
+      allow read: if true;
+
+      // Escritura: el propio vendedor o un director/admin
+      allow write: if isOwnerOrDirector(vendorId) && isValidImage();
+
+      // Borrado: igual que escritura
+      allow delete: if isOwnerOrDirector(vendorId);
+    }
+
+    // ── Cualquier otro path: denegado ────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

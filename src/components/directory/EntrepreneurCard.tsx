@@ -6,7 +6,7 @@ import { Entrepreneur } from "@/lib/data";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, getSafeImageUrl } from "@/lib/utils";
 
 interface EntrepreneurCardProps {
   entrepreneur: Entrepreneur;
@@ -25,7 +25,7 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false }: Entreprene
             <div className="absolute inset-0 bg-slate-200 animate-pulse z-0" />
           )}
           <Image
-            src={entrepreneur.imageUrl}
+            src={getSafeImageUrl(entrepreneur.imagenTarjeta || entrepreneur.imageUrl)}
             alt={entrepreneur.name}
             fill
             sizes="(max-width: 768px) 50vw, 33vw"

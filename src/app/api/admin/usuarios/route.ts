@@ -9,23 +9,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-
-function getAdminApp(): App {
-  if (getApps().length > 0) return getApps()[0];
-
-  const projectId   = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim();
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL?.trim();
-  const privateKey  = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n").trim();
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error("Faltan variables FIREBASE_ADMIN_* en .env");
-  }
-
-  return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
-}
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 const ROLES_STAFF = ["moderador", "admin", "director", "director_patio"];
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "ignaciiio.mate@gmail.com";
@@ -37,15 +21,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const adminApp  = getAdminApp();
-    const adminAuth = getAuth(adminApp);
-    const adminDb   = getFirestore(adminApp);
-
     // Verificar token
     let decoded;
     try {
       decoded = await adminAuth.verifyIdToken(idToken);
-    } catch {
+    } catch (tokenError) {
+      console.error("[admin/usuarios] Token inválido:", tokenError);
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
@@ -60,12 +41,13 @@ export async function GET(request: Request) {
     }
 
     // Traer todos los usuarios
-    const snap = await adminDb.collection("usuarios").get();
+    const snap     = await adminDb.collection("usuarios").get();
     const usuarios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     return NextResponse.json({ usuarios });
-  } catch (error: any) {
-    console.error("[admin/usuarios] Error:", error);
-    return NextResponse.json({ error: error.message ?? "Error interno" }, { status: 500 });
+  } catch (error: unknown) {
+    // Logea el error real en la terminal del servidor para facilitar el diagnóstico
+    console.error("[admin/usuarios] Error interno:", error);
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }

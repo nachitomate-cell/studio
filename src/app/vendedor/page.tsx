@@ -21,8 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/data";
+
+const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
 
 export default function VendedorPage() {
   const router = useRouter();
@@ -46,8 +49,11 @@ export default function VendedorPage() {
     whatsapp: "",
     instagram: "",
     ubicacion: "",
-    horario: ""
+    horario: "",
+    promoText: "",
+    isPremium: false,
   });
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -76,6 +82,9 @@ export default function VendedorPage() {
 
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
+        // Detectar si es admin para mostrar controles extra
+        setIsAdmin((user.email || "").trim().toLowerCase() === ADMIN_EMAIL);
+
         const profileRef = doc(db, "entrepreneur_profiles", user.uid);
         unsubscribeProfile = onSnapshot(profileRef, (snap) => {
           if (snap.exists()) {
@@ -94,7 +103,9 @@ export default function VendedorPage() {
               whatsapp: data.whatsapp || data.contactPhone || "",
               instagram: data.instagram ? data.instagram.replace('@', '') : "",
               ubicacion: data.ubicacionTienda || data.address || "",
-              horario: data.operatingHours || data.horario || ""
+              horario: data.operatingHours || data.horario || "",
+              promoText: data.promoText || "",
+              isPremium: data.isPremium === true,
             });
             setPreviewUrl(data.imageUrl || data.imageUrls?.[0] || null);
           }
@@ -199,6 +210,8 @@ export default function VendedorPage() {
         instagram: shopForm.instagram.replace('@', '').trim() || null,
         ubicacionTienda: shopForm.ubicacion.trim() || null,
         operatingHours: shopForm.horario.trim() || null,
+        promoText: shopForm.promoText.trim() || null,
+        isPremium: shopForm.isPremium,
         updatedAt: new Date().toISOString()
       };
 
@@ -538,6 +551,52 @@ export default function VendedorPage() {
                     onChange={(e) => setShopForm({...shopForm, horario: e.target.value})}
                   />
                 </div>
+
+                {/* Texto Promocional */}
+                <div className="space-y-3">
+                  <Label htmlFor="promoText" className="text-sm font-bold text-slate-700">
+                    Texto Promocional{" "}
+                    <span className="font-normal text-slate-400">(Opcional)</span>
+                  </Label>
+                  <Textarea
+                    id="promoText"
+                    placeholder="Ej: Gana doble sello en compras sobre $15.000 este mes"
+                    className="min-h-[80px] border-slate-200 focus:border-primary rounded-lg text-sm p-4"
+                    value={shopForm.promoText}
+                    onChange={(e) => setShopForm({ ...shopForm, promoText: e.target.value })}
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Este texto aparece en el carrusel "Destacados del Patio" cuando tu local es Premium.
+                  </p>
+                </div>
+
+                {/* Toggle isPremium — solo visible para admin */}
+                {isAdmin && (
+                  <div className="p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/60 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-black text-amber-800 flex items-center gap-2">
+                          ✦ Marca Ancla / Local Destacado
+                        </p>
+                        <p className="text-[10px] text-amber-700/70 font-medium mt-0.5">
+                          Activa para aparecer en el carrusel "Destacados del Patio" (solo admin)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={shopForm.isPremium}
+                        onCheckedChange={(val) =>
+                          setShopForm({ ...shopForm, isPremium: val })
+                        }
+                        className="data-[state=checked]:bg-amber-500"
+                      />
+                    </div>
+                    {shopForm.isPremium && (
+                      <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">
+                        ✓ Este local aparecerá como PATROCINADO en el carrusel
+                      </p>
+                    )}
+                  </div>
+                )}
 
               </div>{/* end space-y-6 */}
 

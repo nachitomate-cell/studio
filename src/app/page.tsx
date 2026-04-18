@@ -9,11 +9,11 @@ import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
 import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, isVendorVisible } from "@/lib/utils";
 import { UserProfile } from "@/components/profile/UserProfile";
 import { RewardsTab } from "@/components/profile/RewardsTab";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
@@ -21,12 +21,15 @@ import { Auth } from "@/components/Auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useBackgroundGeolocation } from "@/hooks/useBackgroundGeolocation";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation, LOCATIONS } from "@/context/LocationContext";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const { selectedLocation, setSelectedLocation } = useLocation();
   const { toast } = useToast();
   
   const [user, setUser] = useState<User | null>(null);
@@ -80,7 +83,11 @@ export default function Home() {
           imageUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo3.png",
           contact: data.whatsapp || data.contactPhone || "",
           schedule: data.operatingHours || data.horario || "",
-          locationId: data.ubicacionTienda || "loc-1"
+          locationId: data.ubicacionTienda || "loc-1",
+          // Campos Premium (quedan undefined si el local no los tiene)
+          imagenTarjeta: data.imagenTarjeta || undefined,
+          imagenPerfil: data.imagenPerfil || undefined,
+          logoHeader: data.logoHeader || undefined,
         } as Entrepreneur;
       });
       
@@ -179,8 +186,12 @@ export default function Home() {
   });
 
   const filteredEntrepreneurs = entrepreneurs.filter((e) => {
+    // Visibility gate: exclude vendors with no real name or no real image.
+    // Applied before category/search so incomplete profiles never appear publicly.
+    if (!isVendorVisible(e)) return false;
+
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
-    const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           e.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
@@ -240,11 +251,18 @@ export default function Home() {
               </div>
             )}
 
-            {/* Banner de ubicación */}
-            <div className="mx-6 flex items-center gap-2" style={{ background: "#F0F9FF", border: "1px solid rgba(91,184,212,0.3)", borderRadius: "12px", padding: "8px 14px", boxShadow: "none" }}>
+            {/* Banner de ubicación — abre modal selector */}
+            <button
+              onClick={() => setShowLocationModal(true)}
+              className="mx-6 flex items-center gap-2 w-[calc(100%-3rem)] text-left active:scale-[0.98] transition-transform"
+              style={{ background: "#F0F9FF", border: "1px solid rgba(91,184,212,0.3)", borderRadius: "12px", padding: "8px 14px" }}
+            >
               <MapPin className="w-4 h-4 shrink-0" style={{ color: "#5BB8D4" }} />
-              <p className="font-bold" style={{ color: "#2C6B8A", fontSize: "13px" }}>Av. Lomas de la Luz 4650, Curauma, Valparaíso</p>
-            </div>
+              <p className="font-bold flex-1 truncate" style={{ color: "#2C6B8A", fontSize: "13px" }}>
+                {selectedLocation.address}
+              </p>
+              <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "#5BB8D4" }} />
+            </button>
 
 
 
@@ -284,6 +302,19 @@ export default function Home() {
               <RecommendationWidget />
             </div>
 
+            {/* CTA Tienda Online — inmediatamente después de Destacados */}
+            <div className="px-6" style={{ marginTop: "12px", marginBottom: "12px" }}>
+              <a
+                href="https://www.patiocuraumaonline.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
+                style={{ backgroundColor: "#5BB8D4" }}
+              >
+                🛍️ Visita nuestra Tienda Online
+              </a>
+            </div>
+
             <section className="space-y-6 px-6 pt-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h2 className="text-lg font-black text-foreground">Descubre</h2>
@@ -311,19 +342,6 @@ export default function Home() {
                         <EntrepreneurCard entrepreneur={entrepreneur} />
                       </div>
                     ))}
-                  </div>
-
-                  {/* CTA Tienda Online — entre las primeras 4 y el resto */}
-                  <div className="flex justify-center pt-2 pb-1">
-                    <a
-                      href="https://www.patiocuraumaonline.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 w-full h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
-                      style={{ backgroundColor: "#5BB8D4" }}
-                    >
-                      🛍️ Visita nuestra Tienda Online
-                    </a>
                   </div>
 
                   {/* Resto de tarjetas */}
@@ -384,6 +402,78 @@ export default function Home() {
         setActiveTab(tab);
         setShowAuth(false);
       }} />
+
+      {/* Modal selector de ubicación */}
+      {showLocationModal && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowLocationModal(false)}
+        >
+          <div
+            className="w-full bg-white rounded-t-[28px] pb-safe animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            </div>
+
+            <div className="px-6 pt-3 pb-8">
+              <h2 className="text-lg font-black text-slate-800 mb-5">
+                Selecciona tu ubicación
+              </h2>
+
+              <div className="space-y-2">
+                {LOCATIONS.map((loc) => {
+                  const isActive = loc.id === selectedLocation.id;
+                  return (
+                    <button
+                      key={loc.id}
+                      onClick={() => {
+                        setSelectedLocation(loc);
+                        setShowLocationModal(false);
+                      }}
+                      className="w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-all active:scale-[0.98]"
+                      style={{
+                        background: isActive ? "#F0F9FF" : "#F8FAFC",
+                        border: isActive ? "1.5px solid #5BB8D4" : "1.5px solid #F1F5F9",
+                      }}
+                    >
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: isActive ? "#5BB8D4" : "#E2E8F0" }}
+                      >
+                        <MapPin
+                          className="w-4 h-4"
+                          style={{ color: isActive ? "white" : "#94A3B8" }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 text-sm leading-tight">
+                          {loc.name}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5 truncate">
+                          {loc.address}
+                        </p>
+                      </div>
+                      {isActive && (
+                        <Check className="w-5 h-5 shrink-0" style={{ color: "#5BB8D4" }} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setShowLocationModal(false)}
+                className="w-full mt-4 h-12 rounded-2xl font-bold text-slate-400 text-sm hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Panel debug GPS — solo visible para admin */}
       {isAdmin && (
