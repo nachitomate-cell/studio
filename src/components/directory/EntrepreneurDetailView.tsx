@@ -22,7 +22,6 @@ import {
   Heart,
   Gift,
 } from "lucide-react";
-import Image from "next/image";
 import { cn, getSafeImageUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,6 +45,7 @@ function DetailContent() {
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [sectorExpanded, setSectorExpanded] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -157,31 +157,34 @@ function DetailContent() {
       </div>
 
       {/* ── HERO con gradiente + nombre sobre imagen ────────────────────── */}
-      <div className="relative h-[48vh] w-full bg-slate-200">
+      {/* La imagen es flujo normal (no absolute/fill) para evitar stacking context */}
+      <div className="relative w-full" style={{ height: "250px", backgroundColor: "#CBD5E1" }}>
+        {/* Skeleton */}
         {!imageLoaded && (
-          <div className="absolute inset-0 bg-slate-300 animate-pulse z-0" />
+          <div className="absolute inset-0 bg-slate-300 animate-pulse" style={{ zIndex: 0 }} />
         )}
-        <Image
+        {/* Imagen en flujo normal — SIN position absolute, SIN z-index */}
+        <img
           src={getSafeImageUrl(entrepreneur.imagenPerfil)}
           alt={entrepreneur.nombre}
-          fill
-          className={cn(
-            "object-cover z-10 transition-opacity duration-700",
-            imageLoaded ? "opacity-100" : "opacity-0"
-          )}
-          onLoad={() => setImageLoaded(true)}
-          priority
-        />
-        {/* Gradiente: de transparente arriba → negro 60% abajo */}
-        <div
-          className="absolute inset-0 z-20 pointer-events-none"
           style={{
-            background:
-              "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.60) 100%)",
+            width: "100%",
+            height: "250px",
+            objectFit: "cover",
+            display: "block",
+          }}
+          className={cn("transition-opacity duration-700", imageLoaded ? "opacity-100" : "opacity-0")}
+          onLoad={() => setImageLoaded(true)}
+        />
+        {/* Gradiente superpuesto */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.60) 100%)",
           }}
         />
-        {/* Nombre y badge sobre la imagen */}
-        <div className="absolute bottom-0 left-0 right-0 z-30 px-6 pb-6 space-y-1.5">
+        {/* Nombre y badge */}
+        <div className="absolute bottom-0 left-0 right-0 px-6 pb-6 space-y-1.5">
           <h1
             className="text-white leading-tight tracking-tight"
             style={{ fontSize: "22px", fontWeight: 700 }}
@@ -203,76 +206,101 @@ function DetailContent() {
       </div>
 
       {/* ── Contenido ───────────────────────────────────────────────────── */}
-      <div className="max-w-lg mx-auto px-5 -mt-4 relative z-10 space-y-4">
+      {/* position: relative + z-index: 1 para que supere al hero sin stacking context */}
+      <div className="max-w-lg mx-auto space-y-4" style={{ position: "relative", zIndex: 1 }}>
 
-        {/* Card principal de información */}
-        <Card
-          className="border-none bg-white overflow-hidden"
+        {/* ── Card única de información ────────────────────────────────── */}
+        <div
           style={{
+            background: "white",
             borderRadius: "16px",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.10)",
+            margin: "-32px 16px 0 16px",
+            padding: "16px",
+            position: "relative",
+            zIndex: 2,
           }}
         >
-          <CardContent className="p-6 space-y-5">
-            {/* Logo + descripción */}
-            <div className="flex items-start gap-4">
-              <div
-                className="w-14 h-14 overflow-hidden shrink-0 bg-slate-50"
-                style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)" }}
-              >
-                <img
-                  src={getSafeImageUrl(entrepreneur.logoHeader, "/Logo3.png")}
-                  alt={`Logo ${entrepreneur.nombre}`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "/Logo3.png";
-                  }}
-                />
-              </div>
-              <p
-                className="leading-relaxed flex-1 pt-0.5"
-                style={{ fontSize: "14px", color: "#64748B" }}
-              >
-                {entrepreneur.descripcion}
-              </p>
+          {/* Fila superior: logo + descripción */}
+          <div className="flex items-start gap-4">
+            <div
+              className="w-14 h-14 overflow-hidden shrink-0 bg-slate-50"
+              style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)" }}
+            >
+              <img
+                src={getSafeImageUrl(entrepreneur.logoHeader, "/Logo3.png")}
+                alt={`Logo ${entrepreneur.nombre}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/Logo3.png";
+                }}
+              />
             </div>
+            <p
+              className="leading-relaxed flex-1 pt-0.5"
+              style={{ fontSize: "14px", color: "#64748B" }}
+            >
+              {entrepreneur.descripcion}
+            </p>
+          </div>
 
-            <Separator className="bg-slate-100" />
+          {/* Divisor */}
+          <div style={{ borderTop: "1px solid #F1F5F9", margin: "14px 0" }} />
 
-            {/* Ubicación + Horario */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
-                  <MapPin className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
-                    Sector
-                  </p>
-                  <p className="text-xs font-bold text-slate-700 leading-tight truncate">
-                    {entrepreneur.ubicacion || "Consultar en local"}
-                  </p>
-                </div>
+          {/* Fila inferior: Sector + Horario */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
+                <MapPin className="w-4 h-4" />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
-                    Horario
-                  </p>
-                  <p className="text-xs font-bold text-slate-700 leading-tight truncate">
-                    {entrepreneur.horario || "Consultar en local"}
-                  </p>
-                </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                  Sector
+                </p>
+                {(() => {
+                  const texto = entrepreneur.ubicacion || "Consultar en local";
+                  const esLargo = texto.length > 40;
+                  return esLargo ? (
+                    <button
+                      onClick={() => setSectorExpanded((v) => !v)}
+                      className="text-left w-full"
+                    >
+                      <p className={cn(
+                        "text-xs font-bold text-slate-700 leading-tight",
+                        sectorExpanded ? "" : "truncate"
+                      )}>
+                        {texto}
+                      </p>
+                      <span className="text-[10px] text-primary font-semibold mt-0.5 block">
+                        {sectorExpanded ? "Ver menos ↑" : "Ver más ↓"}
+                      </span>
+                    </button>
+                  ) : (
+                    <p className="text-xs font-bold text-slate-700 leading-tight">
+                      {texto}
+                    </p>
+                  );
+                })()}
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                  Horario
+                </p>
+                <p className="text-xs font-bold text-slate-700 leading-tight truncate">
+                  {entrepreneur.horario || "Consultar en local"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* ── Métodos de pago ──────────────────────────────────────────── */}
-        <section className="space-y-2.5 px-1">
+        <section className="space-y-2.5 px-4">
           <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
             Aceptamos
           </h2>
@@ -337,7 +365,7 @@ function DetailContent() {
         </section>
 
         {/* ── Botones de acción + Banner (agrupados para gap ajustado) ── */}
-        <div className="space-y-2">
+        <div className="space-y-2 px-4">
         <div className="space-y-3">
           {/* WhatsApp */}
           <Button

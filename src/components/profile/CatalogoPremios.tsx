@@ -260,7 +260,18 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
             );
           })
         ) : (
-          <div className="text-center py-6 text-sm text-slate-400 font-medium">No hay premios disponibles actualmente.</div>
+          <div className="flex flex-col items-center text-center py-10 px-4 space-y-3">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #FEF3C7, #FDE68A)" }}
+            >
+              <span style={{ fontSize: "32px", lineHeight: 1 }}>🎁</span>
+            </div>
+            <p className="text-base font-black text-slate-700">¡Próximamente!</p>
+            <p className="text-sm text-slate-400 leading-relaxed max-w-[260px]">
+              Nuevos premios y beneficios exclusivos se están preparando para ti.
+            </p>
+          </div>
         )}
       </div>
     </div>

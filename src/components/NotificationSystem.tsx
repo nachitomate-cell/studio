@@ -74,16 +74,16 @@ export function NotificationSystem() {
         // ────────────────────────────────────────────────────────────────────
 
         const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
-        
+
         const q = query(
-          notifRef, 
+          notifRef,
           where("fecha", ">", mountTime),
-          orderBy("fecha", "desc"), 
+          orderBy("fecha", "desc"),
           limit(5)
         );
 
         unsubscribeNotif = onSnapshot(
-          q, 
+          q,
           (snapshot) => {
             snapshot.docChanges().forEach((change) => {
               if (change.type === "added") {
@@ -95,7 +95,7 @@ export function NotificationSystem() {
                 dispararAlertaSistema(data.titulo, data.mensaje);
               }
             });
-          }, 
+          },
           (error) => {
             // Al cerrar sesión Firestore dispara un error permission-denied.
             // Lo manejamos silenciosamente: simplemente cancelamos el listener.

@@ -696,9 +696,18 @@ export default function DirectorioPage() {
                   <Input
                     value={form.ubicacionTienda}
                     onChange={(e) => setForm({ ...form, ubicacionTienda: e.target.value })}
-                    placeholder="Ej: Pasillo Principal, Local 3"
+                    placeholder="Ej: Pasillo Principal, Local 1"
+                    maxLength={50}
                     className="h-11 rounded-xl"
                   />
+                  <div className="flex items-center justify-between px-0.5">
+                    <p className="text-[11px] text-slate-400 leading-snug">
+                      Indica la ubicación de este local dentro del recinto. Solo una dirección.
+                    </p>
+                    <span className="text-[11px] text-slate-300 shrink-0 ml-2">
+                      {form.ubicacionTienda.length}/50
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

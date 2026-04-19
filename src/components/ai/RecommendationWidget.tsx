@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Crown } from "lucide-react";
 import { getSafeImageUrl } from "@/lib/utils";
+import Link from "next/link";
 
 interface PremiumLocal {
   id: string;
@@ -81,11 +82,12 @@ export function RecommendationWidget() {
             const logoSrc = local.logoHeader ? getSafeImageUrl(local.logoHeader) : null;
 
             return (
-              <div
+              <Link
                 key={local.id}
-                className="min-w-[260px] max-w-[260px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-between snap-start"
+                href={`/emprendedor/${local.id}`}
+                className="min-w-[260px] max-w-[260px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-between snap-start active:opacity-80 transition-opacity"
                 style={{
-                  minHeight: "160px",
+                  height: "168px",
                   boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
                   background: "linear-gradient(135deg, #111111 0%, #2a2412 60%, #1a1a0e 100%)",
                 }}
@@ -170,23 +172,18 @@ export function RecommendationWidget() {
                     {local.businessName}
                   </h4>
 
-                  {/* Texto promocional */}
+                  {/* Texto promocional — máximo 2 líneas para igualar alturas */}
                   <p
-                    className="leading-snug"
+                    className="leading-snug line-clamp-2"
                     style={{
                       fontSize: "13px",
                       color: "rgba(255,255,255,0.72)",
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      textOverflow: "ellipsis",
                     }}
                   >
                     {local.promoText || "¡Descúbrela hoy en el Patio Curauma!"}
                   </p>
                 </div>
-              </div>
+              </Link>
             );
           })
         )}
