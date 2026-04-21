@@ -6,6 +6,7 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useToast } from "@/hooks/use-toast";
+import { useGeofencing } from "@/hooks/useGeofencing";
 
 /**
  * Componente que escucha nuevas notificaciones en Firestore.
@@ -19,6 +20,9 @@ import { useToast } from "@/hooks/use-toast";
 export function NotificationSystem() {
   const { toast } = useToast();
   const [mountTime] = useState(new Date().toISOString());
+
+  // Inicializa el motor de geocercas en background
+  useGeofencing();
 
   useEffect(() => {
     // Registrar el SW de Firebase Messaging como SW principal.

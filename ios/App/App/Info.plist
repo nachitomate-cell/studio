@@ -48,11 +48,11 @@
 
 	<!-- Geolocalización en segundo plano — requerido por @capacitor-community/background-geolocation -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Club Patio necesita tu ubicación para avisarte cuando estés cerca y puedas sumar sellos.</string>
+	<string>Necesitamos tu ubicación para avisarte de beneficios cercanos en Patio Curauma.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Club Patio necesita acceso de ubicación "Siempre" para enviarte notificaciones cuando te acerques al Patio, incluso con la app cerrada.</string>
+	<string>Patio Curauma te avisará de premios exclusivos incluso si la app está cerrada.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Club Patio necesita acceso de ubicación "Siempre" para enviarte notificaciones cuando te acerques al Patio, incluso con la app cerrada.</string>
+	<string>Patio Curauma te avisará de premios exclusivos incluso si la app está cerrada.</string>
 
 	<!-- Habilita el modo de ubicación en segundo plano -->
 	<key>UIBackgroundModes</key>

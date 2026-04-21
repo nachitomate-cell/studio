@@ -3,8 +3,9 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, query, collection, documentId, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { AssociatedShopsCarousel } from "./AssociatedShopsCarousel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -46,6 +47,32 @@ function DetailContent() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [sectorExpanded, setSectorExpanded] = useState(false);
+  
+  const [associatedShopsData, setAssociatedShopsData] = useState<any[]>([]);
+  const [loadingShops, setLoadingShops] = useState(false);
+
+  useEffect(() => {
+    if (entrepreneur?.associatedShops?.length > 0) {
+      setLoadingShops(true);
+      const fetchShops = async () => {
+        try {
+          // Firestore 'in' solo soporta hasta 30 elementos
+          const q = query(
+            collection(db, "entrepreneur_profiles"),
+            where(documentId(), "in", entrepreneur.associatedShops.slice(0, 30))
+          );
+          const snap = await getDocs(q);
+          const shops = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setAssociatedShopsData(shops);
+        } catch (error) {
+          console.error("Error fetching associated shops:", error);
+        } finally {
+          setLoadingShops(false);
+        }
+      };
+      fetchShops();
+    }
+  }, [entrepreneur?.associatedShops]);
 
   useEffect(() => {
     if (!id) return;
@@ -389,11 +416,16 @@ function DetailContent() {
                 border: "none",
                 cursor: "pointer",
               }}
-              onClick={() =>
-                window.open(entrepreneur.urlCotizacion || entrepreneur.whatsapp, "_blank")
-              }
+              onClick={() => {
+                const link = entrepreneur.buttonLink || entrepreneur.urlCotizacion || entrepreneur.whatsapp;
+                if (link && link.startsWith('#')) {
+                  document.querySelector(link)?.scrollIntoView({ behavior: 'smooth' });
+                } else if (link) {
+                  window.open(link, "_blank");
+                }
+              }}
             >
-              Agendar / Cotizar
+              {entrepreneur.buttonText || "Contactar"}
             </button>
           ) : (
             <Button
@@ -532,7 +564,15 @@ function DetailContent() {
         </div>}
         </div>{/* end space-y-2 */}
 
-        <footer className="text-center pt-2 pb-8">
+        {/* ── Comercios Asociados (Portal) ────────────────────────────── */}
+        {entrepreneur.associatedShops && entrepreneur.associatedShops.length > 0 && (
+          <div className="space-y-4 pt-4" id="comercios-asociados">
+            <h2 className="text-lg font-semibold text-slate-800 px-4">Comercios Asociados</h2>
+            <AssociatedShopsCarousel shops={associatedShopsData} isLoading={loadingShops} />
+          </div>
+        )}
+
+        <footer className="text-center pt-6 pb-8">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
             Toda la información ha sido proporcionada
             <br />
