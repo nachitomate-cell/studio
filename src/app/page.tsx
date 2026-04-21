@@ -110,7 +110,8 @@ export default function Home() {
           imagenPerfil: data.imagenPerfil || undefined,
           logoHeader: data.logoHeader || undefined,
           isPremium: data.isPremium === true || undefined,
-        } as Entrepreneur;
+          isHiddenFromFeed: data.isHiddenFromFeed === true,
+        } as Entrepreneur & { isHiddenFromFeed?: boolean };
       });
       
       setEntrepreneurs(docs);
@@ -207,10 +208,14 @@ export default function Home() {
     distanceFilter: 50,
   });
 
-  const filteredEntrepreneurs = entrepreneurs.filter((e) => {
+  const filteredEntrepreneurs = entrepreneurs.filter((e: any) => {
     // Visibility gate: exclude vendors with no real name or no real image.
     // Applied before category/search so incomplete profiles never appear publicly.
     if (!isVendorVisible(e)) return false;
+
+    // Hub & Spoke: Ocultar tiendas "hijas" del feed principal
+    // Pero permitir que sean encontradas si el usuario usa el buscador superior
+    if (e.isHiddenFromFeed && !searchQuery) return false;
 
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
     const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
