@@ -925,6 +925,36 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {isEntrepreneur && (
         <div className="space-y-6 animate-in slide-in-from-bottom duration-500">
+          {/* Mensajes del Club — el emprendedor también es miembro del club */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg text-primary">Mensajes del Club</h3>
+              </div>
+              {notificaciones.length > 0 && (
+                <Button variant="ghost" size="icon" onClick={handleClearAllNotifs} className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50" title="Borrar todos">
+                  <X className="w-5 h-5" />
+                </Button>
+              )}
+            </div>
+            {selectedNotif && (
+              <NotifDetailModal notif={selectedNotif} onClose={() => setSelectedNotif(null)} />
+            )}
+            <div className="space-y-3">
+              {notificaciones.length > 0 ? (
+                notificaciones.map((notif) => (
+                  <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
+                ))
+              ) : (
+                <div className="bg-slate-50 p-8 rounded-3xl text-center space-y-2 border-2 border-dashed border-slate-200">
+                  <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-xs text-slate-400 font-medium italic">Pronto recibirás promociones exclusivas.</p>
+                </div>
+              )}
+            </div>
+          </section>
+
           <Card className="border-accent/40 shadow-md bg-white rounded-3xl overflow-hidden">
             <CardHeader className="bg-accent/10">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
