@@ -466,33 +466,46 @@ export default function ValidarPage() {
   const handleVerifyPrize = async () => {
     const codigoNormalizado = prizeCode.trim().toUpperCase();
     if (!codigoNormalizado) return;
+
+    console.log("=== VERIFICANDO CÓDIGO ===");
+    console.log("Código ingresado:", codigoNormalizado);
+    console.log("VendorId (URL param / uid):", vendorId);
+
     setVerifyingPrize(true);
     try {
-      // Buscar por código (single-field query — no requiere índice compuesto)
-      const q = query(collection(db, "canjes"), where("codigo", "==", codigoNormalizado));
+      // IMPORTANTE: filtrar por vendorId (single-field query) para satisfacer las
+      // reglas de Firestore que exigen resource.data.vendorId == request.auth.uid.
+      // Luego filtramos por codigo en JS — evita índice compuesto.
+      const q = query(
+        collection(db, "canjes"),
+        where("vendorId", "==", vendorId)
+      );
       const snap = await getDocs(q);
 
-      if (snap.empty) {
+      console.log("Canjes de este local encontrados:", snap.size);
+
+      // Buscar el documento que coincide con el código
+      const canjeDoc = snap.docs.find((d) => d.data().codigo === codigoNormalizado);
+
+      if (!canjeDoc) {
+        console.log("Código no encontrado entre los canjes del local");
         toast({ variant: "destructive", title: "Código no encontrado", description: "Verifica el código e intenta de nuevo." });
         return;
       }
 
-      const canjeDoc = snap.docs[0];
       const data = canjeDoc.data();
-
-      // Validar que pertenece a este local
-      if (data.vendorId !== vendorId) {
-        toast({ variant: "destructive", title: "Código inválido", description: "Este código no corresponde a tu local." });
-        return;
-      }
+      console.log("Canje encontrado:", data);
+      console.log("Status:", data.status);
+      console.log("VendorId guardado:", data.vendorId, "| UID actual:", vendorId, "| ¿Coinciden?:", data.vendorId === vendorId);
 
       if (data.status === "used") {
         toast({ variant: "destructive", title: "Código ya utilizado", description: "Este premio ya fue entregado anteriormente." });
         return;
       }
 
-      // Verificar expiración
+      // Verificar expiración por fecha (expiraEn se guarda como string ISO)
       if (data.expiraEn && data.expiraEn < new Date().toISOString()) {
+        console.log("Código expirado — actualizando status en Firestore");
         await updateDoc(doc(db, "canjes", canjeDoc.id), { status: "expired" });
         toast({ variant: "destructive", title: "Código expirado", description: "Este código ya no es válido." });
         return;
@@ -504,9 +517,15 @@ export default function ValidarPage() {
       }
 
       // ¡Código válido! Mostrar modal de confirmación
+      console.log("✅ Código válido — mostrando modal de confirmación");
       setPrizeCanjeData({ id: canjeDoc.id, ...data });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo verificar el código." });
+    } catch (e: any) {
+      console.error("ERROR verificando código:", e?.code, e?.message, e);
+      if (e?.code === "permission-denied") {
+        toast({ variant: "destructive", title: "Sin permisos", description: "No tienes permisos para verificar este código. Contacta al administrador." });
+      } else {
+        toast({ variant: "destructive", title: "Error", description: "No se pudo verificar el código: " + (e?.message || "intenta de nuevo") });
+      }
     } finally {
       setVerifyingPrize(false);
     }
