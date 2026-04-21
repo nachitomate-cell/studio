@@ -8,6 +8,7 @@ import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
 import { NotificationSystem } from "@/components/NotificationSystem";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { Providers } from "@/components/Providers";
+import { Analytics } from '@vercel/analytics/next';
 
 const montserrat = Montserrat({
   subsets: ['latin'],
@@ -81,6 +82,7 @@ export default function RootLayout({
         {process.env.NODE_ENV === "development" && <RoleSwitcher />}
         
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );
