@@ -8,9 +8,10 @@ import { cn } from "@/lib/utils";
 interface BottomNavProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  premiosBadge?: boolean;
 }
 
-export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
+export function BottomNav({ activeTab, onTabChange, premiosBadge = false }: BottomNavProps) {
   const router = useRouter();
 
   const navItems = [
@@ -42,6 +43,8 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
             );
           }
 
+          const showBadge = item.id === "rewards" && premiosBadge;
+
           return (
             <button
               key={item.id}
@@ -53,7 +56,23 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
                   : "text-muted-foreground hover:text-primary/60 border-t-[3px] border-transparent"
               )}
             >
-              <Icon className={cn("w-6 h-6", isActive && "fill-current animate-bounce-short")} />
+              <div className="relative">
+                <Icon className={cn("w-6 h-6", isActive && "fill-current animate-bounce-short")} />
+                {showBadge && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      backgroundColor: "#ef4444",
+                      border: "1.5px solid white",
+                    }}
+                  />
+                )}
+              </div>
               <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
             </button>
           );

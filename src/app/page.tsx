@@ -2,9 +2,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { doc, onSnapshot, collection, query } from "firebase/firestore";
+import { doc, onSnapshot, collection, query, getDocs, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
 import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
@@ -31,6 +32,8 @@ export default function Home() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const { selectedLocation, setSelectedLocation } = useLocation();
   const { toast } = useToast();
+  const router = useRouter();
+  const [premiosBadge, setPremiosBadge] = useState(false);
   
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -68,6 +71,24 @@ export default function Home() {
 
     return () => unsubscribeDoc();
   }, [user]);
+
+  // Badge de premios — se activa cuando el usuario tiene sellos suficientes para canjear algo
+  useEffect(() => {
+    const stampsCount = userData?.comprasRealizadas || 0;
+    if (!userData || stampsCount === 0) {
+      setPremiosBadge(false);
+      return;
+    }
+    getDocs(query(collection(db, "premios"), where("activo", "==", true)))
+      .then((snap) => {
+        const puedeCanejear = snap.docs.some((d) => {
+          const s = d.data().sellosRequeridos;
+          return typeof s === "number" && stampsCount >= s;
+        });
+        setPremiosBadge(puedeCanejear);
+      })
+      .catch(() => {});
+  }, [userData]);
 
   // Listener en tiempo real para el directorio de emprendedores
   useEffect(() => {
@@ -264,7 +285,34 @@ export default function Home() {
               <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "#5BB8D4" }} />
             </button>
 
-
+            {/* Acceso rápido a Premios */}
+            <div
+              onClick={() => router.push("/premios")}
+              className="mx-6 active:scale-[0.97] transition-transform"
+              style={{
+                background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 100%)",
+                borderRadius: "16px",
+                padding: "16px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                boxShadow: "0 4px 15px rgba(201,146,10,0.3)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "28px" }}>🎁</span>
+                <div>
+                  <p style={{ color: "white", fontWeight: 700, fontSize: "15px", margin: 0, fontFamily: "Montserrat, sans-serif" }}>
+                    Mis Premios y Sellos
+                  </p>
+                  <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "12px", margin: 0 }}>
+                    Ver tarjeta · Canjear · Sorteo
+                  </p>
+                </div>
+              </div>
+              <span style={{ color: "white", fontSize: "20px" }}>›</span>
+            </div>
 
             <section className="px-6 pt-4">
               <div className="relative group">
@@ -398,7 +446,7 @@ export default function Home() {
       <div className="max-w-lg mx-auto pb-4">
         {renderContent()}
       </div>
-      <BottomNav activeTab={activeTab} onTabChange={(tab) => {
+      <BottomNav activeTab={activeTab} premiosBadge={premiosBadge} onTabChange={(tab) => {
         setActiveTab(tab);
         setShowAuth(false);
       }} />
