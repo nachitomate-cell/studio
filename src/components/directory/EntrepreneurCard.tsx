@@ -59,6 +59,25 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false }: Entreprene
               </span>
             </div>
           )}
+          {/* Badge patrocinador — solo para locales isPremium */}
+          {entrepreneur.isPremium && (
+            <span
+              style={{
+                position: "absolute",
+                top: "8px",
+                right: "8px",
+                background: "rgba(0,0,0,0.75)",
+                color: "white",
+                fontSize: "10px",
+                fontWeight: 700,
+                padding: "3px 8px",
+                borderRadius: "20px",
+                letterSpacing: "0.5px",
+              }}
+            >
+              ✦ PATROCINADO
+            </span>
+          )}
         </div>
         <CardContent className="p-3 text-center bg-white border-t border-slate-50">
           <h3 className="text-xs font-bold text-[#4A4A4A] line-clamp-1 group-hover:text-[#C9920A] transition-colors">

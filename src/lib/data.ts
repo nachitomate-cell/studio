@@ -13,6 +13,7 @@ export type Entrepreneur = {
   imagenTarjeta?: string;   // imagen para el carrusel de inicio
   imagenPerfil?: string;    // portada del detalle del local
   logoHeader?: string;      // logo/avatar del local
+  isPremium?: boolean;      // patrocinador — diferencia visual en card y perfil
 };
 export type Premio = { id: string; nombre: string; costo: number; icono: string; esSorteo?: boolean; };
 export type MapLocation = { id: string; name: string; x: number; y: number; };

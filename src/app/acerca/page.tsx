@@ -123,6 +123,20 @@ export default function AcercaPage() {
             <span style={{ color: "#D3B673" }}>@mateluna</span>
           </p>
         </div>
+
+        <div style={{ borderTop: "1px solid #E8E8E8", marginTop: "32px", paddingTop: "24px", textAlign: "center", paddingBottom: "32px" }}>
+          <p style={{ fontSize: "13px", color: "#999999", marginBottom: "16px", fontFamily: "Montserrat, sans-serif" }}>
+            Hecho con ☕ en Valparaíso · @mateluna
+          </p>
+          <img
+            src="/logoempresa.png"
+            alt="SinapTech Spa"
+            style={{ width: "120px", height: "auto", objectFit: "contain", display: "block", margin: "0 auto 8px" }}
+          />
+          <p style={{ fontSize: "12px", color: "#BBBBBB", fontFamily: "Montserrat, sans-serif" }}>
+            Desarrollado por SinapTech Spa
+          </p>
+        </div>
       </div>
     </div>
   );

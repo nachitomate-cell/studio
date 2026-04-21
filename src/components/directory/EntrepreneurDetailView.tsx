@@ -118,6 +118,8 @@ function DetailContent() {
     );
   }
 
+  const esPremium = entrepreneur.isPremium === true;
+
   return (
     <main className="min-h-screen bg-[#F2F4F0] pb-24 font-body animate-in fade-in duration-500">
 
@@ -236,12 +238,18 @@ function DetailContent() {
                 }}
               />
             </div>
-            <p
-              className="leading-relaxed flex-1 pt-0.5"
-              style={{ fontSize: "14px", color: "#64748B" }}
-            >
-              {entrepreneur.descripcion}
-            </p>
+            {esPremium ? (
+              <p className="font-medium text-gray-800 text-lg flex-1 pt-0.5">
+                {entrepreneur.descripcion}
+              </p>
+            ) : (
+              <p
+                className="leading-relaxed flex-1 pt-0.5"
+                style={{ fontSize: "14px", color: "#64748B" }}
+              >
+                {entrepreneur.descripcion}
+              </p>
+            )}
           </div>
 
           {/* Divisor */}
@@ -299,8 +307,8 @@ function DetailContent() {
           </div>
         </div>
 
-        {/* ── Métodos de pago ──────────────────────────────────────────── */}
-        <section className="space-y-2.5 px-4">
+        {/* ── Métodos de pago — oculto para patrocinadores ─────────────── */}
+        {!esPremium && <section className="space-y-2.5 px-4">
           <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
             Aceptamos
           </h2>
@@ -362,44 +370,65 @@ function DetailContent() {
               });
             })()}
           </div>
-        </section>
+        </section>}
 
         {/* ── Botones de acción + Banner (agrupados para gap ajustado) ── */}
         <div className="space-y-2 px-4">
         <div className="space-y-3">
-          {/* WhatsApp */}
-          <Button
-            className="w-full h-14 rounded-2xl font-black text-base gap-3 transition-all active:scale-95"
-            style={
-              entrepreneur.whatsapp
-                ? {
-                    backgroundColor: "#25D366",
-                    color: "white",
-                    boxShadow: "0 8px 20px rgba(37,211,102,0.22)",
-                  }
-                : {
-                    backgroundColor: "#E2E8F0",
-                    color: "#94A3B8",
-                    cursor: "default",
-                  }
-            }
-            onClick={() => {
-              if (entrepreneur.whatsapp) {
-                window.open(
-                  `https://wa.me/${entrepreneur.whatsapp.replace(/\D/g, "")}`,
-                  "_blank"
-                );
-              } else {
-                toast({
-                  description:
-                    "Este emprendedor aún no ha agregado su WhatsApp. ¡Visítalos en el patio!",
-                });
+          {/* Botón principal — "Agendar / Cotizar" para premium, WhatsApp para estándar */}
+          {esPremium ? (
+            <button
+              style={{
+                background: "#111827",
+                color: "white",
+                width: "100%",
+                padding: "14px",
+                borderRadius: "16px",
+                fontSize: "15px",
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+              }}
+              onClick={() =>
+                window.open(entrepreneur.urlCotizacion || entrepreneur.whatsapp, "_blank")
               }
-            }}
-          >
-            <MessageCircle className="w-5 h-5 fill-current" />
-            {entrepreneur.whatsapp ? "Contactar por WhatsApp" : "WhatsApp no disponible"}
-          </Button>
+            >
+              Agendar / Cotizar
+            </button>
+          ) : (
+            <Button
+              className="w-full h-14 rounded-2xl font-black text-base gap-3 transition-all active:scale-95"
+              style={
+                entrepreneur.whatsapp
+                  ? {
+                      backgroundColor: "#25D366",
+                      color: "white",
+                      boxShadow: "0 8px 20px rgba(37,211,102,0.22)",
+                    }
+                  : {
+                      backgroundColor: "#E2E8F0",
+                      color: "#94A3B8",
+                      cursor: "default",
+                    }
+              }
+              onClick={() => {
+                if (entrepreneur.whatsapp) {
+                  window.open(
+                    `https://wa.me/${entrepreneur.whatsapp.replace(/\D/g, "")}`,
+                    "_blank"
+                  );
+                } else {
+                  toast({
+                    description:
+                      "Este emprendedor aún no ha agregado su WhatsApp. ¡Visítalos en el patio!",
+                  });
+                }
+              }}
+            >
+              <MessageCircle className="w-5 h-5 fill-current" />
+              {entrepreneur.whatsapp ? "Contactar por WhatsApp" : "WhatsApp no disponible"}
+            </Button>
+          )}
 
           {/* Instagram + Ver Mapa — misma altura que WhatsApp */}
           <div className="grid grid-cols-2 gap-3">
@@ -470,8 +499,8 @@ function DetailContent() {
           </div>
         </div>
 
-        {/* ── Banner de recompensas ────────────────────────────────────── */}
-        <div
+        {/* ── Banner de recompensas — oculto para patrocinadores ──────── */}
+        {!esPremium && <div
           className="rounded-3xl overflow-hidden"
           style={{ boxShadow: "0 4px 16px rgba(184,134,11,0.20)" }}
         >
@@ -500,7 +529,7 @@ function DetailContent() {
               </p>
             </div>
           </div>
-        </div>
+        </div>}
         </div>{/* end space-y-2 */}
 
         <footer className="text-center pt-2 pb-8">

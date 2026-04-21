@@ -109,6 +109,7 @@ export default function Home() {
           imagenTarjeta: data.imagenTarjeta || undefined,
           imagenPerfil: data.imagenPerfil || undefined,
           logoHeader: data.logoHeader || undefined,
+          isPremium: data.isPremium === true || undefined,
         } as Entrepreneur;
       });
       
@@ -314,11 +315,28 @@ export default function Home() {
               <span style={{ color: "white", fontSize: "20px" }}>›</span>
             </div>
 
+            <div className="px-6">
+              <RecommendationWidget />
+            </div>
+
+            {/* CTA Tienda Online — inmediatamente después de Destacados */}
+            <div className="px-6" style={{ marginTop: "12px", marginBottom: "12px" }}>
+              <a
+                href="https://www.patiocuraumaonline.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
+                style={{ backgroundColor: "#5BB8D4" }}
+              >
+                🛍️ Visita nuestra Tienda Online
+              </a>
+            </div>
+
             <section className="px-6 pt-4">
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Buscar emprendimientos..." 
+                <Input
+                  placeholder="Buscar emprendimientos..."
                   className="pl-11 h-12 rounded-xl bg-slate-50 border-none shadow-inner"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -345,23 +363,6 @@ export default function Home() {
                 ))}
               </div>
             </section>
-
-            <div className="px-6">
-              <RecommendationWidget />
-            </div>
-
-            {/* CTA Tienda Online — inmediatamente después de Destacados */}
-            <div className="px-6" style={{ marginTop: "12px", marginBottom: "12px" }}>
-              <a
-                href="https://www.patiocuraumaonline.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 w-full h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
-                style={{ backgroundColor: "#5BB8D4" }}
-              >
-                🛍️ Visita nuestra Tienda Online
-              </a>
-            </div>
 
             <section className="space-y-6 px-6 pt-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">

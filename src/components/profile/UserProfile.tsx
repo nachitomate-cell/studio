@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
 import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -374,6 +375,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   // pero NO instaló la app en su pantalla de inicio (modo standalone).
   const [showIosHint, setShowIosHint] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [editForm, setEditForm] = useState({
     nombre: "",
@@ -445,7 +447,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     });
 
     const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
-    const qNotif = query(notifRef, orderBy("fecha", "desc"), limit(10));
+    const qNotif = query(notifRef, orderBy("fecha", "desc"), limit(5));
     unsubscribeNotif = onSnapshot(
       qNotif,
       (snapshot) => {
@@ -925,36 +927,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {isEntrepreneur && (
         <div className="space-y-6 animate-in slide-in-from-bottom duration-500">
-          {/* Mensajes del Club — el emprendedor también es miembro del club */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <Bell className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-lg text-primary">Mensajes del Club</h3>
-              </div>
-              {notificaciones.length > 0 && (
-                <Button variant="ghost" size="icon" onClick={handleClearAllNotifs} className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50" title="Borrar todos">
-                  <X className="w-5 h-5" />
-                </Button>
-              )}
-            </div>
-            {selectedNotif && (
-              <NotifDetailModal notif={selectedNotif} onClose={() => setSelectedNotif(null)} />
-            )}
-            <div className="space-y-3">
-              {notificaciones.length > 0 ? (
-                notificaciones.map((notif) => (
-                  <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
-                ))
-              ) : (
-                <div className="bg-slate-50 p-8 rounded-3xl text-center space-y-2 border-2 border-dashed border-slate-200">
-                  <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
-                  <p className="text-xs text-slate-400 font-medium italic">Pronto recibirás promociones exclusivas.</p>
-                </div>
-              )}
-            </div>
-          </section>
-
           <Card className="border-accent/40 shadow-md bg-white rounded-3xl overflow-hidden">
             <CardHeader className="bg-accent/10">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -985,11 +957,60 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               </Link>
             </CardContent>
           </Card>
+
+          {/* Mensajes del Club — el emprendedor también es miembro del club */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg text-primary">Mensajes del Club</h3>
+              </div>
+              {notificaciones.length > 0 && (
+                <Button variant="ghost" size="icon" onClick={handleClearAllNotifs} className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50" title="Borrar todos">
+                  <X className="w-5 h-5" />
+                </Button>
+              )}
+            </div>
+            {selectedNotif && (
+              <NotifDetailModal notif={selectedNotif} onClose={() => setSelectedNotif(null)} />
+            )}
+            <div className="space-y-3">
+              {notificaciones.length > 0 ? (
+                <>
+                  {notificaciones.slice(0, 4).map((notif) => (
+                    <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
+                  ))}
+                  {notificaciones.length > 4 && (
+                    <p
+                      style={{ textAlign: "center", fontSize: "13px", color: "#C9920A", cursor: "pointer", padding: "8px" }}
+                      onClick={() => router.push("/mensajes")}
+                    >
+                      Ver todos los mensajes →
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="bg-slate-50 p-8 rounded-3xl text-center space-y-2 border-2 border-dashed border-slate-200">
+                  <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-xs text-slate-400 font-medium italic">Pronto recibirás promociones exclusivas.</p>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       )}
 
       {!isEntrepreneur && !isDirector && !isAdmin && !isEditing && (
         <>
+          <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden">
+            <CardContent className="flex flex-col items-center py-8">
+              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Muestra tu QR en caja para obtener sellos</p>
+              <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
+                <QRCode value={user.uid} size={176} fgColor="#000000" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
+              </div>
+            </CardContent>
+          </Card>
+
           <section className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
@@ -1007,9 +1028,19 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             )}
             <div className="space-y-3">
               {notificaciones.length > 0 ? (
-                notificaciones.map((notif) => (
-                  <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
-                ))
+                <>
+                  {notificaciones.slice(0, 4).map((notif) => (
+                    <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
+                  ))}
+                  {notificaciones.length > 4 && (
+                    <p
+                      style={{ textAlign: "center", fontSize: "13px", color: "#C9920A", cursor: "pointer", padding: "8px" }}
+                      onClick={() => router.push("/mensajes")}
+                    >
+                      Ver todos los mensajes →
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className="bg-slate-50 p-8 rounded-3xl text-center space-y-2 border-2 border-dashed border-slate-200">
                   <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
@@ -1018,15 +1049,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               )}
             </div>
           </section>
-
-          <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden mt-6">
-            <CardContent className="flex flex-col items-center py-8">
-              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Muestra tu QR en caja para obtener sellos</p>
-              <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
-                <QRCode value={user.uid} size={176} fgColor="#000000" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
-              </div>
-            </CardContent>
-          </Card>
         </>
       )}
 
