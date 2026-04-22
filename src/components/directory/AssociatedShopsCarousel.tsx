@@ -96,9 +96,10 @@ export function AssociatedShopsCarousel({ shops, isLoading }: Props) {
   return (
     <div
       ref={scrollRef}
-      className={`grid grid-rows-2 grid-flow-col gap-4 overflow-x-auto pb-4 scrollbar-hide px-4 overscroll-x-contain touch-pan-x ${
+      className={`grid grid-rows-2 grid-flow-col gap-4 overflow-x-auto pb-4 scrollbar-hide px-4 ${
         isInteracting ? "snap-x snap-mandatory" : ""
       }`}
+      style={{ touchAction: "pan-x pan-y" }}
       onTouchStart={handleInteractionStart}
       onTouchEnd={handleInteractionEnd}
       onMouseEnter={handleInteractionStart}

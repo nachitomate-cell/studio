@@ -116,26 +116,25 @@ export default function AcercaPage() {
           </a>
         </div>
 
-        <div className="pt-6 pb-8 border-t border-slate-100 text-center space-y-2">
-          <p className="text-xs font-medium text-slate-500">© {new Date().getFullYear()} Club Patio Curauma</p>
+        {/* ===== Footer Unificado ===== */}
+        <div className="pt-6 pb-10 border-t border-slate-100 text-center space-y-4">
+          <p className="text-xs font-medium text-slate-500">
+            © {new Date().getFullYear()} Club Patio Curauma
+          </p>
           <p className="text-[11px] text-slate-300">
             Hecho con ☕ en Valparaíso ·{" "}
             <span style={{ color: "#D3B673" }}>@mateluna</span>
           </p>
-        </div>
-
-        <div style={{ borderTop: "1px solid #E8E8E8", marginTop: "32px", paddingTop: "24px", textAlign: "center", paddingBottom: "32px" }}>
-          <p style={{ fontSize: "13px", color: "#999999", marginBottom: "16px", fontFamily: "Montserrat, sans-serif" }}>
-            Hecho con ☕ en Valparaíso · @mateluna
-          </p>
-          <img
-            src="/logoempresa.png"
-            alt="SinapTech Spa"
-            style={{ width: "120px", height: "auto", objectFit: "contain", display: "block", margin: "0 auto 8px" }}
-          />
-          <p style={{ fontSize: "12px", color: "#BBBBBB", fontFamily: "Montserrat, sans-serif" }}>
-            Desarrollado por SinapTech Spa
-          </p>
+          <div className="pt-3">
+            <img
+              src="/logoempresa.png"
+              alt="SinapTech Spa"
+              className="w-[100px] h-auto object-contain mx-auto mb-1"
+            />
+            <p className="text-[11px] text-slate-300 font-medium">
+              Desarrollado por SinapTech Spa
+            </p>
+          </div>
         </div>
       </div>
     </div>
