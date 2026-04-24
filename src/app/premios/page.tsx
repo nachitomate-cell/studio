@@ -14,6 +14,108 @@ import {
   ArrowLeft, Clock, Gift, Loader2, CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 
+// ─── Google Wallet Button ─────────────────────────────────────────────────────
+
+function GoogleWalletButton({
+  userId,
+  userName,
+  stampsCount,
+}: {
+  userId: string;
+  userName: string;
+  stampsCount: number;
+}) {
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setIsAndroid(/android/i.test(navigator.userAgent));
+  }, []);
+
+  // En iOS: botón deshabilitado con mensaje informativo
+  if (!isAndroid) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          padding: "12px 14px",
+          background: "rgba(255,255,255,0.15)",
+          border: "1.5px dashed rgba(255,255,255,0.4)",
+          borderRadius: "16px",
+          marginTop: "12px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+          <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
+          <path d="M12 8v4M12 16h.01" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+        <div>
+          <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>
+            Tarjeta Digital — Próximamente en iOS
+          </p>
+          <p style={{ margin: 0, fontSize: "11px", color: "rgba(255,255,255,0.6)", marginTop: "2px" }}>
+            Estamos trabajando para implementar esta función
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/google-wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, userName, stampsCount }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const { saveUrl } = await res.json();
+      window.open(saveUrl, "_blank");
+    } catch {
+      // Fallo silencioso — no interrumpir la experiencia
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleSave}
+      disabled={loading}
+      style={{
+        width: "100%",
+        padding: "14px",
+        background: loading ? "#5a93d6" : "#1a73e8",
+        color: "white",
+        border: "none",
+        borderRadius: "16px",
+        fontSize: "15px",
+        fontWeight: 600,
+        cursor: loading ? "default" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "10px",
+        marginTop: "12px",
+        transition: "background 0.2s",
+      }}
+    >
+      {loading ? (
+        <Loader2 style={{ width: 20, height: 20, animation: "spin 1s linear infinite" }} />
+      ) : (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M21 12C21 16.97 16.97 21 12 21C7.03 21 3 16.97 3 12C3 7.03 7.03 3 12 3C14.39 3 16.57 3.91 18.22 5.42L15.5 8.14C14.56 7.27 13.34 6.75 12 6.75C9.1 6.75 6.75 9.1 6.75 12C6.75 14.9 9.1 17.25 12 17.25C14.43 17.25 16.47 15.67 17.07 13.5H12V10.5H20.93C21.0 11.0 21 11.5 21 12Z" fill="white"/>
+        </svg>
+      )}
+      {loading ? "Abriendo Google Wallet…" : "Guardar en Google Wallet"}
+    </button>
+  );
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Premio {
@@ -249,6 +351,7 @@ export default function PremiosPage() {
 
   const [authLoading, setAuthLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState("");
   const [userSellos, setUserSellos] = useState(0);
 
   const [premios, setPremios] = useState<Premio[]>([]);
@@ -272,6 +375,7 @@ export default function PremiosPage() {
         return;
       }
       setUserId(user.uid);
+      setUserName(user.displayName || "Miembro");
       setAuthLoading(false);
     });
     return () => unsub();
@@ -399,6 +503,31 @@ export default function PremiosPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-5 py-6 space-y-8">
+
+        {/* ── Tarjeta de fidelidad ─────────────────────────────────────── */}
+        {userId && (
+          <section>
+            <div
+              className="rounded-3xl p-5 text-white shadow-lg"
+              style={{
+                background: "linear-gradient(135deg, #C9920A 0%, #D3B673 100%)",
+              }}
+            >
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/70 mb-1">
+                Tu tarjeta de fidelidad
+              </p>
+              <p className="text-lg font-black">{userName}</p>
+              <p className="text-3xl font-black mt-2">
+                {userSellos} <span className="text-base font-semibold text-white/80">sellos</span>
+              </p>
+              <GoogleWalletButton
+                userId={userId}
+                userName={userName}
+                stampsCount={userSellos}
+              />
+            </div>
+          </section>
+        )}
 
         {/* ── Catálogo ─────────────────────────────────────────────────── */}
         <section className="space-y-3">

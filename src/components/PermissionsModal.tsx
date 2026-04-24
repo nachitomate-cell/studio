@@ -164,14 +164,6 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
             iosInstructions="Ajustes → Privacidad → Cámara → [Tu navegador] → Activar"
           />
 
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-2">
-            <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-1">
-              Nota sobre iOS
-            </p>
-            <p className="text-xs text-amber-600 leading-relaxed">
-              En iPhone/iPad, la detección de ubicación solo funciona mientras la app está abierta en pantalla (no en segundo plano). Esto es una limitación del sistema.
-            </p>
-          </div>
         </div>
 
         {/* Footer */}
