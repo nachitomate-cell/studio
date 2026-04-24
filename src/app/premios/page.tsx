@@ -25,15 +25,15 @@ function GoogleWalletButton({
   userName: string;
   stampsCount: number;
 }) {
-  const [isAndroid, setIsAndroid] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setIsAndroid(/android/i.test(navigator.userAgent));
+    setIsIOS(/iphone|ipad|ipod/i.test(navigator.userAgent));
   }, []);
 
-  // En iOS: botón deshabilitado con mensaje informativo
-  if (!isAndroid) {
+  // Solo en iOS: botón deshabilitado con mensaje informativo
+  if (isIOS) {
     return (
       <div
         style={{
