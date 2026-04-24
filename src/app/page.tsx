@@ -19,6 +19,7 @@ import { UserProfile } from "@/components/profile/UserProfile";
 import { RewardsTab } from "@/components/profile/RewardsTab";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
 import { Auth } from "@/components/Auth";
+import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useBackgroundGeolocation } from "@/hooks/useBackgroundGeolocation";
 import { useToast } from "@/hooks/use-toast";
@@ -452,6 +453,7 @@ export default function Home() {
       <div className="max-w-lg mx-auto pb-4">
         {renderContent()}
       </div>
+      <PWAInstallBanner userId={user?.uid ?? null} />
       <BottomNav activeTab={activeTab} premiosBadge={premiosBadge} onTabChange={(tab) => {
         setActiveTab(tab);
         setShowAuth(false);
