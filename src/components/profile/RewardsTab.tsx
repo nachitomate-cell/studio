@@ -9,6 +9,7 @@ import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CatalogoPremios } from "./CatalogoPremios";
+import { syncUserStampsToWallet } from "@/lib/walletSync";
 import { motion, AnimatePresence } from "framer-motion";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -22,6 +23,8 @@ interface RewardsTabProps {
 export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
   const router = useRouter();
   const [showStampAnim, setShowStampAnim] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncDone, setSyncDone] = useState(false);
   const [isOffline, setIsOffline] = useState(
     typeof window !== "undefined" ? !navigator.onLine : false
   );
@@ -268,6 +271,34 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
               >
                 📷 Ir a Escanear
               </Button>
+
+              {user && sellos > 0 && (
+                <Button
+                  variant="outline"
+                  disabled={isSyncing || isOffline}
+                  className="w-full h-11 rounded-2xl font-bold"
+                  style={{ borderColor: "#4285F4", color: syncDone ? "#1a7a1a" : "#4285F4", backgroundColor: "white" }}
+                  onClick={async () => {
+                    setIsSyncing(true);
+                    setSyncDone(false);
+                    try {
+                      await fetch("/api/google-wallet", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: user.uid, stampsCount: sellos }),
+                      });
+                      setSyncDone(true);
+                      setTimeout(() => setSyncDone(false), 3000);
+                    } catch {
+                      // fallo silencioso — el sello sigue en Firestore
+                    } finally {
+                      setIsSyncing(false);
+                    }
+                  }}
+                >
+                  {isSyncing ? "Sincronizando…" : syncDone ? "✅ Wallet actualizado" : "🔄 Actualizar mi Google Wallet"}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

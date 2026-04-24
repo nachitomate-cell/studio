@@ -7,6 +7,7 @@ import {
 import { enviarNotificacionLocal } from "./notificaciones";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { syncUserStampsToWallet } from "./walletSync";
 
 export async function registrarCompra(db: Firestore, userId: string, vendedorId?: string, isClientScan: boolean = false) {
   const userRef = doc(db, "usuarios", userId);
@@ -67,6 +68,9 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       }));
       throw error;
     });
+
+    // Sincronizar Google Wallet (fire-and-forget — no bloquea el flujo)
+    syncUserStampsToWallet(userId, nuevasCompras);
 
     // Auditoría de Sistema (Para el Radar de Fraude)
     const logRef = collection(db, "system_logs");
@@ -310,6 +314,9 @@ export async function confirmarHandshake(
 
     return { userId, vendorId, userName: realUserName, nuevoTotal };
   });
+
+  // Sincronizar Google Wallet (fire-and-forget — no bloquea el handshake)
+  syncUserStampsToWallet(result.userId, result.nuevoTotal);
 
   // Operaciones no críticas (fuera de la transacción)
   const timestamp = new Date().toISOString();
