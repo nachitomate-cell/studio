@@ -67,11 +67,21 @@ export default function UnetePage() {
     }
     setResetLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al enviar el correo");
+      }
+
       setResetSent(true);
       setError(null);
     } catch (err: any) {
-      setError("No se encontró una cuenta con ese correo.");
+      setError(err.message || "Error al enviar el correo. Intenta nuevamente.");
     } finally {
       setResetLoading(false);
     }

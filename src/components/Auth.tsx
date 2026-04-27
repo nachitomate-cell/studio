@@ -91,10 +91,17 @@ export function Auth() {
     }
     setResetLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim(), {
-        url: `${window.location.origin}/`,
-        handleCodeInApp: false,
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
       });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al enviar el correo");
+      }
+
       setResetSent(true);
       setError(null);
       toast({
@@ -102,16 +109,7 @@ export function Auth() {
         description: "Revisa tu bandeja de entrada (y carpeta de spam).",
       });
     } catch (err: any) {
-      const code = err?.code || "";
-      if (code === "auth/user-not-found") {
-        setError("No existe una cuenta con ese correo.");
-      } else if (code === "auth/invalid-email") {
-        setError("El formato del correo no es válido.");
-      } else if (code === "auth/too-many-requests") {
-        setError("Demasiados intentos. Espera unos minutos.");
-      } else {
-        setError("No se pudo enviar el correo. Intenta nuevamente.");
-      }
+      setError(err.message || "No se pudo enviar el correo. Intenta nuevamente.");
     } finally {
       setResetLoading(false);
     }
