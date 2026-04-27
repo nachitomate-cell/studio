@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import { Resend } from "resend";
 
-// Inicializa Resend usando la variable de entorno
-const resend = new Resend(process.env.RESEND_API_KEY);
+// No inicializar aquí para evitar errores en build de Vercel si la API key falta
+// const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
   try {
@@ -16,7 +16,10 @@ export async function POST(req: Request) {
     // 1. Generar el enlace mágico desde Firebase Admin
     const resetLink = await adminAuth.generatePasswordResetLink(email);
 
-    // 2. Enviar el correo personalizado con Resend
+    // 2. Inicializar Resend aquí para evitar fallos en build
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    // 3. Enviar el correo personalizado con Resend
     const { data, error } = await resend.emails.send({
       from: "Soporte SynapTech <soporte@synaptechspa.cl>",
       to: email,
