@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, updateDoc, doc, deleteDoc, onSnapsho
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2, ClipboardList, BarChart2 } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -426,20 +426,11 @@ export default function ModeradorPage() {
                 Registro de Sellos
               </Button>
             </Link>
-            <Link href="/admin-logs">
-              <Button
-                variant="outline"
-                className="flex items-center gap-2 rounded-2xl h-12 px-5 border-slate-200 text-slate-600 font-bold shadow-sm hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
-              >
-                <ClipboardList className="w-4 h-4" />
-                Ver Auditoría del Sistema
-              </Button>
-            </Link>
           </div>
         </div>
 
         {/* NAVEGACIÓN RÁPIDA */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             {
               href: "/moderador/sellos",
@@ -456,14 +447,6 @@ export default function ModeradorPage() {
               desc: "Filtros de cumpleaños · Exportar lista",
               color: "#6366f1",
               bg: "#6366f112",
-            },
-            {
-              href: "/moderador/auditoria",
-              emoji: "🔍",
-              titulo: "Auditoría del Sistema",
-              desc: "Backup · Limpieza para marcha blanca",
-              color: "#ef4444",
-              bg: "#ef444412",
             },
           ].map(({ href, emoji, titulo, desc, color, bg }) => (
             <Link key={href} href={href}>
