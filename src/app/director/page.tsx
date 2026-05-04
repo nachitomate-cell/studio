@@ -41,7 +41,7 @@ export default function DirectorPage() {
   const [activatingStore, setActivatingStore] = useState(false);
   const [ranking, setRanking] = useState<any[]>([]);
   const [premios, setPremios] = useState<any[]>([]);
-  const [mensajeGlobal, setMensajeGlobal] = useState({ titulo: "", cuerpo: "" });
+  const [mensajeGlobal, setMensajeGlobal] = useState({ titulo: "", cuerpo: "", destino: "todos" });
 
   const [vendorToDelete, setVendorToDelete] = useState<{ id: string; nombre: string } | null>(null);
 
@@ -151,39 +151,29 @@ export default function DirectorPage() {
         }))
       );
 
-      // ── Ranking por vendedor ─────────────────────────────────────────
-      const countByVendor: Record<string, number> = {};
-      handshakeLogs.forEach(log => {
-        if (log.vendedorId) {
-          countByVendor[log.vendedorId] = (countByVendor[log.vendedorId] || 0) + 1;
-        }
-      });
 
-      // Obtener nombres de los emprendedores
-      try {
-        const empSnap = await getDocs(
-          query(collection(db, "usuarios"), where("rol", "==", "emprendedor"))
-        );
-        const rankingData = empSnap.docs
-          .map(d => {
+    });
+
+    // ── Ranking por vendedor (Listener separado a usuarios) ────────
+    const unsubRanking = onSnapshot(
+      query(collection(db, "usuarios"), where("rol", "==", "emprendedor")),
+      (snap) => {
+        const currentMonth = new Date().toISOString().substring(0, 7);
+        const rankingData = snap.docs
+          .map((d) => {
             const data = d.data() as any;
             return {
               id: d.id,
               nombreTienda: data.nombreTienda || data.nombre || "Local Aliado",
               rubro: data.rubro || "General",
-              sellosEntregados: countByVendor[d.id] || 0
+              sellosEntregados: (data.sellosEntregadosMensual && data.sellosEntregadosMensual[currentMonth]) || 0,
+              sellosEntregadosHistorico: data.sellosEntregadosHistorico || 0,
             };
           })
           .sort((a, b) => b.sellosEntregados - a.sellosEntregados);
         setRanking(rankingData);
-      } catch {
-        // Si falla la lectura de usuarios, mostrar solo los que tienen logs
-        const fallback = Object.entries(countByVendor)
-          .map(([id, count]) => ({ id, nombreTienda: id.substring(0, 8), rubro: "General", sellosEntregados: count }))
-          .sort((a, b) => b.sellosEntregados - a.sellosEntregados);
-        setRanking(fallback);
       }
-    });
+    );
 
     // Escuchar premios en tiempo real (nueva colección)
     const unsubPremios = onSnapshot(collection(db, "premios"), (snap) => {
@@ -207,6 +197,7 @@ export default function DirectorPage() {
 
     return () => {
       unsubLogs();
+      unsubRanking();
       unsubPremios();
       unsubProfiles();
     };
@@ -219,25 +210,19 @@ export default function DirectorPage() {
     }
     setLoading(true);
     try {
-      // Obtenemos todos los usuarios para enviarles la notificación
-      const usersSnap = await getDocs(collection(db, "usuarios"));
-      const batchPromises = usersSnap.docs.map(userDoc => {
-        const notifRef = collection(db, "usuarios", userDoc.id, "notificaciones");
-        return addDoc(notifRef, {
-          titulo: `📢 ${mensajeGlobal.titulo}`,
-          mensaje: mensajeGlobal.cuerpo,
-          fecha: new Date().toISOString(),
-          tipo: "BROADCAST",
-          leida: false
-        });
+      // Guardar el mensaje en broadcast_messages para que la Cloud Function lo procese
+      await addDoc(collection(db, "broadcast_messages"), {
+        titulo: `📢 ${mensajeGlobal.titulo}`,
+        mensaje: mensajeGlobal.cuerpo,
+        destino: mensajeGlobal.destino,
+        fechaCreacion: new Date().toISOString(),
+        estado: "pendiente"
       });
-
-      await Promise.all(batchPromises);
       
-      toast({ title: "¡Mensaje Enviado!", description: `Se ha notificado a ${usersSnap.size} socios del club.` });
-      setMensajeGlobal({ titulo: "", cuerpo: "" });
+      toast({ title: "¡Comunicado encolado!", description: "El mensaje se enviará en segundo plano a la brevedad." });
+      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos" });
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo realizar el envío masivo." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo encolar el comunicado." });
     } finally {
       setLoading(false);
     }
@@ -463,9 +448,15 @@ export default function DirectorPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-sm font-black text-primary">{emp.sellosEntregados || 0}</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">Sellos Mes</p>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-sm font-black text-primary">{emp.sellosEntregados || 0}</p>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase">Mes</p>
+                        </div>
+                        <div className="text-right border-l pl-3 ml-1 border-slate-100">
+                          <p className="text-sm font-black text-slate-600">{emp.sellosEntregadosHistorico || 0}</p>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase">Histórico</p>
+                        </div>
                       </div>
                       <button
                         onClick={() => setVendorToDelete({ id: emp.id, nombre: emp.nombreTienda || emp.nombre || "Local Aliado" })}
@@ -499,11 +490,19 @@ export default function DirectorPage() {
                   onChange={(e) => setMensajeGlobal({...mensajeGlobal, titulo: e.target.value})}
                 />
                 <Textarea 
-                  placeholder="Escribe el mensaje para todos los socios..." 
+                  placeholder="Escribe el mensaje..." 
                   className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl min-h-[80px]"
                   value={mensajeGlobal.cuerpo}
                   onChange={(e) => setMensajeGlobal({...mensajeGlobal, cuerpo: e.target.value})}
                 />
+                <select
+                  value={mensajeGlobal.destino}
+                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, destino: e.target.value})}
+                  className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
+                >
+                  <option value="todos" className="text-slate-800">Todos los socios</option>
+                  <option value="emprendedor" className="text-slate-800">Solo Emprendedores</option>
+                </select>
               </div>
               <Button 
                 onClick={handleSendGlobalMessage}
@@ -513,7 +512,7 @@ export default function DirectorPage() {
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 Enviar Notificación Push
               </Button>
-              <p className="text-[9px] text-center text-white/60 font-medium">Este mensaje llegará a todos los dispositivos con el Club instalado.</p>
+              <p className="text-[9px] text-center text-white/60 font-medium">Este mensaje será procesado en segundo plano y llegará a {mensajeGlobal.destino === "todos" ? "todos los dispositivos" : "los dispositivos de emprendedores"}.</p>
             </CardContent>
           </Card>
         </section>

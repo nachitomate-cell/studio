@@ -10,13 +10,15 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCGwNEBNmyrOl1mrpZhGNEktneNtxYgxj0",
-  authDomain: "studio-7914495232-557f1.firebaseapp.com",
-  projectId: "studio-7914495232-557f1",
-  storageBucket: "studio-7914495232-557f1.firebasestorage.app", // Verificado
-  messagingSenderId: "120681935080",
-  appId: "1:120681935080:web:d41757280ca888b46bd95d"
+  apiKey: "AIzaSyCgoawmXfCPe5tVYOaJTcyUIWo-x65sXwo",
+  authDomain: "medicenter-3cb92.firebaseapp.com",
+  projectId: "medicenter-3cb92",
+  storageBucket: "medicenter-3cb92.firebasestorage.app",
+  messagingSenderId: "809252346571",
+  appId: "1:809252346571:web:3252e23d05d8136caed94e",
+  measurementId: "G-Q96ZC7XL3L"
 };
+
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);

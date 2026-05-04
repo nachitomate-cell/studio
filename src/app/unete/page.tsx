@@ -371,88 +371,107 @@ export default function UnetePage() {
             {/* === Registro fields === */}
             {!isLogin && (
               <div className="unete-field">
-                <Label htmlFor="unete-nombre">Nombre Completo</Label>
-                <div className="unete-input-wrapper">
-                  <UserIcon className="unete-input-icon" />
-                  <Input
-                    id="unete-nombre"
-                    type="text"
-                    placeholder="Juan Pérez"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    required
-                    className="rounded-xl pl-10"
-                  />
+                <div className="flex items-center gap-2">
+                  <UserIcon className="w-4 h-4 text-[#D3B673]" />
+                  <Label htmlFor="unete-nombre">Nombre Completo</Label>
                 </div>
+                <Input
+                  id="unete-nombre"
+                  type="text"
+                  placeholder="Juan Pérez"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  required
+                  className="rounded-xl"
+                />
               </div>
             )}
 
             <div className="unete-field">
-              <Label htmlFor="unete-email">Correo Electrónico</Label>
-              <div className="unete-input-wrapper">
-                <Mail className="unete-input-icon" />
-                <Input
-                  id="unete-email"
-                  type="email"
-                  placeholder="tu@ejemplo.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="rounded-xl pl-10"
-                />
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-[#D3B673]" />
+                <Label htmlFor="unete-email">Correo Electrónico</Label>
               </div>
+              <Input
+                id="unete-email"
+                type="email"
+                placeholder="tu@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="rounded-xl"
+              />
             </div>
 
             {!isLogin && (
               <>
                 <div className="unete-field">
-                  <Label htmlFor="unete-phone">Teléfono (WhatsApp)</Label>
-                  <div className="unete-input-wrapper">
-                    <Phone className="unete-input-icon" />
-                    <Input
-                      id="unete-phone"
-                      type="tel"
-                      placeholder="+56 9 1234 5678"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      required
-                      className="rounded-xl pl-10"
-                    />
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-[#D3B673]" />
+                    <Label htmlFor="unete-phone">Teléfono (WhatsApp)</Label>
                   </div>
+                  <Input
+                    id="unete-phone"
+                    type="tel"
+                    placeholder="+56 9 1234 5678"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    className="rounded-xl"
+                  />
                 </div>
                 <div className="unete-field">
-                  <Label htmlFor="unete-birthday">Fecha de Nacimiento</Label>
-                  <div className="unete-input-wrapper">
-                    <Calendar className="unete-input-icon" />
-                    <Input
-                      id="unete-birthday"
-                      type="date"
-                      value={fechaNacimiento}
-                      onChange={(e) => setFechaNacimiento(e.target.value)}
-                      required
-                      className="rounded-xl pl-10"
-                      max={new Date().toISOString().split("T")[0]}
-                    />
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#D3B673]" />
+                    <Label htmlFor="unete-birthday">Fecha de Nacimiento</Label>
                   </div>
+                  <Input
+                    id="unete-birthday"
+                    type="date"
+                    value={fechaNacimiento}
+                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    required
+                    className="rounded-xl"
+                    max={new Date().toISOString().split("T")[0]}
+                  />
+                </div>
+                <div className="unete-field">
+                  <div className="flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-[#D3B673]" />
+                    <Label htmlFor="unete-referido">Código de Referido (Opcional)</Label>
+                  </div>
+                  <Input
+                    id="unete-referido"
+                    type="text"
+                    placeholder="Próximamente..."
+                    readOnly
+                    className="rounded-xl bg-gray-50/50 cursor-pointer text-gray-500"
+                    onClick={() => {
+                      toast({
+                        title: "¡Próximamente! 🚀",
+                        description: "El sistema de referidos estará disponible muy pronto.",
+                      });
+                    }}
+                  />
                 </div>
               </>
             )}
 
             <div className="unete-field">
-              <Label htmlFor="unete-password">Contraseña</Label>
-              <div className="unete-input-wrapper">
-                <Lock className="unete-input-icon" />
-                <Input
-                  id="unete-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="rounded-xl pl-10"
-                  minLength={6}
-                />
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-[#D3B673]" />
+                <Label htmlFor="unete-password">Contraseña</Label>
               </div>
+              <Input
+                id="unete-password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="rounded-xl"
+                minLength={6}
+              />
             </div>
 
             {/* === Recuperar contraseña === */}
@@ -801,21 +820,6 @@ export default function UnetePage() {
           flex-direction: column;
           gap: 6px;
           width: 100%;
-        }
-        .unete-input-wrapper {
-          position: relative;
-          width: 100%;
-        }
-        .unete-input-icon {
-          position: absolute;
-          left: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 16px;
-          height: 16px;
-          color: #D3B673;
-          pointer-events: none;
-          z-index: 1;
         }
 
         /* ━━━ Terms ━━━ */

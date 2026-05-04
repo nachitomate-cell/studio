@@ -11,6 +11,7 @@
 
 import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -237,7 +238,7 @@ export const weeklyMarketingCampaign = onSchedule(
     schedule: "0 10 * * 5",
     timeZone: "America/Santiago",
     // La API key de Gemini se pasa como Secret (no hardcoded)
-    secrets: ["GEMINI_API_KEY"],
+    // secrets: ["GEMINI_API_KEY"],
     // Timeout generoso para iterar muchos usuarios
     timeoutSeconds: 540,
     memory: "512MiB",
@@ -340,6 +341,117 @@ export const registerFcmToken = onRequest(
     } catch (err) {
       logger.error("Error guardando FCM token:", err);
       res.status(500).json({ error: "Error interno" });
+    }
+  }
+);
+
+// ── FUNCIÓN: processGlobalBroadcast ───────────────────────────────────────────
+export const processGlobalBroadcast = onDocumentCreated(
+  {
+    document: "broadcast_messages/{messageId}",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB"
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const messageData = snap.data();
+    if (messageData.estado !== "pendiente") return;
+
+    logger.info(`Iniciando envío de comunicado global: ${snap.id}`);
+    const { titulo, mensaje, destino } = messageData;
+
+    try {
+      // Marcar como en proceso
+      await snap.ref.update({ estado: "procesando", inicioProceso: new Date().toISOString() });
+
+      let query: admin.firestore.Query = db.collection("usuarios").where("baneado", "!=", true);
+      
+      if (destino === "emprendedor") {
+        query = db.collection("usuarios").where("rol", "==", "emprendedor");
+      }
+
+      const usersSnap = await query.get();
+      // Filtrar baneados manualmente si la query fue por rol (para emprendedores)
+      const docs = usersSnap.docs.filter(d => destino === "emprendedor" ? d.data().baneado !== true : true);
+
+      let processed = 0;
+      let pushSent = 0;
+      let errors = 0;
+      const BATCH_SIZE = 500; // Límite de Firestore batch
+      const tokens: string[] = [];
+
+      for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+        const batchDocs = docs.slice(i, i + BATCH_SIZE);
+        const batch = db.batch();
+
+        batchDocs.forEach(userDoc => {
+          const userData = userDoc.data();
+          const notifRef = db.collection("usuarios").doc(userDoc.id).collection("notificaciones").doc();
+          
+          batch.set(notifRef, {
+            titulo,
+            mensaje,
+            fecha: new Date().toISOString(),
+            tipo: "BROADCAST",
+            leida: false,
+            fuente: "director_panel"
+          });
+
+          if (userData.fcmToken) {
+            tokens.push(userData.fcmToken);
+          }
+          processed++;
+        });
+
+        await batch.commit();
+      }
+
+      // Enviar pushes en lotes de 500
+      for (let i = 0; i < tokens.length; i += 500) {
+        const tokenBatch = tokens.slice(i, i + 500);
+        if (tokenBatch.length > 0) {
+          try {
+            const response = await messaging.sendEachForMulticast({
+              tokens: tokenBatch,
+              notification: {
+                title: titulo.replace('📢 ', ''), // Limpiar emoji si se prefiere
+                body: mensaje,
+              },
+              data: { type: "BROADCAST" },
+              android: {
+                priority: "high",
+                notification: { channelId: "club_patio_marketing", icon: "ic_notification", color: "#4EAD1F" },
+              },
+              apns: {
+                payload: { aps: { badge: 1, sound: "default" } },
+              },
+            });
+            pushSent += response.successCount;
+            errors += response.failureCount;
+          } catch (e) {
+            logger.error("Error enviando push multicast", e);
+            errors += tokenBatch.length;
+          }
+        }
+      }
+
+      await snap.ref.update({
+        estado: "completado",
+        finProceso: new Date().toISOString(),
+        stats: { totalNotificados: processed, pushSent, errors }
+      });
+
+      logger.info(`Comunicado ${snap.id} completado. InApp: ${processed}, Push: ${pushSent}, Errores: ${errors}`);
+
+    } catch (error) {
+      logger.error(`Error procesando comunicado ${snap.id}:`, error);
+      await snap.ref.update({
+        estado: "error",
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 );

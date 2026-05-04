@@ -101,6 +101,13 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
         metodo: isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"
       }).catch((e) => console.warn("[registrarCompra] Log de venta falló:", e));
 
+      // Incrementar contadores en el emprendedor
+      const currentMonth = timestamp.substring(0, 7); // YYYY-MM
+      updateDoc(doc(db, "usuarios", vendedorId), {
+        sellosEntregadosHistorico: increment(1),
+        [`sellosEntregadosMensual.${currentMonth}`]: increment(1)
+      }).catch((e) => console.warn("[registrarCompra] Actualización de contadores del vendor falló:", e));
+
       if (isClientScan) {
         await enviarNotificacionLocal(vendedorId, "¡Cliente Auto-Verificado! ✅", `${clienteNombre} acaba de escanear tu código y ganó un sello.`);
       } else {
@@ -339,6 +346,13 @@ export async function confirmarHandshake(
         fecha: timestamp,
         metodo: "HANDSHAKE",
         monto,
+      });
+
+      // Incrementar contadores en el emprendedor
+      const currentMonth = timestamp.substring(0, 7); // YYYY-MM
+      await updateDoc(doc(db, "usuarios", result.vendorId), {
+        sellosEntregadosHistorico: increment(1),
+        [`sellosEntregadosMensual.${currentMonth}`]: increment(1)
       });
       await enviarNotificacionLocal(
         result.userId,
