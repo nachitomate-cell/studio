@@ -181,5 +181,15 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
+
+    // ── Códigos de Referido ────────────────────────────────────────────────────
+    // Mapa inmutable de código → userId para búsquedas O(1).
+    // Cualquier autenticado puede leer (para validar un código en el formulario).
+    // Solo el dueño puede crear su propio código; nunca se actualiza ni borra.
+    match /codigos_referido/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
   }
 }

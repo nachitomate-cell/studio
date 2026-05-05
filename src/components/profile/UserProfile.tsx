@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
+import {
   Gift, Award, LogOut,
   User as UserIcon, Phone,
   QrCode, Edit2, Check, X, Trophy, Save,
@@ -18,7 +18,8 @@ import {
   ExternalLink, Sparkles,
   Calendar, FlaskConical, Navigation,
   LayoutDashboard, AlertTriangle, Trash2,
-  Loader2, Info, MessageSquare, ChevronRight
+  Loader2, Info, MessageSquare, ChevronRight,
+  Copy, Share2, Users,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
@@ -1068,6 +1069,90 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       )}
 
       {showPermisos && <PermissionsModal onClose={() => setShowPermisos(false)} />}
+
+      {/* ── Código de Referido ─────────────────────────────────────────────── */}
+      {userData?.codigoReferido && !isEditing && (
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+            border: "1px solid rgba(211,182,115,0.2)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+          }}
+        >
+          <div className="px-5 pt-5 pb-3 flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
+            >
+              <Users className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-white leading-tight">Tu Código de Referido</p>
+              <p className="text-[11px] text-white/50 leading-tight">
+                Compártelo y gana 1 sello por cada amigo que se una
+              </p>
+            </div>
+          </div>
+
+          <div className="px-5 pb-5 space-y-3">
+            {/* Código visual */}
+            <div
+              className="flex items-center justify-between rounded-xl px-4 py-3"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <span
+                className="text-xl font-black tracking-[0.15em]"
+                style={{ color: "#D3B673", fontFamily: "monospace" }}
+              >
+                {userData.codigoReferido}
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(userData.codigoReferido).then(() => {
+                    toast({ title: "¡Copiado!", description: "Código copiado al portapapeles." });
+                  });
+                }}
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+                style={{ background: "rgba(211,182,115,0.15)", color: "#D3B673" }}
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Contador de referidos */}
+            {typeof userData.referidosExitosos === "number" && userData.referidosExitosos > 0 && (
+              <p className="text-[11px] text-white/60 font-medium text-center">
+                Amigos referidos exitosamente:{" "}
+                <span className="font-black text-[#D3B673]">{userData.referidosExitosos}</span>
+              </p>
+            )}
+
+            {/* Botón compartir */}
+            <button
+              onClick={() => {
+                const msg = `¡Únete al Club Patio Curauma y gana sellos y premios! Usa mi código de referido *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.cl/unete`;
+                if (typeof navigator.share === "function") {
+                  navigator.share({ title: "Club Patio Curauma", text: msg }).catch(() => {});
+                } else {
+                  navigator.clipboard.writeText(msg).then(() => {
+                    toast({ title: "¡Mensaje copiado!", description: "Pégalo donde quieras compartirlo." });
+                  });
+                }
+              }}
+              className="w-full h-11 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+              style={{
+                background: "linear-gradient(135deg, #D3B673, #C9920A)",
+                color: "white",
+                boxShadow: "0 4px 16px rgba(201,146,10,0.3)",
+              }}
+            >
+              <Share2 className="w-4 h-4" />
+              Compartir mi código
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Configuración de permisos ── */}
       <button

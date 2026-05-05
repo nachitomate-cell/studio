@@ -46,6 +46,7 @@ export default function DirectorPage() {
     titulo: "", cuerpo: "", destino: "todos", enviarEn: "",
     tipo: "info" as "info" | "urgente" | "promo" | "sorteo",
     cta: "",
+    vendedorFiltro: "",
   });
 
   const [vendorToDelete, setVendorToDelete] = useState<{ id: string; nombre: string } | null>(null);
@@ -222,6 +223,7 @@ export default function DirectorPage() {
         titulo: `${tipoEmoji[mensajeGlobal.tipo] ?? "📢"} ${mensajeGlobal.titulo}`,
         mensaje: mensajeGlobal.cuerpo,
         destino: mensajeGlobal.destino,
+        vendedorFiltro: mensajeGlobal.destino === "visitaron_local" ? mensajeGlobal.vendedorFiltro : null,
         tipo: mensajeGlobal.tipo,
         cta: mensajeGlobal.cta || "/",
         fechaCreacion: new Date().toISOString(),
@@ -234,7 +236,7 @@ export default function DirectorPage() {
           ? `Se enviará el ${new Date(mensajeGlobal.enviarEn).toLocaleString("es-CL")}.`
           : "El mensaje se enviará en segundo plano a la brevedad.",
       });
-      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "" });
+      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "", vendedorFiltro: "" });
     } catch (error) {
       console.error("Error encolando comunicado:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo encolar el comunicado." });
@@ -577,7 +579,23 @@ export default function DirectorPage() {
                   <option value="inactivos" className="text-slate-800">Inactivos (+30 días sin compras)</option>
                   <option value="activos_recientes" className="text-slate-800">Activos en los últimos 30 días</option>
                   <option value="cumpleanios_mes" className="text-slate-800">Cumpleaños este mes 🎂</option>
+                  <option value="aceptaPromoLocales" className="text-slate-800">Consintieron promos de locales ✅</option>
+                  <option value="visitaron_local" className="text-slate-800">Visitaron un local específico 📍</option>
                 </select>
+
+                {/* Selector de local para segmento "visitaron_local" */}
+                {mensajeGlobal.destino === "visitaron_local" && (
+                  <select
+                    value={mensajeGlobal.vendedorFiltro}
+                    onChange={(e) => setMensajeGlobal({ ...mensajeGlobal, vendedorFiltro: e.target.value })}
+                    className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
+                  >
+                    <option value="" className="text-slate-800">— Selecciona el local —</option>
+                    {vendorList.map((v: any) => (
+                      <option key={v.id} value={v.id} className="text-slate-800">{v.nombre}</option>
+                    ))}
+                  </select>
+                )}
 
                 {/* CTA — destino al tocar la notificación */}
                 <select
@@ -632,6 +650,10 @@ export default function DirectorPage() {
                   cerca_de_premio: "socios con 4+ sellos",
                   inactivos: "socios inactivos (+30 días)",
                   activos_recientes: "socios activos en 30 días",
+                  aceptaPromoLocales: "socios con consentimiento de promos",
+                  visitaron_local: mensajeGlobal.vendedorFiltro
+                    ? `socios que visitaron ${vendorList.find((v: any) => v.id === mensajeGlobal.vendedorFiltro)?.nombre ?? "el local"}`
+                    : "socios de un local (selecciona el local)",
                 };
                 const dest = labels[mensajeGlobal.destino] ?? mensajeGlobal.destino;
                 return (

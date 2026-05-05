@@ -41,6 +41,14 @@ import TermsModal from "@/components/TermsModal";
 const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
 
+function generarCodigoReferido(nombre: string): string {
+  const prefijo = nombre.trim().toUpperCase().replace(/\s/g, "").replace(/[^A-Z]/g, "").substring(0, 4).padEnd(4, "X");
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let sufijo = "";
+  for (let i = 0; i < 4; i++) sufijo += chars[Math.floor(Math.random() * chars.length)];
+  return `${prefijo}-${sufijo}`;
+}
+
 export default function UnetePage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -54,6 +62,7 @@ export default function UnetePage() {
   const [comuna, setComuna] = useState("");
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aceptaMarketing, setAceptaMarketing] = useState(false);
+  const [aceptaPromoLocales, setAceptaPromoLocales] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -61,6 +70,7 @@ export default function UnetePage() {
   const [showTerms, setShowTerms] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [codigoReferido, setCodigoReferido] = useState("");
 
   const handlePasswordReset = async () => {
     if (!email.trim()) {
@@ -179,6 +189,7 @@ export default function UnetePage() {
         else if (EMAILS_EMPRENDEDORES.includes(emailLimpio)) rolAsignado = "emprendedor";
 
         const timestamp = new Date().toISOString();
+        const miCodigo = generarCodigoReferido(nombre);
 
         await setDoc(doc(db, "usuarios", newUser.uid), {
           id: newUser.uid,
@@ -196,9 +207,18 @@ export default function UnetePage() {
           baneado: false,
           aceptaTerminos: true,
           aceptaMarketing: aceptaMarketing,
+          aceptaPromoLocales: aceptaPromoLocales,
           fechaConsentimiento: timestamp,
           createdAt: timestamp,
           comuna: comuna.trim(),
+          codigoReferido: miCodigo,
+          referidosExitosos: 0,
+        });
+
+        // Registrar el código en la colección de búsqueda rápida
+        await setDoc(doc(db, "codigos_referido", miCodigo), {
+          userId: newUser.uid,
+          creadoEn: timestamp,
         });
 
         await setDoc(doc(db, "leads_marketing", newUser.uid), {
@@ -209,10 +229,34 @@ export default function UnetePage() {
           fechaNacimiento: fechaNacimiento,
           comuna: comuna.trim(),
           aceptaMarketing: aceptaMarketing,
+          aceptaPromoLocales: aceptaPromoLocales,
           aceptaTerminos: true,
           fechaRegistro: timestamp,
           fuente: "QR Registro - Club Patio",
         });
+
+        // Procesar código de referido si se ingresó uno
+        if (codigoReferido.trim()) {
+          try {
+            const idToken = await newUser.getIdToken();
+            const res = await fetch("/api/referral/process", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({ referralCode: codigoReferido.trim() }),
+            });
+            if (res.ok) {
+              toast({
+                title: "¡Código de referido aplicado! 🎁",
+                description: "Ganaste 1 sello extra por unirte con un código de amigo.",
+              });
+            }
+          } catch {
+            // No crítico: el registro ya fue exitoso
+          }
+        }
 
         toast({
           title: "¡Registro exitoso! 🌟",
@@ -561,15 +605,11 @@ export default function UnetePage() {
                   <Input
                     id="unete-referido"
                     type="text"
-                    placeholder="Próximamente..."
-                    readOnly
-                    className="rounded-xl bg-gray-50/50 cursor-pointer text-gray-500"
-                    onClick={() => {
-                      toast({
-                        title: "¡Próximamente! 🚀",
-                        description: "El sistema de referidos estará disponible muy pronto.",
-                      });
-                    }}
+                    placeholder="Ej: JUAN-A3K9"
+                    value={codigoReferido}
+                    onChange={(e) => setCodigoReferido(e.target.value.toUpperCase())}
+                    className="rounded-xl"
+                    maxLength={9}
                   />
                 </div>
               </>
@@ -647,7 +687,19 @@ export default function UnetePage() {
                     className="unete-checkbox"
                   />
                   <span className="unete-check-text">
-                    Acepto recibir comunicaciones de marketing de Club Patio y sus aliados comerciales.
+                    Acepto recibir noticias y comunicaciones generales de Club Patio.
+                  </span>
+                </label>
+
+                <label className={`unete-check-card ${aceptaPromoLocales ? "unete-check-card--checked" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={aceptaPromoLocales}
+                    onChange={(e) => setAceptaPromoLocales(e.target.checked)}
+                    className="unete-checkbox"
+                  />
+                  <span className="unete-check-text">
+                    Acepto recibir ofertas y promociones personalizadas de los locales del Patio que he visitado.
                   </span>
                 </label>
               </div>
@@ -687,8 +739,10 @@ export default function UnetePage() {
                 setNombre("");
                 setFechaNacimiento("");
                 setComuna("");
+                setCodigoReferido("");
                 setAceptaTerminos(false);
                 setAceptaMarketing(false);
+                setAceptaPromoLocales(false);
               }}
             >
               {isLogin ? (

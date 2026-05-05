@@ -2,18 +2,19 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, where, getDoc } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 // DESACTIVADO: import { registrarCompra } from "@/lib/puntos"; — reemplazado por Handshake Digital
-import { 
-  ArrowLeft, QrCode, Camera, CheckCircle2, 
-  Loader2, AlertCircle, TrendingUp, Users, 
+import {
+  ArrowLeft, QrCode, Camera,
+  Loader2, AlertCircle, TrendingUp, Users,
   Gift, Clock, ChevronRight, LayoutDashboard,
-  X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download
+  X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
+  DollarSign, BarChart2, RefreshCw, FileDown,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -28,13 +29,74 @@ import ValidarPanel from "@/components/ValidarPanel";
 
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
 
+// ── Helpers CRM ──────────────────────────────────────────────────────────────
+function currentMonth() {
+  return new Date().toISOString().substring(0, 7); // "YYYY-MM"
+}
+
+function formatCLP(n: number) {
+  return n.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+}
+
+interface VentaRecord {
+  id: string;
+  clienteId: string;
+  clienteNombre: string;
+  fecha: string;
+  monto?: number;
+  metodo?: string;
+}
+
+interface ClienteStats {
+  clienteId: string;
+  nombre: string;
+  visitas: number;
+  gasto: number;
+  ultimaVisita: string;
+}
+
+function calcularCRM(ventas: VentaRecord[]) {
+  const mes = currentMonth();
+  const ventasMes = ventas.filter(v => v.fecha?.startsWith(mes));
+
+  const ingresosMes = ventasMes.reduce((s, v) => s + (v.monto || 0), 0);
+  const clientesSet = new Set(ventasMes.map(v => v.clienteId));
+  const clientesUnicos = clientesSet.size;
+
+  // Clientes que volvieron (aparecen > 1 vez en todos los registros)
+  const conteo: Record<string, number> = {};
+  ventas.forEach(v => { conteo[v.clienteId] = (conteo[v.clienteId] || 0) + 1; });
+  const retorno = Object.values(conteo).filter(c => c > 1).length;
+  const tasaRetorno = ventas.length > 0
+    ? Math.round((retorno / Object.keys(conteo).length) * 100)
+    : 0;
+
+  // Top clientes (todo el historial)
+  const clienteMap: Record<string, ClienteStats> = {};
+  ventas.forEach(v => {
+    if (!clienteMap[v.clienteId]) {
+      clienteMap[v.clienteId] = { clienteId: v.clienteId, nombre: v.clienteNombre || "?", visitas: 0, gasto: 0, ultimaVisita: v.fecha };
+    }
+    clienteMap[v.clienteId].visitas++;
+    clienteMap[v.clienteId].gasto += v.monto || 0;
+    if (v.fecha > clienteMap[v.clienteId].ultimaVisita) {
+      clienteMap[v.clienteId].ultimaVisita = v.fecha;
+    }
+  });
+  const topClientes = Object.values(clienteMap).sort((a, b) => b.visitas - a.visitas).slice(0, 10);
+
+  return { ingresosMes, clientesUnicos, tasaRetorno, topClientes, totalRegistros: ventas.length };
+}
+
 export default function VendedorPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "validar">("dashboard");
+  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "validar" | "clientes">("dashboard");
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [allVentas, setAllVentas] = useState<VentaRecord[]>([]);
+  const [crmLoading, setCrmLoading] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -124,7 +186,6 @@ export default function VendedorPage() {
           orderBy("fecha", "desc"),
           limit(5)
         );
-        
         unsubscribeVentas = onSnapshot(q, (snapshot) => {
           setRecentActivity(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
@@ -139,6 +200,40 @@ export default function VendedorPage() {
       stopScanner();
     };
   }, []);
+
+  const loadCRM = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setCrmLoading(true);
+    try {
+      const q = query(
+        collection(db, "usuarios", user.uid, "ventas_registradas"),
+        orderBy("fecha", "desc"),
+        limit(300)
+      );
+      const snap = await getDocs(q);
+      setAllVentas(snap.docs.map(d => ({ id: d.id, ...d.data() } as VentaRecord)));
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error al cargar datos", description: "Inténtalo de nuevo." });
+    } finally {
+      setCrmLoading(false);
+    }
+  };
+
+  const handleExportCRM = async () => {
+    const { default: XLSX } = await import("xlsx");
+    const crm = calcularCRM(allVentas);
+    const rows = crm.topClientes.map(c => ({
+      Nombre: c.nombre,
+      Visitas: c.visitas,
+      "Gasto Total": c.gasto,
+      "Última Visita": new Date(c.ultimaVisita).toLocaleDateString("es-CL"),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Mis Clientes");
+    XLSX.writeFile(wb, `clientes_${auth.currentUser?.uid?.substring(0, 6)}_${currentMonth()}.xlsx`);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -379,6 +474,127 @@ export default function VendedorPage() {
               </p>
             </div>
           </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if (view === "clientes") {
+    const crm = calcularCRM(allVentas);
+    const mes = currentMonth();
+    return (
+      <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
+        <div className="bg-white border-b border-slate-200 p-6 sticky top-0 z-10 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => setView("dashboard")} className="text-slate-400">
+              <ArrowLeft className="w-6 h-6" />
+            </Button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Mis Clientes</h1>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{mes}</p>
+            </div>
+          </div>
+          <Button size="sm" variant="ghost" onClick={loadCRM} disabled={crmLoading} className="text-slate-400 gap-1">
+            <RefreshCw className={`w-4 h-4 ${crmLoading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+
+        <div className="max-w-lg mx-auto p-5 space-y-5">
+          {allVentas.length === 0 && !crmLoading ? (
+            <div className="text-center py-16 space-y-3">
+              <BarChart2 className="w-12 h-12 text-slate-200 mx-auto" />
+              <p className="text-sm font-bold text-slate-400">Sin datos aún</p>
+              <p className="text-xs text-slate-300">Los datos aparecen cuando confirmas sellos en el Panel de Validación.</p>
+            </div>
+          ) : (
+            <>
+              {/* KPIs del mes */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <DollarSign className="w-4 h-4 text-green-500" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Ingresos mes</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-800">
+                    {crm.ingresosMes > 0 ? formatCLP(crm.ingresosMes) : "—"}
+                  </p>
+                  {crm.ingresosMes === 0 && (
+                    <p className="text-[9px] text-slate-300">Ingresa montos en el panel de validación</p>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Users className="w-4 h-4 text-blue-500" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Clientes mes</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-800">{crm.clientesUnicos}</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <RefreshCw className="w-4 h-4 text-purple-500" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Tasa retorno</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-800">{crm.tasaRetorno}%</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="w-4 h-4 text-amber-500" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Total sellos</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-800">{crm.totalRegistros}</p>
+                </div>
+              </div>
+
+              {/* Aviso si no hay montos */}
+              {crm.ingresosMes === 0 && allVentas.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
+                  <DollarSign className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-800">Activa el ingreso de montos</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Al confirmar un sello en el Panel de Validación ingresa el valor de la boleta. Con eso verás ingresos reales aquí.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Top clientes */}
+              {crm.topClientes.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Top clientes (historial)</p>
+                    <Button size="sm" variant="ghost" onClick={handleExportCRM} className="text-xs gap-1 text-slate-400 h-7">
+                      <FileDown className="w-3 h-3" /> Excel
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {crm.topClientes.map((c, i) => (
+                      <div key={c.clienteId} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                          <span className="text-xs font-black text-slate-500">#{i + 1}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-800 truncate">{c.nombre}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {c.visitas} visita{c.visitas !== 1 ? "s" : ""}
+                            {c.gasto > 0 ? ` · ${formatCLP(c.gasto)}` : ""}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] text-slate-300">
+                            {new Date(c.ultimaVisita).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </main>
     );
@@ -697,20 +913,28 @@ export default function VendedorPage() {
                   Panel de Validación (Caja)
                 </Button>
               )}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <Button
                   onClick={startScanner}
                   variant="outline"
-                  className="w-full h-16 rounded-2xl border-primary text-primary font-bold gap-2 hover:bg-primary/5"
+                  className="w-full h-16 rounded-2xl border-primary text-primary font-bold gap-2 hover:bg-primary/5 flex-col text-xs"
                   disabled={loading}
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-                  Escanear Cliente
+                  Escanear
+                </Button>
+                <Button
+                  onClick={() => { loadCRM(); setView("clientes"); }}
+                  variant="outline"
+                  className="w-full h-16 rounded-2xl border-blue-200 bg-blue-50/50 text-blue-700 font-bold gap-2 hover:bg-blue-100/50 flex-col text-xs"
+                >
+                  <BarChart2 className="w-5 h-5" />
+                  Clientes
                 </Button>
                 <Button
                   onClick={() => setView("profile")}
                   variant="outline"
-                  className="w-full h-16 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-2 hover:bg-slate-50"
+                  className="w-full h-16 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-2 hover:bg-slate-50 flex-col text-xs"
                 >
                   <Store className="w-5 h-5 text-primary" />
                   Mi Tienda
@@ -733,41 +957,55 @@ export default function VendedorPage() {
             <LayoutDashboard className="w-4 h-4 text-slate-400" />
             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Resumen de mi Local</h2>
           </div>
-          
-          <div className="grid grid-cols-1 gap-3">
-            <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                  <TrendingUp className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Fidelización (Mes)</p>
-                  <p className="text-2xl font-black text-slate-800">{userData?.sellosEntregados || 0} Sellos</p>
-                </div>
-              </CardContent>
-            </Card>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Card className="border-none shadow-sm bg-white rounded-2xl">
-                <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="w-4 h-4 text-blue-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Miembros</span>
-                  </div>
-                  <p className="text-xl font-black text-slate-800">{recentActivity.length}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-none shadow-sm bg-white rounded-2xl">
-                <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Gift className="w-4 h-4 text-amber-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Tienda</span>
-                  </div>
-                  <p className="text-[10px] font-black text-slate-800 truncate">{userData?.nombreTienda || "Sin Nombre"}</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          {(() => {
+            const mes = currentMonth();
+            const sellosEsteMes = userData?.sellosEntregadosMensual?.[mes] || 0;
+            const sellosHistorico = userData?.sellosEntregadosHistorico || 0;
+            return (
+              <div className="grid grid-cols-1 gap-3">
+                <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
+                  <CardContent className="p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                      <TrendingUp className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Sellos entregados este mes</p>
+                      <p className="text-2xl font-black text-slate-800">{sellosEsteMes}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-300 uppercase">Total histórico</p>
+                      <p className="text-base font-black text-slate-400">{sellosHistorico}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="border-none shadow-sm bg-white rounded-2xl">
+                    <CardContent className="p-4 space-y-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Users className="w-4 h-4 text-blue-500" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Clientes recientes</span>
+                      </div>
+                      <p className="text-xl font-black text-slate-800">{recentActivity.length}</p>
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className="border-none shadow-sm bg-blue-50/60 rounded-2xl cursor-pointer hover:bg-blue-100/60 transition-colors"
+                    onClick={() => { loadCRM(); setView("clientes"); }}
+                  >
+                    <CardContent className="p-4 space-y-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BarChart2 className="w-4 h-4 text-blue-600" />
+                        <span className="text-[10px] font-bold text-blue-500 uppercase">CRM</span>
+                      </div>
+                      <p className="text-xs font-black text-blue-700">Ver análisis →</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            );
+          })()}
         </section>
 
         <section className="space-y-4">
