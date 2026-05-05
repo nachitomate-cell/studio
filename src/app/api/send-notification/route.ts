@@ -100,8 +100,8 @@ export async function POST(request: Request) {
         notification: {
           title,
           body,
-          icon: "/Logo3.png",
-          badge: "/Logo3.png",
+          icon: "/Logo2.png",
+          badge: "/Logo2.png",
           requireInteraction: false,
           silent: false,
         },

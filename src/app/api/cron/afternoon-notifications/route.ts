@@ -139,8 +139,8 @@ export async function GET(request: Request) {
           notification: {
             title: msg.titulo,
             body: msg.cuerpo,
-            icon: "/Logo3.png",
-            badge: "/Logo3.png",
+            icon: "/Logo2.png",
+            badge: "/Logo2.png",
           },
           fcmOptions: { link: "/" },
         },

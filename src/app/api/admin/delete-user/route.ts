@@ -1,0 +1,61 @@
+/**
+ * POST /api/admin/delete-user
+ *
+ * Elimina un usuario cliente completamente:
+ * - Borra usuarios/{userId} de Firestore
+ * - Borra el usuario de Firebase Authentication
+ *
+ * Solo ejecutable por los emails moderadores autorizados.
+ * Body: { userId: string, idToken: string }
+ */
+
+import { NextResponse } from "next/server";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+
+const ALLOWED_EMAILS = [
+  (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase(),
+  "fgcservicios@gmail.com",
+];
+
+export async function POST(request: Request) {
+  try {
+    const { userId, idToken } = await request.json();
+
+    if (!userId || !idToken) {
+      return NextResponse.json({ error: "Faltan parámetros: userId, idToken" }, { status: 400 });
+    }
+
+    let decoded;
+    try {
+      decoded = await adminAuth.verifyIdToken(idToken);
+    } catch {
+      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    }
+
+    const callerEmail = (decoded.email ?? "").trim().toLowerCase();
+    if (!ALLOWED_EMAILS.includes(callerEmail)) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    // Borrar de Firestore
+    try {
+      await adminDb.collection("usuarios").doc(userId).delete();
+    } catch (e) {
+      console.warn("[delete-user] Firestore delete failed:", e);
+    }
+
+    // Borrar de Firebase Auth
+    try {
+      await adminAuth.deleteUser(userId);
+    } catch (e: any) {
+      if (e.code !== "auth/user-not-found") {
+        console.error("[delete-user] Auth delete failed:", e);
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("[delete-user] Error inesperado:", error);
+    return NextResponse.json({ error: error.message ?? "Error interno" }, { status: 500 });
+  }
+}

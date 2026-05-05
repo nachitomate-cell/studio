@@ -605,6 +605,21 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     } catch (e) {}
   };
 
+  const handleOpenNotif = async (notif: any) => {
+    if (!notif.leida && user) {
+      try {
+        await updateDoc(doc(db, "usuarios", user.uid, "notificaciones", notif.id), { leida: true });
+      } catch (e) {
+        console.error("Error marking notif as read", e);
+      }
+    }
+    if (notif.actionUrl) {
+      router.push(notif.actionUrl);
+    } else {
+      setSelectedNotif(notif);
+    }
+  };
+
   const handleClearAllNotifs = async () => {
     if (!user || notificaciones.length === 0) return;
     if (!confirm("¿Deseas eliminar todos los mensajes de tu bandeja?")) return;
@@ -978,7 +993,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               {notificaciones.length > 0 ? (
                 <>
                   {notificaciones.slice(0, 4).map((notif) => (
-                    <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
+                    <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={handleOpenNotif} />
                   ))}
                   {notificaciones.length > 4 && (
                     <p
@@ -1030,7 +1045,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               {notificaciones.length > 0 ? (
                 <>
                   {notificaciones.slice(0, 4).map((notif) => (
-                    <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={setSelectedNotif} />
+                    <SwipeableNotification key={notif.id} notif={notif} onDelete={handleDeleteNotif} onOpen={handleOpenNotif} />
                   ))}
                   {notificaciones.length > 4 && (
                     <p

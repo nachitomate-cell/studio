@@ -440,7 +440,15 @@ function CanjeContent() {
       status: "pending",
       createdAt: serverTimestamp(),
     })
-      .then(() => console.timeEnd("2-create-pending-stamp"))
+      .then(() => {
+        console.timeEnd("2-create-pending-stamp");
+        // ✓ Notificar al vendedor en segundo plano (push + Firestore)
+        fetch("/api/handshake/notify-vendor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vendorId, clientName: userName || "Un cliente" }),
+        }).catch(() => {/* silencioso — no bloquear el flujo */});
+      })
       .catch(() => {
         if (pendingIdRef.current !== pendingId) return; // ya fue cancelado
         setPhase("error");

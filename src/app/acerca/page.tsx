@@ -34,7 +34,7 @@ export default function AcercaPage() {
             style={{ background: "linear-gradient(135deg, #D3B673, #9DCC65)" }}
           >
             <img
-              src="/Logo3.png"
+              src="/Logo3.webp"
               alt="Club Patio Curauma"
               className="w-14 h-14 object-contain"
               onError={(e) => {
@@ -126,14 +126,21 @@ export default function AcercaPage() {
             <span style={{ color: "#D3B673" }}>@mateluna</span>
           </p>
           <div className="pt-3">
-            <img
-              src="/logoempresa.png"
-              alt="SinapTech Spa"
-              className="w-[100px] h-auto object-contain mx-auto mb-1"
-            />
-            <p className="text-[11px] text-slate-300 font-medium">
-              Desarrollado por SinapTech Spa
-            </p>
+            <a 
+              href="https://synaptechspa.cl" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-block hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              <img
+                src="/logoempresa.png"
+                alt="Synaptech Spa"
+                className="w-[100px] h-auto object-contain mx-auto mb-1"
+              />
+              <p className="text-[11px] text-slate-300 font-medium mt-1">
+                Desarrollado por Synaptech Spa
+              </p>
+            </a>
           </div>
         </div>
       </div>

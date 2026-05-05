@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Mail,
   Lock,
+  MapPin,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import TermsModal from "@/components/TermsModal";
@@ -50,6 +51,7 @@ export default function UnetePage() {
   const [phone, setPhone] = useState("");
   const [nombre, setNombre] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [comuna, setComuna] = useState("");
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aceptaMarketing, setAceptaMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +198,7 @@ export default function UnetePage() {
           aceptaMarketing: aceptaMarketing,
           fechaConsentimiento: timestamp,
           createdAt: timestamp,
+          comuna: comuna.trim(),
         });
 
         await setDoc(doc(db, "leads_marketing", newUser.uid), {
@@ -204,6 +207,7 @@ export default function UnetePage() {
           correo: emailLimpio,
           telefono: phone,
           fechaNacimiento: fechaNacimiento,
+          comuna: comuna.trim(),
           aceptaMarketing: aceptaMarketing,
           aceptaTerminos: true,
           fechaRegistro: timestamp,
@@ -281,28 +285,128 @@ export default function UnetePage() {
 
       <div className="unete-container" style={showCelebration ? { justifyContent: 'center' } : {}}>
         {showCelebration ? (
-          <div className="unete-card" style={{ padding: '40px 24px', textAlign: 'center', margin: 'auto 0' }}>
-            <div style={{ width: '80px', height: '80px', margin: '0 auto 24px', background: '#9DCC65', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(157,204,101,0.4)', color: 'white' }}>
-              <Gift style={{ width: 40, height: 40 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', margin: 'auto 0', width: '100%' }}>
+            {/* === Sello de cortesía === */}
+            <div className="unete-card" style={{ padding: '32px 24px', textAlign: 'center' }}>
+              {/* Animación del sello */}
+              <div style={{
+                width: '90px', height: '90px', margin: '0 auto 20px',
+                background: 'linear-gradient(135deg, #9DCC65, #7ab84e)',
+                borderRadius: '50%', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', boxShadow: '0 8px 28px rgba(157,204,101,0.45)',
+                color: 'white', animation: 'bounceIn 0.6s cubic-bezier(0.34,1.56,0.64,1)',
+              }}>
+                <Gift style={{ width: 44, height: 44 }} />
+              </div>
+
+              <h2 className="unete-title" style={{ fontSize: '26px', marginBottom: '8px', color: '#2a2a2a' }}>
+                ¡Bienvenido al Club! 🎉
+              </h2>
+              <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px', lineHeight: 1.6 }}>
+                Club Patio Curauma te regala tu primera estampilla de cortesía.
+              </p>
+
+              {/* Tarjeta visual con el sello */}
+              <div style={{
+                background: 'linear-gradient(135deg, #F7F9F0 0%, #EEF5E8 100%)',
+                borderRadius: '20px', padding: '16px 20px', marginBottom: '20px',
+                border: '2px solid rgba(157,204,101,0.3)',
+                boxShadow: '0 4px 16px rgba(157,204,101,0.15)',
+              }}>
+                <p style={{ fontSize: '11px', fontWeight: '700', color: '#9DCC65', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px' }}>
+                  Tu sello de cortesía ✓
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} style={{ aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img
+                        src="/Logo2.png"
+                        alt={i === 0 ? "Sello activo" : "Sello pendiente"}
+                        style={i === 0
+                          ? { width: '100%', height: '100%', objectFit: 'contain' }
+                          : { width: '100%', height: '100%', objectFit: 'contain', filter: 'grayscale(100%) opacity(25%)' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '10px', fontWeight: '600' }}>
+                  1 de 10 sellos obtenido
+                </p>
+              </div>
+
+              <Button onClick={() => {
+                const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
+                if (retorno) localStorage.removeItem("url_retorno");
+                router.replace(retorno || "/");
+              }} style={{ width: '100%', height: '52px', borderRadius: '16px', background: 'linear-gradient(135deg, #9DCC65, #7ab84e)', color: 'white', fontWeight: '900', fontSize: '15px', border: 'none' }} className="shadow-lg transition-all hover:opacity-90 active:scale-[0.98]">
+                Ver mi tarjeta de sellos →
+              </Button>
             </div>
-            <h2 className="unete-title" style={{ fontSize: '28px', marginBottom: '16px', color: '#4A4A4A' }}>¡Felicidades! 🎉</h2>
-            <p className="unete-subtitle" style={{ fontSize: '15px', padding: '0 10px', marginBottom: '32px', color: '#4A4A4A', fontWeight: '500', lineHeight: 1.6 }}>
-              Patio Curauma te ha regalado tu primer sello de bienvenida. ¡Ya estás más cerca de tu premio!
-            </p>
-            <Button onClick={() => {
-              const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
-              if (retorno) localStorage.removeItem("url_retorno");
-              router.replace(retorno || "/");
-            }} style={{ width: '100%', height: '56px', borderRadius: '16px', backgroundColor: '#9DCC65', color: 'white', fontWeight: '900', fontSize: '16px' }} className="shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]">
-              Ver mi tarjeta de sellos
-            </Button>
+
+            {/* === Banner: Descarga la App === */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+              borderRadius: '24px', padding: '24px 20px',
+              border: '1px solid rgba(255,255,255,0.08)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '28px' }}>📱</span>
+                <div>
+                  <p style={{ fontSize: '16px', fontWeight: '900', color: 'white', margin: 0 }}>
+                    ¡Descarga la App!
+                  </p>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                    Club Patio Curauma
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                {[
+                  { icon: '🔔', text: 'Notificaciones de premios y promociones en tiempo real' },
+                  { icon: '📷', text: 'Escanea QR directamente desde la app sin abrir el navegador' },
+                  { icon: '🗺️', text: 'Sigue tu ruta y desbloquea estampillas de cada local' },
+                  { icon: '🎁', text: 'Canjea tus sellos y revisa tus premios disponibles' },
+                  { icon: '📍', text: 'Alertas de geolocalización cuando estés cerca del patio' },
+                ].map((feat, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '18px', minWidth: '24px' }}>{feat.icon}</span>
+                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', margin: 0, lineHeight: 1.4 }}>{feat.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => {
+                  // Trigger native PWA install prompt or link to store
+                  if (typeof window !== 'undefined' && (window as any).deferredPwaPrompt) {
+                    (window as any).deferredPwaPrompt.prompt();
+                  } else {
+                    // Fallback: scroll to banner or show toast
+                    router.replace('/');
+                  }
+                }}
+                style={{
+                  width: '100%', height: '48px', borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #D3B673, #C9920A)',
+                  color: 'white', fontWeight: '900', fontSize: '14px',
+                  border: 'none', cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(201,146,10,0.4)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                }}
+                className="transition-all hover:opacity-90 active:scale-[0.98]"
+              >
+                <span>⬇️</span> Instalar App Gratis
+              </button>
+            </div>
           </div>
         ) : (
           <>
             {/* ===== Header: Logo + mensaje ===== */}
             <header className="unete-header">
           <div className="unete-logo-wrapper">
-            <img src="/Logo3.png" alt="Club Patio Curauma" className="unete-logo" />
+            <img src="/Logo3.webp" alt="Club Patio Curauma" className="unete-logo" />
           </div>
           <div className="unete-hero-text">
             <h1 className="unete-title">
@@ -318,11 +422,11 @@ export default function UnetePage() {
           <div className="unete-features">
             <div className="unete-feature-pill">
               <Gift className="unete-feature-icon" />
-              <span>Sello gratis</span>
+              <span>Sello Gratis</span>
             </div>
             <div className="unete-feature-pill">
-              <Trophy className="unete-feature-icon" />
-              <span>Sorteos</span>
+              <MapPin className="unete-feature-icon" />
+              <span>Ruta Geográfica</span>
             </div>
             <div className="unete-feature-pill">
               <Star className="unete-feature-icon" />
@@ -344,7 +448,7 @@ export default function UnetePage() {
               }}
             >
               <UserPlus style={{ width: 16, height: 16 }} />
-              Registrarse
+              Crear Cuenta
             </button>
             <button
               type="button"
@@ -355,7 +459,7 @@ export default function UnetePage() {
               }}
             >
               <LogIn style={{ width: 16, height: 16 }} />
-              Iniciar sesión
+              Ingresar
             </button>
           </div>
 
@@ -433,6 +537,20 @@ export default function UnetePage() {
                     required
                     className="rounded-xl"
                     max={new Date().toISOString().split("T")[0]}
+                  />
+                </div>
+                <div className="unete-field">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-[#D3B673]" />
+                    <Label htmlFor="unete-comuna">Comuna / Región (Opcional)</Label>
+                  </div>
+                  <Input
+                    id="unete-comuna"
+                    type="text"
+                    placeholder="Ej: Curauma, Valparaíso"
+                    value={comuna}
+                    onChange={(e) => setComuna(e.target.value)}
+                    className="rounded-xl"
                   />
                 </div>
                 <div className="unete-field">
@@ -539,7 +657,7 @@ export default function UnetePage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-14 rounded-2xl text-base font-black gap-2 shadow-lg shadow-primary/30 transition-all duration-200 hover:shadow-xl hover:shadow-primary/40 active:scale-[0.98]"
+              className="w-full h-14 rounded-2xl text-base font-black gap-2 transition-all duration-300 unete-submit-btn"
             >
               {loading ? (
                 <>
@@ -568,6 +686,7 @@ export default function UnetePage() {
                 setError(null);
                 setNombre("");
                 setFechaNacimiento("");
+                setComuna("");
                 setAceptaTerminos(false);
                 setAceptaMarketing(false);
               }}
@@ -609,8 +728,12 @@ export default function UnetePage() {
           overflow-y: auto;
           overflow-x: hidden;
           -webkit-overflow-scrolling: touch;
-          background: linear-gradient(160deg, #faf4e6 0%, #ffffff 35%, #f8f9fa 70%, #f5edd8 100%);
+          background: #0f172a;
+          background-image: 
+            radial-gradient(at 0% 0%, rgba(211, 182, 115, 0.15) 0px, transparent 50%),
+            radial-gradient(at 100% 100%, rgba(157, 204, 101, 0.1) 0px, transparent 50%);
           font-family: 'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          color: #f8fafc;
         }
 
         /* ━━━ Decorative Blobs ━━━ */
@@ -618,44 +741,44 @@ export default function UnetePage() {
           position: fixed;
           border-radius: 50%;
           pointer-events: none;
-          opacity: 0.12;
-          filter: blur(60px);
+          opacity: 0.15;
+          filter: blur(80px);
         }
         .unete-decor-1 {
-          width: 300px;
-          height: 300px;
+          width: 350px;
+          height: 350px;
           top: -100px;
-          right: -80px;
+          right: -100px;
           background: #D3B673;
-          animation: float1 8s ease-in-out infinite alternate;
+          animation: float1 10s ease-in-out infinite alternate;
         }
         .unete-decor-2 {
-          width: 200px;
-          height: 200px;
-          bottom: 120px;
-          left: -60px;
-          background: #9DCC65;
-          animation: float2 10s ease-in-out infinite alternate;
+          width: 250px;
+          height: 250px;
+          bottom: 100px;
+          left: -80px;
+          background: #1e293b;
+          animation: float2 12s ease-in-out infinite alternate;
         }
         .unete-decor-3 {
-          width: 150px;
-          height: 150px;
-          top: 40%;
-          right: -40px;
-          background: #6EBBD1;
-          animation: float3 12s ease-in-out infinite alternate;
+          width: 200px;
+          height: 200px;
+          top: 50%;
+          right: -50px;
+          background: #334155;
+          animation: float3 14s ease-in-out infinite alternate;
         }
         @keyframes float1 {
           from { transform: translate(0, 0) scale(1); }
-          to { transform: translate(-30px, 40px) scale(1.1); }
+          to { transform: translate(-40px, 50px) scale(1.1); }
         }
         @keyframes float2 {
           from { transform: translate(0, 0) scale(1); }
-          to { transform: translate(20px, -30px) scale(1.15); }
+          to { transform: translate(30px, -40px) scale(1.15); }
         }
         @keyframes float3 {
           from { transform: translate(0, 0) scale(1); }
-          to { transform: translate(-20px, 20px) scale(1.08); }
+          to { transform: translate(-30px, 30px) scale(1.08); }
         }
 
         /* ━━━ Content Container ━━━ */
@@ -664,87 +787,94 @@ export default function UnetePage() {
           z-index: 1;
           max-width: 440px;
           margin: 0 auto;
-          padding: 24px 20px 40px;
+          padding: 32px 20px 40px;
           min-height: 100%;
           display: flex;
           flex-direction: column;
-          animation: slideUp 0.5s ease-out;
+          animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
         @keyframes slideUp {
-          from { opacity: 0; transform: translateY(24px); }
+          from { opacity: 0; transform: translateY(30px); }
           to { opacity: 1; transform: translateY(0); }
         }
 
         /* ━━━ Header ━━━ */
         .unete-header {
           text-align: center;
-          padding-top: env(safe-area-inset-top, 16px);
-          margin-bottom: 24px;
+          padding-top: env(safe-area-inset-top, 24px);
+          margin-bottom: 32px;
         }
         .unete-logo-wrapper {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          padding: 12px 24px;
-          background: rgba(255,255,255,0.8);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border-radius: 20px;
-          box-shadow: 0 4px 24px rgba(211, 182, 115, 0.15);
-          margin-bottom: 20px;
-          border: 1px solid rgba(211, 182, 115, 0.2);
+          padding: 14px 28px;
+          background: rgba(30, 41, 59, 0.5);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border-radius: 24px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+          margin-bottom: 24px;
+          border: 1px solid rgba(211, 182, 115, 0.3);
         }
         .unete-logo {
-          height: 44px;
+          height: 48px;
           object-fit: contain;
+          filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
         }
         .unete-hero-text {
-          margin-bottom: 16px;
+          margin-bottom: 20px;
         }
         .unete-title {
-          font-size: 28px;
+          font-size: 32px;
           font-weight: 900;
           line-height: 1.15;
-          color: #1a1a2e;
+          color: #f8fafc;
           letter-spacing: -0.5px;
-          margin: 0 0 8px;
+          margin: 0 0 12px;
         }
         .unete-title-accent {
-          background: linear-gradient(135deg, #D3B673, #9DCC65);
+          background: linear-gradient(135deg, #D3B673, #F2D59B);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
         }
         .unete-subtitle {
-          font-size: 14px;
-          color: #64748b;
-          line-height: 1.5;
-          max-width: 280px;
+          font-size: 15px;
+          color: #94a3b8;
+          line-height: 1.6;
+          max-width: 300px;
           margin: 0 auto;
-          font-weight: 500;
+          font-weight: 400;
         }
 
         /* ━━━ Feature Pills ━━━ */
         .unete-features {
           display: flex;
           justify-content: center;
-          gap: 8px;
+          gap: 10px;
           flex-wrap: wrap;
         }
         .unete-feature-pill {
           display: inline-flex;
           align-items: center;
-          gap: 5px;
-          padding: 6px 14px;
+          gap: 6px;
+          padding: 8px 16px;
           border-radius: 100px;
-          background: rgba(255,255,255,0.85);
-          border: 1px solid rgba(211, 182, 115, 0.25);
-          font-size: 11px;
+          background: rgba(30, 41, 59, 0.6);
+          border: 1px solid rgba(211, 182, 115, 0.2);
+          font-size: 12px;
           font-weight: 700;
-          color: #8a7340;
-          box-shadow: 0 2px 8px rgba(211, 182, 115, 0.1);
-          backdrop-filter: blur(4px);
-          -webkit-backdrop-filter: blur(4px);
+          color: #D3B673;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          transition: all 0.3s ease;
+        }
+        .unete-feature-pill:hover {
+          background: rgba(211, 182, 115, 0.1);
+          border-color: rgba(211, 182, 115, 0.4);
+          transform: translateY(-2px);
         }
         .unete-feature-icon {
           width: 14px;
@@ -754,14 +884,14 @@ export default function UnetePage() {
 
         /* ━━━ Card ━━━ */
         .unete-card {
-          background: rgba(255, 255, 255, 0.92);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(211, 182, 115, 0.15);
-          border-radius: 24px;
+          background: rgba(30, 41, 59, 0.4);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 28px;
           box-shadow:
-            0 8px 32px rgba(0,0,0,0.06),
-            0 1px 3px rgba(0,0,0,0.04);
+            0 24px 48px rgba(0,0,0,0.2),
+            inset 0 1px 1px rgba(255,255,255,0.05);
           overflow: hidden;
           flex: 1;
         }
@@ -769,23 +899,23 @@ export default function UnetePage() {
         /* ━━━ Tabs ━━━ */
         .unete-card-tabs {
           display: flex;
-          background: #faf8f2;
-          border-bottom: 1px solid rgba(211, 182, 115, 0.12);
+          background: rgba(15, 23, 42, 0.6);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
         .unete-tab {
           flex: 1;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
-          padding: 14px 8px;
-          font-size: 13px;
+          gap: 8px;
+          padding: 18px 8px;
+          font-size: 14px;
           font-weight: 700;
-          color: #94a3b8;
+          color: #64748b;
           border: none;
           background: transparent;
           cursor: pointer;
-          transition: all 0.25s ease;
+          transition: all 0.3s ease;
           position: relative;
           font-family: inherit;
         }
@@ -793,85 +923,109 @@ export default function UnetePage() {
           content: '';
           position: absolute;
           bottom: 0;
-          left: 16px;
-          right: 16px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
           height: 3px;
           border-radius: 3px 3px 0 0;
-          background: transparent;
-          transition: background 0.25s ease;
+          background: #D3B673;
+          transition: width 0.3s ease;
         }
         .unete-tab-active {
-          color: #BFA05C;
-          background: rgba(211, 182, 115, 0.06);
+          color: #D3B673;
+          background: rgba(211, 182, 115, 0.05);
         }
         .unete-tab-active::after {
-          background: #D3B673;
+          width: 40px;
         }
 
         /* ━━━ Form ━━━ */
         .unete-form {
-          padding: 20px;
+          padding: 24px;
           display: flex;
           flex-direction: column;
-          gap: 18px;
+          gap: 20px;
         }
         .unete-field {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 8px;
           width: 100%;
+        }
+        
+        /* ━━━ Inputs overriding global styles ━━━ */
+        .unete-form :global(input) {
+          background: rgba(15, 23, 42, 0.6) !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          color: #f8fafc !important;
+          height: 48px;
+          padding: 0 16px;
+          transition: all 0.3s ease;
+        }
+        .unete-form :global(input:focus) {
+          border-color: #D3B673 !important;
+          box-shadow: 0 0 0 3px rgba(211, 182, 115, 0.15) !important;
+          background: rgba(15, 23, 42, 0.8) !important;
+        }
+        .unete-form :global(input::placeholder) {
+          color: #475569 !important;
+        }
+        .unete-form :global(label) {
+          color: #cbd5e1;
+          font-size: 13px;
+          font-weight: 600;
         }
 
         /* ━━━ Terms ━━━ */
         .unete-terms {
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          padding-top: 4px;
-          border-top: 1px solid #f1f5f9;
+          gap: 12px;
+          padding-top: 8px;
+          border-top: 1px solid rgba(255,255,255,0.05);
         }
         .unete-terms-title {
-          font-size: 9px;
+          font-size: 10px;
           font-weight: 800;
-          color: #94a3b8;
+          color: #64748b;
           text-transform: uppercase;
           letter-spacing: 1.5px;
           margin: 0;
         }
 
-        /* Checkbox cards — área de toque mínima 44px */
+        /* Checkbox cards */
         .unete-check-card {
           display: flex;
           align-items: center;
-          gap: 12px;
-          min-height: 44px;
-          padding: 10px 14px;
-          border-radius: 14px;
-          background: #f8fafc;
-          border: 1.5px solid #e2e8f0;
+          gap: 14px;
+          min-height: 48px;
+          padding: 12px 16px;
+          border-radius: 16px;
+          background: rgba(15, 23, 42, 0.4);
+          border: 1.5px solid rgba(255,255,255,0.05);
           cursor: pointer;
-          transition: border-color 0.2s ease, background 0.2s ease;
+          transition: all 0.2s ease;
           width: 100%;
         }
         .unete-check-card:hover {
-          border-color: #D3B673;
-          background: rgba(211, 182, 115, 0.07);
+          border-color: rgba(211, 182, 115, 0.5);
+          background: rgba(211, 182, 115, 0.05);
         }
         .unete-check-card--checked {
-          border-color: #9DCC65;
-          background: rgba(157, 204, 101, 0.09);
+          border-color: #D3B673;
+          background: rgba(211, 182, 115, 0.1);
         }
         .unete-checkbox {
-          width: 18px;
-          height: 18px;
-          min-width: 18px;
+          width: 20px;
+          height: 20px;
+          min-width: 20px;
           flex-shrink: 0;
-          accent-color: #9DCC65;
+          accent-color: #D3B673;
           cursor: pointer;
         }
         .unete-check-text {
-          font-size: 12px;
-          color: #475569;
+          font-size: 13px;
+          color: #cbd5e1;
           line-height: 1.5;
           flex: 1;
         }
@@ -879,10 +1033,29 @@ export default function UnetePage() {
           color: #D3B673;
           font-weight: 700;
           text-decoration: underline;
-          text-underline-offset: 2px;
+          text-underline-offset: 4px;
+          transition: color 0.2s;
+        }
+        .unete-link:hover {
+          color: #F2D59B;
         }
         .unete-required {
           color: #ef4444;
+        }
+
+        /* ━━━ Submit Button ━━━ */
+        .unete-submit-btn {
+          background: linear-gradient(135deg, #D3B673, #BFA05C) !important;
+          color: #0f172a !important;
+          border: none !important;
+          box-shadow: 0 8px 24px rgba(211, 182, 115, 0.25) !important;
+        }
+        .unete-submit-btn:hover {
+          box-shadow: 0 12px 32px rgba(211, 182, 115, 0.4) !important;
+          transform: translateY(-2px);
+        }
+        .unete-submit-btn:active {
+          transform: translateY(0);
         }
 
         /* ━━━ Toggle button ━━━ */
@@ -890,88 +1063,59 @@ export default function UnetePage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 4px;
+          gap: 6px;
           width: 100%;
-          padding: 10px;
+          padding: 12px;
           background: transparent;
           border: none;
-          font-size: 13px;
-          color: #64748b;
+          font-size: 14px;
+          color: #94a3b8;
           cursor: pointer;
           font-family: inherit;
           transition: color 0.2s;
         }
         .unete-toggle:hover {
-          color: #D3B673;
+          color: #cbd5e1;
         }
         .unete-toggle strong {
-          color: #BFA05C;
+          color: #D3B673;
           font-weight: 800;
         }
 
         /* ━━━ Footer ━━━ */
         .unete-footer {
           text-align: center;
-          padding: 24px 0 8px;
+          padding: 32px 0 16px;
           margin-top: auto;
         }
         .unete-footer p {
-          font-size: 11px;
-          color: #94a3b8;
-          font-weight: 300;
+          font-size: 12px;
+          color: #475569;
+          font-weight: 400;
           margin: 0;
-        }
-
-        /* ━━━ Responsive — Larger phones / tablets ━━━ */
-        @media (min-width: 400px) {
-          .unete-title {
-            font-size: 32px;
-          }
-          .unete-subtitle {
-            font-size: 15px;
-            max-width: 320px;
-          }
-          .unete-form {
-            padding: 24px;
-            gap: 20px;
-          }
-        }
-
-        @media (min-width: 640px) {
-          .unete-container {
-            padding-top: 48px;
-            padding-bottom: 48px;
-            justify-content: center;
-          }
-          .unete-title {
-            font-size: 36px;
-          }
+          letter-spacing: 0.5px;
         }
 
         /* ━━━ Very small screens (iPhone SE, etc) ━━━ */
         @media (max-height: 700px) {
           .unete-header {
-            margin-bottom: 16px;
+            margin-bottom: 20px;
           }
           .unete-logo-wrapper {
-            margin-bottom: 12px;
-            padding: 8px 20px;
+            margin-bottom: 16px;
+            padding: 10px 24px;
           }
           .unete-logo {
             height: 36px;
           }
           .unete-title {
-            font-size: 24px;
+            font-size: 26px;
           }
           .unete-subtitle {
-            font-size: 13px;
+            font-size: 14px;
           }
-          .unete-features {
-            gap: 6px;
-          }
-          .unete-feature-pill {
-            padding: 4px 10px;
-            font-size: 10px;
+          .unete-form {
+            gap: 16px;
           }
         }
       `}</style>

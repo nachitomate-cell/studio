@@ -177,8 +177,8 @@ export async function POST(request: Request) {
           notification: {
             title: matched.titulo,
             body: matched.mensaje,
-            icon: "/Logo3.png",
-            badge: "/Logo3.png",
+            icon: "/Logo2.png",
+            badge: "/Logo2.png",
           },
           fcmOptions: { link: "/" },
         },

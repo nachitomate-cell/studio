@@ -36,7 +36,7 @@ export function RecommendationWidget() {
             id: d.id,
             businessName: doc.businessName || doc.nombre || "Local Destacado",
             category: doc.category || doc.rubro || "",
-            imageUrl: doc.imageUrls?.[0] || doc.imageUrl || "/Logo3.png",
+            imageUrl: doc.imageUrls?.[0] || doc.imageUrl || "/Logo2.png",
             imagenTarjeta: doc.imagenTarjeta || undefined,
             logoHeader: doc.logoHeader || undefined,
             promoText: doc.promoText || undefined,

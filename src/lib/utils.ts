@@ -27,7 +27,7 @@ export function getSafeImageUrl(
  * Any vendor whose primary image is one of these is considered "not configured".
  */
 const PLACEHOLDER_IMAGES = new Set([
-  "/Logo3.png",
+  "/Logo3.webp",
   "/Logo2.png",
   "/Logo.png",
   "",

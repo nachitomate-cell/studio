@@ -143,16 +143,19 @@ export function RewardsTab({ user, userData, onShowAuth }: RewardsTabProps) {
         )}
       </AnimatePresence>
 
-      <Card className="border-none shadow-lg bg-gradient-to-br from-primary to-accent/40 rounded-3xl overflow-hidden text-white">
+      <Card 
+        onClick={() => router.push('/ruta')}
+        className="cursor-pointer border-none shadow-lg bg-gradient-to-br from-[#4A90E2] to-[#50E3C2] rounded-3xl overflow-hidden text-white transition-transform active:scale-[0.98] hover:scale-[1.02]"
+      >
         <CardContent className="p-6 flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Gran Sorteo del Mes</p>
-            <h3 className="text-2xl font-black flex items-center gap-2"><Trophy className="w-6 h-6 text-yellow-300" />{tickets} <span className="text-sm font-bold opacity-90">Tickets</span></h3>
-            <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", marginTop: "4px" }}>
-              Acumula 10 sellos para ganar 1 ticket al sorteo del mes
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Explora el patio</p>
+            <h3 className="text-2xl font-black flex items-center gap-2">🗺️ Mi Ruta</h3>
+            <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.9)", marginTop: "4px" }}>
+              Colecciona estampillas visitando todos los locales aliados.
             </p>
           </div>
-          <Sparkles className="w-10 h-10 opacity-20" />
+          <span className="text-3xl font-light">›</span>
         </CardContent>
       </Card>
 

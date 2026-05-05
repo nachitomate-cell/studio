@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 export function SplashScreen() {
@@ -34,10 +35,13 @@ export function SplashScreen() {
       )}
     >
       <div className="flex flex-col items-center animate-in zoom-in-95 duration-1000 ease-out">
-        <img 
-          src="/Logo3.png"
-          alt="Patio Curauma" 
-          className="w-56 object-contain drop-shadow-md" 
+        <Image
+          src="/Logo3.webp"
+          alt="Patio Curauma"
+          width={224}
+          height={224}
+          priority
+          className="object-contain drop-shadow-md"
         />
         {/* Indicador de carga sutil */}
         <div className="mt-12 flex gap-2 items-center">

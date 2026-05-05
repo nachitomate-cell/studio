@@ -17,8 +17,8 @@ export async function dispararAlertaSistema(titulo: string, mensaje: string) {
       if (registration && 'showNotification' in registration) {
         await registration.showNotification(titulo, {
           body: mensaje,
-          icon: "/Logo3.png",
-          badge: "/Logo3.png",
+          icon: "/Logo2.png",
+          badge: "/Logo2.png",
           tag: 'club-patio-notification',
           renotify: true,
         } as NotificationOptions & { vibrate?: number[] });

@@ -110,7 +110,7 @@ export function AssociatedShopsCarousel({ shops, isLoading }: Props) {
           shop.imagenPerfil ||
           shop.imagenUrl ||
           shop.imageUrls?.[0] ||
-          "/Logo3.png";
+          "/Logo2.png";
 
         const name = shop.businessName || shop.nombre || "Local del Patio";
         const category = shop.category || shop.rubro || "General";

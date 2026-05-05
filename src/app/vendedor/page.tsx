@@ -24,13 +24,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/data";
+import ValidarPanel from "@/components/ValidarPanel";
 
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
 
 export default function VendedorPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr">("dashboard");
+  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "validar">("dashboard");
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
@@ -315,6 +316,17 @@ export default function VendedorPage() {
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
+  if (view === "validar" && auth.currentUser) {
+    return (
+      <div className="animate-in slide-in-from-right duration-300">
+        <ValidarPanel 
+          vendorId={auth.currentUser.uid} 
+          onBack={() => setView("dashboard")} 
+        />
+      </div>
+    );
+  }
+
   if (view === "myqr") {
     return (
       <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
@@ -530,14 +542,20 @@ export default function VendedorPage() {
 
                 {/* Ubicación */}
                 <div className="space-y-3">
-                  <Label htmlFor="ubicacion" className="text-sm font-bold text-slate-700">¿Dónde estás dentro del patio?</Label>
+                  <Label htmlFor="ubicacion" className="text-sm font-bold text-slate-700">Sector / Ubicación</Label>
                   <Input
                     id="ubicacion"
-                    placeholder="Ej: Pasillo A, Local 12"
+                    list="ubicaciones-list"
+                    placeholder="Selecciona de la lista o escribe tu ubicación..."
                     className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
                     value={shopForm.ubicacion}
                     onChange={(e) => setShopForm({...shopForm, ubicacion: e.target.value})}
                   />
+                  <datalist id="ubicaciones-list">
+                    <option value="Outlet Curauma (Av. Lomas de la luz 4650, Curauma, Valparaíso)" />
+                    <option value="Tienda Patio Curauma (Avenida Universidad 134, Local 1)" />
+                    <option value="Patio Curauma Villa Alemana (Manuel Montt #1561, Villa Alemana)" />
+                  </datalist>
                 </div>
 
                 {/* Horario */}
@@ -670,15 +688,14 @@ export default function VendedorPage() {
               </Button>
               {/* Panel de Validación — handshake digital */}
               {auth.currentUser && (
-                <a href={`/validar/${auth.currentUser.uid}`}>
-                  <Button
-                    className="w-full h-16 rounded-2xl font-bold text-base gap-3 shadow-lg active:scale-[0.97] transition-transform"
-                    style={{ backgroundColor: "#D3B673", color: "#fff" }}
-                  >
-                    <span className="text-lg">🛠️</span>
-                    Panel de Validación (Caja)
-                  </Button>
-                </a>
+                <Button
+                  onClick={() => setView("validar")}
+                  className="w-full h-16 rounded-2xl font-bold text-base gap-3 shadow-lg active:scale-[0.97] transition-transform"
+                  style={{ backgroundColor: "#D3B673", color: "#fff" }}
+                >
+                  <span className="text-lg">🛠️</span>
+                  Panel de Validación (Caja)
+                </Button>
               )}
               <div className="grid grid-cols-2 gap-3">
                 <Button

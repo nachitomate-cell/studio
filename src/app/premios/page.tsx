@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowLeft, Clock, Gift, Loader2, CheckCircle2, XCircle, AlertCircle,
+  ArrowLeft, Clock, Gift, Loader2, CheckCircle2, XCircle, AlertCircle, Store
 } from "lucide-react";
 
 // ─── Google Wallet Button ─────────────────────────────────────────────────────
@@ -265,6 +265,103 @@ function ConfirmModal({
   );
 }
 
+// ─── Modal de Detalles del Premio ─────────────────────────────────────────────
+
+function PremioDetailModal({
+  premio,
+  userSellos,
+  onClose,
+  onCanjear
+}: {
+  premio: Premio;
+  userSellos: number;
+  onClose: () => void;
+  onCanjear: () => void;
+}) {
+  const stockDisponible = typeof premio.stock !== "number" || premio.stock > 0;
+  const puedeCanjear = userSellos >= premio.sellosRequeridos && stockDisponible;
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end justify-center"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col"
+        style={{ maxHeight: "85vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4 shrink-0" />
+        
+        {/* Cabecera */}
+        <div className="px-7 pt-5 pb-4 flex justify-between items-start shrink-0">
+           <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-3xl shadow-sm ${premio.esSorteo ? "bg-yellow-400" : "bg-primary/10"}`}>
+             {premio.icono || "🎁"}
+           </div>
+           <button
+             onClick={onClose}
+             className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+           >
+             <XCircle className="w-5 h-5" />
+           </button>
+        </div>
+
+        {/* Contenido scrolleable */}
+        <div className="px-7 overflow-y-auto space-y-6 flex-1 pb-4">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-black text-slate-800 leading-tight">{premio.nombre}</h2>
+            <p className="text-sm text-primary font-bold">{premio.sellosRequeridos} sellos requeridos</p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Descripción</p>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {premio.descripcion || "Este premio no tiene una descripción detallada, pero te aseguramos que es genial."}
+            </p>
+          </div>
+
+          <div className="bg-slate-50 rounded-2xl p-4 space-y-3 border border-slate-100">
+             <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Dónde canjearlo</p>
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm shrink-0">
+                 <Store className="w-5 h-5 text-slate-400" />
+               </div>
+               <div>
+                 <p className="font-bold text-slate-800">{premio.vendorNombre || "Patio Curauma"}</p>
+                 <p className="text-xs text-slate-500">Local Adherido</p>
+               </div>
+             </div>
+             <div className="h-px bg-slate-200" />
+             <div className="flex items-start gap-2 text-xs text-slate-500">
+               <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+               <p>Para canjearlo, debes dirigirte a <strong>{premio.vendorNombre || "la administración"}</strong> y mostrar el código que se generará al confirmar el canje.</p>
+             </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-7 py-5 shrink-0 border-t border-slate-100 bg-white">
+           {puedeCanjear ? (
+              <Button
+                onClick={onCanjear}
+                className="w-full h-14 rounded-2xl font-black text-base shadow-lg hover:opacity-90"
+                style={{ backgroundColor: premio.esSorteo ? "#EAB308" : "#9DCC65", color: "white" }}
+              >
+                Canjear Premio
+              </Button>
+           ) : (
+              <div className="w-full p-4 rounded-2xl bg-slate-100 flex flex-col items-center justify-center text-center border border-slate-200">
+                <p className="text-sm font-bold text-slate-500">Te faltan {premio.sellosRequeridos - userSellos} sellos</p>
+                <p className="text-xs text-slate-400">Sigue comprando para acumular más sellos.</p>
+              </div>
+           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Pantalla de éxito ────────────────────────────────────────────────────────
 
 function SuccessScreen({
@@ -360,6 +457,7 @@ export default function PremiosPage() {
   const [myCanjes, setMyCanjes] = useState<Canje[]>([]);
   const [canjesLoading, setCanjesLoading] = useState(true);
 
+  const [selectedPremio, setSelectedPremio] = useState<Premio | null>(null);
   const [confirmPremio, setConfirmPremio] = useState<Premio | null>(null);
   const [canjeando, setCanjeando] = useState(false);
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
@@ -551,12 +649,13 @@ export default function PremiosPage() {
                 return (
                   <Card
                     key={premio.id}
-                    className={`border overflow-hidden transition-all duration-200 ${
+                    onClick={() => setSelectedPremio(premio)}
+                    className={`border overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 ${
                       premio.esSorteo
-                        ? "border-yellow-200 bg-yellow-50/30"
+                        ? "border-yellow-200 bg-yellow-50/30 hover:bg-yellow-100/50"
                         : puedeCanjear
-                        ? "border-primary/20 shadow-md"
-                        : "border-slate-100 opacity-80"
+                        ? "border-primary/20 shadow-sm hover:shadow-md hover:border-primary/40"
+                        : "border-slate-100 opacity-80 hover:opacity-100"
                     }`}
                   >
                     <CardContent className="p-4 flex items-center gap-3">
@@ -572,9 +671,6 @@ export default function PremiosPage() {
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm text-slate-800 leading-tight">{premio.nombre}</p>
-                        {premio.descripcion && (
-                          <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">{premio.descripcion}</p>
-                        )}
                         <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
                           {premio.vendorNombre || "Patio Curauma"}
                         </p>
@@ -586,11 +682,14 @@ export default function PremiosPage() {
                       {/* Acción */}
                       {puedeCanjear ? (
                         <button
-                          onClick={() => setConfirmPremio(premio)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPremio(premio);
+                          }}
                           className="shrink-0 px-4 py-2 rounded-2xl font-black text-xs text-white shadow-md active:scale-95 transition-transform"
                           style={{ backgroundColor: premio.esSorteo ? "#EAB308" : "#9DCC65" }}
                         >
-                          🎁 Canjear
+                          Ver premio
                         </button>
                       ) : (
                         <span
@@ -689,6 +788,15 @@ export default function PremiosPage() {
       </div>
 
       {/* Modales */}
+      {selectedPremio && !confirmPremio && (
+        <PremioDetailModal
+          premio={selectedPremio}
+          userSellos={userSellos}
+          onClose={() => setSelectedPremio(null)}
+          onCanjear={() => setConfirmPremio(selectedPremio)}
+        />
+      )}
+
       {confirmPremio && (
         <ConfirmModal
           premio={confirmPremio}
