@@ -3,8 +3,9 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { doc, onSnapshot, query, collection, documentId, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, onSnapshot, query, collection, documentId, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { AssociatedShopsCarousel } from "./AssociatedShopsCarousel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,13 +26,16 @@ import {
 } from "lucide-react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getOpenStatus } from "@/lib/horarios";
+import { useUserLocation, haversineKm, formatDistance } from "@/hooks/useUserLocation";
+import { PATIO_INFO } from "@/lib/data";
 
-// Paleta de colores por método de pago
+// Paleta de colores por método de pago (Dark Premium)
 const PAYMENT_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  efectivo:      { bg: "#F0FDF4", text: "#166534", border: "#BBF7D0" },
-  debito:        { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" },
-  transferencia: { bg: "#FAF5FF", text: "#6B21A8", border: "#E9D5FF" },
-  _default:      { bg: "#F8FAFC", text: "#475569", border: "#E2E8F0" },
+  efectivo:      { bg: "rgba(22, 163, 74, 0.1)", text: "#4ade80", border: "rgba(74, 222, 128, 0.2)" },
+  debito:        { bg: "rgba(59, 130, 246, 0.1)", text: "#60a5fa", border: "rgba(96, 165, 250, 0.2)" },
+  transferencia: { bg: "rgba(168, 85, 247, 0.1)", text: "#c084fc", border: "rgba(192, 132, 252, 0.2)" },
+  _default:      { bg: "rgba(30, 41, 59, 0.5)", text: "#94a3b8", border: "rgba(148, 163, 184, 0.1)" },
 };
 
 function DetailContent() {
@@ -47,9 +51,39 @@ function DetailContent() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [sectorExpanded, setSectorExpanded] = useState(false);
-  
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [scrollY, setScrollY] = useState(0);
+
   const [associatedShopsData, setAssociatedShopsData] = useState<any[]>([]);
   const [loadingShops, setLoadingShops] = useState(false);
+
+  const { coords, loading: locLoading, request: requestLocation } = useUserLocation();
+
+  // Auth listener + favorites persistence
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (user && id) {
+        const userRef = doc(db, "usuarios", user.uid);
+        const unsubSnap = onSnapshot(userRef, (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const favoritos: string[] = Array.isArray(data.favoritos) ? data.favoritos : [];
+            setIsFavorite(favoritos.includes(id as string));
+          }
+        });
+        return () => unsubSnap();
+      }
+    });
+    return () => unsub();
+  }, [id]);
+
+  // Parallax scroll listener
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     if (entrepreneur?.associatedShops?.length > 0) {
@@ -88,14 +122,18 @@ function DetailContent() {
             nombre: data.businessName || data.nombre || "Local del Patio",
             descripcion: data.description || data.descripcion || "Sin descripción disponible.",
             rubro: data.category || data.rubro || "General",
-            imagenUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo3.png",
-            imagenPerfil: data.imagenPerfil || data.imageUrls?.[0] || data.imagenUrl || "/Logo3.png",
-            logoHeader:   data.logoHeader   || data.imageUrls?.[0] || data.imagenUrl || "/Logo3.png",
+            imagenUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo2.png",
+            imagenPerfil: data.imagenPerfil || data.imageUrls?.[0] || data.imagenUrl || "/Logo2.png",
+            logoHeader:   data.logoHeader   || data.imageUrls?.[0] || data.imagenUrl || "/Logo2.png",
             whatsapp:  data.whatsapp || data.contactPhone || "",
             instagram: data.instagram || "",
             ubicacion: data.address || data.ubicacionTienda || "",
             horario:   data.operatingHours || data.horario || "",
             mediosPago: data.mediosPago || [],
+            horariosEstructurados: data.horariosEstructurados || null,
+            lat: data.lat ?? null,
+            lng: data.lng ?? null,
+            imageUrls: data.imageUrls || [],
             ...data,
           });
         }
@@ -110,21 +148,47 @@ function DetailContent() {
     return () => unsubscribe();
   }, [id]);
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: entrepreneur?.nombre,
-        text: "¡Mira este emprendimiento en Club Patio Curauma!",
-        url: window.location.href,
+  const handleFavoriteToggle = async () => {
+    if (!currentUser) {
+      toast({ description: "Inicia sesión para guardar favoritos" });
+      return;
+    }
+    const newFav = !isFavorite;
+    setIsFavorite(newFav);
+    toast({ description: newFav ? "Guardado en favoritos" : "Eliminado de favoritos" });
+    try {
+      const userRef = doc(db, "usuarios", currentUser.uid);
+      await updateDoc(userRef, {
+        favoritos: newFav ? arrayUnion(id as string) : arrayRemove(id as string),
       });
+    } catch (err) {
+      console.error("Error updating favorites:", err);
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: entrepreneur?.nombre,
+      text: "¡Mira este emprendimiento en Club Patio Curauma!",
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // Ignorar si el usuario canceló
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast({ description: "Enlace copiado al portapapeles" });
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#F2F4F0]">
-        <Loader2 className="w-10 h-10 text-primary animate-spin" />
-        <p className="text-primary/60 font-bold uppercase text-[10px] tracking-widest">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#0f172a]">
+        <Loader2 className="w-10 h-10 text-[#D3B673] animate-spin" />
+        <p className="text-[#D3B673]/60 font-bold uppercase text-[10px] tracking-widest">
           Cargando experiencia...
         </p>
       </div>
@@ -133,12 +197,12 @@ function DetailContent() {
 
   if (!entrepreneur) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-[#F2F4F0]">
-        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm">
-          <MapPin className="w-10 h-10 text-slate-300" />
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-[#0f172a]">
+        <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center shadow-sm border border-slate-700">
+          <MapPin className="w-10 h-10 text-slate-400" />
         </div>
-        <h1 className="text-xl font-bold text-slate-800">Local no encontrado</h1>
-        <Button onClick={() => router.push("/")} className="rounded-xl bg-primary">
+        <h1 className="text-xl font-bold text-slate-200">Local no encontrado</h1>
+        <Button onClick={() => router.push("/")} className="rounded-xl bg-[#D3B673] text-slate-900 hover:bg-[#BFA05C]">
           Volver a Descubre
         </Button>
       </div>
@@ -146,9 +210,23 @@ function DetailContent() {
   }
 
   const esPremium = entrepreneur.isPremium === true;
+  const openStatus = getOpenStatus(entrepreneur.horariosEstructurados);
+  const distanceKm = coords
+    ? haversineKm(
+        coords.lat,
+        coords.lng,
+        entrepreneur.lat ?? PATIO_INFO.coordinates.lat,
+        entrepreneur.lng ?? PATIO_INFO.coordinates.lng
+      )
+    : null;
+
+  // Build action buttons array
+  const hasWhatsApp = !!entrepreneur.whatsapp;
+  const hasInstagram = !!entrepreneur.instagram;
+  const hasUbicacion = !!entrepreneur.ubicacion;
 
   return (
-    <main className="min-h-screen bg-[#F2F4F0] pb-24 font-body animate-in fade-in duration-500">
+    <main className="min-h-screen bg-[#0f172a] pb-24 font-body animate-in fade-in duration-500">
 
       {/* ── Botones flotantes ───────────────────────────────────────────── */}
       <div className="fixed top-4 left-4 right-4 z-50 flex justify-between items-center">
@@ -156,21 +234,21 @@ function DetailContent() {
           variant="secondary"
           size="icon"
           onClick={() => router.push("/")}
-          className="rounded-full shadow-xl bg-white/90 backdrop-blur-md border-none"
+          className="rounded-full shadow-xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:bg-slate-800/80"
         >
-          <ArrowLeft className="w-5 h-5 text-primary" />
+          <ArrowLeft className="w-5 h-5 text-white" />
         </Button>
         <div className="flex gap-2">
           <Button
             variant="secondary"
             size="icon"
-            onClick={() => setIsFavorite(!isFavorite)}
-            className="rounded-full shadow-xl bg-white/90 backdrop-blur-md border-none"
+            onClick={handleFavoriteToggle}
+            className="rounded-full shadow-xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:bg-slate-800/80"
           >
             <Heart
               className={cn(
                 "w-5 h-5 transition-colors",
-                isFavorite ? "fill-red-500 text-red-500" : "text-slate-400"
+                isFavorite ? "fill-red-500 text-red-500" : "text-slate-300"
               )}
             />
           </Button>
@@ -178,29 +256,29 @@ function DetailContent() {
             variant="secondary"
             size="icon"
             onClick={handleShare}
-            className="rounded-full shadow-xl bg-white/90 backdrop-blur-md border-none"
+            className="rounded-full shadow-xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:bg-slate-800/80"
           >
-            <Share2 className="w-5 h-5 text-slate-400" />
+            <Share2 className="w-5 h-5 text-slate-300" />
           </Button>
         </div>
       </div>
 
       {/* ── HERO con gradiente + nombre sobre imagen ────────────────────── */}
-      {/* La imagen es flujo normal (no absolute/fill) para evitar stacking context */}
-      <div className="relative w-full" style={{ height: "250px", backgroundColor: "#CBD5E1" }}>
+      <div className="relative w-full overflow-hidden" style={{ height: "300px", backgroundColor: "#1e293b" }}>
         {/* Skeleton */}
         {!imageLoaded && (
-          <div className="absolute inset-0 bg-slate-300 animate-pulse" style={{ zIndex: 0 }} />
+          <div className="absolute inset-0 bg-slate-800 animate-pulse" style={{ zIndex: 0 }} />
         )}
-        {/* Imagen en flujo normal — SIN position absolute, SIN z-index */}
+        {/* Imagen con parallax */}
         <img
           src={getSafeImageUrl(entrepreneur.imagenPerfil)}
           alt={entrepreneur.nombre}
           style={{
             width: "100%",
-            height: "250px",
+            height: "300px",
             objectFit: "cover",
             display: "block",
+            transform: `translateY(${scrollY * 0.25}px)`,
           }}
           className={cn("transition-opacity duration-700", imageLoaded ? "opacity-100" : "opacity-0")}
           onLoad={() => setImageLoaded(true)}
@@ -209,10 +287,10 @@ function DetailContent() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.60) 100%)",
+            background: "linear-gradient(to bottom, rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.9) 85%, rgba(15, 23, 42, 1) 100%)",
           }}
         />
-        {/* Nombre y badge */}
+        {/* Nombre, badge y status */}
         <div className="absolute bottom-0 left-0 right-0 px-6 pb-6 space-y-1.5">
           <h1
             className="text-white leading-tight tracking-tight"
@@ -220,32 +298,59 @@ function DetailContent() {
           >
             {entrepreneur.nombre}
           </h1>
-          <span
-            className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"
-            style={{
-              background: "rgba(255,255,255,0.18)",
-              color: "rgba(255,255,255,0.90)",
-              backdropFilter: "blur(4px)",
-              border: "1px solid rgba(255,255,255,0.25)",
-            }}
-          >
-            {entrepreneur.rubro}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"
+              style={{
+                background: "rgba(255,255,255,0.18)",
+                color: "rgba(255,255,255,0.90)",
+                backdropFilter: "blur(4px)",
+                border: "1px solid rgba(255,255,255,0.25)",
+              }}
+            >
+              {entrepreneur.rubro}
+            </span>
+            {openStatus.isOpen !== null && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                style={{
+                  background: openStatus.color === "green" ? "rgba(34,197,94,0.2)" : openStatus.color === "red" ? "rgba(239,68,68,0.2)" : "rgba(234,179,8,0.2)",
+                  color: openStatus.color === "green" ? "#4ade80" : openStatus.color === "red" ? "#f87171" : "#fbbf24",
+                  border: `1px solid ${openStatus.color === "green" ? "rgba(74,222,128,0.3)" : openStatus.color === "red" ? "rgba(248,113,113,0.3)" : "rgba(251,191,36,0.3)"}`,
+                }}>
+                <span className={`w-1.5 h-1.5 rounded-full ${openStatus.color === "green" ? "bg-green-400" : openStatus.color === "red" ? "bg-red-400" : "bg-yellow-400"} animate-pulse`} />
+                {openStatus.label}
+              </span>
+            )}
+            {distanceKm !== null ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ background: "rgba(211,182,115,0.15)", color: "#D3B673", border: "1px solid rgba(211,182,115,0.25)" }}>
+                📍 {formatDistance(distanceKm)}
+              </span>
+            ) : (
+              <button onClick={requestLocation} disabled={locLoading}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold opacity-70 hover:opacity-100 transition-opacity"
+                style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                {locLoading ? "..." : "📍 Ver distancia"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ── Contenido ───────────────────────────────────────────────────── */}
-      {/* position: relative + z-index: 1 para que supere al hero sin stacking context */}
       <div className="max-w-lg mx-auto space-y-4" style={{ position: "relative", zIndex: 1 }}>
 
         {/* ── Card única de información ────────────────────────────────── */}
         <div
           style={{
-            background: "white",
-            borderRadius: "16px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.10)",
+            background: "rgba(30, 41, 59, 0.6)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            borderRadius: "24px",
+            border: "1px solid rgba(211, 182, 115, 0.15)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
             margin: "-32px 16px 0 16px",
-            padding: "16px",
+            padding: "20px",
             position: "relative",
             zIndex: 2,
           }}
@@ -253,26 +358,26 @@ function DetailContent() {
           {/* Fila superior: logo + descripción */}
           <div className="flex items-start gap-4">
             <div
-              className="w-14 h-14 overflow-hidden shrink-0 bg-slate-50"
-              style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)" }}
+              className="w-16 h-16 overflow-hidden shrink-0 bg-slate-800"
+              style={{ borderRadius: "16px", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <img
-                src={getSafeImageUrl(entrepreneur.logoHeader, "/Logo3.png")}
+                src={getSafeImageUrl(entrepreneur.logoHeader, "/Logo2.png")}
                 alt={`Logo ${entrepreneur.nombre}`}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/Logo3.png";
+                  (e.target as HTMLImageElement).src = "/Logo2.png";
                 }}
               />
             </div>
             {esPremium ? (
-              <p className="font-medium text-gray-800 text-lg flex-1 pt-0.5">
+              <p className="font-medium text-slate-200 text-lg flex-1 pt-0.5 leading-snug">
                 {entrepreneur.descripcion}
               </p>
             ) : (
               <p
                 className="leading-relaxed flex-1 pt-0.5"
-                style={{ fontSize: "14px", color: "#64748B" }}
+                style={{ fontSize: "14px", color: "#94a3b8" }}
               >
                 {entrepreneur.descripcion}
               </p>
@@ -280,16 +385,16 @@ function DetailContent() {
           </div>
 
           {/* Divisor */}
-          <div style={{ borderTop: "1px solid #F1F5F9", margin: "14px 0" }} />
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", margin: "16px 0" }} />
 
           {/* Fila inferior: Sector + Horario */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
-                <MapPin className="w-4 h-4" />
+              <div className="w-10 h-10 bg-[#D3B673]/10 rounded-xl flex items-center justify-center shrink-0">
+                <MapPin className="w-4 h-4 text-[#D3B673]" />
               </div>
               <div className="min-w-0">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
                   Sector
                 </p>
                 {(() => {
@@ -301,17 +406,17 @@ function DetailContent() {
                       className="text-left w-full"
                     >
                       <p className={cn(
-                        "text-xs font-bold text-slate-700 leading-tight",
+                        "text-xs font-bold text-slate-200 leading-tight",
                         sectorExpanded ? "" : "truncate"
                       )}>
                         {texto}
                       </p>
-                      <span className="text-[10px] text-primary font-semibold mt-0.5 block">
+                      <span className="text-[10px] text-[#D3B673] font-semibold mt-1 block">
                         {sectorExpanded ? "Ver menos ↑" : "Ver más ↓"}
                       </span>
                     </button>
                   ) : (
-                    <p className="text-xs font-bold text-slate-700 leading-tight">
+                    <p className="text-xs font-bold text-slate-200 leading-tight">
                       {texto}
                     </p>
                   );
@@ -319,25 +424,45 @@ function DetailContent() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
-                <Clock className="w-4 h-4" />
+              <div className="w-10 h-10 bg-[#D3B673]/10 rounded-xl flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4 text-[#D3B673]" />
               </div>
               <div className="min-w-0">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
                   Horario
                 </p>
-                <p className="text-xs font-bold text-slate-700 leading-tight truncate">
-                  {entrepreneur.horario || "Consultar en local"}
-                </p>
+                <>
+                  <p className="text-xs font-bold text-slate-200 leading-tight truncate">
+                    {entrepreneur.horario || "Consultar"}
+                  </p>
+                  {openStatus.isOpen !== null && (
+                    <p className="text-[10px] font-bold leading-tight mt-0.5" style={{
+                      color: openStatus.color === "green" ? "#4ade80" : openStatus.color === "red" ? "#f87171" : "#fbbf24"
+                    }}>{openStatus.label}</p>
+                  )}
+                </>
               </div>
             </div>
           </div>
         </div>
 
+        {/* ── Galería de imágenes ──────────────────────────────────────── */}
+        {entrepreneur.imageUrls?.length > 1 && (
+          <section className="px-4 space-y-2 pt-2">
+            <h3 className="text-[11px] font-black text-[#D3B673] uppercase tracking-widest">Galería</h3>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+              {(entrepreneur.imageUrls as string[]).map((url: string, i: number) => (
+                <img key={i} src={getSafeImageUrl(url)} alt={`Foto ${i+1}`}
+                  className="h-32 w-32 object-cover rounded-2xl shrink-0 border border-white/10" />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ── Métodos de pago — oculto para patrocinadores ─────────────── */}
-        {!esPremium && <section className="space-y-2.5 px-4">
-          <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-            Aceptamos
+        {!esPremium && <section className="space-y-3 px-4">
+          <h2 className="text-[11px] font-black text-[#D3B673] uppercase tracking-widest">
+            Medios de Pago
           </h2>
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
             {(() => {
@@ -400,21 +525,22 @@ function DetailContent() {
         </section>}
 
         {/* ── Botones de acción + Banner (agrupados para gap ajustado) ── */}
-        <div className="space-y-2 px-4">
+        <div className="space-y-4 px-4 pt-2">
         <div className="space-y-3">
           {/* Botón principal — "Agendar / Cotizar" para premium, WhatsApp para estándar */}
           {esPremium ? (
             <button
               style={{
-                background: "#111827",
-                color: "white",
+                background: "linear-gradient(135deg, #D3B673, #BFA05C)",
+                color: "#0f172a",
                 width: "100%",
-                padding: "14px",
-                borderRadius: "16px",
-                fontSize: "15px",
-                fontWeight: 600,
+                padding: "16px",
+                borderRadius: "20px",
+                fontSize: "16px",
+                fontWeight: 900,
                 border: "none",
                 cursor: "pointer",
+                boxShadow: "0 8px 24px rgba(211, 182, 115, 0.25)",
               }}
               onClick={() => {
                 const link = entrepreneur.buttonLink || entrepreneur.urlCotizacion || entrepreneur.whatsapp;
@@ -428,134 +554,114 @@ function DetailContent() {
               {entrepreneur.buttonText || "Contactar"}
             </button>
           ) : (
-            <Button
-              className="w-full h-14 rounded-2xl font-black text-base gap-3 transition-all active:scale-95"
-              style={
-                entrepreneur.whatsapp
-                  ? {
-                      backgroundColor: "#25D366",
-                      color: "white",
-                      boxShadow: "0 8px 20px rgba(37,211,102,0.22)",
-                    }
-                  : {
-                      backgroundColor: "#E2E8F0",
-                      color: "#94A3B8",
-                      cursor: "default",
-                    }
-              }
-              onClick={() => {
-                if (entrepreneur.whatsapp) {
-                  window.open(
-                    `https://wa.me/${entrepreneur.whatsapp.replace(/\D/g, "")}`,
-                    "_blank"
-                  );
-                } else {
-                  toast({
-                    description:
-                      "Este emprendedor aún no ha agregado su WhatsApp. ¡Visítalos en el patio!",
-                  });
-                }
-              }}
-            >
-              <MessageCircle className="w-5 h-5 fill-current" />
-              {entrepreneur.whatsapp ? "Contactar por WhatsApp" : "WhatsApp no disponible"}
-            </Button>
+            hasWhatsApp && (
+              <Button
+                className="w-full h-14 rounded-2xl font-black text-base gap-3 transition-all active:scale-95 border-none"
+                style={{
+                  background: "linear-gradient(135deg, #25D366, #128C7E)",
+                  color: "white",
+                  boxShadow: "0 8px 24px rgba(37,211,102,0.25)",
+                }}
+                onClick={() => {
+                  let numero = entrepreneur.whatsapp.replace(/\D/g, "");
+                  if (!numero.startsWith("56")) {
+                    numero = "56" + numero;
+                  }
+                  window.open(`https://wa.me/${numero}`, "_blank");
+                }}
+              >
+                <MessageCircle className="w-5 h-5 fill-current" />
+                Contactar por WhatsApp
+              </Button>
+            )
           )}
 
-          {/* Instagram + Ver Mapa — misma altura que WhatsApp */}
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              className="h-14 rounded-2xl font-bold gap-2 transition-all active:scale-95 bg-white"
-              style={
-                entrepreneur.instagram
-                  ? {
-                      border: "1.5px solid #C9920A",
-                      color: "#C9920A",
-                      boxShadow: "none",
-                    }
-                  : {
-                      border: "1.5px solid #E2E8F0",
-                      color: "#94A3B8",
-                      opacity: 0.7,
-                    }
-              }
-              onClick={() => {
-                if (entrepreneur.instagram) {
-                  window.open(
-                    `https://instagram.com/${entrepreneur.instagram.replace("@", "")}`,
-                    "_blank"
-                  );
-                } else {
-                  toast({
-                    description:
-                      "Aún no hay Instagram registrado. ¡Encuéntralos en Patio Curauma!",
-                  });
-                }
-              }}
-            >
-              <Instagram className="w-5 h-5" />
-              {entrepreneur.instagram ? "Instagram" : "Sin Instagram"}
-            </Button>
-
-            <Button
-              className="h-14 rounded-2xl font-bold gap-2 transition-all active:scale-95 bg-white"
-              style={
-                entrepreneur.ubicacion
-                  ? {
-                      border: "1.5px solid #C9920A",
-                      color: "#C9920A",
-                      boxShadow: "none",
-                    }
-                  : {
-                      border: "1.5px solid #E2E8F0",
-                      color: "#94A3B8",
-                      opacity: 0.7,
-                    }
-              }
-              onClick={() => {
-                if (entrepreneur.ubicacion) {
-                  window.open(
-                    "https://maps.google.com/?q=-33.1316449,-71.564289",
-                    "_blank"
-                  );
-                } else {
-                  toast({
-                    description: "Pregunta por este local en la entrada del patio",
-                  });
-                }
-              }}
-            >
-              <MapPin className="w-5 h-5" />
-              {entrepreneur.ubicacion ? "Ver Mapa" : "Sin Ubicación"}
-            </Button>
-          </div>
+          {/* Instagram + Ver Mapa — renderizado condicional */}
+          {!esPremium && (hasInstagram || hasUbicacion) && (() => {
+            const buttons = [];
+            if (hasInstagram) {
+              buttons.push(
+                <Button
+                  key="instagram"
+                  className="h-14 rounded-2xl font-bold gap-2 transition-all active:scale-95 border-none"
+                  style={{
+                    background: "rgba(30, 41, 59, 0.6)",
+                    border: "1px solid rgba(211, 182, 115, 0.3)",
+                    color: "#D3B673",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  }}
+                  onClick={() => {
+                    window.open(
+                      `https://instagram.com/${entrepreneur.instagram.replace("@", "")}`,
+                      "_blank"
+                    );
+                  }}
+                >
+                  <Instagram className="w-5 h-5" />
+                  Instagram
+                </Button>
+              );
+            }
+            if (hasUbicacion) {
+              buttons.push(
+                <Button
+                  key="mapa"
+                  className="h-14 rounded-2xl font-bold gap-2 transition-all active:scale-95 border-none"
+                  style={{
+                    background: "rgba(30, 41, 59, 0.6)",
+                    border: "1px solid rgba(211, 182, 115, 0.3)",
+                    color: "#D3B673",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  }}
+                  onClick={() => {
+                    window.open(
+                      "https://maps.google.com/?q=-33.1316449,-71.564289",
+                      "_blank"
+                    );
+                  }}
+                >
+                  <MapPin className="w-5 h-5" />
+                  Ver Mapa
+                </Button>
+              );
+            }
+            return (
+              <div className={cn("grid gap-3", buttons.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
+                {buttons}
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── Banner de recompensas — oculto para patrocinadores ──────── */}
         {!esPremium && <div
-          className="rounded-3xl overflow-hidden"
-          style={{ boxShadow: "0 4px 16px rgba(184,134,11,0.20)" }}
+          className="rounded-3xl overflow-hidden mt-6"
+          style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
         >
           <div
             className="p-5 flex items-center gap-4"
-            style={{ backgroundColor: "#B8860B" }}
+            style={{
+              background: "linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))",
+              border: "1px solid rgba(211, 182, 115, 0.2)",
+              borderRadius: "24px"
+            }}
           >
             <div
               className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+              style={{ background: "rgba(211, 182, 115, 0.15)" }}
             >
-              <Gift className="w-[22px] h-[22px] text-amber-100" />
+              <Gift className="w-[22px] h-[22px] text-[#D3B673]" />
             </div>
             <div className="flex-1">
               <p
                 className="uppercase tracking-widest font-black"
-                style={{ fontSize: "10px", color: "rgba(255,240,180,0.85)" }}
+                style={{ fontSize: "11px", color: "#D3B673" }}
               >
                 Gana Recompensas
               </p>
               <p
-                className="font-bold leading-snug mt-0.5"
-                style={{ fontSize: "13px", color: "#FFF8E1" }}
+                className="font-medium leading-snug mt-0.5"
+                style={{ fontSize: "13px", color: "#cbd5e1" }}
               >
                 Muestra tu QR al pagar en este local para sumar sellos.
               </p>
@@ -566,14 +672,14 @@ function DetailContent() {
 
         {/* ── Comercios Asociados (Portal) ────────────────────────────── */}
         {entrepreneur.associatedShops && entrepreneur.associatedShops.length > 0 && (
-          <div className="space-y-4 pt-4" id="comercios-asociados">
-            <h2 className="text-lg font-semibold text-slate-800 px-4">Comercios Asociados</h2>
+          <div className="space-y-4 pt-6" id="comercios-asociados">
+            <h2 className="text-lg font-black text-white px-4">Comercios Asociados</h2>
             <AssociatedShopsCarousel shops={associatedShopsData} isLoading={loadingShops} />
           </div>
         )}
 
-        <footer className="text-center pt-6 pb-8">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+        <footer className="text-center pt-8 pb-10">
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
             Toda la información ha sido proporcionada
             <br />
             por el emprendedor de Patio Curauma.

@@ -345,113 +345,176 @@ export const registerFcmToken = onRequest(
   }
 );
 
-// ── FUNCIÓN: processGlobalBroadcast ───────────────────────────────────────────
+// ── Helper compartido: procesar un broadcast_messages doc ────────────────────
+
+async function executeBroadcast(
+  ref: admin.firestore.DocumentReference,
+  messageData: admin.firestore.DocumentData
+): Promise<void> {
+  const { titulo, mensaje, destino, tipo = "info", cta = "/" } = messageData;
+  logger.info(`Iniciando envío de comunicado: ${ref.id} → destino="${destino}" tipo="${tipo}"`);
+
+  await ref.update({ estado: "procesando", inicioProceso: new Date().toISOString() });
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const currentMonth = new Date().getMonth();
+  let docs: admin.firestore.QueryDocumentSnapshot[];
+
+  if (destino === "emprendedor") {
+    const snap = await db.collection("usuarios").where("rol", "==", "emprendedor").get();
+    docs = snap.docs.filter(d => d.data().baneado !== true);
+  } else {
+    const snap = await db.collection("usuarios").where("baneado", "!=", true).get();
+    if (destino === "cerca_de_premio") {
+      docs = snap.docs.filter(d => (d.data().comprasRealizadas ?? 0) >= 4);
+    } else if (destino === "inactivos") {
+      docs = snap.docs.filter(d => {
+        const last: string | undefined = d.data().lastPurchaseAt;
+        return !last || last < thirtyDaysAgo;
+      });
+    } else if (destino === "activos_recientes") {
+      docs = snap.docs.filter(d => {
+        const last: string | undefined = d.data().lastPurchaseAt;
+        return !!last && last >= thirtyDaysAgo;
+      });
+    } else if (destino === "cumpleanios_mes") {
+      docs = snap.docs.filter(d => {
+        const fn = d.data().fechaNacimiento;
+        if (!fn) return false;
+        const date = fn instanceof admin.firestore.Timestamp ? fn.toDate() : new Date(fn);
+        return !isNaN(date.getTime()) && date.getMonth() === currentMonth;
+      });
+    } else {
+      docs = snap.docs; // "todos"
+    }
+  }
+
+  let processed = 0;
+  let pushSent = 0;
+  let errors = 0;
+  const tokens: string[] = [];
+  const BATCH_SIZE = 500;
+
+  const androidPriority: Record<string, "high" | "normal"> = {
+    urgente: "high", promo: "high", info: "normal", sorteo: "normal",
+  };
+
+  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+    const batchDocs = docs.slice(i, i + BATCH_SIZE);
+    const batch = db.batch();
+
+    batchDocs.forEach(userDoc => {
+      const userData = userDoc.data();
+      const notifRef = db.collection("usuarios").doc(userDoc.id).collection("notificaciones").doc();
+      batch.set(notifRef, {
+        titulo,
+        mensaje,
+        fecha: new Date().toISOString(),
+        tipo: `BROADCAST_${tipo.toUpperCase()}`,
+        leida: false,
+        fuente: "director_panel",
+        cta,
+      });
+      if (userData.fcmToken) tokens.push(userData.fcmToken);
+      processed++;
+    });
+
+    await batch.commit();
+  }
+
+  const BASE_URL = "https://club-patio-curauma.vercel.app";
+  const pushLink = cta.startsWith("http") ? cta : `${BASE_URL}${cta || "/"}`;
+
+  for (let i = 0; i < tokens.length; i += 500) {
+    const tokenBatch = tokens.slice(i, i + 500);
+    if (tokenBatch.length === 0) continue;
+    try {
+      const response = await messaging.sendEachForMulticast({
+        tokens: tokenBatch,
+        notification: { title: titulo.replace(/^[^\w\s]+\s/, ""), body: mensaje },
+        data: { type: `BROADCAST_${tipo.toUpperCase()}`, cta },
+        android: {
+          priority: androidPriority[tipo] ?? "normal",
+          notification: { channelId: "club_patio_marketing", icon: "ic_notification", color: "#4EAD1F" },
+        },
+        apns: { payload: { aps: { badge: 1, sound: tipo === "urgente" ? "alert" : "default" } } },
+        webpush: { fcmOptions: { link: pushLink } },
+      });
+      pushSent += response.successCount;
+      errors += response.failureCount;
+    } catch (e) {
+      logger.error("Error enviando push multicast", e);
+      errors += tokenBatch.length;
+    }
+  }
+
+  await ref.update({
+    estado: "completado",
+    finProceso: new Date().toISOString(),
+    stats: { totalNotificados: processed, pushSent, errors },
+  });
+
+  logger.info(`Comunicado ${ref.id} completado. InApp: ${processed}, Push: ${pushSent}, Errores: ${errors}`);
+}
+
+// ── FUNCIÓN: processGlobalBroadcast (trigger inmediato) ───────────────────────
 export const processGlobalBroadcast = onDocumentCreated(
   {
     document: "broadcast_messages/{messageId}",
     region: "us-central1",
     timeoutSeconds: 540,
-    memory: "512MiB"
+    memory: "512MiB",
   },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
-
     const messageData = snap.data();
     if (messageData.estado !== "pendiente") return;
 
-    logger.info(`Iniciando envío de comunicado global: ${snap.id}`);
-    const { titulo, mensaje, destino } = messageData;
-
     try {
-      // Marcar como en proceso
-      await snap.ref.update({ estado: "procesando", inicioProceso: new Date().toISOString() });
-
-      let query: admin.firestore.Query = db.collection("usuarios").where("baneado", "!=", true);
-      
-      if (destino === "emprendedor") {
-        query = db.collection("usuarios").where("rol", "==", "emprendedor");
-      }
-
-      const usersSnap = await query.get();
-      // Filtrar baneados manualmente si la query fue por rol (para emprendedores)
-      const docs = usersSnap.docs.filter(d => destino === "emprendedor" ? d.data().baneado !== true : true);
-
-      let processed = 0;
-      let pushSent = 0;
-      let errors = 0;
-      const BATCH_SIZE = 500; // Límite de Firestore batch
-      const tokens: string[] = [];
-
-      for (let i = 0; i < docs.length; i += BATCH_SIZE) {
-        const batchDocs = docs.slice(i, i + BATCH_SIZE);
-        const batch = db.batch();
-
-        batchDocs.forEach(userDoc => {
-          const userData = userDoc.data();
-          const notifRef = db.collection("usuarios").doc(userDoc.id).collection("notificaciones").doc();
-          
-          batch.set(notifRef, {
-            titulo,
-            mensaje,
-            fecha: new Date().toISOString(),
-            tipo: "BROADCAST",
-            leida: false,
-            fuente: "director_panel"
-          });
-
-          if (userData.fcmToken) {
-            tokens.push(userData.fcmToken);
-          }
-          processed++;
-        });
-
-        await batch.commit();
-      }
-
-      // Enviar pushes en lotes de 500
-      for (let i = 0; i < tokens.length; i += 500) {
-        const tokenBatch = tokens.slice(i, i + 500);
-        if (tokenBatch.length > 0) {
-          try {
-            const response = await messaging.sendEachForMulticast({
-              tokens: tokenBatch,
-              notification: {
-                title: titulo.replace('📢 ', ''), // Limpiar emoji si se prefiere
-                body: mensaje,
-              },
-              data: { type: "BROADCAST" },
-              android: {
-                priority: "high",
-                notification: { channelId: "club_patio_marketing", icon: "ic_notification", color: "#4EAD1F" },
-              },
-              apns: {
-                payload: { aps: { badge: 1, sound: "default" } },
-              },
-            });
-            pushSent += response.successCount;
-            errors += response.failureCount;
-          } catch (e) {
-            logger.error("Error enviando push multicast", e);
-            errors += tokenBatch.length;
-          }
-        }
-      }
-
-      await snap.ref.update({
-        estado: "completado",
-        finProceso: new Date().toISOString(),
-        stats: { totalNotificados: processed, pushSent, errors }
-      });
-
-      logger.info(`Comunicado ${snap.id} completado. InApp: ${processed}, Push: ${pushSent}, Errores: ${errors}`);
-
+      await executeBroadcast(snap.ref, messageData);
     } catch (error) {
       logger.error(`Error procesando comunicado ${snap.id}:`, error);
       await snap.ref.update({
         estado: "error",
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+);
+
+// ── FUNCIÓN: processScheduledBroadcasts (cron cada 5 min) ────────────────────
+export const processScheduledBroadcasts = onSchedule(
+  {
+    schedule: "every 5 minutes",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    const now = new Date().toISOString();
+    const snap = await db.collection("broadcast_messages")
+      .where("estado", "==", "programado")
+      .get();
+
+    const ready = snap.docs.filter(d => {
+      const enviarEn: string | undefined = d.data().enviarEn;
+      return !!enviarEn && enviarEn <= now;
+    });
+
+    if (ready.length === 0) return;
+    logger.info(`Procesando ${ready.length} comunicado(s) programado(s)...`);
+
+    for (const docSnap of ready) {
+      try {
+        await executeBroadcast(docSnap.ref, docSnap.data());
+      } catch (error) {
+        logger.error(`Error procesando comunicado programado ${docSnap.id}:`, error);
+        await docSnap.ref.update({
+          estado: "error",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 );

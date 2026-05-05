@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Users, Ticket, TrendingUp,
   ArrowLeft, Download, Send, Plus, Trash2,
-  Edit3, Trophy, Megaphone, Loader2, Store, Crown, Check, X, ImagePlus, FolderOpen
+  Edit3, Trophy, Megaphone, Loader2, Store, Crown, Check, X, ImagePlus, FolderOpen, Copy, QrCode
 } from "lucide-react";
+import QRCode from "react-qr-code";
 import { Switch } from "@/components/ui/switch";
 import { useRouter } from "next/navigation";
 import {
@@ -41,7 +42,11 @@ export default function DirectorPage() {
   const [activatingStore, setActivatingStore] = useState(false);
   const [ranking, setRanking] = useState<any[]>([]);
   const [premios, setPremios] = useState<any[]>([]);
-  const [mensajeGlobal, setMensajeGlobal] = useState({ titulo: "", cuerpo: "", destino: "todos" });
+  const [mensajeGlobal, setMensajeGlobal] = useState({
+    titulo: "", cuerpo: "", destino: "todos", enviarEn: "",
+    tipo: "info" as "info" | "urgente" | "promo" | "sorteo",
+    cta: "",
+  });
 
   const [vendorToDelete, setVendorToDelete] = useState<{ id: string; nombre: string } | null>(null);
 
@@ -53,6 +58,7 @@ export default function DirectorPage() {
   const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
   const [deletingVendor, setDeletingVendor] = useState(false);
   const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState<{ id: string; nombre: string } | null>(null);
   const [vendorList, setVendorList] = useState<{ id: string; nombre: string }[]>([]);
   const [premioForm, setPremioForm] = useState<{
     id: string | null;
@@ -208,24 +214,65 @@ export default function DirectorPage() {
       toast({ variant: "destructive", title: "Campos incompletos", description: "Escribe un título y un mensaje." });
       return;
     }
+    const isProgramado = !!mensajeGlobal.enviarEn && new Date(mensajeGlobal.enviarEn) > new Date();
     setLoading(true);
     try {
-      // Guardar el mensaje en broadcast_messages para que la Cloud Function lo procese
+      const tipoEmoji: Record<string, string> = { info: "📢", urgente: "🚨", promo: "🎉", sorteo: "🎟️" };
       await addDoc(collection(db, "broadcast_messages"), {
-        titulo: `📢 ${mensajeGlobal.titulo}`,
+        titulo: `${tipoEmoji[mensajeGlobal.tipo] ?? "📢"} ${mensajeGlobal.titulo}`,
         mensaje: mensajeGlobal.cuerpo,
         destino: mensajeGlobal.destino,
+        tipo: mensajeGlobal.tipo,
+        cta: mensajeGlobal.cta || "/",
         fechaCreacion: new Date().toISOString(),
-        estado: "pendiente"
+        estado: isProgramado ? "programado" : "pendiente",
+        ...(isProgramado && { enviarEn: mensajeGlobal.enviarEn }),
       });
-      
-      toast({ title: "¡Comunicado encolado!", description: "El mensaje se enviará en segundo plano a la brevedad." });
-      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos" });
+      toast({
+        title: isProgramado ? "¡Comunicado programado!" : "¡Comunicado encolado!",
+        description: isProgramado
+          ? `Se enviará el ${new Date(mensajeGlobal.enviarEn).toLocaleString("es-CL")}.`
+          : "El mensaje se enviará en segundo plano a la brevedad.",
+      });
+      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "" });
     } catch (error) {
+      console.error("Error encolando comunicado:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo encolar el comunicado." });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadQR = (nombre: string) => {
+    const svg = document.querySelector("#qr-codigo-mostrador svg");
+    if (!svg) return;
+    
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = img.width + 40;
+      canvas.height = img.height + 40;
+      
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 20, 20);
+        
+        const pngFile = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        
+        const nombreTiendaFiltrado = nombre.toLowerCase().replace(/[^a-z0-9]/g, "_");
+        downloadLink.download = `codigo_qr_${nombreTiendaFiltrado}.png`;
+        
+        downloadLink.href = pngFile;
+        downloadLink.click();
+      }
+    };
+    
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
   const handleOpenPremioModal = (premio?: any) => {
@@ -483,14 +530,38 @@ export default function DirectorPage() {
           <Card className="border-none shadow-xl bg-primary text-white rounded-[2rem] overflow-hidden">
             <CardContent className="p-6 space-y-4">
               <div className="space-y-2">
-                <Input 
-                  placeholder="Título del anuncio..." 
+                {/* Tipo de comunicado */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {([
+                    { value: "info",    emoji: "📢", label: "Info" },
+                    { value: "urgente", emoji: "🚨", label: "Urgente" },
+                    { value: "promo",   emoji: "🎉", label: "Promo" },
+                    { value: "sorteo",  emoji: "🎟️", label: "Sorteo" },
+                  ] as const).map(({ value, emoji, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setMensajeGlobal({...mensajeGlobal, tipo: value})}
+                      className={`flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all ${
+                        mensajeGlobal.tipo === value
+                          ? "bg-white text-primary shadow-sm"
+                          : "bg-white/10 text-white/70 hover:bg-white/20"
+                      }`}
+                    >
+                      <span className="text-base leading-none">{emoji}</span>
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <Input
+                  placeholder="Título del anuncio..."
                   className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl"
                   value={mensajeGlobal.titulo}
                   onChange={(e) => setMensajeGlobal({...mensajeGlobal, titulo: e.target.value})}
                 />
-                <Textarea 
-                  placeholder="Escribe el mensaje..." 
+                <Textarea
+                  placeholder="Escribe el mensaje..."
                   className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl min-h-[80px]"
                   value={mensajeGlobal.cuerpo}
                   onChange={(e) => setMensajeGlobal({...mensajeGlobal, cuerpo: e.target.value})}
@@ -502,17 +573,75 @@ export default function DirectorPage() {
                 >
                   <option value="todos" className="text-slate-800">Todos los socios</option>
                   <option value="emprendedor" className="text-slate-800">Solo Emprendedores</option>
+                  <option value="cerca_de_premio" className="text-slate-800">Cerca de su premio (4+ sellos)</option>
+                  <option value="inactivos" className="text-slate-800">Inactivos (+30 días sin compras)</option>
+                  <option value="activos_recientes" className="text-slate-800">Activos en los últimos 30 días</option>
+                  <option value="cumpleanios_mes" className="text-slate-800">Cumpleaños este mes 🎂</option>
                 </select>
+
+                {/* CTA — destino al tocar la notificación */}
+                <select
+                  value={mensajeGlobal.cta}
+                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, cta: e.target.value})}
+                  className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
+                >
+                  <option value="" className="text-slate-800">Al tocar → Inicio</option>
+                  <option value="/premios" className="text-slate-800">Al tocar → Mis Premios</option>
+                  <option value="/directorio" className="text-slate-800">Al tocar → Directorio de locales</option>
+                  <option value="/ruta" className="text-slate-800">Al tocar → Ver Mapa</option>
+                  <option value="/perfil" className="text-slate-800">Al tocar → Mi Perfil</option>
+                </select>
+
+                {/* Programación diferida */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs text-white/70 font-bold">Programar envío</span>
+                  <Switch
+                    checked={!!mensajeGlobal.enviarEn}
+                    onCheckedChange={(v) => {
+                      if (v) {
+                        const d = new Date(Date.now() + 60 * 60 * 1000);
+                        setMensajeGlobal({...mensajeGlobal, enviarEn: d.toISOString().slice(0, 16)});
+                      } else {
+                        setMensajeGlobal({...mensajeGlobal, enviarEn: ""});
+                      }
+                    }}
+                  />
+                </div>
+                {mensajeGlobal.enviarEn && (
+                  <input
+                    type="datetime-local"
+                    value={mensajeGlobal.enviarEn}
+                    min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
+                    onChange={(e) => setMensajeGlobal({...mensajeGlobal, enviarEn: e.target.value})}
+                    className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 text-sm outline-none focus:ring-2 focus:ring-white/50 [color-scheme:dark]"
+                  />
+                )}
               </div>
-              <Button 
+              <Button
                 onClick={handleSendGlobalMessage}
                 disabled={loading}
                 className="w-full bg-white text-primary hover:bg-white/90 font-black rounded-xl h-12 gap-2"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Enviar Notificación Push
+                {mensajeGlobal.enviarEn ? "Programar Comunicado" : "Enviar Notificación Push"}
               </Button>
-              <p className="text-[9px] text-center text-white/60 font-medium">Este mensaje será procesado en segundo plano y llegará a {mensajeGlobal.destino === "todos" ? "todos los dispositivos" : "los dispositivos de emprendedores"}.</p>
+              {(() => {
+                const labels: Record<string, string> = {
+                  todos: "todos los socios",
+                  emprendedor: "emprendedores",
+                  cerca_de_premio: "socios con 4+ sellos",
+                  inactivos: "socios inactivos (+30 días)",
+                  activos_recientes: "socios activos en 30 días",
+                };
+                const dest = labels[mensajeGlobal.destino] ?? mensajeGlobal.destino;
+                return (
+                  <p className="text-[9px] text-center text-white/60 font-medium">
+                    {mensajeGlobal.enviarEn
+                      ? `Programado para ${new Date(mensajeGlobal.enviarEn).toLocaleString("es-CL")} → ${dest}.`
+                      : `Se enviará en segundo plano a ${dest}.`}
+                  </p>
+                );
+              })()}
             </CardContent>
           </Card>
         </section>
@@ -647,6 +776,14 @@ export default function DirectorPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/10"
+                            onClick={() => setQrModalOpen({ id: profile.id, nombre: nombre })}
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </Button>
                           {isSaving && <Loader2 className="w-4 h-4 animate-spin text-amber-500" />}
                           <Switch
                             checked={isPremium}
@@ -950,6 +1087,53 @@ export default function DirectorPage() {
                 <Button onClick={handleSavePremio} disabled={loading} className="flex-1 h-12 rounded-xl font-bold bg-primary text-white hover:bg-primary/90">
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL QR */}
+      {qrModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm rounded-[2rem] border-none shadow-2xl animate-in zoom-in-95 duration-300">
+            <CardContent className="p-8 space-y-6 text-center">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-black text-slate-800 text-left line-clamp-1">QR de {qrModalOpen.nombre}</h2>
+                <Button variant="ghost" size="icon" onClick={() => setQrModalOpen(null)} className="shrink-0 -mr-2">
+                  <X className="w-5 h-5 text-slate-400" />
+                </Button>
+              </div>
+              <div id="qr-codigo-mostrador" className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto">
+                <QRCode
+                  value={`https://club-patio-curauma.vercel.app/canje?localId=${qrModalOpen.id}`}
+                  size={200}
+                  fgColor="#000000"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="flex flex-col gap-3">
+                <Button 
+                  className="w-full h-12 rounded-xl font-bold bg-primary text-white gap-2 shadow-md hover:scale-[1.02] transition-all"
+                  onClick={() => handleDownloadQR(qrModalOpen.nombre)}
+                >
+                  <Download className="w-5 h-5" />
+                  Descargar Código QR
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full h-12 rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 gap-2"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`https://club-patio-curauma.vercel.app/canje?localId=${qrModalOpen.id}`);
+                    toast({ title: "Enlace copiado", description: "¡Listo para compartir!" });
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                  Copiar Enlace
+                </Button>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
+                  ID: {qrModalOpen.id.substring(0, 8)}...
+                </p>
               </div>
             </CardContent>
           </Card>

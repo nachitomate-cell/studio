@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, updateDoc, doc, deleteDoc, onSnapshot, limit, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Target, FlaskConical, Navigation, Sparkles, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2 } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -14,14 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
-// Importaciones de utilidades previas
-import { procesarProximidadGeofence, verificarYGenerarRecordatorioIA } from "@/lib/ai-actions";
 import { registrarCompra } from "@/lib/puntos";
-import { enviarNotificacionLocal } from "@/lib/notificaciones";
 
 const MASTER_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
 const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
-const TEST_TARGET_EMAIL = "nachitomate@gmail.com";
+
+const MAX_PIN_ATTEMPTS = 3;
+const PIN_LOCKOUT_SECONDS = 60;
 
 const PIN_MAP: Record<string, string> = {
   [MASTER_EMAIL]: (process.env.NEXT_PUBLIC_MOD_PIN_ADMIN || "482917").trim(),
@@ -35,6 +34,7 @@ interface Cliente {
   telefono: string;
   fechaNacimiento: string;
   rol?: string;
+  sellos?: number;
 }
 
 export default function ModeradorPage() {
@@ -49,24 +49,20 @@ export default function ModeradorPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
 
-  // Estados Herramientas Restablecidas
-  const [testUser, setTestUser] = useState<any>(null);
-  const [isSearchingTestUser, setIsSearchingTestUser] = useState(false);
+  // Estados panel
   const [searchTerm, setSearchTerm] = useState("");
   const [foundUser, setFoundUser] = useState<any>(null);
   const [loadingRole, setLoadingRole] = useState(false);
   const [recentTrans, setRecentTrans] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-  
-  // PIN de acceso
+
+  // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState(false);
-
-  // Estados Demo Celular
-  const [showPhoneMockup, setShowPhoneMockup] = useState(false);
-  const [phoneMessage, setPhoneMessage] = useState({ type: '', title: '', text: '' });
+  const [pinAttempts, setPinAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [lockdownSeconds, setLockdownSeconds] = useState(0);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -89,7 +85,6 @@ export default function ModeradorPage() {
       setCurrentUserEmail((user.email ?? "").trim().toLowerCase());
       setLoadingConfig(false);
       fetchClientes();
-      fetchTestUser();
     });
 
     // Suscripción al Radar de Anomalías (Logs reales si existen en 'system_logs')
@@ -105,6 +100,38 @@ export default function ModeradorPage() {
       unsubscribeTrans();
     };
   }, [router]);
+
+  // Countdown para el bloqueo del PIN
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const id = setInterval(() => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockedUntil(null);
+        setPinAttempts(0);
+        setLockdownSeconds(0);
+      } else {
+        setLockdownSeconds(remaining);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lockedUntil]);
+
+  const handlePinSubmit = () => {
+    if (lockedUntil && Date.now() < lockedUntil) return;
+    const expected = currentUserEmail ? PIN_MAP[currentUserEmail] : null;
+    if (expected && pinInput.trim() === expected) {
+      setPinVerified(true);
+      setPinAttempts(0);
+    } else {
+      const next = pinAttempts + 1;
+      setPinAttempts(next);
+      setPinInput("");
+      if (next >= MAX_PIN_ATTEMPTS) {
+        setLockedUntil(Date.now() + PIN_LOCKOUT_SECONDS * 1000);
+      }
+    }
+  };
 
   const fetchClientes = async () => {
     try {
@@ -140,6 +167,7 @@ export default function ModeradorPage() {
           telefono: d.telefono || "Sin teléfono",
           fechaNacimiento: formattedDate,
           rol: d.rol || "cliente",
+          sellos: d.comprasRealizadas || 0,
         };
       });
 
@@ -149,103 +177,6 @@ export default function ModeradorPage() {
       console.error("Error al obtener clientes:", error);
     } finally {
       setLoadingData(false);
-    }
-  };
-
-  const fetchTestUser = async () => {
-    setIsSearchingTestUser(true);
-    try {
-      const q = query(
-        collection(db, "usuarios"), 
-        where("correo", "==", TEST_TARGET_EMAIL.toLowerCase().trim())
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const d = snap.docs[0];
-        const data = d.data();
-        setTestUser({ id: d.id, nombre: data.nombre || "Socio de Prueba", sellos: data.comprasRealizadas || 0 });
-      } else {
-        setTestUser(null);
-      }
-    } catch (e) {
-      console.error("Error buscando usuario de prueba:", e);
-    } finally {
-      setIsSearchingTestUser(false);
-    }
-  };
-
-  // --- Handlers de Herramientas Restablecidas --- //
-
-  const runGeofenceDemo = async () => {
-    if (!testUser) return;
-    setActionLoading(true);
-    
-    // Solicitamos permiso si no se tiene
-    if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
-       await Notification.requestPermission();
-    }
-    
-    await new Promise(res => setTimeout(res, 1000)); // Simulador visual de red
-    
-    // Ejecución silente del evento real por detrás (opcional)
-    try {
-      await procesarProximidadGeofence(testUser.id, testUser.nombre, testUser.sellos, true, true);
-    } catch(e) {}
-    
-    const title = "¡Estás cerca de Patio Curauma! 📍";
-    const body = "Detectamos que estás a pocos metros. ¡Pasa por Murú Cosmética y suma tu sello del día! 🌿";
-
-    // 1. Unificando Lógica: Usamos el mismo pipeline de subcolección que usan los sellos
-    try {
-      await enviarNotificacionLocal(testUser.id, title, body);
-    } catch(e) { console.error("Error al disparar notificación real", e); }
-
-    // Disparar Modal Interactivo tipo "Celular" de fondo para la demo de admin
-    setPhoneMessage({
-      type: 'Notificación Push Geofence',
-      title: title,
-      text: body
-    });
-    setShowPhoneMockup(true);
-    setActionLoading(false);
-  };
-
-  const runAIDemo = async (tipo: string, mensaje: string) => {
-    if (!testUser) return;
-    setActionLoading(true);
-    
-    // Simular el tiempo de respuesta IA "escribiendo"
-    await new Promise(res => setTimeout(res, 1500));
-    
-    const title = (tipo === 'Cumpleaños' ? '🎉 ' : tipo === 'Fidelización' ? '🔥 ' : '☕ ') + `Notificación: ${tipo}`;
-    
-    // 1. Unificando Lógica: Usamos el mismo pipeline de subcolección que usan los sellos
-    try {
-      await enviarNotificacionLocal(testUser.id, title, mensaje);
-    } catch(e) { console.error("Error al disparar IA real", e); }
-    
-    toast({ title: `✨ Mensaje IA enviado: ${tipo}`, description: `El mensaje interactivo fue despachado a la base de datos de ${TEST_TARGET_EMAIL}.` });
-
-    setPhoneMessage({
-      type: 'Asistente IA Smart',
-      title: title,
-      text: mensaje
-    });
-    setShowPhoneMockup(true);
-    setActionLoading(false);
-  };
-
-  const runAutoStampTest = async () => {
-    if (!testUser) return;
-    setActionLoading(true);
-    try {
-      await registrarCompra(db, testUser.id, "TEST_LAB_ADMIN");
-      toast({ title: "Sello Sumado", description: `Se acreditó +1 sello automatizado a ${TEST_TARGET_EMAIL}` });
-      fetchTestUser(); // Actualizar contador localmente
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Falló el otorgamiento de sello." });
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -306,21 +237,32 @@ export default function ModeradorPage() {
     }
   };
 
-  // TODO: Implementar Cloud Function para borrar también de Firebase Auth en v2.
   const handleDeleteUser = async (cliente: Cliente) => {
     const confirmed = window.confirm(
-      `¿Estás seguro de que deseas eliminar la base de datos de ${cliente.nombre}? Esto borrará sus sellos y su rol.`
+      `¿Eliminar a ${cliente.nombre}? Esto borrará sus datos de Firestore Y su acceso de inicio de sesión.`
     );
     if (!confirmed) return;
 
     try {
-      await deleteDoc(doc(db, "usuarios", cliente.id));
-      // Actualiza el estado local para eliminar al usuario de la tabla inmediatamente
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión activa");
+
+      const res = await fetch("/api/admin/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: cliente.id, idToken }),
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error);
+      }
+
       setClientes((prev) => prev.filter((c) => c.id !== cliente.id));
-      toast({ title: "Usuario eliminado de la base de datos", description: `El registro de ${cliente.nombre} fue eliminado correctamente.` });
-    } catch (error) {
+      toast({ title: "Usuario eliminado", description: `${cliente.nombre} fue eliminado del sistema completo.` });
+    } catch (error: any) {
       console.error("Error al eliminar usuario:", error);
-      toast({ variant: "destructive", title: "Error al eliminar", description: "No se pudo eliminar el usuario de Firestore." });
+      toast({ variant: "destructive", title: "Error al eliminar", description: error.message || "No se pudo eliminar el usuario." });
     }
   };
 
@@ -354,50 +296,57 @@ export default function ModeradorPage() {
   }
 
   if (!pinVerified) {
-    const handlePinSubmit = () => {
-      const expected = currentUserEmail ? PIN_MAP[currentUserEmail] : null;
-      if (expected && pinInput.trim() === expected) {
-        setPinVerified(true);
-        setPinError(false);
-      } else {
-        setPinError(true);
-        setPinInput("");
-      }
-    };
+    const isLocked = !!lockedUntil && Date.now() < lockedUntil;
+    const remainingAttempts = MAX_PIN_ATTEMPTS - pinAttempts;
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 animate-in fade-in duration-500">
         <div className="w-full max-w-sm space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <ShieldCheck className="w-8 h-8 text-primary" />
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto transition-colors ${isLocked ? "bg-red-100" : "bg-primary/10"}`}>
+              <ShieldCheck className={`w-8 h-8 transition-colors ${isLocked ? "text-red-500" : "text-primary"}`} />
             </div>
             <h1 className="text-xl font-black text-slate-800">Verificación de acceso</h1>
             <p className="text-xs text-slate-400 font-medium">Ingresa tu PIN personal para continuar</p>
           </div>
 
           <div className="bg-white rounded-3xl shadow-lg p-8 space-y-5">
-            <Input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="• • • • • •"
-              value={pinInput}
-              onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, "")); setPinError(false); }}
-              onKeyDown={(e) => e.key === "Enter" && handlePinSubmit()}
-              className={`text-center text-2xl tracking-[0.5em] font-black h-14 rounded-2xl border-2 ${pinError ? "border-red-400 bg-red-50" : "border-slate-200"}`}
-              autoFocus
-            />
-            {pinError && (
-              <p className="text-xs text-red-500 font-bold text-center animate-in shake">PIN incorrecto. Intenta de nuevo.</p>
+            {isLocked ? (
+              <div className="text-center space-y-3 py-2">
+                <p className="text-5xl font-black text-red-500 tabular-nums">{lockdownSeconds}s</p>
+                <p className="text-sm font-bold text-red-600">Acceso bloqueado temporalmente</p>
+                <p className="text-xs text-slate-400">Demasiados intentos fallidos. Espera para volver a intentarlo.</p>
+              </div>
+            ) : (
+              <>
+                <Input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="• • • • • •"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => e.key === "Enter" && handlePinSubmit()}
+                  className={`text-center text-2xl tracking-[0.5em] font-black h-14 rounded-2xl border-2 transition-colors ${pinAttempts > 0 ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                  autoFocus
+                />
+                {pinAttempts > 0 && (
+                  <p className="text-xs text-red-500 font-bold text-center">
+                    PIN incorrecto.{" "}
+                    {remainingAttempts > 0
+                      ? `${remainingAttempts} intento${remainingAttempts !== 1 ? "s" : ""} restante${remainingAttempts !== 1 ? "s" : ""}.`
+                      : ""}
+                  </p>
+                )}
+                <Button
+                  onClick={handlePinSubmit}
+                  disabled={pinInput.length < 4}
+                  className="w-full h-12 rounded-2xl font-black text-base bg-primary hover:bg-primary/90"
+                >
+                  Ingresar
+                </Button>
+              </>
             )}
-            <Button
-              onClick={handlePinSubmit}
-              disabled={pinInput.length < 4}
-              className="w-full h-12 rounded-2xl font-black text-base bg-primary hover:bg-primary/90"
-            >
-              Ingresar
-            </Button>
           </div>
         </div>
       </div>
@@ -430,7 +379,7 @@ export default function ModeradorPage() {
         </div>
 
         {/* NAVEGACIÓN RÁPIDA */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
               href: "/moderador/sellos",
@@ -447,6 +396,22 @@ export default function ModeradorPage() {
               desc: "Filtros de cumpleaños · Exportar lista",
               color: "#6366f1",
               bg: "#6366f112",
+            },
+            {
+              href: "/admin-logs",
+              emoji: "🔍",
+              titulo: "Logs del Sistema",
+              desc: "Eventos · Actividad en tiempo real",
+              color: "#0ea5e9",
+              bg: "#0ea5e912",
+            },
+            {
+              href: "/moderador/auditoria",
+              emoji: "📋",
+              titulo: "Auditoría",
+              desc: "Exportar datos completos · Excel",
+              color: "#10b981",
+              bg: "#10b98112",
             },
           ].map(({ href, emoji, titulo, desc, color, bg }) => (
             <Link key={href} href={href}>
@@ -514,6 +479,7 @@ export default function ModeradorPage() {
                     <th scope="col" className="px-8 py-5">Correo Electrónico</th>
                     <th scope="col" className="px-8 py-5">Teléfono</th>
                     <th scope="col" className="px-8 py-5">Nacimiento</th>
+                    <th scope="col" className="px-8 py-5">Sellos</th>
                     {currentUserEmail === MASTER_EMAIL && (
                       <th scope="col" className="px-8 py-5">Acciones</th>
                     )}
@@ -541,6 +507,11 @@ export default function ModeradorPage() {
                             cliente.fechaNacimiento
                           )}
                         </td>
+                        <td className="px-8 py-5">
+                          <span className="inline-flex items-center justify-center bg-primary/10 text-primary font-black px-3 py-1 rounded-full text-xs">
+                            {cliente.sellos} sellos
+                          </span>
+                        </td>
                         {currentUserEmail === MASTER_EMAIL && (
                           <td className="px-8 py-5">
                             <button
@@ -557,7 +528,7 @@ export default function ModeradorPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={currentUserEmail === MASTER_EMAIL ? 5 : 4} className="px-8 py-16 text-center">
+                      <td colSpan={currentUserEmail === MASTER_EMAIL ? 6 : 5} className="px-8 py-16 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <AlertTriangle className="w-8 h-8 text-slate-300" />
                           <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No hay clientes registrados en la base de datos.</p>
@@ -571,79 +542,8 @@ export default function ModeradorPage() {
           </div>
         </Card>
 
-        {/* PANELES DE HERRAMIENTAS RESTAURADOS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t-2 border-slate-100 border-dashed mt-8">
-          
-          {/* T1. ZONA DE PRUEBAS */}
-          <Card className="border-none shadow-xl shadow-blue-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-blue-100">
-            <div className="bg-blue-50/50 p-6 border-b border-blue-100/50 flex flex-col gap-2">
-              <div className="flex items-center gap-3 text-blue-600">
-                <FlaskConical className="w-5 h-5" />
-                <h3 className="font-bold text-lg">Zona de Pruebas</h3>
-              </div>
-              <p className="text-xs text-slate-500 font-medium line-clamp-2">Herramientas dirigidas exclusivamente al target {TEST_TARGET_EMAIL}.</p>
-            </div>
-            <CardContent className="p-6 space-y-4 bg-slate-50/20">
-               {isSearchingTestUser ? (
-                 <p className="text-xs text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Buscando target...</p>
-               ) : testUser ? (
-                 <div className="p-3 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl border border-blue-100 mb-4 flex items-center gap-2">
-                    <Target className="w-4 h-4" /> Activo (Sellos: {testUser.sellos})
-                 </div>
-               ) : (
-                 <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-xl border border-red-100 mb-4">
-                    Target no registrado en Base de Datos.
-                 </div>
-               )}
-               
-               <Button onClick={runGeofenceDemo} disabled={actionLoading || !testUser} variant="outline" className="w-full justify-start gap-3 h-12 rounded-xl text-blue-700 bg-blue-50/50 font-bold hover:text-blue-600 hover:bg-blue-100 border-blue-200 shadow-sm transition-all">
-                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />} 
-                  {actionLoading ? "Enviando Notificación..." : "Simular Cercanía (Geofence)"}
-               </Button>
-               
-               <div className="pt-2">
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                   <Sparkles className="w-3 h-3 text-purple-400" /> Mensajes Predeterminados IA
-                 </p>
-                 <div className="space-y-2">
-                   <Button onClick={() => runAIDemo('Bienvenida', 'Hola Nachito, ¡veo que es tu primera visita de la semana! ¿Sabías que hoy hay 2x1 en cafés en el patio?')} disabled={actionLoading || !testUser} variant="outline" className="w-full text-left justify-start gap-3 py-3 h-auto rounded-xl text-purple-700 bg-purple-50/40 font-medium text-[11px] hover:bg-purple-100 border-purple-200/60 shadow-sm">
-                      <div>
-                        <p className="font-bold flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-md bg-purple-200 flex items-center justify-center text-[9px] shrink-0">A</span> 
-                          Bienvenida
-                        </p>
-                        <p className="text-[9px] text-purple-800/60 font-normal leading-tight line-clamp-1 mt-1.5 pl-7">Hola Nachito, ¡veo que es tu pri...</p>
-                      </div>
-                   </Button>
-                   <Button onClick={() => runAIDemo('Fidelización', '¡Casi lo logras! Estás a solo 2 sellos de completar tu tarjeta de Murú Cosmética. ¡No te rindas!')} disabled={actionLoading || !testUser} variant="outline" className="w-full text-left justify-start gap-3 py-3 h-auto rounded-xl text-purple-700 bg-purple-50/40 font-medium text-[11px] hover:bg-purple-100 border-purple-200/60 shadow-sm">
-                      <div>
-                        <p className="font-bold flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-md bg-purple-200 flex items-center justify-center text-[9px] shrink-0">B</span> 
-                          Fidelización
-                        </p>
-                        <p className="text-[9px] text-purple-800/60 font-normal leading-tight line-clamp-1 mt-1.5 pl-7">¡Casi lo logras! Estás a solo 2 s...</p>
-                      </div>
-                   </Button>
-                   <Button onClick={() => runAIDemo('Cumpleaños', '¡Feliz cumpleaños, Nachito! 🎉 El Patio Curauma te tiene un regalo especial esperándote en el mostrador.')} disabled={actionLoading || !testUser} variant="outline" className="w-full text-left justify-start gap-3 py-3 h-auto rounded-xl text-purple-700 bg-purple-50/40 font-medium text-[11px] hover:bg-purple-100 border-purple-200/60 shadow-sm">
-                      <div>
-                        <p className="font-bold flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-md bg-purple-200 flex items-center justify-center text-[9px] shrink-0">C</span> 
-                          Cumpleaños
-                        </p>
-                        <p className="text-[9px] text-purple-800/60 font-normal leading-tight line-clamp-1 mt-1.5 pl-7">¡Feliz cumpleaños, Nachito! 🎉...</p>
-                      </div>
-                   </Button>
-                 </div>
-               </div>
-
-               <div className="pt-2 border-t border-slate-100 mt-2">
-                 <Button onClick={runAutoStampTest} disabled={actionLoading || !testUser} variant="outline" className="w-full justify-start gap-3 h-12 rounded-xl text-amber-700 bg-amber-50/50 font-bold hover:text-amber-600 hover:bg-amber-100 border-amber-200 shadow-sm transition-all">
-                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
-                    Otorgar Sello de Prueba
-                 </Button>
-               </div>
-            </CardContent>
-          </Card>
+        {/* PANELES DE HERRAMIENTAS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t-2 border-slate-100 border-dashed mt-8">
 
           {/* T2. GESTION DE ROLES */}
           <Card className="border-none shadow-xl shadow-primary/5 rounded-3xl bg-white overflow-hidden outline outline-1 outline-primary/10">
@@ -767,64 +667,6 @@ export default function ModeradorPage() {
           
         </div>
       </div>
-
-      {/* MOCKUP VISUAL DE CELULAR PARA LA DEMO */}
-      {showPhoneMockup && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-          <div className="relative w-[300px] aspect-[9/19] bg-slate-50 overflow-hidden shadow-2xl rounded-[3rem] border-[12px] border-slate-900 flex flex-col items-center pt-5 animate-in slide-in-from-bottom-10 zoom-in-95 duration-500">
-             
-             {/* Notch (Cámara e isla inteligente) */}
-             <div className="absolute top-0 w-28 h-6 bg-slate-900 rounded-b-2xl shadow-sm z-20"></div>
-             
-             {/* Fondo de Burbujas o UI ficticia  */}
-             <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-primary/5 opacity-50"></div>
-             
-             {/* Notificación Contenedora  */}
-             <div className="relative z-10 w-full px-3 mt-8">
-               <div className="bg-white/95 backdrop-blur-2xl p-4 rounded-[1.5rem] shadow-xl shadow-black/5 border border-white/80 animate-in slide-in-from-top-6 fade-in duration-500 delay-100">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2 relative">
-                      <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-inner">
-                         {phoneMessage.type.includes('Geofence') ? <Navigation className="w-3 h-3 text-white" /> : <Sparkles className="w-3 h-3 text-white" />}
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-700 tracking-wider">CLUB PATIO</span>
-                    </div>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">Ahora</span>
-                  </div>
-                  
-                  <div className="pl-1 space-y-1">
-                    <h4 className="text-sm font-black text-slate-900 leading-tight tracking-tight">{phoneMessage.title}</h4>
-                    <p className="text-[11px] text-slate-600 font-medium leading-normal">{phoneMessage.text}</p>
-                  </div>
-               </div>
-             </div>
-
-             {/* UI Central Falsa del Celular bloqueado */}
-             <div className="flex-1 w-full flex items-center justify-center relative z-10 p-6 opacity-30 mt-10">
-                <div className="text-center w-full">
-                  <div className="w-16 h-16 rounded-full bg-slate-200/80 mx-auto flex items-center justify-center mb-4">
-                    <ShieldCheck className="w-8 h-8 text-slate-400" />
-                  </div>
-                  <div className="h-2 w-3/4 bg-slate-200 rounded-full mx-auto mb-2"></div>
-                  <div className="h-2 w-1/2 bg-slate-200 rounded-full mx-auto"></div>
-                </div>
-             </div>
-             
-             {/* Barra de swipe de iOS en base */}
-             <div className="absolute bottom-4 left-0 w-full flex justify-center z-10">
-               <div className="w-1/3 h-1.5 bg-slate-400/80 rounded-full"></div>
-             </div>
-          </div>
-          
-          <Button 
-             variant="secondary"
-             onClick={() => setShowPhoneMockup(false)}
-             className="absolute bottom-8 font-black px-10 h-14 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl shadow-xl hover:scale-105 transition-transform"
-          >
-            Aceptar Mensaje (Cerrar)
-          </Button>
-        </div>
-      )}
 
     </main>
   );

@@ -7,14 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { useState } from "react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
+import { formatDistance } from "@/hooks/useUserLocation";
 
 interface EntrepreneurCardProps {
   entrepreneur: Entrepreneur;
   fullWidth?: boolean;
+  isOpen?: boolean | null;
+  distanceKm?: number;
 }
 
 
-export function EntrepreneurCard({ entrepreneur, fullWidth = false }: EntrepreneurCardProps) {
+export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, distanceKm }: EntrepreneurCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   return (
@@ -78,11 +81,35 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false }: Entreprene
               ✦ PATROCINADO
             </span>
           )}
+          {/* Badge open/closed — bottom-left of image */}
+          {isOpen === true && (
+            <span
+              className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+              style={{ background: "rgba(0,0,0,0.55)", color: "#4ade80", backdropFilter: "blur(4px)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+              Abierto
+            </span>
+          )}
+          {isOpen === false && (
+            <span
+              className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+              style={{ background: "rgba(0,0,0,0.55)", color: "#f87171", backdropFilter: "blur(4px)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+              Cerrado
+            </span>
+          )}
         </div>
         <CardContent className="p-3 text-center bg-white border-t border-slate-50">
           <h3 className="text-xs font-bold text-[#4A4A4A] line-clamp-1 group-hover:text-[#C9920A] transition-colors">
             {entrepreneur.name}
           </h3>
+          {distanceKm !== undefined && (
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              📍 {formatDistance(distanceKm)}
+            </p>
+          )}
         </CardContent>
       </Card>
     </Link>

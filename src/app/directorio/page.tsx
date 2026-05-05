@@ -9,6 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth, storage } from "@/lib/firebase";
 import { CATEGORIES } from "@/lib/data";
+import { DIAS_SEMANA, DIAS_SHORT, DIAS_LABEL, HorariosEstructurados, HorarioDia } from "@/lib/horarios";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ interface VendorForm {
   active: boolean;
   isPremium: boolean;
   promoText: string;
+  horariosEstructurados: HorariosEstructurados;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -73,6 +75,7 @@ const DEFAULT_FORM: VendorForm = {
   active: false,
   isPremium: false,
   promoText: "",
+  horariosEstructurados: {},
 };
 
 const VENDOR_CATEGORIES = [
@@ -199,6 +202,7 @@ export default function DirectorioPage() {
       active:          vendor.active,
       isPremium:       vendor.isPremium,
       promoText:       vendor.promoText,
+      horariosEstructurados: (vendor as any).horariosEstructurados || {},
     });
     setPendingImageFile(null);
     setImagePreview(
@@ -264,12 +268,13 @@ export default function DirectorioPage() {
           address:         form.ubicacionTienda.trim(),
           operatingHours:  form.operatingHours.trim(),
           horario:         form.operatingHours.trim(),
-          mediosPago:      form.mediosPago,
-          active:          false, // siempre inactivo al crear
-          isPremium:       false,
-          promoText:       form.promoText.trim(),
-          createdAt:       new Date().toISOString(),
-          updatedAt:       new Date().toISOString(),
+          mediosPago:           form.mediosPago,
+          horariosEstructurados: form.horariosEstructurados,
+          active:               false, // siempre inactivo al crear
+          isPremium:            false,
+          promoText:            form.promoText.trim(),
+          createdAt:            new Date().toISOString(),
+          updatedAt:            new Date().toISOString(),
         });
         vendorId = newRef.id;
       }
@@ -302,9 +307,10 @@ export default function DirectorioPage() {
         address:         form.ubicacionTienda.trim(),
         operatingHours:  form.operatingHours.trim(),
         horario:         form.operatingHours.trim(),
-        mediosPago:      form.mediosPago,
+        mediosPago:           form.mediosPago,
+        horariosEstructurados: form.horariosEstructurados,
         // En edición respetamos el toggle activo; en creación es siempre false
-        active:          editingVendorId ? form.active : false,
+        active:               editingVendorId ? form.active : false,
         isPremium:       form.isPremium,
         promoText:       form.promoText.trim(),
         updatedAt:       new Date().toISOString(),
@@ -446,12 +452,12 @@ export default function DirectorioPage() {
                     <img
                       src={getSafeImageUrl(
                         vendor.imagenTarjeta || vendor.imageUrl,
-                        "/Logo3.png"
+                        "/Logo2.png"
                       )}
                       alt={vendor.businessName || "Local"}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/Logo3.png";
+                        (e.target as HTMLImageElement).src = "/Logo2.png";
                       }}
                     />
                   </div>
@@ -691,21 +697,27 @@ export default function DirectorioPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-600">
-                    Sector / Ubicación en el patio
+                    Sector / Ubicación
                   </label>
                   <Input
+                    list="ubicaciones-admin-list"
                     value={form.ubicacionTienda}
                     onChange={(e) => setForm({ ...form, ubicacionTienda: e.target.value })}
-                    placeholder="Ej: Pasillo Principal, Local 1"
-                    maxLength={50}
+                    placeholder="Selecciona o escribe una ubicación..."
+                    maxLength={100}
                     className="h-11 rounded-xl"
                   />
-                  <div className="flex items-center justify-between px-0.5">
+                  <datalist id="ubicaciones-admin-list">
+                    <option value="Outlet Curauma (Av. Lomas de la luz 4650, Curauma, Valparaíso)" />
+                    <option value="Tienda Patio Curauma (Avenida Universidad 134, Local 1)" />
+                    <option value="Patio Curauma Villa Alemana (Manuel Montt #1561, Villa Alemana)" />
+                  </datalist>
+                  <div className="flex items-center justify-between px-0.5 mt-1">
                     <p className="text-[11px] text-slate-400 leading-snug">
-                      Indica la ubicación de este local dentro del recinto. Solo una dirección.
+                      Elige una opción sugerida o escribe una personalizada.
                     </p>
                     <span className="text-[11px] text-slate-300 shrink-0 ml-2">
-                      {form.ubicacionTienda.length}/50
+                      {form.ubicacionTienda.length}/100
                     </span>
                   </div>
                 </div>
@@ -718,6 +730,41 @@ export default function DirectorioPage() {
                     placeholder="Ej: Lun–Dom 10:00 – 20:00"
                     className="h-11 rounded-xl"
                   />
+                </div>
+
+                {/* ── Horario por día ──────────────────────────────── */}
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-slate-700">Horario por día</p>
+                  {DIAS_SEMANA.map((dia) => {
+                    const h: HorarioDia = form.horariosEstructurados[dia] ?? { open: "10:00", close: "20:00", cerrado: false };
+                    return (
+                      <div key={dia} className="flex items-center gap-2 text-sm">
+                        <span className="w-10 text-[11px] font-bold text-slate-500 uppercase">{DIAS_SHORT[dia]}</span>
+                        <Switch
+                          checked={!h.cerrado}
+                          onCheckedChange={(v) => setForm(f => ({
+                            ...f,
+                            horariosEstructurados: { ...f.horariosEstructurados, [dia]: { ...h, cerrado: !v } }
+                          }))}
+                          className="scale-75"
+                        />
+                        {!h.cerrado && (
+                          <>
+                            <input type="time" value={h.open} onChange={(e) => setForm(f => ({
+                              ...f,
+                              horariosEstructurados: { ...f.horariosEstructurados, [dia]: { ...h, open: e.target.value } }
+                            }))} className="border rounded px-2 py-1 text-xs w-24" />
+                            <span className="text-slate-400 text-xs">–</span>
+                            <input type="time" value={h.close} onChange={(e) => setForm(f => ({
+                              ...f,
+                              horariosEstructurados: { ...f.horariosEstructurados, [dia]: { ...h, close: e.target.value } }
+                            }))} className="border rounded px-2 py-1 text-xs w-24" />
+                          </>
+                        )}
+                        {h.cerrado && <span className="text-xs text-slate-400 italic">Cerrado</span>}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="space-y-2">

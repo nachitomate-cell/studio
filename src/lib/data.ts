@@ -14,6 +14,9 @@ export type Entrepreneur = {
   imagenPerfil?: string;    // portada del detalle del local
   logoHeader?: string;      // logo/avatar del local
   isPremium?: boolean;      // patrocinador — diferencia visual en card y perfil
+  horariosEstructurados?: import("./horarios").HorariosEstructurados;
+  lat?: number;
+  lng?: number;
 };
 export type Premio = { id: string; nombre: string; costo: number; icono: string; esSorteo?: boolean; };
 export type MapLocation = { id: string; name: string; x: number; y: number; };

@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
 import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
+import { useUserLocation, haversineKm } from "@/hooks/useUserLocation";
+import { isOpenNow } from "@/lib/horarios";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,9 @@ export default function Home() {
   const [userData, setUserData] = useState<any>(null);
   const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterAbierto, setFilterAbierto] = useState(false);
+  const [filterCercano, setFilterCercano] = useState(false);
+  const { coords: userCoords, loading: locLoading, denied: locDenied, request: requestLocation } = useUserLocation();
   const [debugGps, setDebugGps] = useState<{ lat: number; lng: number; zona: string; dist: string; server?: string } | null>(null);
   const lastGeoApiCallRef = useRef<number>(0);
 
@@ -102,7 +107,7 @@ export default function Home() {
           name: data.businessName || data.nombre || "Local Aliado",
           category: data.category || data.rubro || "all",
           description: data.description || "",
-          imageUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo3.png",
+          imageUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo2.png",
           contact: data.whatsapp || data.contactPhone || "",
           schedule: data.operatingHours || data.horario || "",
           locationId: data.ubicacionTienda || "loc-1",
@@ -112,6 +117,9 @@ export default function Home() {
           logoHeader: data.logoHeader || undefined,
           isPremium: data.isPremium === true || undefined,
           isHiddenFromFeed: data.isHiddenFromFeed === true,
+          horariosEstructurados: data.horariosEstructurados || null,
+          lat: data.lat || null,
+          lng: data.lng || null,
         } as Entrepreneur & { isHiddenFromFeed?: boolean };
       });
       
@@ -209,7 +217,7 @@ export default function Home() {
     distanceFilter: 50,
   });
 
-  const filteredEntrepreneurs = entrepreneurs.filter((e: any) => {
+  let result = entrepreneurs.filter((e: any) => {
     // Visibility gate: exclude vendors with no real name or no real image.
     // Applied before category/search so incomplete profiles never appear publicly.
     if (!isVendorVisible(e)) return false;
@@ -221,8 +229,27 @@ export default function Home() {
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
     const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           e.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    if (!matchesCategory || !matchesSearch) return false;
+
+    if (filterAbierto) {
+      const open = isOpenNow((e as any).horariosEstructurados);
+      if (open !== true) return false;
+    }
+
+    return true;
   });
+
+  if (filterCercano && userCoords) {
+    const MALL_LAT = PATIO_INFO.coordinates.lat;
+    const MALL_LNG = PATIO_INFO.coordinates.lng;
+    result = [...result].sort((a: any, b: any) => {
+      const dA = haversineKm(userCoords.lat, userCoords.lng, a.lat ?? MALL_LAT, a.lng ?? MALL_LNG);
+      const dB = haversineKm(userCoords.lat, userCoords.lng, b.lat ?? MALL_LAT, b.lng ?? MALL_LNG);
+      return dA - dB;
+    });
+  }
+
+  const filteredEntrepreneurs = result;
 
   const renderHero = () => (
     <section style={{
@@ -236,12 +263,13 @@ export default function Home() {
       position: "relative",
     }}>
       <img
-        src="/Logo3.png"
+        src="/Logo3.webp"
         alt="Patio Curauma"
         style={{ width: 110, height: "auto", marginBottom: 16, filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
       />
-      <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: 32, fontWeight: 700, color: "white", margin: "0 0 8px 0" }}>
-        Club Patio <span style={{ color: "#FFD700" }}>Curauma</span>
+      <h1 style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, fontWeight: 700, color: "white", margin: "0 0 8px 0", lineHeight: 1.1, letterSpacing: "1px" }}>
+        CLUB<br/>
+        <span style={{ color: "#FFD700", fontSize: 32, fontWeight: 900 }}>PATIO CURAUMA</span>
       </h1>
       <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, margin: 0, letterSpacing: "0.5px" }}>
         Fidelización · Premios · Comunidad
@@ -368,6 +396,38 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              {/* Filtros rápidos */}
+              <div className="flex gap-2 px-6 pb-2">
+                <button
+                  onClick={() => setFilterAbierto((v) => !v)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border",
+                    filterAbierto
+                      ? "bg-green-500 text-white border-green-500 shadow"
+                      : "bg-white text-slate-500 border-slate-200"
+                  )}
+                >
+                  🕐 Abierto ahora
+                </button>
+                <button
+                  disabled={locDenied}
+                  title={locDenied ? "Permiso de ubicación denegado" : undefined}
+                  onClick={() => {
+                    if (!userCoords) requestLocation();
+                    setFilterCercano((v) => !v);
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border",
+                    filterCercano
+                      ? "text-white border-transparent shadow"
+                      : "bg-white text-slate-500 border-slate-200",
+                    locDenied ? "opacity-40 cursor-not-allowed" : ""
+                  )}
+                  style={filterCercano ? { background: "#C9920A", borderColor: "#C9920A" } : {}}
+                >
+                  📍 {locLoading ? "Buscando…" : "Cerca de mí"}
+                </button>
+              </div>
             </section>
 
             <section className="space-y-6 px-6 pt-4">
@@ -392,11 +452,15 @@ export default function Home() {
                 <>
                   {/* Primeras 4 tarjetas */}
                   <div className="grid grid-cols-2 gap-4">
-                    {filteredEntrepreneurs.slice(0, 4).map((entrepreneur) => (
-                      <div key={entrepreneur.id}>
-                        <EntrepreneurCard entrepreneur={entrepreneur} />
-                      </div>
-                    ))}
+                    {filteredEntrepreneurs.slice(0, 4).map((entrepreneur) => {
+                      const isOpen = isOpenNow((entrepreneur as any).horariosEstructurados);
+                      const distKm = userCoords ? haversineKm(userCoords.lat, userCoords.lng, (entrepreneur as any).lat ?? PATIO_INFO.coordinates.lat, (entrepreneur as any).lng ?? PATIO_INFO.coordinates.lng) : undefined;
+                      return (
+                        <div key={entrepreneur.id}>
+                          <EntrepreneurCard entrepreneur={entrepreneur} isOpen={isOpen} distanceKm={filterCercano && distKm !== undefined ? distKm : undefined} />
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Resto de tarjetas */}
@@ -405,9 +469,11 @@ export default function Home() {
                       {filteredEntrepreneurs.slice(4).map((entrepreneur, index, arr) => {
                         const isLast = index === arr.length - 1;
                         const isOdd = arr.length % 2 !== 0;
+                        const isOpen = isOpenNow((entrepreneur as any).horariosEstructurados);
+                        const distKm = userCoords ? haversineKm(userCoords.lat, userCoords.lng, (entrepreneur as any).lat ?? PATIO_INFO.coordinates.lat, (entrepreneur as any).lng ?? PATIO_INFO.coordinates.lng) : undefined;
                         return (
                           <div key={entrepreneur.id} className={cn(isLast && isOdd ? "col-span-2" : "")}>
-                            <EntrepreneurCard entrepreneur={entrepreneur} fullWidth={isLast && isOdd} />
+                            <EntrepreneurCard entrepreneur={entrepreneur} fullWidth={isLast && isOdd} isOpen={isOpen} distanceKm={filterCercano && distKm !== undefined ? distKm : undefined} />
                           </div>
                         );
                       })}
