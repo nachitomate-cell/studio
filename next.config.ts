@@ -3,6 +3,14 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   // output: 'export', // Desactivado temporalmente para pruebas en desarrollo según solicitud
+  async headers() {
+    return [
+      {
+        source: '/favicon.ico',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, must-revalidate' }],
+      },
+    ];
+  },
   typescript: {
     ignoreBuildErrors: false,
   },
