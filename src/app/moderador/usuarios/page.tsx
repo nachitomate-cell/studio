@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import * as XLSX from "xlsx";
+
 
 const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
@@ -170,7 +170,8 @@ export default function ModeradorUsuariosPage() {
   const hayFiltros = busqueda || mesCumple || nacDesde || nacHasta;
 
   // ── Exportar Excel ────────────────────────────────────────────────────────
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const XLSX = await import("xlsx");
     const hoy = new Date().toISOString().slice(0, 10);
     const rows = filtered.map((u) => ({
       Nombre: u.nombre,

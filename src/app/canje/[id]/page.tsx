@@ -2,19 +2,28 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { CheckCircle2, Clock, AlertTriangle, ArrowLeft, Gift, QrCode, Loader2 } from "lucide-react";
+import { CheckCircle2, Clock, AlertTriangle, ArrowLeft, Gift, Loader2 } from "lucide-react";
+import QRCode from "react-qr-code";
+
+// ── Tipos ─────────────────────────────────────────────────────────────────────
 
 interface CanjeData {
-  userId: string;
-  usuarioNombre: string;
+  clienteId: string;
+  clienteNombre: string;
   premioNombre: string;
-  codigoVoucher: string;
-  estado: "pendiente" | "canjeado" | "expirado";
-  fechaEmision: string;
-  fechaExpiracion: string;
+  premioIcono: string;
+  codigo: string;
+  status: "pending" | "used" | "expired";
+  creadoEn: Timestamp | null;
+  expiraEn: string; // ISO string
+  vendorId: string;
+  vendorNombre: string;
+  sellosDescontados: number;
 }
+
+// ── Countdown ─────────────────────────────────────────────────────────────────
 
 function useCountdown(expiresAt: string | null) {
   const [timeLeft, setTimeLeft] = useState("");
@@ -23,10 +32,7 @@ function useCountdown(expiresAt: string | null) {
     if (!expiresAt) return;
     const tick = () => {
       const diff = new Date(expiresAt).getTime() - Date.now();
-      if (diff <= 0) {
-        setTimeLeft("00:00:00");
-        return;
-      }
+      if (diff <= 0) { setTimeLeft("00:00:00"); return; }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
@@ -42,17 +48,20 @@ function useCountdown(expiresAt: string | null) {
   return timeLeft;
 }
 
+// ── Página ────────────────────────────────────────────────────────────────────
+
 export default function TicketCanjePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [canje, setCanje] = useState<CanjeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const timeLeft = useCountdown(canje?.fechaExpiracion ?? null);
+  const timeLeft = useCountdown(canje?.expiraEn ?? null);
 
   useEffect(() => {
     if (!id) return;
-    const ref = doc(db, "canjes_activos", id);
+    // Lee de la colección correcta: "canjes" (no la legacy "canjes_activos")
+    const ref = doc(db, "canjes", id);
     const unsub = onSnapshot(ref, (snap) => {
       if (!snap.exists()) {
         setNotFound(true);
@@ -64,7 +73,7 @@ export default function TicketCanjePage() {
     return () => unsub();
   }, [id]);
 
-  /* ── Loading ──────────────────────────────────────────────────────── */
+  /* ── Loading ──────────────────────────────────────────────────────────────── */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
@@ -73,12 +82,12 @@ export default function TicketCanjePage() {
     );
   }
 
-  /* ── Not Found ────────────────────────────────────────────────────── */
+  /* ── Not Found ────────────────────────────────────────────────────────────── */
   if (notFound) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-gradient-to-br from-slate-50 to-slate-100 p-6 text-center">
         <AlertTriangle className="w-16 h-16 text-slate-300" />
-        <p className="text-lg font-bold text-slate-400">Ticket no encontrado</p>
+        <p className="text-lg font-bold text-slate-400">Voucher no encontrado</p>
         <button
           onClick={() => router.push("/")}
           className="text-sm font-bold underline"
@@ -91,19 +100,29 @@ export default function TicketCanjePage() {
   }
 
   const isExpired =
-    canje!.estado === "expirado" ||
-    new Date(canje!.fechaExpiracion) < new Date();
-  const isUsed = canje!.estado === "canjeado";
+    canje!.status === "expired" ||
+    new Date(canje!.expiraEn) < new Date();
+  const isUsed = canje!.status === "used";
   const isActive = !isExpired && !isUsed;
 
-  /* ── Ticket Activo ────────────────────────────────────────────────── */
+  /* ── Ticket Activo ────────────────────────────────────────────────────────── */
   if (isActive) {
+    // El QR codifica "canje:{id}" para que ValidarPanel lo distinga
+    // de los QR de sellos (que codifican el UID del usuario)
+    const qrValue = `canje:${id}`;
+
+    const fechaEmision = canje!.creadoEn?.toDate
+      ? canje!.creadoEn.toDate().toLocaleDateString("es-CL", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "—";
+
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center p-5"
-        style={{
-          background: "linear-gradient(135deg, #f0f7e8 0%, #e8f4f8 100%)",
-        }}
+        style={{ background: "linear-gradient(135deg, #f0f7e8 0%, #e8f4f8 100%)" }}
       >
         <div className="w-full max-w-sm">
           {/* Volver */}
@@ -116,26 +135,24 @@ export default function TicketCanjePage() {
             Volver al Inicio
           </button>
 
-          {/* Tarjeta glassmorphism */}
+          {/* Tarjeta */}
           <div
             className="w-full rounded-3xl overflow-hidden shadow-2xl"
             style={{
-              background: "rgba(255,255,255,0.88)",
+              background: "rgba(255,255,255,0.92)",
               backdropFilter: "blur(24px)",
               WebkitBackdropFilter: "blur(24px)",
               border: "1px solid rgba(157,204,101,0.3)",
             }}
           >
-            {/* Franja de color superior */}
+            {/* Franja superior */}
             <div
               className="h-2 w-full"
-              style={{
-                background: "linear-gradient(90deg, #9DCC65 0%, #6EBBD1 100%)",
-              }}
+              style={{ background: "linear-gradient(90deg, #9DCC65 0%, #6EBBD1 100%)" }}
             />
 
-            <div className="p-7 space-y-6">
-              {/* Badge "Ticket Activo" */}
+            <div className="p-7 space-y-5">
+              {/* Badge activo */}
               <div className="flex items-center gap-2">
                 <span
                   className="w-2 h-2 rounded-full animate-pulse"
@@ -149,43 +166,71 @@ export default function TicketCanjePage() {
                 </span>
               </div>
 
-              {/* Icono + nombre del premio */}
+              {/* Premio */}
               <div className="text-center space-y-3">
                 <div
-                  className="w-20 h-20 rounded-3xl mx-auto flex items-center justify-center"
-                  style={{
-                    background: "linear-gradient(135deg, #9DCC65, #6EBBD1)",
-                  }}
+                  className="w-20 h-20 rounded-3xl mx-auto flex items-center justify-center text-4xl"
+                  style={{ background: "linear-gradient(135deg, #9DCC65, #6EBBD1)" }}
                 >
-                  <Gift className="w-10 h-10 text-white" />
+                  {canje!.premioIcono || <Gift className="w-10 h-10 text-white" />}
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
                     Tu Premio
                   </p>
-                  <h1
-                    className="text-2xl font-black leading-tight"
-                    style={{ color: "#4A4A4A" }}
-                  >
+                  <h1 className="text-2xl font-black leading-tight" style={{ color: "#4A4A4A" }}>
                     {canje!.premioNombre}
                   </h1>
+                  {canje!.vendorNombre && (
+                    <p className="text-xs text-slate-400 font-medium mt-1">{canje!.vendorNombre}</p>
+                  )}
                 </div>
               </div>
 
-              {/* Código del voucher */}
-              <div className="bg-slate-50 rounded-2xl py-4 px-5 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-                  Código de Voucher
-                </p>
+              {/* ── QR de validación ── */}
+              <div
+                className="rounded-2xl p-5 flex flex-col items-center gap-4"
+                style={{
+                  background: "rgba(110,187,209,0.06)",
+                  border: "2px solid rgba(110,187,209,0.3)",
+                }}
+              >
                 <p
-                  className="text-2xl font-black tracking-[0.18em]"
-                  style={{ color: "#D3B673" }}
+                  className="text-[10px] font-black uppercase tracking-widest"
+                  style={{ color: "#6EBBD1" }}
                 >
-                  {canje!.codigoVoucher}
+                  Muestra este QR en caja
+                </p>
+
+                {/* QR real */}
+                <div className="bg-white rounded-2xl p-3 shadow-sm">
+                  <QRCode
+                    value={qrValue}
+                    size={180}
+                    fgColor="#1e293b"
+                    style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                  />
+                </div>
+
+                <p className="text-[11px] text-slate-400 font-medium text-center leading-relaxed">
+                  El vendedor escanea este código para entregarte el premio al instante
                 </p>
               </div>
 
-              {/* Contador regresivo */}
+              {/* Código texto (alternativa al QR) */}
+              <div className="bg-slate-50 rounded-2xl py-4 px-5 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                  O muestra el código
+                </p>
+                <p
+                  className="text-2xl font-black tracking-[0.18em]"
+                  style={{ color: "#D3B673", fontFamily: "monospace" }}
+                >
+                  {canje!.codigo}
+                </p>
+              </div>
+
+              {/* Countdown */}
               <div
                 className="flex items-center justify-center gap-3 py-4 rounded-2xl"
                 style={{
@@ -205,42 +250,15 @@ export default function TicketCanjePage() {
                     {timeLeft}
                   </p>
                   <p className="text-[10px] text-slate-300 mt-0.5">
-                    Válido por 48 horas desde la emisión
+                    Válido 48 horas desde la emisión
                   </p>
                 </div>
               </div>
 
-              {/* Placeholder validación QR */}
-              <div
-                className="rounded-2xl p-5 text-center space-y-2"
-                style={{
-                  background: "rgba(110,187,209,0.07)",
-                  border: "2px dashed rgba(110,187,209,0.35)",
-                }}
-              >
-                <QrCode className="w-8 h-8 mx-auto" style={{ color: "#6EBBD1" }} />
-                <p
-                  className="text-xs font-black uppercase tracking-widest"
-                  style={{ color: "#6EBBD1" }}
-                >
-                  Validación en Caja
-                </p>
-                <p className="text-[11px] text-slate-400 font-medium">
-                  Próximamente QR
-                </p>
-                <p className="text-[10px] text-slate-300">En fase de producción</p>
-              </div>
-
-              {/* Pie del ticket */}
+              {/* Pie */}
               <div className="flex justify-between text-[10px] text-slate-300 font-medium pt-1">
-                <span>{canje!.usuarioNombre}</span>
-                <span>
-                  {new Date(canje!.fechaEmision).toLocaleDateString("es-CL", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </span>
+                <span>{canje!.clienteNombre}</span>
+                <span>{fechaEmision}</span>
               </div>
             </div>
           </div>
@@ -249,7 +267,7 @@ export default function TicketCanjePage() {
     );
   }
 
-  /* ── Ticket Expirado ──────────────────────────────────────────────── */
+  /* ── Ticket Expirado ──────────────────────────────────────────────────────── */
   if (isExpired) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-6 text-center">
@@ -258,10 +276,7 @@ export default function TicketCanjePage() {
             <Clock className="w-10 h-10 text-slate-300" />
           </div>
           <div>
-            <h2
-              className="text-xl font-black"
-              style={{ color: "#4A4A4A" }}
-            >
+            <h2 className="text-xl font-black" style={{ color: "#4A4A4A" }}>
               Este ticket ha expirado
             </h2>
             <p className="text-sm text-slate-400 mt-2 font-medium">
@@ -280,13 +295,11 @@ export default function TicketCanjePage() {
     );
   }
 
-  /* ── Ticket Canjeado ──────────────────────────────────────────────── */
+  /* ── Ticket Usado ─────────────────────────────────────────────────────────── */
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
-      style={{
-        background: "linear-gradient(135deg, #f0f7e8 0%, #e8f4f8 100%)",
-      }}
+      style={{ background: "linear-gradient(135deg, #f0f7e8 0%, #e8f4f8 100%)" }}
     >
       <div className="w-full max-w-sm space-y-6">
         <div
@@ -297,28 +310,26 @@ export default function TicketCanjePage() {
         </div>
         <div>
           <h2 className="text-xl font-black" style={{ color: "#4A4A4A" }}>
-            ¡Beneficio Utilizado!
+            ¡Premio entregado!
           </h2>
           <p className="text-sm text-slate-400 mt-2 font-medium">
-            Este voucher de &quot;{canje!.premioNombre}&quot; ya fue canjeado con éxito.
+            Tu &quot;{canje!.premioNombre}&quot; fue canjeado con éxito en {canje!.vendorNombre || "el local"}.
           </p>
         </div>
 
-        {/* Banner publicitario */}
+        {/* Banner */}
         <a
           href="https://www.patiocuraumaonline.com/"
           target="_blank"
           rel="noopener noreferrer"
           className="block w-full rounded-2xl p-5 text-left transition-opacity hover:opacity-90 active:scale-[0.98]"
-          style={{
-            background: "linear-gradient(135deg, #9DCC65 0%, #6EBBD1 100%)",
-          }}
+          style={{ background: "linear-gradient(135deg, #9DCC65 0%, #6EBBD1 100%)" }}
         >
           <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-1">
             Descubre más
           </p>
           <p className="text-sm font-black text-white leading-snug">
-            ¿Te gustó tu premio? Encuentra más productos increíbles de nuestros emprendedores aquí
+            ¿Te gustó tu premio? Encuentra más productos de nuestros emprendedores aquí
           </p>
           <p className="text-[11px] font-bold text-white/70 mt-2 underline underline-offset-2">
             patiocuraumaonline.com →

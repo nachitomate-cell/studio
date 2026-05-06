@@ -13,7 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import confetti from "canvas-confetti";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -263,11 +263,14 @@ export default function UnetePage() {
           description: "Tu primer sello de regalo ya está en tu cuenta.",
         });
         setShowCelebration(true);
-        confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#D3B673', '#9DCC65', '#6EBBD1']
+        import("canvas-confetti").then((mod) => {
+          const confetti = mod.default;
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#D3B673', '#9DCC65', '#6EBBD1']
+          });
         });
       }
     } catch (err: any) {

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
-import * as XLSX from "xlsx";
+
 
 const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const PAGE_SIZE = 20;
@@ -341,7 +341,8 @@ export default function ModeradorSellosPage() {
   );
 
   // ── Exportar Excel ─────────────────────────────────────────────────────────
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const XLSX = await import("xlsx");
     const hoy = new Date().toISOString().slice(0, 10);
     const rows = filtered.map((l) => {
       const dt = formatFecha(l.fecha);

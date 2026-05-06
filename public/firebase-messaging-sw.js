@@ -125,7 +125,7 @@ messaging.onBackgroundMessage((payload) => {
   console.log('[SW] Mensaje FCM en background:', payload);
 
   const title = payload.notification?.title || payload.data?.title || 'Club Patio';
-  const body  = payload.notification?.body  || payload.data?.body  || 'Tienes un nuevo mensaje.';
+  const body = payload.notification?.body || payload.data?.body || 'Tienes un nuevo mensaje.';
 
   self.registration.showNotification(title, {
     body,

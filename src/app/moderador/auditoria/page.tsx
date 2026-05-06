@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import * as XLSX from "xlsx";
+
 
 const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const CONFIRM_WORD = "CONFIRMAR";
@@ -144,6 +144,7 @@ async function generarBackupExcel(timestamp: string): Promise<void> {
     { KPI: "Fecha del backup", Valor: timestamp },
   ];
 
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   const wsSellos = XLSX.utils.json_to_sheet(sellosRows);
   wsSellos["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 8 }, { wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 32 }, { wch: 16 }, { wch: 12 }, { wch: 14 }];

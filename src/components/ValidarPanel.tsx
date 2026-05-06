@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import {
   collection, onSnapshot, query, where, Timestamp,
-  getDocs, doc, updateDoc, addDoc, serverTimestamp, runTransaction,
+  getDocs, getDoc, doc, updateDoc, addDoc, serverTimestamp, runTransaction,
 } from "firebase/firestore";
 import { rechazarHandshake } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Users, CheckCircle2, XCircle, Clock, ShieldCheck,
-  ChevronLeft, User, AlertTriangle, Store, RefreshCw, Gift, Search,
+  ChevronLeft, User, AlertTriangle, Store, RefreshCw, Gift, Search, Camera, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -367,6 +367,13 @@ export default function ValidarPanel({
   const [prizeSuccess, setPrizeSuccess] = useState<string | null>(null);
   const [mostrarCelebracion, setMostrarCelebracion] = useState(false);
   const [celebracionData, setCelebracionData] = useState<{ premioNombre: string; premioIcono: string; clienteNombre: string } | null>(null);
+  const [prizeScannerActive, setPrizeScannerActive] = useState(false);
+  const [prizeScannerError, setPrizeScannerError] = useState<string | null>(null);
+  const prizeQrRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => { if (prizeQrRef.current) { prizeQrRef.current.stop().catch(() => {}); } };
+  }, []);
   // FIX: eliminado el estado `tick` — causaba que la suscripción se destruyera y
   // recreara cada 15s, haciendo que Firebase devolviera el cache vacío brevemente
   // antes de re-sincronizar con el servidor ("aparecer y desaparecer")
@@ -466,6 +473,85 @@ export default function ValidarPanel({
 
     return () => unsub();
   }, [authorized, vendorId]); // FIX: sin `tick` — suscripción estable
+
+  // ── Escáner QR de premio ──────────────────────────────────────────────────
+  const stopPrizeScanner = async () => {
+    if (prizeQrRef.current) {
+      try { await prizeQrRef.current.stop(); } catch { /* ignore */ }
+      prizeQrRef.current = null;
+    }
+    setPrizeScannerActive(false);
+    setPrizeScannerError(null);
+  };
+
+  const onPrizeQrScanned = async (text: string) => {
+    if (!text.startsWith("canje:")) {
+      setPrizeScannerError("QR no es un voucher de premio. Usa el código manual.");
+      return;
+    }
+    const canjeId = text.slice("canje:".length).trim();
+    if (!canjeId) {
+      setPrizeScannerError("QR inválido.");
+      return;
+    }
+
+    await stopPrizeScanner();
+
+    setVerifyingPrize(true);
+    try {
+      const canjeSnap = await getDoc(doc(db, "canjes", canjeId));
+      if (!canjeSnap.exists()) {
+        toast({ variant: "destructive", title: "Voucher no encontrado", description: "Este QR no corresponde a ningún premio activo." });
+        return;
+      }
+      const data = canjeSnap.data();
+
+      if (data.vendorId !== vendorId) {
+        toast({ variant: "destructive", title: "Premio de otro local", description: "Este voucher fue emitido para otro emprendedor." });
+        return;
+      }
+      if (data.status === "used") {
+        toast({ variant: "destructive", title: "Código ya utilizado", description: "Este premio ya fue entregado anteriormente." });
+        return;
+      }
+      if (data.status === "expired" || (data.expiraEn && data.expiraEn < new Date().toISOString())) {
+        await updateDoc(doc(db, "canjes", canjeId), { status: "expired" });
+        toast({ variant: "destructive", title: "Código expirado", description: "Este código ya no es válido." });
+        return;
+      }
+
+      setPrizeCanjeData({ id: canjeId, ...data });
+    } catch (e: any) {
+      if (e?.code === "permission-denied") {
+        toast({ variant: "destructive", title: "Sin permisos", description: "Este voucher no pertenece a tu local." });
+      } else {
+        toast({ variant: "destructive", title: "Error", description: e?.message || "No se pudo verificar el QR." });
+      }
+    } finally {
+      setVerifyingPrize(false);
+    }
+  };
+
+  const startPrizeScanner = async () => {
+    setPrizeScannerError(null);
+    setPrizeScannerActive(true);
+    // Wait for the div to mount
+    await new Promise((r) => setTimeout(r, 100));
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const scanner = new Html5Qrcode("prize-qr-reader");
+      prizeQrRef.current = scanner;
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText: string) => { onPrizeQrScanned(decodedText); },
+        () => { /* scan errors are normal */ }
+      );
+    } catch (e: any) {
+      setPrizeScannerActive(false);
+      setPrizeScannerError("No se pudo acceder a la cámara. Usa el código manual.");
+    }
+  };
 
   // ── Verificar código de premio ────────────────────────────────────────────
   const handleVerifyPrize = async () => {
@@ -783,8 +869,55 @@ export default function ValidarPanel({
             style={{ borderColor: "rgba(211,182,115,0.25)", backgroundColor: "rgba(211,182,115,0.05)" }}
           >
             <p className="text-xs text-slate-500 font-medium leading-relaxed">
-              Ingresa el código que te muestra el cliente para entregar el premio.
+              Escanea el QR del cliente o ingresa el código manualmente.
             </p>
+
+            {/* Botón escanear QR */}
+            {!prizeScannerActive ? (
+              <Button
+                onClick={startPrizeScanner}
+                disabled={verifyingPrize}
+                className="w-full h-12 rounded-2xl font-bold gap-2"
+                style={{ backgroundColor: "#6EBBD1", color: "white" }}
+              >
+                <Camera className="w-5 h-5" />
+                Escanear QR de Premio
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative rounded-2xl overflow-hidden bg-black" style={{ minHeight: 260 }}>
+                  <div id="prize-qr-reader" className="w-full" />
+                  <button
+                    onClick={stopPrizeScanner}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  {verifyingPrize && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-center text-slate-400 font-medium">
+                  Apunta la cámara al QR del voucher del cliente
+                </p>
+              </div>
+            )}
+
+            {prizeScannerError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                <p className="text-xs font-medium text-amber-700">{prizeScannerError}</p>
+              </div>
+            )}
+
+            {/* Separador */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">o código manual</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
 
             <div className="flex gap-2">
               <input
