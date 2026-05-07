@@ -43,6 +43,7 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
 
     const updateData: any = {
       comprasRealizadas: increment(1),
+      sellosHistoricos: increment(1),
       recompensaDisponible: nuevasCompras >= 5,
       puntos: increment(50),
       lastPurchaseAt: timestamp,
@@ -299,6 +300,7 @@ export async function confirmarHandshake(
     if (userSnap.exists()) {
       transaction.update(userRef, {
         comprasRealizadas: increment(1),
+        sellosHistoricos: increment(1),
         recompensaDisponible: nuevoTotal >= 5,
         puntos: increment(50),
         lastPurchaseAt: timestamp,
@@ -309,6 +311,7 @@ export async function confirmarHandshake(
     } else {
       transaction.set(userRef, {
         comprasRealizadas: 1,
+        sellosHistoricos: 1,
         recompensaDisponible: false,
         puntos: 100,
         totalCanjesHistoricos: 0,

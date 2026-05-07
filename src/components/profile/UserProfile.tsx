@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
 import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -48,6 +49,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { hasRole } from "@/lib/roles";
+
+function calcularRango(sellos: number): { nombre: string; color: string; emoji: string; siguiente: number | null; progreso: number } {
+  if (sellos >= 100) return { nombre: "Platino", color: "#A8D5E2", emoji: "💎", siguiente: null, progreso: 100 };
+  if (sellos >= 50)  return { nombre: "Oro",     color: "#D3B673", emoji: "🏆", siguiente: 100, progreso: Math.round(((sellos - 50) / 50) * 100) };
+  if (sellos >= 15)  return { nombre: "Plata",   color: "#94A3B8", emoji: "⭐", siguiente: 50,  progreso: Math.round(((sellos - 15) / 35) * 100) };
+  if (sellos >= 5)   return { nombre: "Bronce",  color: "#C9920A", emoji: "🥉", siguiente: 15,  progreso: Math.round(((sellos - 5) / 10) * 100) };
+  return { nombre: "Visitante", color: "#9DCC65", emoji: "🌱", siguiente: 5, progreso: Math.round((sellos / 5) * 100) };
+}
 
 const AVATAR_OPTIONS = [
   { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
@@ -378,6 +387,13 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const { toast } = useToast();
   const router = useRouter();
 
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "¡Buenos días!";
+    if (hour < 19) return "¡Buenas tardes!";
+    return "¡Buenas noches!";
+  }, []);
+
   const [editForm, setEditForm] = useState({
     nombre: "",
     telefono: "",
@@ -483,6 +499,29 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       unsubscribeNotif?.();
     };
   }, [user]);
+
+  // ── Racha de visitas ─────────────────────────────────────────────────────────
+  const streakUpdatedRef = useRef(false);
+  useEffect(() => {
+    if (!user || !userData || streakUpdatedRef.current) return;
+    const hoy = new Date().toISOString().slice(0, 10);
+    if (userData.ultimaVisita === hoy) { streakUpdatedRef.current = true; return; }
+    const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const rachaActual = userData.rachaActual || 0;
+    const nuevaRacha = userData.ultimaVisita === ayer ? rachaActual + 1 : 1;
+    const sellosHist = userData.sellosHistoricos ?? userData.comprasRealizadas ?? 0;
+    const rangoActual = calcularRango(sellosHist).nombre;
+    streakUpdatedRef.current = true;
+    updateDoc(doc(db, "usuarios", user.uid), {
+      rachaActual: nuevaRacha,
+      ultimaVisita: hoy,
+      rachaMaxima: Math.max(userData.rachaMaxima || 0, nuevaRacha),
+      rangoActual,
+      rangoMaximo: userData.rangoMaximo && calcularRango(sellosHist).siguiente !== null
+        ? userData.rangoMaximo
+        : rangoActual,
+    }).catch(() => {});
+  }, [user, userData]);
 
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -666,79 +705,138 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const tickets = userData?.ticketsSorteo || 0;
   const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
   const sellosRestantesParaPremio = 5 - (sellos % 5);
+  const sellosHistoricos = userData?.sellosHistoricos ?? sellos;
+  const rango = calcularRango(sellosHistoricos);
+  const racha = userData?.rachaActual || 1;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6 pb-20"
+    >
+      {/* Header Dinámico con Glassmorphism */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-white shadow-xl shadow-slate-200/50 border border-slate-100">
         <div
-          className="h-[120px]"
+          className="h-[140px] relative overflow-hidden"
           style={{
             background: (isDirector && isEntrepreneur)
-              ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.25) 50%, rgba(91,184,212,0.2) 100%)"
+              ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.4) 50%, rgba(91,184,212,0.3) 100%)"
               : isEntrepreneur
-                ? "linear-gradient(135deg, rgba(91,184,212,0.3) 0%, rgba(201,146,10,0.2) 100%)"
+                ? "linear-gradient(135deg, rgba(91,184,212,0.4) 0%, rgba(201,146,10,0.3) 100%)"
                 : isDirector
-                  ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.2) 100%)"
+                  ? "linear-gradient(135deg, #E0E7FF 0%, rgba(201,146,10,0.3) 100%)"
                   : "linear-gradient(135deg, #E8F4F8 0%, #D4EDD4 50%, #FFF8E8 100%)"
           }}
-        />
-        <div className="px-6 pb-6 -mt-10">
+        >
+          {/* Círculos decorativos animados */}
+          <motion.div 
+            animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white blur-3xl opacity-20" 
+          />
+          <motion.div 
+            animate={{ scale: [1.2, 1, 1.2], opacity: [0.1, 0.15, 0.1] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-primary blur-3xl opacity-10" 
+          />
+        </div>
+
+        <div className="px-6 pb-8 -mt-12 relative z-10">
           <div className="flex justify-between items-end mb-4">
-            <div
-              style={{
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #C9920A, #8DC63F)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "28px",
-                fontWeight: 700,
-                color: "white",
-                fontFamily: "'Montserrat', sans-serif",
-                border: "4px solid white",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                flexShrink: 0,
-              }}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="relative"
             >
-              {getInitials(userData?.nombre)}
-            </div>
+              <div
+                style={{
+                  width: "90px",
+                  height: "90px",
+                  borderRadius: "2rem",
+                  background: "linear-gradient(135deg, #C9920A, #8DC63F)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "32px",
+                  fontWeight: 800,
+                  color: "white",
+                  fontFamily: "'Montserrat', sans-serif",
+                  border: "4px solid white",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                }}
+              >
+                {getInitials(userData?.nombre)}
+              </div>
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-xl shadow-lg flex items-center justify-center border-2 border-slate-50"
+              >
+                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+              </motion.div>
+            </motion.div>
+
             {!isEditing ? (
-              <Button variant="outline" size="sm" className="rounded-full border-primary/20 text-primary" onClick={() => setIsEditing(true)}>
-                <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Editar
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="rounded-2xl border-primary/20 text-primary bg-white/80 backdrop-blur-md shadow-sm" 
+                onClick={() => setIsEditing(true)}
+              >
+                <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Ajustes
               </Button>
             ) : (
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setIsEditing(false)}><X className="w-4 h-4" /></Button>
-              </div>
+              <Button variant="ghost" size="sm" className="rounded-full bg-white/80 backdrop-blur-md" onClick={() => setIsEditing(false)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </Button>
             )}
           </div>
+
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold text-primary">{userData?.nombre || "Usuario"}</h2>
-              {isAdmin ? (
-                <Badge variant="destructive" className="text-[10px] font-bold uppercase">Master Admin</Badge>
-              ) : (isDirector && isEntrepreneur) ? (
-                <div className="flex gap-1">
-                  <Badge variant="secondary" className="text-[10px] font-bold uppercase">Director</Badge>
-                  <Badge variant="default" className="text-[10px] font-bold uppercase">Emprendedor</Badge>
-                </div>
-              ) : isDirector ? (
-                <Badge variant="secondary" className="text-[10px] font-bold uppercase">Director de Patio</Badge>
-              ) : isEntrepreneur ? (
-                <Badge variant="default" className="text-[10px] font-bold uppercase">Emprendedor</Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] font-bold uppercase">Miembro Club</Badge>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{greeting}</span>
+              <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none">
+                {userData?.nombre?.split(' ')[0] || "Miembro"}
+              </h2>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 mt-3">
+              {isAdmin && <Badge className="bg-red-500 hover:bg-red-600 rounded-lg py-1 px-3 shadow-sm border-none">Master Admin</Badge>}
+              {isDirector && <Badge className="bg-indigo-600 hover:bg-indigo-700 rounded-lg py-1 px-3 shadow-sm border-none">Director</Badge>}
+              {isEntrepreneur && <Badge className="bg-primary hover:bg-primary/90 rounded-lg py-1 px-3 shadow-sm border-none">Emprendedor</Badge>}
+              {!isAdmin && !isDirector && !isEntrepreneur && (
+                <Badge
+                  variant="outline"
+                  className="rounded-lg py-1 px-3 border-slate-200 font-black text-sm gap-1"
+                  style={{ color: rango.color, borderColor: `${rango.color}40` }}
+                >
+                  {rango.emoji} {rango.nombre}
+                </Badge>
               )}
             </div>
-            {!isEditing && userData?.telefono && (
-              <p className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
-                <Phone className="w-3 h-3" /> {userData.telefono}
-              </p>
-            )}
           </div>
         </div>
+
+        {/* Stats Rápidos */}
+        {!isEditing && (
+          <div className="grid grid-cols-3 gap-px bg-slate-100/50 border-t border-slate-50">
+            <div className="p-4 bg-white/50 backdrop-blur-sm flex flex-col items-center justify-center border-r border-slate-50">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sellos</span>
+              <span className="text-xl font-black text-primary">{sellos}</span>
+            </div>
+            <div className="p-4 bg-white/50 backdrop-blur-sm flex flex-col items-center justify-center border-r border-slate-50">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Racha</span>
+              <span className="text-xl font-black" style={{ color: racha >= 3 ? "#f97316" : "#94a3b8" }}>
+                {racha}{racha >= 3 ? "🔥" : "📅"}
+              </span>
+            </div>
+            <div className="p-4 bg-white/50 backdrop-blur-sm flex flex-col items-center justify-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rango</span>
+              <span className="text-xl font-black">{rango.emoji}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {isEditing && (
@@ -756,17 +854,19 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   const Icon = opt.icon;
                   const isSelected = editForm.avatarId === opt.id;
                   return (
-                    <button
+                    <motion.button
                       key={opt.id}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
                       onClick={() => setEditForm({ ...editForm, avatarId: opt.id })}
                       className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm",
                         opt.color,
                         isSelected ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-lg" : "opacity-40 grayscale-[50%] hover:opacity-100 hover:grayscale-0"
                       )}
                     >
                       <Icon className="w-6 h-6" />
-                    </button>
+                    </motion.button>
                   );
                 })}
               </div>
@@ -912,6 +1012,68 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             <Button onClick={handleForceAINotif} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Sparkles className="w-3 h-3" /> Generar IA</Button>
             <Button onClick={handleSimulatePurchase} size="sm" variant="outline" className="text-[9px] bg-white h-10 gap-1 font-bold"><Gift className="w-3 h-3" /> Sumar Sello</Button>
           </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full text-[9px] bg-white h-10 gap-1 font-bold border-amber-200 text-amber-700 hover:bg-amber-50"
+            disabled={loading}
+            onClick={async () => {
+              if (!user) return;
+              if (!confirm("¿Generar códigos de referido para todos los usuarios que no tienen? Esta acción es irreversible.")) return;
+              setLoading(true);
+              try {
+                const token = await user.getIdToken();
+                const res = await fetch("/api/admin/generar-codigos-referido", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (data.ok) {
+                  toast({ title: "¡Listo!", description: `${data.actualizados} usuarios actualizados, ${data.omitidos} ya tenían código.${data.errores.length ? ` ${data.errores.length} errores.` : ""}` });
+                } else {
+                  toast({ variant: "destructive", title: "Error", description: data.error });
+                }
+              } catch {
+                toast({ variant: "destructive", title: "Error de red" });
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Users className="w-3 h-3" />}
+            Generar códigos referido a todos
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full text-[9px] bg-white h-10 gap-1 font-bold border-blue-200 text-blue-700 hover:bg-blue-50"
+            disabled={loading}
+            onClick={async () => {
+              if (!user) return;
+              if (!confirm("¿Calcular sellosHistoricos para todos los usuarios sin él? Esto lee sus canjes históricos.")) return;
+              setLoading(true);
+              try {
+                const token = await user.getIdToken();
+                const res = await fetch("/api/admin/migrar-sellos-historicos", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (data.ok) {
+                  toast({ title: "Migración completada", description: `${data.actualizados} usuarios migrados, ${data.omitidos} ya tenían el campo.${data.errores.length ? ` ${data.errores.length} errores.` : ""}` });
+                } else {
+                  toast({ variant: "destructive", title: "Error", description: data.error });
+                }
+              } catch {
+                toast({ variant: "destructive", title: "Error de red" });
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trophy className="w-3 h-3" />}
+            Migrar sellos históricos + rangos
+          </Button>
         </section>
       )}
 
@@ -942,35 +1104,48 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       )}
 
       {isEntrepreneur && (
-        <div className="space-y-6 animate-in slide-in-from-bottom duration-500">
-          <Card className="border-accent/40 shadow-md bg-white rounded-3xl overflow-hidden">
-            <CardHeader className="bg-accent/10">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Store className="w-5 h-5" /> Mi Tienda
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          className="space-y-6"
+        >
+          <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden group">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-50">
+              <CardTitle className="text-lg font-black flex items-center gap-2 text-slate-800">
+                <Store className="w-5 h-5 text-primary" /> Mi Tienda
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-3">
+            <CardContent className="p-6 space-y-4">
               <Link href="/vendedor?action=scan">
-                <Button className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg gap-3 shadow-lg shadow-primary/20">
-                  <QrCode className="w-6 h-6" /> Escanear Cliente
-                </Button>
-              </Link>
-              {/* Acceso rápido al Panel de Validación (handshake) */}
-              {user && (
-                <Link href={`/validar/${user.uid}`}>
-                  <Button
-                    className="w-full h-14 rounded-2xl font-bold gap-3 shadow-md active:scale-[0.97] transition-transform"
-                    style={{ backgroundColor: "#D3B673", color: "#fff" }}
-                  >
-                    <span className="text-base">🛠️</span> Panel de Validación (Caja)
+                <motion.div whileTap={{ scale: 0.98 }}>
+                  <Button className="w-full h-16 rounded-[1.5rem] bg-primary text-white font-black text-lg gap-3 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
+                    <QrCode className="w-6 h-6" /> Escanear Cliente
                   </Button>
-                </Link>
-              )}
-              <Link href="/vendedor">
-                <Button variant="outline" className="w-full h-14 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold gap-3 hover:bg-slate-50">
-                  <LayoutDashboard className="w-5 h-5 text-primary" /> Panel del Emprendedor
-                </Button>
+                </motion.div>
               </Link>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {user && (
+                  <Link href={`/validar/${user.uid}`}>
+                    <motion.div whileTap={{ scale: 0.98 }}>
+                      <Button
+                        className="w-full h-14 rounded-2xl font-bold gap-2 shadow-sm border-none text-white text-xs"
+                        style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> Validar Caja
+                      </Button>
+                    </motion.div>
+                  </Link>
+                )}
+                <Link href="/vendedor">
+                  <motion.div whileTap={{ scale: 0.98 }}>
+                    <Button variant="outline" className="w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 text-slate-600 font-bold text-xs gap-2 hover:bg-white hover:border-primary/20">
+                      <LayoutDashboard className="w-4 h-4 text-primary" /> Panel
+                    </Button>
+                  </motion.div>
+                </Link>
+              </div>
             </CardContent>
           </Card>
 
@@ -1013,16 +1188,144 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               )}
             </div>
           </section>
-        </div>
+        </motion.div>
       )}
 
       {!isEntrepreneur && !isDirector && !isAdmin && !isEditing && (
-        <>
-          <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden">
-            <CardContent className="flex flex-col items-center py-8">
-              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-4">Muestra tu QR en caja para obtener sellos</p>
-              <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
-                <QRCode value={user.uid} size={176} fgColor="#000000" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-6"
+        >
+          {/* ── Tarjeta de Rango + Progreso ─────────────────────────────────── */}
+          <div
+            className="rounded-[2rem] p-6 space-y-4 overflow-hidden relative"
+            style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <div className="absolute top-0 right-0 w-40 h-40 blur-[80px] pointer-events-none" style={{ background: rango.color, opacity: 0.15 }} />
+            <div className="relative z-10 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">Tu rango actual</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl">{rango.emoji}</span>
+                  <span className="text-2xl font-black text-white">{rango.nombre}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: racha >= 3 ? "#f97316" : "rgba(255,255,255,0.4)" }}>
+                  Racha
+                </p>
+                <p className="text-2xl font-black text-white">
+                  {racha}{racha >= 7 ? "🔥" : racha >= 3 ? "🔥" : "📅"}
+                </p>
+                <p className="text-[10px] text-white/30">{racha === 1 ? "día" : "días"}</p>
+              </div>
+            </div>
+
+            {rango.siguiente !== null && (
+              <div className="relative z-10 space-y-2">
+                <div className="flex justify-between text-[11px] font-bold">
+                  <span className="text-white/50">Progreso a {rango.siguiente >= 100 ? "💎 Platino" : rango.siguiente >= 50 ? "🏆 Oro" : rango.siguiente >= 15 ? "⭐ Plata" : "🥉 Bronce"}</span>
+                  <span style={{ color: rango.color }}>{sellos} / {rango.siguiente}</span>
+                </div>
+                <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${rango.progreso}%`,
+                      background: `linear-gradient(90deg, ${rango.color}, ${rango.color}cc)`,
+                      borderRadius: 8,
+                      transition: "width 0.8s ease",
+                    }}
+                  />
+                </div>
+                <p className="text-[10px] text-white/30">
+                  Te faltan <span className="font-black" style={{ color: rango.color }}>{rango.siguiente - sellos} sellos</span> para subir de rango
+                </p>
+              </div>
+            )}
+
+            {rango.siguiente === null && (
+              <div className="relative z-10 text-center py-2">
+                <p className="text-sm font-black text-white/80">¡Alcanzaste el rango máximo! 💎</p>
+                <p className="text-[11px] text-white/40 mt-1">Eres parte de la élite del Club Patio</p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Acciones Rápidas ───────────────────────────────────────────── */}
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { icon: "📷", label: "Escanear", href: "/scan", color: "#9DCC65" },
+              { icon: "🎁", label: "Premios", href: "/premios", color: "#D3B673" },
+              { icon: "🗺️", label: "Mi Ruta", href: "/ruta", color: "#6EBBD1" },
+              { icon: "📤", label: "Referir", href: null, color: "#C9920A" },
+            ].map((action) => (
+              <button
+                key={action.label}
+                onClick={() => {
+                  if (action.href) {
+                    router.push(action.href);
+                    return;
+                  }
+                  // Botón Referir: scroll a la sección y/o compartir
+                  const seccion = document.getElementById("seccion-referido");
+                  if (seccion) {
+                    seccion.scrollIntoView({ behavior: "smooth", block: "center" });
+                    return;
+                  }
+                  // Fallback si no tiene código aún
+                  if (userData?.codigoReferido) {
+                    const msg = `¡Únete al Club Patio Curauma! Usa mi código *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.cl/unete`;
+                    if (typeof navigator.share === "function") {
+                      navigator.share({ title: "Club Patio Curauma", text: msg }).catch(() => {});
+                    } else {
+                      navigator.clipboard.writeText(msg).then(() => toast({ title: "¡Copiado!" }));
+                    }
+                  } else {
+                    toast({ title: "Código de referido", description: "Tu código de referido se genera automáticamente al registrarte." });
+                  }
+                }}
+                className="flex flex-col items-center gap-1.5 py-4 rounded-2xl bg-white shadow-sm border border-slate-100 active:scale-95 transition-transform hover:shadow-md"
+              >
+                <span className="text-2xl">{action.icon}</span>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wide">{action.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden relative group">
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+            <CardContent className="flex flex-col items-center py-10 relative z-10">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+                <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">Muestra tu QR en caja</p>
+              </div>
+              
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                className="p-6 bg-white rounded-[2rem] shadow-xl border border-slate-50 flex items-center justify-center relative"
+              >
+                <QRCode value={user.uid} size={180} fgColor="#1A1A1A" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
+                <motion.div 
+                  className="absolute -top-3 -right-3 w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg text-white border-4 border-white"
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 4, repeat: Infinity }}
+                >
+                  <QrCode className="w-5 h-5" />
+                </motion.div>
+              </motion.div>
+              
+              <div className="mt-8 flex flex-col items-center gap-2">
+                <div className="flex -space-x-2">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center">
+                      <Star className="w-3 h-3 text-primary fill-primary" />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] font-bold text-slate-400">Úsalo en locales adheridos</p>
               </div>
             </CardContent>
           </Card>
@@ -1065,71 +1368,84 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               )}
             </div>
           </section>
-        </>
+        </motion.div>
       )}
 
       {showPermisos && <PermissionsModal onClose={() => setShowPermisos(false)} />}
 
       {/* ── Código de Referido ─────────────────────────────────────────────── */}
       {userData?.codigoReferido && !isEditing && (
-        <div
-          className="rounded-2xl overflow-hidden"
+        <motion.div
+          id="seccion-referido"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3 }}
+          className="rounded-[2.5rem] overflow-hidden relative"
           style={{
             background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
             border: "1px solid rgba(211,182,115,0.2)",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
           }}
         >
-          <div className="px-5 pt-5 pb-3 flex items-center gap-3">
+          {/* Luz de fondo sutil */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#D3B673] opacity-10 blur-[60px] pointer-events-none" />
+          
+          <div className="px-7 pt-7 pb-4 flex items-center gap-4 relative z-10">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg"
               style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
             >
-              <Users className="w-5 h-5 text-white" />
+              <Users className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-sm font-black text-white leading-tight">Tu Código de Referido</p>
-              <p className="text-[11px] text-white/50 leading-tight">
-                Compártelo y gana 1 sello por cada amigo que se una
+              <p className="text-base font-black text-white leading-tight">Programa de Referidos</p>
+              <p className="text-[12px] text-white/50 leading-tight mt-1">
+                Gana <span className="text-[#D3B673] font-bold">1 sello gratis</span> por cada amigo
               </p>
             </div>
           </div>
 
-          <div className="px-5 pb-5 space-y-3">
-            {/* Código visual */}
+          <div className="px-7 pb-7 space-y-4 relative z-10">
             <div
-              className="flex items-center justify-between rounded-xl px-4 py-3"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              className="flex items-center justify-between rounded-2xl px-5 py-4"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <span
-                className="text-xl font-black tracking-[0.15em]"
+                className="text-2xl font-black tracking-[0.2em]"
                 style={{ color: "#D3B673", fontFamily: "monospace" }}
               >
                 {userData.codigoReferido}
               </span>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
                 onClick={() => {
                   navigator.clipboard.writeText(userData.codigoReferido).then(() => {
                     toast({ title: "¡Copiado!", description: "Código copiado al portapapeles." });
                   });
                 }}
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-                style={{ background: "rgba(211,182,115,0.15)", color: "#D3B673" }}
+                className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm"
+                style={{ background: "rgba(211,182,115,0.2)", color: "#D3B673" }}
               >
-                <Copy className="w-4 h-4" />
-              </button>
+                <Copy className="w-5 h-5" />
+              </motion.button>
             </div>
 
-            {/* Contador de referidos */}
-            {typeof userData.referidosExitosos === "number" && userData.referidosExitosos > 0 && (
-              <p className="text-[11px] text-white/60 font-medium text-center">
-                Amigos referidos exitosamente:{" "}
-                <span className="font-black text-[#D3B673]">{userData.referidosExitosos}</span>
-              </p>
-            )}
+            <div className="flex items-center justify-center gap-6 py-2">
+               <div className="text-center">
+                  <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">Referidos</p>
+                  <p className="text-xl font-black text-[#D3B673]">{userData.referidosExitosos || 0}</p>
+               </div>
+               <div className="w-px h-8 bg-white/10" />
+               <div className="text-center">
+                  <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">Bonus</p>
+                  <p className="text-xl font-black text-primary">{(userData.referidosExitosos || 0)} <span className="text-[10px]">🎟️</span></p>
+               </div>
+            </div>
 
-            {/* Botón compartir */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => {
                 const msg = `¡Únete al Club Patio Curauma y gana sellos y premios! Usa mi código de referido *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.cl/unete`;
                 if (typeof navigator.share === "function") {
@@ -1140,18 +1456,18 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   });
                 }
               }}
-              className="w-full h-11 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+              className="w-full h-14 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all shadow-xl"
               style={{
                 background: "linear-gradient(135deg, #D3B673, #C9920A)",
                 color: "white",
-                boxShadow: "0 4px 16px rgba(201,146,10,0.3)",
+                boxShadow: "0 10px 25px rgba(201,146,10,0.4)",
               }}
             >
-              <Share2 className="w-4 h-4" />
-              Compartir mi código
-            </button>
+              <Share2 className="w-5 h-5" />
+              Compartir Invitación
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* ── Configuración de permisos ── */}
@@ -1190,6 +1506,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           <p className="text-[10px] text-slate-400 font-light mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
         </div>
       </section>
-    </div>
+    </motion.div>
   );
 }
