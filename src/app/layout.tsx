@@ -19,6 +19,10 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: 'Club Patio',
   description: 'Acumula sellos y obtén recompensas en Patio Curauma',
+  icons: {
+    icon: '/Logo2.png',
+    apple: '/Logo2.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
