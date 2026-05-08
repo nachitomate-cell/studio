@@ -109,7 +109,7 @@ export default function VendedorPage() {
     categoria: "",
     mediosPago: [] as string[],
     otroMedio: "",
-    whatsapp: "",
+    whatsapp: "+56",
     instagram: "",
     ubicacion: "",
     horario: "",
@@ -163,7 +163,7 @@ export default function VendedorPage() {
                 ? [...mp.filter(m => ['efectivo', 'debito', 'transferencia'].includes(m)), 'otro']
                 : mp,
               otroMedio: otroVal === 'otro' ? "" : otroVal,
-              whatsapp: data.whatsapp || data.contactPhone || "",
+              whatsapp: data.whatsapp || data.contactPhone || "+56",
               instagram: data.instagram ? data.instagram.replace('@', '') : "",
               ubicacion: data.ubicacionTienda || data.address || "",
               horario: data.operatingHours || data.horario || "",
@@ -258,8 +258,9 @@ export default function VendedorPage() {
       return;
     }
     
-    // Validación WhatsApp
-    const waClean = shopForm.whatsapp.replace(/\s/g, '');
+    // Validación WhatsApp ("+56" solo = sin número, se trata como vacío)
+    const waRaw = shopForm.whatsapp.replace(/\s/g, '');
+    const waClean = (waRaw === '+' || waRaw === '+56') ? '' : waRaw;
     if (waClean && !/^\+56\d{9}$/.test(waClean)) {
       toast({ variant: "destructive", title: "WhatsApp inválido", description: "Debe comenzar con +56 y tener 11 dígitos totales. Ej: +56912345678" });
       return;
@@ -736,11 +737,15 @@ export default function VendedorPage() {
                   <Input
                     id="whatsapp"
                     type="tel"
-                    inputMode="numeric"
+                    inputMode="tel"
                     placeholder="+56 9 XXXX XXXX"
                     className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
                     value={shopForm.whatsapp}
-                    onChange={(e) => setShopForm({...shopForm, whatsapp: e.target.value})}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (!val.startsWith('+')) val = '+' + val.replace(/^\++/, '');
+                      setShopForm({...shopForm, whatsapp: val});
+                    }}
                   />
                 </div>
 
