@@ -113,7 +113,9 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       batch.update(doc(db, "usuarios", vendedorId), vendorCounterUpdate);
       await batch.commit().catch((e) => console.warn("[registrarCompra] Batch vendor falló:", e));
 
-      if (isClientScan) {
+      if (metodoOverride === "REFERIDO") {
+        await enviarNotificacionLocal(vendedorId, "¡Nuevo Socio Captado! 🎉", `${clienteNombre} se registró en el Club usando tu QR. +1 sello atribuido a tu local.`);
+      } else if (isClientScan) {
         await enviarNotificacionLocal(vendedorId, "¡Cliente Auto-Verificado! ✅", `${clienteNombre} acaba de escanear tu código y ganó un sello.`);
       } else {
         await enviarNotificacionLocal(vendedorId, "Venta Exitosa ✅", `Has entregado un sello a ${clienteNombre}.`);
