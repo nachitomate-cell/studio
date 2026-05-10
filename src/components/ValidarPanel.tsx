@@ -208,7 +208,7 @@ function ConfirmModal({
           <div className="flex flex-col gap-3">
             <Button
               onClick={handleConfirmClick}
-              disabled={loading || isOverLimit}
+              disabled={loading || isEmpty || isOverLimit}
               className="w-full h-14 rounded-2xl font-black text-base gap-2 shadow-lg"
               style={{ backgroundColor: "#D3B673" }}
             >
