@@ -297,7 +297,7 @@ function LogoRain({ onDone }: { onDone: () => void }) {
       {items.map((item) => (
         <img
           key={item.id}
-          src="/empresa.png"
+          src="/emp.png"
           alt=""
           style={{
             position: "absolute",
