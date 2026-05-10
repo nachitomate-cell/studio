@@ -165,7 +165,7 @@ function SynapTechStampCell({
   return (
     <div className="flex flex-col items-center gap-2" onClick={onTap}>
       <div
-        className="w-full aspect-square rounded-2xl border-2 flex items-center justify-center relative overflow-hidden transition-all duration-500 cursor-pointer active:scale-95"
+        className="w-full aspect-square rounded-2xl border-2 flex items-center justify-center relative overflow-hidden transition-all duration-500 cursor-pointer active:scale-95 p-3"
         style={
           collected
             ? {
@@ -184,12 +184,12 @@ function SynapTechStampCell({
         <img
           src="/empresa.png"
           alt="SynapTech SpA"
-          className="w-10 h-10 object-contain transition-all duration-500"
+          className="w-full h-full object-contain transition-all duration-500"
           style={{
             filter: collected
               ? "drop-shadow(0 4px 12px rgba(124,58,237,0.35))"
               : "grayscale(100%) opacity(0.35)",
-            transform: collected ? "scale(1)" : "scale(0.9)",
+            transform: collected ? "scale(1)" : "scale(0.92)",
           }}
         />
 
