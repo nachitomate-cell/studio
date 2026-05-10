@@ -245,6 +245,50 @@ function SynapTechStampCell({
   );
 }
 
+// ── Logo rain ─────────────────────────────────────────────────────────────────
+function LogoRain({ onDone }: { onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3500);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  const items = Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    left: `${(i * 4.7 + 2) % 94}%`,
+    delay: `${(i * 0.15) % 1.6}s`,
+    duration: `${1.4 + (i * 0.11) % 1.2}s`,
+    size: 28 + (i * 6) % 38,
+  }));
+
+  return (
+    <div className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden">
+      <style>{`
+        @keyframes logoRainFall {
+          0%   { transform: translateY(-80px) rotate(0deg); opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+        }
+      `}</style>
+      {items.map((item) => (
+        <img
+          key={item.id}
+          src="/emp.png"
+          alt=""
+          style={{
+            position: "absolute",
+            left: item.left,
+            top: 0,
+            width: item.size,
+            height: item.size,
+            objectFit: "contain",
+            animation: `logoRainFall ${item.duration} ${item.delay} ease-in forwards`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function MiRutaPage() {
   const router = useRouter();
@@ -255,15 +299,15 @@ export default function MiRutaPage() {
   const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
   const [showRouteInfo, setShowRouteInfo] = useState(false);
   const [showSynapModal, setShowSynapModal] = useState<"invite" | "thanks" | null>(null);
+  const [showLogoRain, setShowLogoRain] = useState(false);
 
   // Real-time stamp data — auto-updates when any sale is confirmed
   const { sellosLocales, hasSynapTechStamp } = useLocalesVisitados(userId);
 
   const handleVisitSynapTech = () => {
-    // Open first (synchronous, so the browser recognises it as user-initiated)
     window.open("https://synaptechspa.cl", "_blank", "noopener,noreferrer");
     setShowSynapModal(null);
-    // Firestore update fires in the background — no need to await
+    setShowLogoRain(true);
     if (userId) {
       updateDoc(doc(db, "usuarios", userId), { hasSynapTechStamp: true }).catch(() => {});
     }
@@ -323,10 +367,10 @@ export default function MiRutaPage() {
     [entrepreneurs, activeCategory]
   );
 
-  // Visited count (real-time derived)
+  // Visited count (real-time derived) — SynapTech counts as +1 special stamp
   const visitedCount = useMemo(
-    () => entrepreneurs.filter((v) => (sellosLocales[v.id] || 0) > 0).length,
-    [entrepreneurs, sellosLocales]
+    () => entrepreneurs.filter((v) => (sellosLocales[v.id] || 0) > 0).length + (hasSynapTechStamp ? 1 : 0),
+    [entrepreneurs, sellosLocales, hasSynapTechStamp]
   );
 
   if (loading) {
@@ -383,7 +427,7 @@ export default function MiRutaPage() {
               </p>
             </div>
           </div>
-          <ProgressBar visited={visitedCount} total={entrepreneurs.length} />
+          <ProgressBar visited={visitedCount} total={entrepreneurs.length + 1} />
         </div>
 
         {/* Legend */}
@@ -456,10 +500,20 @@ export default function MiRutaPage() {
           {/* SynapTech special stamp — always last in the album */}
           <SynapTechStampCell
             collected={hasSynapTechStamp}
-            onTap={() => setShowSynapModal(hasSynapTechStamp ? "thanks" : "invite")}
+            onTap={() => {
+              if (hasSynapTechStamp) {
+                setShowLogoRain(true);
+                setShowSynapModal("thanks");
+              } else {
+                setShowSynapModal("invite");
+              }
+            }}
           />
         </div>
       </div>
+
+      {/* Logo rain */}
+      {showLogoRain && <LogoRain onDone={() => setShowLogoRain(false)} />}
 
       {/* Route info modal */}
       {showRouteInfo && (
@@ -641,17 +695,30 @@ export default function MiRutaPage() {
             </div>
 
             <p className="text-sm text-slate-500 leading-relaxed">
-              ¡Gracias por ser parte de la comunidad digital de Patio Curauma! — Desarrollado por{" "}
-              <span className="font-bold" style={{ color: "#7C3AED" }}>SynapTech SpA</span>
+              ¿Ya viste las últimas novedades? En{" "}
+              <span className="font-bold" style={{ color: "#7C3AED" }}>synaptechspa.cl</span>{" "}
+              encontrarás soluciones digitales para llevar tu negocio al siguiente nivel. ¡Vuelve a visitarnos!
             </p>
 
-            <button
-              onClick={() => setShowSynapModal(null)}
-              className="w-full h-12 rounded-2xl font-black text-sm text-white transition-all active:scale-[0.97]"
-              style={{ background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)" }}
-            >
-              ¡Genial! ✨
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  window.open("https://synaptechspa.cl", "_blank", "noopener,noreferrer");
+                  setShowSynapModal(null);
+                }}
+                className="w-full rounded-2xl font-black text-sm text-white transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+                style={{ height: 52, background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)", boxShadow: "0 8px 24px rgba(124,58,237,0.35)" }}
+              >
+                Visitar synaptechspa.cl ↗
+              </button>
+              <button
+                onClick={() => setShowSynapModal(null)}
+                className="w-full h-11 rounded-2xl font-bold text-sm transition-colors"
+                style={{ color: "rgba(100,100,120,0.5)" }}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
