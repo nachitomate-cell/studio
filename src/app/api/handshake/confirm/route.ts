@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 
 export async function POST(request: Request) {
   try {
@@ -157,6 +158,9 @@ export async function POST(request: Request) {
               fecha: timestamp,
             });
         }
+
+        // Capa 1: si este es el primer sello real del usuario, otorgar sello al referidor
+        await procesarReferidoPendiente(result!.userId, result!.userName);
       } catch (e) {
         console.warn("[handshake/confirm] Operación auxiliar falló:", e);
       }

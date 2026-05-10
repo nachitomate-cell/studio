@@ -2,13 +2,9 @@
  * POST /api/referral/process
  *
  * Procesa un código de referido al momento del registro.
- * Usa Admin SDK para poder escribir en documentos de otros usuarios.
- *
- * Headers: Authorization: Bearer <idToken>
- * Body:    { referralCode: string }
- *
- * Otorga +1 sello al nuevo usuario y +1 sello al referidor.
- * Es idempotente: si el nuevo usuario ya tiene `referidoPor`, no hace nada.
+ * Otorga +1 sello al nuevo usuario y crea un doc pendiente para el referidor.
+ * El sello del referidor se entrega recién cuando el nuevo usuario realice
+ * su primera compra real (ver procesarReferidoPendiente en referralAdmin.ts).
  */
 
 import { NextResponse } from "next/server";
@@ -55,11 +51,11 @@ export async function POST(request: Request) {
 
     const newUserRef = adminDb.collection("usuarios").doc(newUserId);
     const referrerRef = adminDb.collection("usuarios").doc(referrerId);
+    const pendingRef = adminDb.collection("referidos_pendientes").doc(newUserId);
 
     let newUserName = "Nuevo Miembro";
     let referrerName = "Miembro del Club";
     let newUserSellos = 0;
-    let referrerSellos = 0;
 
     await adminDb.runTransaction(async (tx) => {
       const [newUserSnap, referrerSnap] = await Promise.all([
@@ -75,13 +71,16 @@ export async function POST(request: Request) {
       if (newUserData.referidoPor) {
         throw new Error("Este usuario ya usó un código de referido.");
       }
-
       if (newUserData.baneado) throw new Error("Usuario baneado.");
 
       newUserName = newUserData.nombre || newUserData.correo || "Nuevo Miembro";
       newUserSellos = (newUserData.comprasRealizadas || 0) + 1;
 
-      // Actualizar nuevo usuario: +1 sello de bono por referido
+      if (referrerSnap.exists) {
+        referrerName = referrerSnap.data()!.nombre || "Miembro del Club";
+      }
+
+      // +1 sello al nuevo usuario por registrarse con código
       tx.update(newUserRef, {
         comprasRealizadas: FieldValue.increment(1),
         puntos: FieldValue.increment(50),
@@ -90,21 +89,14 @@ export async function POST(request: Request) {
         lastUpdate: new Date().toISOString(),
       });
 
-      // Actualizar referidor: +1 sello de bono
-      if (referrerSnap.exists) {
-        const referrerData = referrerSnap.data()!;
-        if (!referrerData.baneado) {
-          referrerName = referrerData.nombre || "Miembro del Club";
-          referrerSellos = (referrerData.comprasRealizadas || 0) + 1;
-          tx.update(referrerRef, {
-            comprasRealizadas: FieldValue.increment(1),
-            puntos: FieldValue.increment(50),
-            recompensaDisponible: referrerSellos >= 5,
-            referidosExitosos: FieldValue.increment(1),
-            lastUpdate: new Date().toISOString(),
-          });
-        }
-      }
+      // Capa 1: sello del referidor queda pendiente hasta primera compra real
+      tx.set(pendingRef, {
+        referrerId,
+        referrerName,
+        newUserName,
+        status: "pending",
+        creadoEn: FieldValue.serverTimestamp(),
+      });
     });
 
     // Logs y notificaciones no críticas (fire-and-forget)
@@ -121,14 +113,6 @@ export async function POST(request: Request) {
             tipo: "REFERIDO",
             metodo: "SISTEMA",
           }),
-          adminDb.collection("system_logs").add({
-            usuario: referrerName,
-            usuarioId: referrerId,
-            accion: `recibió un sello por referir a ${newUserName}`,
-            fecha: timestamp,
-            tipo: "REFERIDO",
-            metodo: "SISTEMA",
-          }),
           // Notificación al nuevo usuario
           adminDb.collection("usuarios").doc(newUserId).collection("notificaciones").add({
             titulo: "¡Bono de Referido! 🎁",
@@ -136,10 +120,10 @@ export async function POST(request: Request) {
             leida: false,
             fecha: timestamp,
           }),
-          // Notificación al referidor
+          // Notificación al referidor: el sello aún no fue entregado
           adminDb.collection("usuarios").doc(referrerId).collection("notificaciones").add({
-            titulo: "¡Alguien usó tu código! 🎉",
-            mensaje: `${newUserName} se unió al Club Patio usando tu código de referido. ¡Ganaste 1 sello extra!`,
+            titulo: "¡Tu código fue usado! 🔗",
+            mensaje: `${newUserName} se unió al Club usando tu código. Recibirás tu sello cuando realice su primera visita a un local.`,
             leida: false,
             fecha: timestamp,
           }),
@@ -149,7 +133,7 @@ export async function POST(request: Request) {
       }
     })();
 
-    return NextResponse.json({ success: true, newUserSellos, referrerSellos });
+    return NextResponse.json({ success: true, newUserSellos });
   } catch (error: any) {
     console.error("[referral/process] Error:", error);
     const isUserError = ["ya usó un código", "no válido", "No puedes usar"].some((m) =>

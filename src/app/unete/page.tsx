@@ -11,7 +11,7 @@ import {
   User,
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, getDoc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, increment, collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
@@ -187,6 +187,19 @@ export default function UnetePage() {
           throw new Error("Teléfono inválido. Usa formato +56 9 XXXX XXXX.");
         }
 
+        // Capa 3: verificar unicidad del teléfono
+        const normalizedPhone = phone.replace(/\s/g, "");
+        if (normalizedPhone) {
+          try {
+            const phoneSnap = await getDocs(query(collection(db, "usuarios"), where("telefono", "==", normalizedPhone)));
+            if (!phoneSnap.empty) {
+              throw new Error("Este número de teléfono ya está registrado. Si ya tienes cuenta, inicia sesión.");
+            }
+          } catch (err: any) {
+            if (err.message?.includes("ya está registrado")) throw err;
+          }
+        }
+
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
         const emailLimpio = email.toLowerCase().trim();
@@ -216,7 +229,7 @@ export default function UnetePage() {
           id: newUser.uid,
           nombre: nombre.trim(),
           correo: emailLimpio,
-          telefono: phone,
+          telefono: normalizedPhone,
           fechaNacimiento: fechaNacimiento,
           rol: rolAsignado,
           comprasRealizadas: sellosIniciales,
@@ -248,7 +261,7 @@ export default function UnetePage() {
           uid: newUser.uid,
           nombre: nombre.trim(),
           correo: emailLimpio,
-          telefono: phone,
+          telefono: normalizedPhone,
           fechaNacimiento: fechaNacimiento,
           comuna: comuna.trim(),
           aceptaMarketing: aceptaMarketing,
