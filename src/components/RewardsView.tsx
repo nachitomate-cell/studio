@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { User } from "firebase/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -704,11 +705,15 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
             {/* Stamps grid */}
             <div className="grid grid-cols-5 gap-3 mb-6">
               {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="aspect-square relative flex items-center justify-center">
-                  <img
+                <div key={i} className="aspect-square relative">
+                  <Image
                     src="/Logo2.png"
                     alt={i < sellosEnTarjeta ? "Sello completado" : "Sello pendiente"}
-                    className="w-full h-full object-contain"
+                    fill
+                    sizes="10vw"
+                    quality={75}
+                    priority={i < 5}
+                    className="object-contain"
                     style={i < sellosEnTarjeta
                       ? { mixBlendMode: "multiply" }
                       : { filter: "grayscale(100%) opacity(30%)", mixBlendMode: "multiply" }}

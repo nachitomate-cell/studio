@@ -487,12 +487,12 @@ export default function Home() {
                 <>
                   {/* Primeras 4 tarjetas */}
                   <div className="grid grid-cols-2 gap-4">
-                    {filteredEntrepreneurs.slice(0, 4).map((entrepreneur) => {
+                    {filteredEntrepreneurs.slice(0, 4).map((entrepreneur, idx) => {
                       const isOpen = isOpenNow((entrepreneur as any).horariosEstructurados);
                       const distKm = userCoords ? haversineKm(userCoords.lat, userCoords.lng, (entrepreneur as any).lat ?? PATIO_INFO.coordinates.lat, (entrepreneur as any).lng ?? PATIO_INFO.coordinates.lng) : undefined;
                       return (
                         <div key={entrepreneur.id}>
-                          <EntrepreneurCard entrepreneur={entrepreneur} isOpen={isOpen} distanceKm={filterCercano && distKm !== undefined ? distKm : undefined} />
+                          <EntrepreneurCard entrepreneur={entrepreneur} isOpen={isOpen} distanceKm={filterCercano && distKm !== undefined ? distKm : undefined} priority={idx < 2} />
                         </div>
                       );
                     })}

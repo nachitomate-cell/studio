@@ -15,10 +15,11 @@ interface EntrepreneurCardProps {
   fullWidth?: boolean;
   isOpen?: boolean | null;
   distanceKm?: number;
+  priority?: boolean;
 }
 
 
-export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, distanceKm }: EntrepreneurCardProps) {
+export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, distanceKm, priority = false }: EntrepreneurCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   return (
@@ -33,6 +34,8 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
             alt={entrepreneur.name}
             fill
             sizes="(max-width: 768px) 50vw, 33vw"
+            quality={75}
+            priority={priority}
             className={cn(
               "object-cover group-hover:scale-105 transition-all duration-700 z-10",
               imageLoaded ? "opacity-100" : "opacity-0"

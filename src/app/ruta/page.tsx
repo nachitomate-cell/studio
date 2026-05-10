@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { collection, doc, getDocs, onSnapshot, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Map, Loader2, X, ChevronRight, HelpCircle } from "lucide-react";
-import { isVendorVisible } from "@/lib/utils";
+import { isVendorVisible, getSafeImageUrl } from "@/lib/utils";
 
 // ── Real-time hook ────────────────────────────────────────────────────────────
 function useLocalesVisitados(userId: string | null): {
@@ -76,6 +77,7 @@ function StampCell({
   stampCount: number;
   onTapInactive: () => void;
 }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
   const state = getStampState(stampCount);
   const isFrequent = state === "frequent";
   const isActive = state === "active";
@@ -88,7 +90,7 @@ function StampCell({
     >
       {/* Stamp frame */}
       <div
-        className={`w-full aspect-square rounded-2xl border-2 flex items-center justify-center p-1.5 relative overflow-hidden transition-all duration-500 ${
+        className={`w-full aspect-square rounded-2xl border-2 relative overflow-hidden transition-all duration-500 ${
           isInactive
             ? "border-dashed border-slate-200 bg-slate-50 cursor-pointer active:bg-slate-100"
             : isFrequent
@@ -101,19 +103,30 @@ function StampCell({
             : {}
         }
       >
-        <img
-          src={vendor.imageUrl}
-          alt={vendor.name}
-          className="w-full h-full object-cover rounded-xl transition-all duration-500"
-          style={{
-            filter: isInactive
-              ? "grayscale(100%) opacity(0.4)"
-              : isFrequent
-              ? "drop-shadow(0 2px 8px rgba(211,182,115,0.45))"
-              : "none",
-            transform: isInactive ? "scale(0.95)" : "scale(1)",
-          }}
-        />
+        {/* Image inset — 6px inset replicates old p-1.5 */}
+        <div className="absolute inset-1.5 rounded-xl overflow-hidden">
+          {!imgLoaded && (
+            <div className="absolute inset-0 bg-slate-200 animate-pulse z-[1]" />
+          )}
+          <Image
+            src={getSafeImageUrl(vendor.imageUrl)}
+            alt={vendor.name}
+            fill
+            loading="lazy"
+            quality={75}
+            sizes="(max-width: 640px) 33vw, 150px"
+            className={`object-cover z-[2] transition-all duration-500 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setImgLoaded(true)}
+            style={{
+              filter: isInactive
+                ? "grayscale(100%) opacity(0.4)"
+                : isFrequent
+                ? "drop-shadow(0 2px 8px rgba(211,182,115,0.45))"
+                : "none",
+              transform: isInactive ? "scale(0.95)" : "scale(1)",
+            }}
+          />
+        </div>
 
         {/* Inset shadow overlay */}
         <div className="absolute inset-0 pointer-events-none rounded-2xl shadow-[inset_0_0_8px_rgba(0,0,0,0.05)]" />
@@ -165,7 +178,7 @@ function SynapTechStampCell({
   return (
     <div className="flex flex-col items-center gap-2" onClick={onTap}>
       <div
-        className="w-full aspect-square rounded-2xl border-2 flex items-center justify-center relative overflow-hidden transition-all duration-500 cursor-pointer active:scale-95 p-3"
+        className="w-full aspect-square rounded-2xl border-2 relative overflow-hidden transition-all duration-500 cursor-pointer active:scale-95"
         style={
           collected
             ? {
@@ -180,18 +193,24 @@ function SynapTechStampCell({
               }
         }
       >
-        {/* Centered icon */}
-        <img
-          src="/empresa.png"
-          alt="SynapTech SpA"
-          className="w-full h-full object-contain transition-all duration-500"
-          style={{
-            filter: collected
-              ? "drop-shadow(0 4px 12px rgba(124,58,237,0.35))"
-              : "grayscale(100%) opacity(0.35)",
-            transform: collected ? "scale(1)" : "scale(0.92)",
-          }}
-        />
+        {/* Centered icon — inset-3 replicates old p-3 */}
+        <div className="absolute inset-3 overflow-hidden">
+          <Image
+            src="/empresa.png"
+            alt="SynapTech SpA"
+            fill
+            loading="lazy"
+            quality={75}
+            sizes="(max-width: 640px) 33vw, 150px"
+            className="object-contain transition-all duration-500"
+            style={{
+              filter: collected
+                ? "drop-shadow(0 4px 12px rgba(124,58,237,0.35))"
+                : "grayscale(100%) opacity(0.35)",
+              transform: collected ? "scale(1)" : "scale(0.92)",
+            }}
+          />
+        </div>
 
         {/* "ST" badge */}
         {collected && (
