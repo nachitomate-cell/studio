@@ -386,19 +386,32 @@ export default function VendedorPage() {
   };
 
   const handleProcessSale = async (rawScanned: string) => {
-    const raw = rawScanned.trim();
+    let raw = rawScanned.trim();
     if (!raw) return;
 
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
-    // If it looks like a URL or vendor QR — block
-    if (raw.includes("ref=") || raw.includes("localId=") || raw.startsWith("http") || raw.startsWith("VND_")) {
-      toast({
-        variant: "destructive",
-        title: "QR de otro local",
-        description: "Escaneaste el QR de un local, no de un cliente. Pide al cliente que muestre su QR personal.",
-      });
+    // Client QRs encode a full URL: /scan?ref=UID
+    // Extract the UID from the ref param so the rest of the logic can treat it normally.
+    if (raw.startsWith("http") || raw.includes("ref=")) {
+      try {
+        const url = new URL(raw);
+        const ref = url.searchParams.get("ref");
+        if (!ref) {
+          toast({ variant: "destructive", title: "QR no reconocido", description: "Pide al cliente que muestre su código QR personal." });
+          return;
+        }
+        raw = ref;
+      } catch {
+        toast({ variant: "destructive", title: "QR no reconocido", description: "Pide al cliente que muestre su código QR personal." });
+        return;
+      }
+    }
+
+    // Block canje/prize QRs
+    if (raw.includes("localId=") || raw.startsWith("VND_") || raw.startsWith("canje:")) {
+      toast({ variant: "destructive", title: "QR de premio", description: "Escaneaste un código de canje, no un QR de cliente." });
       return;
     }
 
