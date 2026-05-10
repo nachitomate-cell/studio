@@ -351,7 +351,7 @@ async function executeBroadcast(
   ref: admin.firestore.DocumentReference,
   messageData: admin.firestore.DocumentData
 ): Promise<void> {
-  const { titulo, mensaje, destino, tipo = "info", cta = "/" } = messageData;
+  const { titulo, mensaje, destino, tipo = "info", cta = "/", vendedorFiltro } = messageData;
   logger.info(`Iniciando envío de comunicado: ${ref.id} → destino="${destino}" tipo="${tipo}"`);
 
   await ref.update({ estado: "procesando", inicioProceso: new Date().toISOString() });
@@ -384,6 +384,22 @@ async function executeBroadcast(
         const date = fn instanceof admin.firestore.Timestamp ? fn.toDate() : new Date(fn);
         return !isNaN(date.getTime()) && date.getMonth() === currentMonth;
       });
+    } else if (destino === "aceptaPromoLocales") {
+      docs = snap.docs.filter(d => d.data().aceptaPromoLocales === true);
+    } else if (destino === "visitaron_local") {
+      if (!vendedorFiltro) {
+        // Sin local seleccionado: no enviar a nadie para evitar broadcast masivo accidental
+        docs = [];
+        logger.warn(`Comunicado ${ref.id}: destino=visitaron_local sin vendedorFiltro — cancelado.`);
+      } else {
+        docs = snap.docs.filter(d => {
+          const data = d.data();
+          return (
+            (data.sellosLocales?.[vendedorFiltro] ?? 0) > 0 ||
+            !!data.lastVendorScans?.[vendedorFiltro]
+          );
+        });
+      }
     } else {
       docs = snap.docs; // "todos"
     }

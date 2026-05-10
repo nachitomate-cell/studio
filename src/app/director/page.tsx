@@ -61,6 +61,9 @@ export default function DirectorPage() {
   const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState<{ id: string; nombre: string } | null>(null);
   const [comunicadoOpen, setComunicadoOpen] = useState(false);
+  const [comunicadoTab, setComunicadoTab] = useState<"nuevo" | "historial">("nuevo");
+  const [historial, setHistorial] = useState<any[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [profileSearch, setProfileSearch] = useState("");
   const [vendorList, setVendorList] = useState<{ id: string; nombre: string }[]>([]);
   const [premioForm, setPremioForm] = useState<{
@@ -239,11 +242,27 @@ export default function DirectorPage() {
           : "El mensaje se enviará en segundo plano a la brevedad.",
       });
       setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "", vendedorFiltro: "" });
+      // Recargar historial tras enviar
+      loadHistorial();
     } catch (error) {
       console.error("Error encolando comunicado:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo encolar el comunicado." });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadHistorial = async () => {
+    setLoadingHistorial(true);
+    try {
+      const snap = await getDocs(
+        query(collection(db, "broadcast_messages"), orderBy("fechaCreacion", "desc"), limit(15))
+      );
+      setHistorial(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch {
+      // Sin permisos o colección vacía
+    } finally {
+      setLoadingHistorial(false);
     }
   };
 
@@ -529,7 +548,7 @@ export default function DirectorPage() {
         {/* COMUNICADO GLOBAL — CTA */}
         <section>
           <button
-            onClick={() => setComunicadoOpen(true)}
+            onClick={() => { setComunicadoOpen(true); setComunicadoTab("nuevo"); loadHistorial(); }}
             className="w-full flex items-center justify-between gap-4 px-6 py-5 rounded-[2rem] shadow-lg transition-all active:scale-[0.98]"
             style={{ background: "linear-gradient(135deg, #C9920A 0%, #E8B028 100%)" }}
           >
@@ -861,6 +880,106 @@ export default function DirectorPage() {
                 <X className="w-4 h-4 text-white" />
               </button>
             </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-white/10">
+              {(["nuevo", "historial"] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setComunicadoTab(tab)}
+                  className={`flex-1 py-3 text-xs font-black uppercase tracking-wider transition-colors ${
+                    comunicadoTab === tab
+                      ? "text-white border-b-2 border-white"
+                      : "text-white/40 hover:text-white/70"
+                  }`}
+                >
+                  {tab === "nuevo" ? "✏️ Nuevo" : "📋 Historial"}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Tab: Historial ────────────────────────────────────── */}
+            {comunicadoTab === "historial" && (
+              <div className="p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-black text-white/60 uppercase tracking-widest">Últimos 15 comunicados</p>
+                  <button onClick={loadHistorial} className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
+                    {loadingHistorial ? <Loader2 className="w-3 h-3 text-white animate-spin" /> : <Check className="w-3 h-3 text-white/60" />}
+                  </button>
+                </div>
+                {loadingHistorial ? (
+                  <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-white/40 animate-spin" /></div>
+                ) : historial.length === 0 ? (
+                  <p className="text-center text-white/40 text-xs py-10 font-medium">Sin comunicados enviados aún.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {historial.map((h: any) => {
+                      const estadoColor: Record<string, string> = {
+                        completado: "bg-green-500/20 text-green-300",
+                        procesando: "bg-yellow-500/20 text-yellow-300",
+                        pendiente: "bg-blue-500/20 text-blue-300",
+                        programado: "bg-violet-500/20 text-violet-300",
+                        error: "bg-red-500/20 text-red-300",
+                      };
+                      const estadoLabel: Record<string, string> = {
+                        completado: "✓ Enviado",
+                        procesando: "⏳ Enviando",
+                        pendiente: "⏳ Pendiente",
+                        programado: "🕐 Programado",
+                        error: "✗ Error",
+                      };
+                      const destinoLabel: Record<string, string> = {
+                        todos: "Todos",
+                        emprendedor: "Emprendedores",
+                        cerca_de_premio: "4+ sellos",
+                        inactivos: "Inactivos",
+                        activos_recientes: "Activos",
+                        cumpleanios_mes: "Cumpleaños",
+                        aceptaPromoLocales: "Con consentimiento",
+                        visitaron_local: "Visitaron local",
+                      };
+                      return (
+                        <div key={h.id} className="rounded-2xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-black text-white leading-tight line-clamp-1">{h.titulo}</p>
+                            <span className={`shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${estadoColor[h.estado] ?? "bg-white/10 text-white/50"}`}>
+                              {estadoLabel[h.estado] ?? h.estado}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-white/50 line-clamp-2">{h.mensaje}</p>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded-full">
+                              {destinoLabel[h.destino] ?? h.destino}
+                            </span>
+                            {h.stats && (
+                              <span className="text-[9px] font-bold text-white/40">
+                                {h.stats.totalNotificados} notif · {h.stats.pushSent} push
+                              </span>
+                            )}
+                            {h.fechaCreacion && (
+                              <span className="text-[9px] text-white/30">
+                                {new Date(h.fechaCreacion).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            )}
+                            {h.enviarEn && h.estado === "programado" && (
+                              <span className="text-[9px] font-bold text-violet-300">
+                                → {new Date(h.enviarEn).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            )}
+                          </div>
+                          {h.error && (
+                            <p className="text-[10px] text-red-300 font-medium">{h.error}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab: Nuevo comunicado ─────────────────────────────── */}
+            {comunicadoTab === "nuevo" && (
             <div className="p-6 space-y-4">
               {/* Tipo de comunicado */}
               <div className="grid grid-cols-4 gap-1.5">
@@ -987,6 +1106,7 @@ export default function DirectorPage() {
                 );
               })()}
             </div>
+            )}
           </div>
         </div>
       )}
