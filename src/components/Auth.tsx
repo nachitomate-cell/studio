@@ -236,7 +236,7 @@ export function Auth() {
         // Atribución del sello de bienvenida
         if (referralLocalId) {
           try {
-            await registrarCompra(db, newUser.uid, referralLocalId, false);
+            await registrarCompra(db, newUser.uid, referralLocalId, false, "REFERIDO");
             // Contabilizar este nuevo socio en el perfil del emprendedor
             updateDoc(doc(db, "usuarios", referralLocalId), {
               clientesNuevosRegistrados: increment(1),

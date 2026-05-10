@@ -9,7 +9,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { syncUserStampsToWallet } from "./walletSync";
 
-export async function registrarCompra(db: Firestore, userId: string, vendedorId?: string, isClientScan: boolean = false) {
+export async function registrarCompra(db: Firestore, userId: string, vendedorId?: string, isClientScan: boolean = false, metodoOverride?: string) {
   const userRef = doc(db, "usuarios", userId);
   
   try {
@@ -82,7 +82,7 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       accion: "recibió un sello",
       fecha: timestamp,
       tipo: "FIDELIZACION",
-      metodo: isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"
+      metodo: metodoOverride ?? (isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN")
     });
 
     if (nuevasCompras % 5 === 0) {

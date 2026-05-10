@@ -366,7 +366,7 @@ export default function ModeradorSellosPage() {
         Hora: dt.hora,
         Cliente: l.usuarioResuelto || l.usuario,
         "RUT/Tel": l.usuarioId,
-        Local: l.metodo === "BIENVENIDA" ? "Sello de Bienvenida" : l.metodo === "SISTEMA" ? "Bono de Login" : vendors[l.vendedorId] || l.vendedorId || "—",
+        Local: l.metodo === "BIENVENIDA" ? "Sello de Bienvenida" : l.metodo === "SISTEMA" ? "Bono de Login" : l.metodo === "REFERIDO" ? `Registro Referido · ${vendors[l.vendedorId] || l.vendedorId || "—"}` : vendors[l.vendedorId] || l.vendedorId || "—",
         Monto: l.monto && l.monto > 0 ? l.monto : 0,
         Sellos: "+1",
         Estado: estado,
@@ -660,6 +660,8 @@ export default function ModeradorSellosPage() {
                               ? <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full">🎁 Sello de Bienvenida</span>
                               : log.metodo === "SISTEMA"
                               ? <span className="inline-flex items-center gap-1 text-blue-600 font-bold text-xs bg-blue-50 px-2 py-1 rounded-full">⚡ Bono de Login</span>
+                              : log.metodo === "REFERIDO"
+                              ? <span className="inline-flex items-center gap-1 text-violet-600 font-bold text-xs bg-violet-50 px-2 py-1 rounded-full">🔗 Registro Referido · {vendors[log.vendedorId] || log.vendedorId || "—"}</span>
                               : vendors[log.vendedorId] || log.vendedorId || "—"}
                           </td>
                           <td className="px-6 py-4">

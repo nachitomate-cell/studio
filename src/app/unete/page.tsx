@@ -254,7 +254,7 @@ export default function UnetePage() {
         if (referralLocalId) {
           // Vino de QR de locatario: sello atribuido al local (registrarCompra parte de 0 → 1)
           try {
-            await registrarCompra(db, newUser.uid, referralLocalId, false);
+            await registrarCompra(db, newUser.uid, referralLocalId, false, "REFERIDO");
             // Contar este nuevo socio en el perfil del emprendedor (fire-and-forget)
             updateDoc(doc(db, "usuarios", referralLocalId), {
               clientesNuevosRegistrados: increment(1),
