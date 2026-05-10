@@ -103,10 +103,14 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
         fecha: timestamp,
         metodo: metodoOverride ?? (isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"),
       });
-      batch.update(doc(db, "usuarios", vendedorId), {
+      const vendorCounterUpdate: Record<string, any> = {
         sellosEntregadosHistorico: increment(1),
         [`sellosEntregadosMensual.${currentMonth}`]: increment(1),
-      });
+      };
+      if (metodoOverride === "REFERIDO") {
+        vendorCounterUpdate.clientesNuevosRegistrados = increment(1);
+      }
+      batch.update(doc(db, "usuarios", vendedorId), vendorCounterUpdate);
       await batch.commit().catch((e) => console.warn("[registrarCompra] Batch vendor falló:", e));
 
       if (isClientScan) {

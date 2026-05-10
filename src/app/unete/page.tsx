@@ -255,10 +255,6 @@ export default function UnetePage() {
           // Vino de QR de locatario: sello atribuido al local (registrarCompra parte de 0 → 1)
           try {
             await registrarCompra(db, newUser.uid, referralLocalId, false, "REFERIDO");
-            // Contar este nuevo socio en el perfil del emprendedor (fire-and-forget)
-            updateDoc(doc(db, "usuarios", referralLocalId), {
-              clientesNuevosRegistrados: increment(1),
-            }).catch(() => {});
             localStorage.removeItem("referral_local_id");
             // Limpiar url_retorno: el sello ya fue procesado aquí,
             // no debe ir a /canje de nuevo (evita doble sello)

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy, getDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy, getDoc, setDoc, writeBatch, increment } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,10 @@ export default function ModeradorPage() {
   // Config sello bienvenida
   const [configBienvenida, setConfigBienvenida] = useState<{ activo: boolean; cantidad: number }>({ activo: true, cantidad: 1 });
   const [savingConfig, setSavingConfig] = useState(false);
+
+  // Recálculo socios captados
+  const [recalcSocios, setRecalcSocios] = useState(false);
+  const [recalcSociosResult, setRecalcSociosResult] = useState<string | null>(null);
 
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
@@ -206,6 +210,49 @@ export default function ModeradorPage() {
       toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la configuración." });
     } finally {
       setSavingConfig(false);
+    }
+  };
+
+  const recalcularSociosCaptados = async () => {
+    setRecalcSocios(true);
+    setRecalcSociosResult(null);
+    try {
+      const logsSnap = await getDocs(
+        query(collection(db, "system_logs"), where("metodo", "==", "REFERIDO"))
+      );
+
+      const vendorClients: Record<string, Set<string>> = {};
+      logsSnap.forEach(d => {
+        const { vendedorId, usuarioId } = d.data();
+        if (!vendedorId || !usuarioId || vendedorId === "simulacion") return;
+        if (!vendorClients[vendedorId]) vendorClients[vendedorId] = new Set();
+        vendorClients[vendedorId].add(usuarioId);
+      });
+
+      const totalVendors = Object.keys(vendorClients).length;
+      if (totalVendors === 0) {
+        setRecalcSociosResult("Sin registros REFERIDO en system_logs.");
+        toast({ title: "Sin datos", description: "No hay registros con metodo=REFERIDO aún." });
+        return;
+      }
+
+      const batch = writeBatch(db);
+      Object.entries(vendorClients).forEach(([vendorId, clients]) => {
+        batch.update(doc(db, "usuarios", vendorId), {
+          clientesNuevosRegistrados: clients.size,
+        });
+      });
+      await batch.commit();
+
+      const resumen = Object.entries(vendorClients)
+        .map(([id, c]) => `${id.substring(0, 8)}: ${c.size}`)
+        .join(" | ");
+      setRecalcSociosResult(`${totalVendors} emprendedor(es) actualizados. ${resumen}`);
+      toast({ title: "Recálculo completado", description: `${totalVendors} emprendedor(es) actualizados.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error en recálculo", description: e.message });
+    } finally {
+      setRecalcSocios(false);
     }
   };
 
@@ -744,6 +791,37 @@ export default function ModeradorPage() {
                 {savingConfig ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Settings className="w-4 h-4 mr-2" />}
                 Guardar configuración
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* T5. RECÁLCULO SOCIOS CAPTADOS */}
+          <Card className="border-none shadow-xl shadow-blue-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-blue-100 md:col-span-2">
+            <div className="bg-blue-50/50 p-6 border-b border-blue-100/50 flex flex-col gap-2">
+              <div className="flex items-center gap-3 text-blue-600">
+                <Users className="w-5 h-5" />
+                <h3 className="font-bold text-lg">Socios Captados por Emprendedor</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">
+                Recalcula el contador "Socios captados" de cada emprendedor leyendo los registros REFERIDO en system_logs.
+                Ejecutar una vez para corregir datos históricos; de ahora en adelante se actualiza automáticamente.
+              </p>
+            </div>
+            <CardContent className="p-6 space-y-4 bg-slate-50/20">
+              <Button
+                onClick={recalcularSociosCaptados}
+                disabled={recalcSocios}
+                className="w-full h-11 rounded-xl font-bold bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
+              >
+                {recalcSocios
+                  ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Recalculando...</>
+                  : <><RefreshCw className="w-4 h-4 mr-2" />Recalcular Socios Captados</>
+                }
+              </Button>
+              {recalcSociosResult && (
+                <p className="text-xs text-slate-500 font-mono bg-slate-100 rounded-xl px-4 py-3 break-all">
+                  {recalcSociosResult}
+                </p>
+              )}
             </CardContent>
           </Card>
 

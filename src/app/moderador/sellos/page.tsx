@@ -64,6 +64,34 @@ function formatMonto(monto?: number): string {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(monto);
 }
 
+function MontoCell({ monto, metodo }: { monto?: number; metodo?: string }) {
+  if (monto && monto > 0) {
+    return (
+      <span className="font-medium text-slate-700">
+        {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(monto)}
+      </span>
+    );
+  }
+  // Sellos del sistema: no hay compra asociada
+  if (metodo === "BIENVENIDA" || metodo === "SISTEMA" || metodo === "REFERIDO") {
+    return <span className="text-slate-300 font-medium">—</span>;
+  }
+  // VENDOR_SCAN: emprendedor escaneó al cliente manualmente sin ingresar monto
+  if (metodo === "VENDOR_SCAN") {
+    return (
+      <span className="text-amber-600 text-xs font-medium" title="El emprendedor usó el escáner manual y no ingresó monto de boleta">
+        Sin monto · escáner manual
+      </span>
+    );
+  }
+  // HANDSHAKE / CLIENT_SCAN / otros: el emprendedor confirmó en caja sin ingresar monto
+  return (
+    <span className="text-amber-600 text-xs font-medium" title="El emprendedor confirmó el sello en el Panel de Validación sin ingresar el monto de la boleta">
+      Sin monto · no ingresado en caja
+    </span>
+  );
+}
+
 function EstadoBadge({ tipo }: { tipo: string }) {
   if (tipo === "FIDELIZACION") {
     return (
@@ -675,8 +703,8 @@ export default function ModeradorSellosPage() {
                               </span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
-                            {formatMonto(log.monto)}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <MontoCell monto={log.monto} metodo={log.metodo} />
                           </td>
                           <td className="px-6 py-4">
                             {log.anulada ? (

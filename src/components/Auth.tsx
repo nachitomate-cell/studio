@@ -237,10 +237,6 @@ export function Auth() {
         if (referralLocalId) {
           try {
             await registrarCompra(db, newUser.uid, referralLocalId, false, "REFERIDO");
-            // Contabilizar este nuevo socio en el perfil del emprendedor
-            updateDoc(doc(db, "usuarios", referralLocalId), {
-              clientesNuevosRegistrados: increment(1),
-            }).catch(() => {});
             localStorage.removeItem("referral_local_id");
             localStorage.removeItem("url_retorno");
           } catch {
