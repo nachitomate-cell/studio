@@ -281,6 +281,7 @@ function DetailContent() {
           }}
           className={cn("transition-opacity duration-700", imageLoaded ? "opacity-100" : "opacity-0")}
           onLoad={() => setImageLoaded(true)}
+          onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; setImageLoaded(true); }}
         />
         {/* Overlay oscuro uniforme para asegurar contraste del texto */}
         <div className="absolute inset-0 bg-black/40 pointer-events-none" />
@@ -454,7 +455,8 @@ function DetailContent() {
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
               {(entrepreneur.imageUrls as string[]).map((url: string, i: number) => (
                 <img key={i} src={getSafeImageUrl(url)} alt={`Foto ${i+1}`}
-                  className="h-32 w-32 object-cover rounded-2xl shrink-0 border border-white/10" />
+                  className="h-32 w-32 object-cover rounded-2xl shrink-0 border border-white/10"
+                  onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }} />
               ))}
             </div>
           </section>

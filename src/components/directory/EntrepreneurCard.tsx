@@ -21,6 +21,7 @@ interface EntrepreneurCardProps {
 
 export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, distanceKm, priority = false }: EntrepreneurCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imgSrc, setImgSrc] = useState(getSafeImageUrl(entrepreneur.imagenTarjeta || entrepreneur.imageUrl));
 
   return (
     <Link href={`/emprendedor/${entrepreneur.id}`} className="block group">
@@ -30,7 +31,7 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
             <div className="absolute inset-0 bg-slate-200 animate-pulse z-0" />
           )}
           <Image
-            src={getSafeImageUrl(entrepreneur.imagenTarjeta || entrepreneur.imageUrl)}
+            src={imgSrc}
             alt={entrepreneur.name}
             fill
             sizes="(max-width: 768px) 50vw, 33vw"
@@ -41,6 +42,7 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
               imageLoaded ? "opacity-100" : "opacity-0"
             )}
             onLoad={() => setImageLoaded(true)}
+            onError={() => { setImgSrc("/Logo2.png"); setImageLoaded(false); }}
             data-ai-hint="business photo"
           />
           {/* Badge de rubro */}

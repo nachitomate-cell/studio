@@ -8,6 +8,7 @@ import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
 import { NotificationSystem } from "@/components/NotificationSystem";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { Providers } from "@/components/Providers";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 const montserrat = Montserrat({
   subsets: ['latin'],
@@ -80,6 +81,8 @@ export default function RootLayout({
         
         {/* Oyente global de errores de Firebase */}
         <FirebaseErrorListener />
+
+        <OfflineBanner />
         
         {/* Simulador de Roles flotante — solo en desarrollo */}
         {process.env.NODE_ENV === "development" && <RoleSwitcher />}

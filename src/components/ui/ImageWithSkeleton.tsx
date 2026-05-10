@@ -4,22 +4,22 @@ import { useState } from "react";
 import Image, { type ImageProps } from "next/image";
 import { cn } from "@/lib/utils";
 
-interface ImageWithSkeletonProps extends Omit<ImageProps, "onLoad" | "onLoadingComplete"> {
+interface ImageWithSkeletonProps extends Omit<ImageProps, "onLoad" | "onLoadingComplete" | "onError"> {
   skeletonClassName?: string;
   containerClassName?: string;
+  fallbackSrc?: string;
 }
 
-/**
- * Wraps next/image with an animate-pulse skeleton shown while the image loads.
- * The parent element must have position:relative and an explicit size (or fill context).
- */
 export function ImageWithSkeleton({
   className,
   skeletonClassName,
   containerClassName,
+  fallbackSrc = "/Logo2.png",
+  src,
   ...props
 }: ImageWithSkeletonProps) {
   const [loaded, setLoaded] = useState(false);
+  const [imgSrc, setImgSrc] = useState(src);
 
   return (
     <div className={cn("relative w-full h-full", containerClassName)}>
@@ -33,12 +33,14 @@ export function ImageWithSkeleton({
       )}
       <Image
         {...props}
+        src={imgSrc}
         className={cn(
           "transition-opacity duration-300 z-[2]",
           loaded ? "opacity-100" : "opacity-0",
           className
         )}
         onLoad={() => setLoaded(true)}
+        onError={() => { setImgSrc(fallbackSrc); setLoaded(false); }}
       />
     </div>
   );

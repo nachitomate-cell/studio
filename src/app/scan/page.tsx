@@ -42,8 +42,8 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
     },
     client_qr: {
       icon: <ShieldAlert className="w-6 h-6 text-amber-400" />,
-      title: "QR de un socio",
-      desc: "Este es el código de otro miembro. Para sumar sellos, escanea el QR del mostrador del local adherido.",
+      title: "QR de otro socio",
+      desc: "Este es el código de otro socio. Para sumar sellos, debes escanear el QR de un emprendedor adherido, o pedirle al local que escanee tu pantalla.",
     },
   };
 

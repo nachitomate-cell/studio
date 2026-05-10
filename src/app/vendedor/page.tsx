@@ -415,8 +415,8 @@ export default function VendedorPage() {
       if (profileSnap.exists()) {
         toast({
           variant: "destructive",
-          title: "QR de otro emprendedor",
-          description: "Este código pertenece a otro local. Para registrar una visita, pide al cliente que muestre su QR personal.",
+          title: "QR de otro local",
+          description: "Estás escaneando el código de otro local. Solo puedes entregar sellos a clientes.",
         });
         return;
       }
