@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Gift, Loader2, CheckCircle2, XCircle, AlertCircle, Store,
-  Clock, HelpCircle, Stamp, WifiOff,
+  Clock, HelpCircle, Stamp, WifiOff, X,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { motion, AnimatePresence } from "framer-motion";
@@ -558,6 +558,16 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
                     está registrando el monto de tu compra. Espera un momento.
                   </p>
                 </div>
+                <button
+                  onClick={() => {
+                    deleteDoc(doc(db, "pending_stamps", vendorStampState.docId)).catch(() => {});
+                    setVendorStampState(null);
+                  }}
+                  className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors mx-auto"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Cancelar transacción
+                </button>
               </>
             ) : (
               <>
