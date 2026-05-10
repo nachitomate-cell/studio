@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { collection, doc, getDocs, onSnapshot } from "firebase/firestore";
+import { collection, doc, getDocs, onSnapshot, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
@@ -10,22 +10,26 @@ import { ArrowLeft, Map, Loader2, X, ChevronRight, HelpCircle } from "lucide-rea
 import { isVendorVisible } from "@/lib/utils";
 
 // ── Real-time hook ────────────────────────────────────────────────────────────
-// Listens to the user's sellosLocales map so stamps illuminate the instant
-// a sale is confirmed (either via pending_stamps handshake or vendor-scan).
-function useLocalesVisitados(userId: string | null): Record<string, number> {
+function useLocalesVisitados(userId: string | null): {
+  sellosLocales: Record<string, number>;
+  hasSynapTechStamp: boolean;
+} {
   const [sellosLocales, setSellosLocales] = useState<Record<string, number>>({});
+  const [hasSynapTechStamp, setHasSynapTechStamp] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
     const unsub = onSnapshot(doc(db, "usuarios", userId), (snap) => {
       if (snap.exists()) {
-        setSellosLocales(snap.data().sellosLocales || {});
+        const data = snap.data();
+        setSellosLocales(data.sellosLocales || {});
+        setHasSynapTechStamp(!!data.hasSynapTechStamp);
       }
     });
     return () => unsub();
   }, [userId]);
 
-  return sellosLocales;
+  return { sellosLocales, hasSynapTechStamp };
 }
 
 // ── Stamp state ───────────────────────────────────────────────────────────────
@@ -150,6 +154,80 @@ function StampCell({
   );
 }
 
+// ── SynapTech special stamp ───────────────────────────────────────────────────
+function SynapTechStampCell({
+  collected,
+  onTap,
+}: {
+  collected: boolean;
+  onTap: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2" onClick={onTap}>
+      <div
+        className="w-full aspect-square rounded-2xl border-2 flex items-center justify-center relative overflow-hidden transition-all duration-500 cursor-pointer active:scale-95"
+        style={
+          collected
+            ? {
+                borderColor: "#7C3AED",
+                background: "linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)",
+                boxShadow: "0 0 22px 5px rgba(124,58,237,0.18), 0 2px 8px rgba(0,0,0,0.07)",
+              }
+            : {
+                borderStyle: "dashed",
+                borderColor: "#e2e8f0",
+                background: "#f8fafc",
+              }
+        }
+      >
+        {/* Centered icon */}
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-500"
+          style={{
+            background: collected
+              ? "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)"
+              : "rgba(148,163,184,0.15)",
+            filter: collected ? "none" : "grayscale(100%) opacity(0.4)",
+            fontSize: 24,
+            boxShadow: collected ? "0 4px 12px rgba(124,58,237,0.35)" : "none",
+          }}
+        >
+          ⚡
+        </div>
+
+        {/* "ST" badge */}
+        {collected && (
+          <div
+            className="absolute -bottom-2 -right-2 text-white text-[9px] font-black px-1.5 h-5 rounded-full flex items-center justify-center shadow-md"
+            style={{ background: "linear-gradient(135deg, #7C3AED, #4F46E5)" }}
+          >
+            ST
+          </div>
+        )}
+
+        {/* Special sparkle corner */}
+        {collected && (
+          <div
+            className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm"
+            style={{ background: "linear-gradient(135deg, #7C3AED, #4F46E5)" }}
+          >
+            <span style={{ fontSize: 8, lineHeight: 1 }}>✨</span>
+          </div>
+        )}
+
+        <div className="absolute inset-0 pointer-events-none rounded-2xl shadow-[inset_0_0_8px_rgba(0,0,0,0.04)]" />
+      </div>
+
+      <p
+        className="text-[10px] text-center font-bold leading-tight transition-colors duration-300"
+        style={{ color: collected ? "#7C3AED" : "#94a3b8" }}
+      >
+        SynapTech SpA
+      </p>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function MiRutaPage() {
   const router = useRouter();
@@ -159,9 +237,19 @@ export default function MiRutaPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
   const [showRouteInfo, setShowRouteInfo] = useState(false);
+  const [showSynapModal, setShowSynapModal] = useState<"invite" | "thanks" | null>(null);
 
   // Real-time stamp data — auto-updates when any sale is confirmed
-  const sellosLocales = useLocalesVisitados(userId);
+  const { sellosLocales, hasSynapTechStamp } = useLocalesVisitados(userId);
+
+  const handleVisitSynapTech = async () => {
+    if (!userId) return;
+    try {
+      await updateDoc(doc(db, "usuarios", userId), { hasSynapTechStamp: true });
+    } catch { }
+    window.open("https://synaptechspa.cl", "_blank", "noopener,noreferrer");
+    setShowSynapModal(null);
+  };
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
@@ -331,22 +419,28 @@ export default function MiRutaPage() {
         )}
 
         {/* Stamp grid */}
-        {filteredVendors.length > 0 ? (
-          <div className="grid grid-cols-3 gap-4">
-            {filteredVendors.map((vendor) => (
+        <div className="grid grid-cols-3 gap-4">
+          {filteredVendors.length > 0 ? (
+            filteredVendors.map((vendor) => (
               <StampCell
                 key={vendor.id}
                 vendor={vendor}
                 stampCount={sellosLocales[vendor.id] || 0}
                 onTapInactive={() => setSelectedVendor(vendor)}
               />
-            ))}
-          </div>
-        ) : (
-          <div className="py-12 text-center text-sm text-slate-400 italic">
-            No hay locales en esta categoría.
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="col-span-2 py-10 text-center text-sm text-slate-400 italic">
+              No hay locales en esta categoría.
+            </div>
+          )}
+
+          {/* SynapTech special stamp — always last in the album */}
+          <SynapTechStampCell
+            collected={hasSynapTechStamp}
+            onTap={() => setShowSynapModal(hasSynapTechStamp ? "thanks" : "invite")}
+          />
+        </div>
       </div>
 
       {/* Route info modal */}
@@ -437,6 +531,109 @@ export default function MiRutaPage() {
                 ¡Vamos a recorrer! 🗺️
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SynapTech — invite modal (stamp not collected) */}
+      {showSynapModal === "invite" && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-5 animate-in fade-in duration-200"
+          onClick={() => setShowSynapModal(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-[2rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
+            style={{ background: "#0F172A" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              className="px-7 pt-8 pb-6"
+              style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.22) 0%, rgba(79,70,229,0.10) 100%)" }}
+            >
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-3xl"
+                style={{ background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)", boxShadow: "0 8px 20px rgba(124,58,237,0.4)" }}
+              >
+                🚀
+              </div>
+              <h2 className="text-xl font-black text-white leading-snug">¿Te gusta esta App? 🚀</h2>
+            </div>
+
+            {/* Body */}
+            <div className="px-7 py-6">
+              <p className="text-sm leading-relaxed" style={{ color: "rgba(203,213,225,0.9)" }}>
+                Esta plataforma fue diseñada y desarrollada por{" "}
+                <span className="font-bold text-violet-400">SynapTech SpA</span>. Ayudamos a emprendedores a digitalizar sus negocios con tecnología de punta.{" "}
+                ¡Visita nuestra web para conocer más y obtén esta estampilla especial de regalo!
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-7 pb-8 flex flex-col gap-3">
+              <button
+                onClick={handleVisitSynapTech}
+                className="w-full h-13 rounded-2xl font-black text-white text-sm transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+                style={{
+                  height: 52,
+                  background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)",
+                  boxShadow: "0 8px 24px rgba(124,58,237,0.40)",
+                  fontFamily: "Montserrat, sans-serif",
+                }}
+              >
+                Visitar synaptechspa.cl ↗
+              </button>
+              <button
+                onClick={() => setShowSynapModal(null)}
+                className="w-full h-11 rounded-2xl font-bold text-sm transition-colors"
+                style={{ color: "rgba(255,255,255,0.3)" }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SynapTech — collected thanks modal */}
+      {showSynapModal === "thanks" && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowSynapModal(null)}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl p-7 space-y-5 animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto" />
+
+            <div className="flex items-center gap-4">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 text-3xl shadow-lg"
+                style={{ background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)" }}
+              >
+                ⚡
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#7C3AED" }}>
+                  Estampilla Especial · Coleccionada ✨
+                </p>
+                <h3 className="text-lg font-black text-slate-800">SynapTech SpA</h3>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-500 leading-relaxed">
+              ¡Gracias por ser parte de la comunidad digital de Patio Curauma! — Desarrollado por{" "}
+              <span className="font-bold" style={{ color: "#7C3AED" }}>SynapTech SpA</span>
+            </p>
+
+            <button
+              onClick={() => setShowSynapModal(null)}
+              className="w-full h-12 rounded-2xl font-black text-sm text-white transition-all active:scale-[0.97]"
+              style={{ background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)" }}
+            >
+              ¡Genial! ✨
+            </button>
           </div>
         </div>
       )}
