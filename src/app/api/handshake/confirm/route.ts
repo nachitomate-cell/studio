@@ -34,6 +34,9 @@ export async function POST(request: Request) {
     if (!pendingId) {
       return NextResponse.json({ error: "pendingId requerido" }, { status: 400 });
     }
+    if (typeof monto !== "number" || monto <= 0 || monto > 150_000) {
+      return NextResponse.json({ error: "El monto de la venta es obligatorio y debe estar entre $1 y $150.000." }, { status: 400 });
+    }
 
     const pendingRef = adminDb.collection("pending_stamps").doc(pendingId);
     let result: { userId: string; vendorId: string; userName: string; nuevoTotal: number };

@@ -41,6 +41,8 @@ export const CATEGORIES: Category[] = [
   { id: 'joyeria', name: 'Joyería & Accesorios', icon: 'Gem' },
   { id: 'belleza', name: 'Belleza', icon: 'Sparkles' },
   { id: 'artesania', name: 'Artesanías', icon: 'Palette' },
+  { id: 'papeleria', name: 'Papelería & Juguetería', icon: 'BookOpen' },
+  { id: 'infantil', name: 'Infantil', icon: 'Baby' },
 ];
 
 /**

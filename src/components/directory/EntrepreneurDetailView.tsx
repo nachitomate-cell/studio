@@ -30,12 +30,11 @@ import { getOpenStatus } from "@/lib/horarios";
 import { useUserLocation, haversineKm, formatDistance } from "@/hooks/useUserLocation";
 import { PATIO_INFO } from "@/lib/data";
 
-// Paleta de colores por método de pago (Dark Premium)
-const PAYMENT_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  efectivo:      { bg: "rgba(22, 163, 74, 0.1)", text: "#4ade80", border: "rgba(74, 222, 128, 0.2)" },
-  debito:        { bg: "rgba(59, 130, 246, 0.1)", text: "#60a5fa", border: "rgba(96, 165, 250, 0.2)" },
-  transferencia: { bg: "rgba(168, 85, 247, 0.1)", text: "#c084fc", border: "rgba(192, 132, 252, 0.2)" },
-  _default:      { bg: "rgba(30, 41, 59, 0.5)", text: "#94a3b8", border: "rgba(148, 163, 184, 0.1)" },
+// Estilo unificado para todas las pills de medios de pago — contorno sutil, texto blanco
+const PAYMENT_PILL_STYLE = {
+  bg: "transparent",
+  text: "#f1f5f9",
+  border: "rgba(255, 255, 255, 0.20)",
 };
 
 function DetailContent() {
@@ -283,7 +282,9 @@ function DetailContent() {
           className={cn("transition-opacity duration-700", imageLoaded ? "opacity-100" : "opacity-0")}
           onLoad={() => setImageLoaded(true)}
         />
-        {/* Gradiente superpuesto */}
+        {/* Overlay oscuro uniforme para asegurar contraste del texto */}
+        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+        {/* Degradado inferior para fundir con el fondo */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -377,7 +378,7 @@ function DetailContent() {
             ) : (
               <p
                 className="leading-relaxed flex-1 pt-0.5"
-                style={{ fontSize: "14px", color: "#94a3b8" }}
+                style={{ fontSize: "14px", color: "#e2e8f0" }}
               >
                 {entrepreneur.descripcion}
               </p>
@@ -385,7 +386,7 @@ function DetailContent() {
           </div>
 
           {/* Divisor */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", margin: "16px 0" }} />
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.10)", margin: "16px 0" }} />
 
           {/* Fila inferior: Sector + Horario */}
           <div className="grid grid-cols-2 gap-4">
@@ -487,9 +488,6 @@ function DetailContent() {
 
               return allItems.map((pay, i) => {
                 const isActive = !hasConfig || medios.includes(pay.key);
-                const style = isActive
-                  ? (PAYMENT_STYLES[pay.key] ?? PAYMENT_STYLES._default)
-                  : { bg: "#F1F5F9", text: "#94A3B8", border: "#E2E8F0" };
                 const { Icon } = pay;
 
                 return (
@@ -497,14 +495,14 @@ function DetailContent() {
                     key={i}
                     className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none transition-opacity"
                     style={{
-                      background: style.bg,
-                      color: style.text,
-                      border: `1px solid ${style.border}`,
+                      background: PAYMENT_PILL_STYLE.bg,
+                      color: PAYMENT_PILL_STYLE.text,
+                      border: `1px solid ${PAYMENT_PILL_STYLE.border}`,
                       borderRadius: "20px",
                       padding: "6px 12px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      opacity: hasConfig && !medios.includes(pay.key) ? 0.45 : 1,
+                      opacity: hasConfig && !isActive ? 0.35 : 1,
                     }}
                     onClick={() => {
                       if (!hasConfig) {
@@ -583,7 +581,7 @@ function DetailContent() {
               buttons.push(
                 <Button
                   key="instagram"
-                  className="h-14 rounded-2xl font-bold gap-2 transition-all active:scale-95 border-none"
+                  className="h-14 rounded-2xl font-bold gap-2 items-center transition-all active:scale-95 border-none"
                   style={{
                     background: "rgba(30, 41, 59, 0.6)",
                     border: "1px solid rgba(211, 182, 115, 0.3)",
@@ -606,7 +604,7 @@ function DetailContent() {
               buttons.push(
                 <Button
                   key="mapa"
-                  className="h-14 rounded-2xl font-bold gap-2 transition-all active:scale-95 border-none"
+                  className="h-14 rounded-2xl font-bold gap-2 items-center transition-all active:scale-95 border-none"
                   style={{
                     background: "rgba(30, 41, 59, 0.6)",
                     border: "1px solid rgba(211, 182, 115, 0.3)",
@@ -636,26 +634,26 @@ function DetailContent() {
         {/* ── Banner de recompensas — oculto para patrocinadores ──────── */}
         {!esPremium && <div
           className="rounded-3xl overflow-hidden mt-6"
-          style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
+          style={{ boxShadow: "0 0 15px rgba(201,146,10,0.15), 0 8px 32px rgba(0,0,0,0.4)" }}
         >
           <div
             className="p-5 flex items-center gap-4"
             style={{
               background: "linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))",
-              border: "1px solid rgba(211, 182, 115, 0.2)",
+              border: "1px solid rgba(201, 146, 10, 0.50)",
               borderRadius: "24px"
             }}
           >
             <div
               className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: "rgba(211, 182, 115, 0.15)" }}
+              style={{ background: "rgba(201, 146, 10, 0.15)" }}
             >
-              <Gift className="w-[22px] h-[22px] text-[#D3B673]" />
+              <Gift className="w-[22px] h-[22px] text-[#C9920A]" />
             </div>
             <div className="flex-1">
               <p
                 className="uppercase tracking-widest font-black"
-                style={{ fontSize: "11px", color: "#D3B673" }}
+                style={{ fontSize: "11px", color: "#C9920A" }}
               >
                 Gana Recompensas
               </p>

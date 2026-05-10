@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Gift, Award, LogOut,
   User as UserIcon, Phone,
-  QrCode, Edit2, Check, X, Trophy, Save,
-  Smile, Cat, Dog, Coffee, Star, Store,
+  QrCode, Edit2, Check, X, Trophy, Save, Store,
+  Smile, Cat, Dog, Coffee, Star,
   MessageCircle, MapPin,
   Clock, Bell, CheckCircle2,
   ExternalLink, Sparkles,
@@ -21,6 +21,7 @@ import {
   LayoutDashboard, AlertTriangle, Trash2,
   Loader2, Info, MessageSquare, ChevronRight,
   Copy, Share2, Users,
+  Sun, TreePine, Backpack, Bird, Leaf, Music, Heart, ShoppingBag, Pencil, Flower2, Flame,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
@@ -59,12 +60,22 @@ function calcularRango(sellos: number): { nombre: string; color: string; emoji: 
 }
 
 const AVATAR_OPTIONS = [
-  { id: 'User', icon: UserIcon, color: 'bg-slate-100 text-slate-600' },
-  { id: 'Smile', icon: Smile, color: 'bg-yellow-100 text-yellow-600' },
-  { id: 'Cat', icon: Cat, color: 'bg-orange-100 text-orange-600' },
-  { id: 'Dog', icon: Dog, color: 'bg-blue-100 text-blue-600' },
-  { id: 'Coffee', icon: Coffee, color: 'bg-amber-100 text-amber-800' },
-  { id: 'Star', icon: Star, color: 'bg-purple-100 text-purple-600' },
+  { id: 'User',        icon: UserIcon,     color: 'bg-slate-100 text-slate-600' },
+  { id: 'Smile',       icon: Smile,        color: 'bg-yellow-100 text-yellow-600' },
+  { id: 'Heart',       icon: Heart,        color: 'bg-red-100 text-red-500' },
+  { id: 'Star',        icon: Star,         color: 'bg-purple-100 text-purple-600' },
+  { id: 'Sun',         icon: Sun,          color: 'bg-amber-100 text-amber-500' },
+  { id: 'Flame',       icon: Flame,        color: 'bg-orange-100 text-orange-500' },
+  { id: 'Leaf',        icon: Leaf,         color: 'bg-green-100 text-green-600' },
+  { id: 'TreePine',    icon: TreePine,     color: 'bg-emerald-100 text-emerald-700' },
+  { id: 'Flower2',     icon: Flower2,      color: 'bg-pink-100 text-pink-500' },
+  { id: 'Bird',        icon: Bird,         color: 'bg-sky-100 text-sky-600' },
+  { id: 'Cat',         icon: Cat,          color: 'bg-orange-100 text-orange-600' },
+  { id: 'Dog',         icon: Dog,          color: 'bg-blue-100 text-blue-600' },
+  { id: 'Coffee',      icon: Coffee,       color: 'bg-amber-100 text-amber-800' },
+  { id: 'Music',       icon: Music,        color: 'bg-violet-100 text-violet-600' },
+  { id: 'ShoppingBag', icon: ShoppingBag,  color: 'bg-teal-100 text-teal-600' },
+  { id: 'Backpack',    icon: Backpack,     color: 'bg-indigo-100 text-indigo-600' },
 ];
 
 function NotifDetailModal({ notif, onClose }: { notif: any; onClose: () => void }) {
@@ -337,18 +348,37 @@ function SwipeableNotification({ notif, onDelete, onOpen }: { notif: any; onDele
           onTouchEnd={handleTouchEnd}
           onClick={handleClick}
        >
-          <Card className={cn("border-none shadow-sm rounded-2xl overflow-hidden transition-all", notif.isAI ? "bg-gradient-to-br from-white to-primary/5 border-l-4 border-l-primary" : "bg-white")}>
-            <CardContent className="p-4 flex gap-4">
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", notif.isAI ? "bg-primary text-white" : "bg-slate-100 text-slate-400")}>
-                {notif.isAI ? <Sparkles className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+          <Card className={cn(
+            "border-none shadow-sm rounded-2xl overflow-hidden transition-all",
+            notif.isAI ? "bg-gradient-to-br from-white to-primary/5 border-l-4 border-l-primary" : "bg-white",
+            notif.actionUrl ? "hover:bg-amber-50/60 active:bg-amber-100/60 border-l-4 border-l-amber-400" : ""
+          )}>
+            <CardContent className="p-4 flex gap-4 items-center">
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                notif.isAI ? "bg-primary text-white" :
+                notif.actionUrl ? "bg-amber-100 text-amber-600" :
+                "bg-slate-100 text-slate-400"
+              )}>
+                {notif.isAI ? <Sparkles className="w-5 h-5" /> :
+                 notif.actionUrl ? <span className="text-lg leading-none">🛒</span> :
+                 <Bell className="w-5 h-5" />}
               </div>
-              <div className="space-y-1 flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-slate-800">{notif.titulo}</h4>
-                  <span className="text-[8px] text-slate-400 uppercase font-bold">{new Date(notif.fecha).toLocaleDateString()}</span>
+              <div className="space-y-1 flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-bold text-slate-800 truncate">{notif.titulo}</h4>
+                  <span className="text-[8px] text-slate-400 uppercase font-bold shrink-0">{new Date(notif.fecha).toLocaleDateString()}</span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{notif.mensaje}</p>
+                {notif.actionUrl && (
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mt-1">
+                    Toca para abrir el panel →
+                  </p>
+                )}
               </div>
+              {notif.actionUrl && (
+                <ChevronRight className="w-4 h-4 text-amber-400 shrink-0" />
+              )}
             </CardContent>
           </Card>
        </div>
@@ -384,6 +414,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
   // pero NO instaló la app en su pantalla de inicio (modo standalone).
   const [showIosHint, setShowIosHint] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [pendingAvatarId, setPendingAvatarId] = useState("User");
+  const [savingAvatar, setSavingAvatar] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -594,6 +627,21 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     }
   };
 
+  const handleSaveAvatar = async () => {
+    if (!user) return;
+    setSavingAvatar(true);
+    try {
+      await updateDoc(doc(db, "usuarios", user.uid), { avatarId: pendingAvatarId });
+      setEditForm(prev => ({ ...prev, avatarId: pendingAvatarId }));
+      setShowAvatarModal(false);
+      toast({ title: "Avatar actualizado ✓" });
+    } catch {
+      toast({ variant: "destructive", title: "Error al guardar el avatar" });
+    } finally {
+      setSavingAvatar(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     if (!user) return;
     setLoading(true);
@@ -653,7 +701,10 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         console.error("Error marking notif as read", e);
       }
     }
-    if (notif.actionUrl) {
+    // handshake notifications always go to /validar regardless of stored actionUrl
+    if (notif.tipo === "handshake") {
+      router.push("/validar");
+    } else if (notif.actionUrl) {
       router.push(notif.actionUrl);
     } else {
       setSelectedNotif(notif);
@@ -744,10 +795,12 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
         <div className="px-6 pb-8 -mt-12 relative z-10">
           <div className="flex justify-between items-end mb-4">
-            <motion.div
+            <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="relative"
+              className="relative group focus:outline-none"
+              onClick={() => { setPendingAvatarId(editForm.avatarId); setShowAvatarModal(true); }}
+              aria-label="Cambiar avatar"
             >
               <div
                 style={{
@@ -766,16 +819,23 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                 }}
               >
-                {getInitials(userData?.nombre)}
+                {(() => {
+                  const opt = AVATAR_OPTIONS.find(o => o.id === editForm.avatarId);
+                  if (opt && opt.id !== "User") {
+                    const Icon = opt.icon;
+                    return <Icon className="w-10 h-10 text-white" />;
+                  }
+                  return getInitials(userData?.nombre);
+                })()}
               </div>
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-xl shadow-lg flex items-center justify-center border-2 border-slate-50"
+                className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-xl shadow-lg flex items-center justify-center border-2 border-slate-50 group-hover:bg-primary group-hover:border-primary transition-colors"
               >
-                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                <Pencil className="w-3.5 h-3.5 text-primary group-hover:text-white transition-colors" />
               </motion.div>
-            </motion.div>
+            </motion.button>
 
             {!isEditing ? (
               <Button 
@@ -819,7 +879,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
 
         {/* Stats Rápidos */}
-        {!isEditing && (
+        {!isEditing && !isEntrepreneur && (
           <div className="grid grid-cols-3 gap-px bg-slate-100/50 border-t border-slate-50">
             <div className="p-4 bg-white/50 backdrop-blur-sm flex flex-col items-center justify-center border-r border-slate-50">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sellos</span>
@@ -847,29 +907,30 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
-            <div className="space-y-4">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Selecciona tu Avatar</Label>
-              <div className="flex flex-wrap gap-3 justify-center">
-                {AVATAR_OPTIONS.map((opt) => {
-                  const Icon = opt.icon;
-                  const isSelected = editForm.avatarId === opt.id;
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const opt = AVATAR_OPTIONS.find(o => o.id === editForm.avatarId);
+                  const Icon = opt ? opt.icon : UserIcon;
                   return (
-                    <motion.button
-                      key={opt.id}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setEditForm({ ...editForm, avatarId: opt.id })}
-                      className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm",
-                        opt.color,
-                        isSelected ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-lg" : "opacity-40 grayscale-[50%] hover:opacity-100 hover:grayscale-0"
-                      )}
-                    >
+                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm", opt?.color || "bg-slate-100 text-slate-600")}>
                       <Icon className="w-6 h-6" />
-                    </motion.button>
+                    </div>
                   );
-                })}
+                })()}
+                <div>
+                  <p className="text-sm font-bold text-slate-700">Avatar actual</p>
+                  <p className="text-xs text-slate-400">Toca para cambiarlo</p>
+                </div>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 text-primary border-primary/20 hover:bg-primary/5"
+                onClick={() => { setPendingAvatarId(editForm.avatarId); setShowAvatarModal(true); }}
+              >
+                <Pencil className="w-3.5 h-3.5" /> Cambiar
+              </Button>
             </div>
 
             <div className="space-y-4">
@@ -987,7 +1048,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       )}
 
       {/* ── Banner Android / Web: activar alertas push ────────────────────── */}
-      {!pushEnabled && !isEditing && !showIosHint && (
+      {!pushEnabled && !isEditing && !showIosHint && !isEntrepreneur && (
         <Card className="border-none shadow-md bg-blue-50/50 rounded-2xl">
           <CardContent className="p-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -1104,52 +1165,117 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       )}
 
       {isEntrepreneur && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
-          className="space-y-6"
+          className="space-y-5"
         >
-          <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden group">
-            <CardHeader className="bg-slate-50/50 border-b border-slate-50">
-              <CardTitle className="text-lg font-black flex items-center gap-2 text-slate-800">
-                <Store className="w-5 h-5 text-primary" /> Mi Tienda
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <Link href="/vendedor?action=scan">
-                <motion.div whileTap={{ scale: 0.98 }}>
-                  <Button className="w-full h-16 rounded-[1.5rem] bg-primary text-white font-black text-lg gap-3 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
-                    <QrCode className="w-6 h-6" /> Escanear Cliente
-                  </Button>
-                </motion.div>
-              </Link>
-              
-              <div className="grid grid-cols-2 gap-3">
-                {user && (
-                  <Link href={`/validar/${user.uid}`}>
-                    <motion.div whileTap={{ scale: 0.98 }}>
-                      <Button
-                        className="w-full h-14 rounded-2xl font-bold gap-2 shadow-sm border-none text-white text-xs"
-                        style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
-                      >
-                        <CheckCircle2 className="w-4 h-4" /> Validar Caja
-                      </Button>
-                    </motion.div>
-                  </Link>
-                )}
-                <Link href="/vendedor">
-                  <motion.div whileTap={{ scale: 0.98 }}>
-                    <Button variant="outline" className="w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 text-slate-600 font-bold text-xs gap-2 hover:bg-white hover:border-primary/20">
-                      <LayoutDashboard className="w-4 h-4 text-primary" /> Panel
-                    </Button>
-                  </motion.div>
-                </Link>
+          {/* QR Universal — vista central */}
+          <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden">
+            <CardContent className="flex flex-col items-center py-8 px-6 gap-5">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+                <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">Tu código QR universal</p>
               </div>
+
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="p-5 bg-white rounded-[1.5rem] shadow-lg border border-slate-100 relative"
+              >
+                <QRCode
+                  value={user.uid
+                    ? `${typeof window !== "undefined" ? window.location.origin : "https://clubpatiocurauma.synaptechspa.cl"}/scan?ref=${user.uid}`
+                    : "invalid"}
+                  size={210}
+                  fgColor="#1A1A1A"
+                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                />
+                <motion.div
+                  className="absolute -top-3 -right-3 w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg text-white border-4 border-white"
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 4, repeat: Infinity }}
+                >
+                  <QrCode className="w-5 h-5" />
+                </motion.div>
+              </motion.div>
+
+              {/* Métricas duales */}
+              <div className="w-full grid grid-cols-2 gap-3">
+                <div
+                  className="rounded-2xl px-4 py-4 flex flex-col gap-1"
+                  style={{ background: "linear-gradient(135deg, #f8f9fa, #f1f3f5)", border: "1px solid rgba(0,0,0,0.04)" }}
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center mb-1"
+                    style={{ background: "linear-gradient(135deg, rgba(157,204,101,0.15), rgba(157,204,101,0.25))" }}
+                  >
+                    <Award className="w-5 h-5 text-primary" />
+                  </div>
+                  <p className="text-2xl font-black text-primary leading-none">
+                    {userData?.sellosEntregadosHistorico ?? 0}
+                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sellos</p>
+                  <p className="text-[10px] text-slate-400">entregados</p>
+                </div>
+                <div
+                  className="rounded-2xl px-4 py-4 flex flex-col gap-1"
+                  style={{ background: "linear-gradient(135deg, #f8f9fa, #f1f3f5)", border: "1px solid rgba(0,0,0,0.04)" }}
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center mb-1"
+                    style={{ background: "linear-gradient(135deg, rgba(110,187,209,0.15), rgba(110,187,209,0.25))" }}
+                  >
+                    <Users className="w-5 h-5 text-[#6EBBD1]" />
+                  </div>
+                  <p className="text-2xl font-black text-[#6EBBD1] leading-none">
+                    {userData?.clientesNuevosRegistrados ?? 0}
+                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Socios</p>
+                  <p className="text-[10px] text-slate-400">captados</p>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-center text-slate-400 leading-relaxed">
+                Muéstrale este QR a tus clientes. Los nuevos se registran y los recurrentes suman un sello automáticamente.
+              </p>
             </CardContent>
           </Card>
 
-          {/* Mensajes del Club — el emprendedor también es miembro del club */}
+          {/* Acciones discretas */}
+          <div className="grid grid-cols-3 gap-3">
+            {user && (
+              <Link href={`/validar/${user.uid}`} className="col-span-1">
+                <motion.div whileTap={{ scale: 0.98 }}>
+                  <Button
+                    className="w-full h-14 rounded-2xl font-bold gap-1.5 shadow-sm border-none text-white text-[11px] flex-col"
+                    style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Validar
+                  </Button>
+                </motion.div>
+              </Link>
+            )}
+            <Link href="/vendedor" className="col-span-1">
+              <motion.div whileTap={{ scale: 0.98 }}>
+                <Button variant="outline" className="w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 text-slate-600 font-bold text-[11px] gap-1.5 flex-col hover:bg-white hover:border-primary/20">
+                  <LayoutDashboard className="w-4 h-4 text-primary" /> Panel
+                </Button>
+              </motion.div>
+            </Link>
+            <Link href="/tienda" className="col-span-1">
+              <motion.div whileTap={{ scale: 0.98 }}>
+                <Button
+                  variant="outline"
+                  className="w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 text-slate-600 font-bold text-[11px] gap-1.5 flex-col hover:bg-white hover:border-primary/20"
+                >
+                  <Store className="w-4 h-4 text-slate-400" /> Mi Tienda
+                </Button>
+              </motion.div>
+            </Link>
+          </div>
+
+          {/* Mensajes del Club */}
           <section className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
@@ -1259,7 +1385,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             {[
               { icon: "📷", label: "Escanear", href: "/scan", color: "#9DCC65" },
               { icon: "🎁", label: "Premios", href: "/premios", color: "#D3B673" },
-              { icon: "🗺️", label: "Mi Ruta", href: "/ruta", color: "#6EBBD1" },
+              { icon: "🗺️", label: "Mi Ruta", href: "/ruta", color: "#2D6A4F" },
               { icon: "📤", label: "Referir", href: null, color: "#C9920A" },
             ].map((action) => (
               <button
@@ -1506,6 +1632,80 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           <p className="text-[10px] text-slate-400 font-light mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
         </div>
       </section>
+      {/* ── Modal Selector de Avatar ──────────────────────────────────────── */}
+      {showAvatarModal && (
+        <div
+          className="fixed inset-0 z-[300] flex items-end justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowAvatarModal(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 flex flex-col"
+            style={{ maxHeight: "80dvh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle + Header */}
+            <div className="px-6 pt-5 pb-4 shrink-0">
+              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-slate-800">Selecciona tu Avatar</h2>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">Elige el icono que mejor te represente</p>
+                </div>
+                <button
+                  onClick={() => setShowAvatarModal(false)}
+                  className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Grid de avatares */}
+            <div className="px-6 overflow-y-auto flex-1 pb-4">
+              <div className="grid grid-cols-4 gap-3">
+                {AVATAR_OPTIONS.map((opt) => {
+                  const Icon = opt.icon;
+                  const isSelected = pendingAvatarId === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => setPendingAvatarId(opt.id)}
+                      className={cn(
+                        "aspect-square rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all p-3 shadow-sm border-2",
+                        opt.color,
+                        isSelected
+                          ? "border-primary ring-2 ring-primary ring-offset-1 scale-105 shadow-md"
+                          : "border-transparent hover:border-slate-200"
+                      )}
+                    >
+                      <Icon className="w-7 h-7" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer fijo */}
+            <div className="px-6 pt-3 pb-8 shrink-0 border-t border-slate-100 space-y-2">
+              <Button
+                className="w-full h-12 rounded-2xl font-bold gap-2"
+                onClick={handleSaveAvatar}
+                disabled={savingAvatar}
+              >
+                {savingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                Guardar Avatar
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full h-10 rounded-2xl text-slate-400 text-sm"
+                onClick={() => setShowAvatarModal(false)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

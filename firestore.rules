@@ -52,10 +52,14 @@ service cloud.firestore {
       // Creación: solo el propio usuario, y NUNCA con rol privilegiado (CRÍTICO-03)
       // Roles permitidos en auto-registro: "cliente" y "emprendedor".
       // Admin/moderador/director JAMÁS se pueden auto-asignar client-side.
+      // Se permiten dos estados iniciales válidos:
+      //   - Registro orgánico:  comprasRealizadas=1, puntos=100
+      //   - Registro con QR de emprendedor: comprasRealizadas=0, puntos=50
+      //     (el sello de bienvenida se acredita luego vía registrarCompra desde el cliente)
       allow create: if isOwner(userId)
         && !(request.resource.data.rol in ["admin", "moderador", "director", "director_patio"])
-        && request.resource.data.comprasRealizadas == 1
-        && request.resource.data.puntos == 100;
+        && request.resource.data.comprasRealizadas in [0, 1]
+        && request.resource.data.puntos in [50, 100];
       // Actualización: el dueño o staff.
       // La confirmación de handshake fue movida a /api/handshake/confirm (Admin SDK)
       // para eliminar la necesidad de que emprendedores escriban en documentos ajenos.

@@ -40,6 +40,13 @@ function formatElapsed(seconds: number): string {
 
 // ─── Modal de confirmación ────────────────────────────────────────────────────
 
+const MONTO_MAX = 150_000;
+const MONTO_WARN = 50_000;
+
+function formatCLP(n: number) {
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
+}
+
 function ConfirmModal({
   stamp,
   onClose,
@@ -54,8 +61,69 @@ function ConfirmModal({
   loading: boolean;
 }) {
   const [monto, setMonto] = useState("");
+  const [showWarning, setShowWarning] = useState(false);
+  const [showRequired, setShowRequired] = useState(false);
   const elapsed = getElapsedSeconds(stamp.createdAt);
   const isExpired = elapsed >= MAX_MINUTES * 60;
+
+  const montoNum = parseInt(monto, 10) || 0;
+  const isOverLimit = montoNum > MONTO_MAX;
+  const isEmpty = monto === "" || montoNum <= 0;
+
+  const handleMontoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const clean = e.target.value.replace(/\D/g, "");
+    const val = clean === "" ? "" : String(parseInt(clean, 10));
+    setMonto(val);
+    if (val !== "" && parseInt(val, 10) > 0) setShowRequired(false);
+  };
+
+  const handleConfirmClick = () => {
+    if (isEmpty) { setShowRequired(true); return; }
+    if (isOverLimit) return;
+    if (montoNum >= MONTO_WARN) {
+      setShowWarning(true);
+    } else {
+      onConfirm(montoNum);
+    }
+  };
+
+  if (showWarning) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-5">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+        <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl p-7 space-y-5 animate-in zoom-in-95 duration-200">
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-6 h-6 text-amber-600" />
+          </div>
+          <div className="text-center space-y-1">
+            <h3 className="text-base font-black text-slate-800">¿Monto correcto?</h3>
+            <p className="text-sm text-slate-500">
+              Estás por registrar una venta de{" "}
+              <span className="font-black text-slate-800">{formatCLP(montoNum)}</span>.
+              ¿Estás seguro de que este valor es correcto?
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => { setShowWarning(false); onConfirm(montoNum); }}
+              className="w-full h-12 rounded-2xl font-black text-sm gap-2"
+              style={{ backgroundColor: "#D3B673" }}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Sí, confirmar {formatCLP(montoNum)}
+            </Button>
+            <Button
+              onClick={() => setShowWarning(false)}
+              variant="outline"
+              className="w-full h-11 rounded-2xl font-bold text-sm"
+            >
+              Corregir monto
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -100,30 +168,47 @@ function ConfirmModal({
           {/* Monto */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Monto de la compra (opcional)
+              Monto de la compra{" "}
+              <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
               <input
-                type="number"
-                inputMode="decimal"
-                placeholder="0"
+                type="text"
+                inputMode="numeric"
+                placeholder="Ej: 5000"
                 value={monto}
-                onChange={(e) => setMonto(e.target.value)}
+                onChange={handleMontoChange}
                 disabled={loading}
-                className="w-full h-14 pl-8 pr-4 rounded-2xl border-2 border-slate-200 focus:border-primary focus:outline-none text-lg font-black text-slate-800 bg-slate-50 transition-colors"
+                className={`w-full h-14 pl-8 pr-4 rounded-2xl border-2 focus:outline-none text-lg font-black text-slate-800 bg-slate-50 transition-colors ${
+                  isOverLimit || showRequired
+                    ? "border-red-400 focus:border-red-500"
+                    : "border-slate-200 focus:border-primary"
+                }`}
               />
             </div>
-            <p className="text-[11px] text-slate-400">
-              Si dejas el campo vacío, se guarda como $0.
-            </p>
+            {showRequired && (
+              <p className="text-[11px] font-bold text-red-500">
+                El monto de la venta es obligatorio para procesar el sello.
+              </p>
+            )}
+            {isOverLimit && (
+              <p className="text-[11px] font-bold text-red-500">
+                El monto máximo permitido es {formatCLP(MONTO_MAX)}.
+              </p>
+            )}
+            {!showRequired && !isOverLimit && (
+              <p className="text-[11px] text-slate-400">
+                Máximo {formatCLP(MONTO_MAX)}.
+              </p>
+            )}
           </div>
 
           {/* Botones */}
           <div className="flex flex-col gap-3">
             <Button
-              onClick={() => onConfirm(parseFloat(monto) || 0)}
-              disabled={loading}
+              onClick={handleConfirmClick}
+              disabled={loading || isOverLimit}
               className="w-full h-14 rounded-2xl font-black text-base gap-2 shadow-lg"
               style={{ backgroundColor: "#D3B673" }}
             >

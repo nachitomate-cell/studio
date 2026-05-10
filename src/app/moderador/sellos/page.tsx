@@ -9,7 +9,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import {
   Loader2, ChevronLeft, Download, Search, BarChart2,
-  TrendingUp, Store, Star, Stamp, Gift,
+  TrendingUp, Store, Star, Stamp, Gift, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,7 @@ interface LogEntry {
   tipo: string;
   metodo?: string;
   monto?: number;
-  // nombre resuelto si el original era genérico
+  anulada?: boolean;
   usuarioResuelto?: string;
 }
 
@@ -257,6 +257,7 @@ export default function ModeradorSellosPage() {
             tipo: d.data().tipo || "",
             metodo: d.data().metodo,
             monto: d.data().monto,
+            anulada: d.data().anulada === true,
           }))
           .filter((l) => l.tipo === "FIDELIZACION" || l.tipo === "SELLO_RECHAZADO");
 
@@ -287,7 +288,7 @@ export default function ModeradorSellosPage() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
     const thisMonth = data.filter(
-      (l) => l.tipo === "FIDELIZACION" && l.fecha >= startOfMonth
+      (l) => l.tipo === "FIDELIZACION" && l.fecha >= startOfMonth && !l.anulada
     );
 
     const totalSellos = thisMonth.length;
@@ -370,6 +371,38 @@ export default function ModeradorSellosPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sellos");
     XLSX.writeFile(wb, `sellos_patiocurauma_${hoy}.xlsx`);
+  };
+
+  // ── Anular Sello ───────────────────────────────────────────────────────────
+  const [anulandoId, setAnulandoId] = useState<string | null>(null);
+
+  const handleAnularSello = async (log: LogEntry) => {
+    if (!confirm(`¿Anular el sello de "${log.usuarioResuelto || log.usuario}" del ${formatFechaCompleta(log.fecha)}?\n\nEsto restará 1 sello al cliente y actualizará la tarjeta de Google Wallet. Esta acción queda registrada en auditoría.`)) return;
+
+    setAnulandoId(log.id);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("Sin sesión activa");
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch("/api/admin/anular-sello", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ logId: log.id }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error desconocido");
+
+      // El onSnapshot actualizará el estado automáticamente
+    } catch (err: any) {
+      alert(`Error al anular sello: ${err.message}`);
+    } finally {
+      setAnulandoId(null);
+    }
   };
 
   const resetFiltros = () => {
@@ -586,13 +619,14 @@ export default function ModeradorSellosPage() {
                       <th className="px-6 py-4">Sellos</th>
                       <th className="px-6 py-4">Monto</th>
                       <th className="px-6 py-4">Estado</th>
+                      <th className="px-6 py-4">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {paginated.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-6 py-20 text-center text-slate-300 font-bold"
                         >
                           Sin registros para los filtros seleccionados
@@ -602,7 +636,7 @@ export default function ModeradorSellosPage() {
                       paginated.map((log) => (
                         <tr
                           key={log.id}
-                          className="hover:bg-slate-50/80 transition-colors group"
+                          className={`hover:bg-slate-50/80 transition-colors group ${log.anulada ? "opacity-50" : ""}`}
                         >
                           <td className="px-6 py-4 text-slate-400 font-medium whitespace-nowrap text-xs">
                             {formatFechaCompleta(log.fecha)}
@@ -614,15 +648,43 @@ export default function ModeradorSellosPage() {
                             {vendors[log.vendedorId] || log.vendedorId || "—"}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                              +1 sello
-                            </span>
+                            {log.anulada ? (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-400 line-through">
+                                -1 sello
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                                +1 sello
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
                             {formatMonto(log.monto)}
                           </td>
                           <td className="px-6 py-4">
-                            <EstadoBadge tipo={log.tipo} />
+                            {log.anulada ? (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-600">
+                                Anulado
+                              </span>
+                            ) : (
+                              <EstadoBadge tipo={log.tipo} />
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {log.tipo === "FIDELIZACION" && !log.anulada && (
+                              <button
+                                onClick={() => handleAnularSello(log)}
+                                disabled={anulandoId === log.id}
+                                title="Anular sello"
+                                className="w-8 h-8 rounded-xl flex items-center justify-center bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-40"
+                              >
+                                {anulandoId === log.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Undo2 className="w-4 h-4" />
+                                )}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))

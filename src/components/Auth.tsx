@@ -23,6 +23,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LogIn, UserPlus, AlertCircle, LogOut, Phone, Sparkles, Ban, User as UserIcon, Calendar, Loader2, Gift, Mail, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import TermsModal from "@/components/TermsModal";
+import { registrarCompra } from "@/lib/puntos";
+import { syncUserStampsToWallet } from "@/lib/walletSync";
 
 const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const EMAILS_EMPRENDEDORES = [
@@ -185,6 +187,9 @@ export function Auth() {
         else if (EMAILS_EMPRENDEDORES.includes(emailLimpio)) rolAsignado = "emprendedor";
 
         const timestamp = new Date().toISOString();
+        const referralLocalId = typeof window !== "undefined"
+          ? localStorage.getItem("referral_local_id")
+          : null;
 
         await setDoc(doc(db, "usuarios", newUser.uid), {
           id: newUser.uid,
@@ -193,8 +198,8 @@ export function Auth() {
           telefono: phone,
           fechaNacimiento: fechaNacimiento,
           rol: rolAsignado,
-          comprasRealizadas: 1,
-          puntos: 100,
+          comprasRealizadas: referralLocalId ? 0 : 1,
+          puntos: referralLocalId ? 50 : 100,
           totalCanjesHistoricos: 0,
           ticketsSorteo: 0,
           recompensaDisponible: false,
@@ -203,7 +208,8 @@ export function Auth() {
           aceptaTerminos: true,
           aceptaMarketing: aceptaMarketing,
           fechaConsentimiento: timestamp,
-          createdAt: timestamp
+          createdAt: timestamp,
+          ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
         });
 
         await setDoc(doc(db, "leads_marketing", newUser.uid), {
@@ -217,6 +223,35 @@ export function Auth() {
           fechaRegistro: timestamp,
           fuente: "Club Patio App",
         });
+
+        // Atribución del sello de bienvenida
+        if (referralLocalId) {
+          try {
+            await registrarCompra(db, newUser.uid, referralLocalId, false);
+            // Contabilizar este nuevo socio en el perfil del emprendedor
+            updateDoc(doc(db, "usuarios", referralLocalId), {
+              clientesNuevosRegistrados: increment(1),
+            }).catch(() => {});
+            localStorage.removeItem("referral_local_id");
+            localStorage.removeItem("url_retorno");
+          } catch {
+            // No crítico: el usuario ya fue creado
+          }
+        } else {
+          try {
+            await addDoc(collection(db, "system_logs"), {
+              usuario: nombre.trim(),
+              usuarioId: newUser.uid,
+              accion: "recibió Sello de Bienvenida (registro orgánico)",
+              fecha: timestamp,
+              tipo: "FIDELIZACION",
+              metodo: "BIENVENIDA",
+            });
+            syncUserStampsToWallet(newUser.uid, 1);
+          } catch {
+            // No crítico
+          }
+        }
 
         toast({
           title: "¡Registro exitoso! 🌟",

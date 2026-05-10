@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs, getDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,8 @@ import {
   Loader2, AlertCircle, TrendingUp, Users,
   Gift, Clock, ChevronRight, LayoutDashboard,
   X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
-  DollarSign, BarChart2, RefreshCw, FileDown,
+  DollarSign, BarChart2, RefreshCw, FileDown, HelpCircle,
+  CheckCircle2, User,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -25,7 +26,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/data";
-import ValidarPanel from "@/components/ValidarPanel";
 
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
 
@@ -91,13 +91,15 @@ function calcularCRM(ventas: VentaRecord[]) {
 export default function VendedorPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "validar" | "clientes">("dashboard");
+  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "clientes">("dashboard");
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [allVentas, setAllVentas] = useState<VentaRecord[]>([]);
   const [crmLoading, setCrmLoading] = useState(false);
   const [userData, setUserData] = useState<any>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const scannerInstance = useRef<any>(null);
@@ -117,6 +119,10 @@ export default function VendedorPage() {
     isPremium: false,
   });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [vendorSaleTarget, setVendorSaleTarget] = useState<{ clientId: string; clientName: string } | null>(null);
+  const [vendorSalePendingId, setVendorSalePendingId] = useState<string | null>(null);
+  const [vendorSaleLoading, setVendorSaleLoading] = useState(false);
+  const [vendorSaleMonto, setVendorSaleMonto] = useState("");
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -144,6 +150,10 @@ export default function VendedorPage() {
     let unsubscribeVentas: () => void = () => {};
 
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setProfileChecked(true);
+        return;
+      }
       if (user) {
         // Detectar si es admin para mostrar controles extra
         setIsAdmin((user.email || "").trim().toLowerCase() === ADMIN_EMAIL);
@@ -155,8 +165,9 @@ export default function VendedorPage() {
             const mp: string[] = data.mediosPago || [];
             const isOtro = mp.some(m => !['efectivo', 'debito', 'transferencia'].includes(m));
             const otroVal = isOtro ? mp.find(m => !['efectivo', 'debito', 'transferencia'].includes(m)) || "" : "";
+            const businessName = data.businessName || data.nombre || "";
             setShopForm({
-              nombreTienda: data.businessName || data.nombre || "",
+              nombreTienda: businessName,
               descripcion: data.description || data.descripcion || "",
               categoria: data.category || data.rubro || "",
               mediosPago: isOtro
@@ -171,7 +182,15 @@ export default function VendedorPage() {
               isPremium: data.isPremium === true,
             });
             setPreviewUrl(data.imageUrl || data.imageUrls?.[0] || null);
+            if (!businessName.trim() || businessName.trim() === "—") {
+              toast({ title: "¡Bienvenido! Configura tu local", description: "Por favor, configura el nombre de tu local para empezar a entregar sellos." });
+              router.push("/tienda");
+            }
+          } else {
+            toast({ title: "¡Bienvenido! Configura tu local", description: "Por favor, configura el nombre de tu local para empezar a entregar sellos." });
+            router.push("/tienda");
           }
+          setProfileChecked(true);
         });
 
         const userRef = doc(db, "usuarios", user.uid);
@@ -366,17 +385,117 @@ export default function VendedorPage() {
     handleProcessSale(clientUid);
   };
 
-  const handleProcessSale = async (_uid: string) => {
-    // DESACTIVADO: asignación directa de sellos reemplazada por flujo Handshake Digital.
-    // El sello solo se asigna cuando el CLIENTE escanea el QR del mostrador y
-    // el emprendedor confirma en su Panel de Validación (/validar/[vendorId]).
-    //
-    // await registrarCompra(db, uid, auth.currentUser?.uid); // DESACTIVADO
-    //
-    toast({
-      title: "Usa el Panel de Validación",
-      description: "Pide al cliente que escanee tu QR de mostrador. La solicitud aparecerá en tu panel.",
-    });
+  const handleProcessSale = async (rawScanned: string) => {
+    const raw = rawScanned.trim();
+    if (!raw) return;
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    // If it looks like a URL or vendor QR — block
+    if (raw.includes("ref=") || raw.includes("localId=") || raw.startsWith("http") || raw.startsWith("VND_")) {
+      toast({
+        variant: "destructive",
+        title: "QR de otro local",
+        description: "Escaneaste el QR de un local, no de un cliente. Pide al cliente que muestre su QR personal.",
+      });
+      return;
+    }
+
+    // Prevent scanning own QR
+    if (raw === currentUser.uid) {
+      toast({ variant: "destructive", title: "Ese eres tú", description: "No puedes escanearte a ti mismo." });
+      return;
+    }
+
+    setVendorSaleLoading(true);
+    try {
+      // Check if it's another vendor
+      const profileSnap = await getDoc(doc(db, "entrepreneur_profiles", raw));
+      if (profileSnap.exists()) {
+        toast({
+          variant: "destructive",
+          title: "QR de otro emprendedor",
+          description: "Este código pertenece a otro local. Para registrar una visita, pide al cliente que muestre su QR personal.",
+        });
+        return;
+      }
+
+      // Check if it's a registered client
+      const userSnap = await getDoc(doc(db, "usuarios", raw));
+      if (!userSnap.exists()) {
+        toast({ variant: "destructive", title: "Código no reconocido", description: "Este código no corresponde a un socio registrado." });
+        return;
+      }
+
+      const clientData = userSnap.data();
+      const clientName = clientData.nombre || clientData.displayName || "Socio";
+      const vendorName = shopForm.nombreTienda || "Mi Local";
+
+      // Create pending_stamps doc for real-time client feedback
+      const pendingRef = await addDoc(collection(db, "pending_stamps"), {
+        userId: raw,
+        userName: clientName,
+        vendorId: currentUser.uid,
+        vendorName,
+        status: "vendor_processing",
+        initiatedBy: "vendor",
+        createdAt: serverTimestamp(),
+      });
+
+      setVendorSalePendingId(pendingRef.id);
+      setVendorSaleTarget({ clientId: raw, clientName });
+      setVendorSaleMonto("");
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo verificar el código. Inténtalo de nuevo." });
+    } finally {
+      setVendorSaleLoading(false);
+    }
+  };
+
+  const handleConfirmVendorSale = async () => {
+    if (!vendorSaleTarget || !vendorSalePendingId) return;
+    const montoNum = parseInt(vendorSaleMonto.replace(/\D/g, ""), 10) || 0;
+    if (montoNum <= 0 || montoNum > 150_000) {
+      toast({ variant: "destructive", title: "Monto inválido", description: "Ingresa un monto entre $1 y $150.000." });
+      return;
+    }
+
+    setVendorSaleLoading(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión");
+
+      const res = await fetch("/api/handshake/vendor-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ pendingId: vendorSalePendingId, monto: montoNum }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al confirmar");
+
+      toast({ title: "✅ Sello confirmado", description: `+1 sello acreditado a ${vendorSaleTarget.clientName}.` });
+      setVendorSaleTarget(null);
+      setVendorSalePendingId(null);
+      setVendorSaleMonto("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo confirmar el sello." });
+    } finally {
+      setVendorSaleLoading(false);
+    }
+  };
+
+  const handleCancelVendorSale = async () => {
+    if (vendorSalePendingId) {
+      // Fire-and-forget cleanup
+      import("firebase/firestore").then(({ doc: fsDoc, deleteDoc }) => {
+        deleteDoc(fsDoc(db, "pending_stamps", vendorSalePendingId)).catch(() => {});
+      });
+    }
+    setVendorSaleTarget(null);
+    setVendorSalePendingId(null);
+    setVendorSaleMonto("");
   };
 
   const handleDownloadQR = () => {
@@ -412,13 +531,10 @@ export default function VendedorPage() {
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
-  if (view === "validar" && auth.currentUser) {
+  if (!profileChecked) {
     return (
-      <div className="animate-in slide-in-from-right duration-300">
-        <ValidarPanel 
-          vendorId={auth.currentUser.uid} 
-          onBack={() => setView("dashboard")} 
-        />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
     );
   }
@@ -434,43 +550,75 @@ export default function VendedorPage() {
         </div>
 
         <div className="max-w-lg mx-auto p-6 space-y-6">
+
+          {/* ── QR Universal ── */}
           <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white text-center p-8">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-5"
+              style={{ background: "linear-gradient(135deg, #C9920A22 0%, #8DC63F22 100%)", border: "1px solid #C9920A44" }}>
+              <QrCode className="w-3.5 h-3.5" style={{ color: "#C9920A" }} />
+              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#C9920A" }}>
+                QR Universal
+              </span>
+            </div>
+
             <h2 className="text-2xl font-black text-slate-900 mb-2">Código de Mostrador</h2>
-            <p className="text-sm text-slate-500 mb-8 max-w-[250px] mx-auto">
-              Los clientes deben escanear este código desde su app para sumar un sello.
+            <p className="text-sm text-slate-500 mb-8 max-w-[280px] mx-auto leading-relaxed">
+              Un solo QR para todos. Clientes nuevos se registran y su primer sello queda en tu cuenta. Clientes actuales van directo a confirmar su sello.
             </p>
-            
-            <div id="qr-codigo-mostrador" className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto mb-6">
+
+            {/* QR */}
+            <div id="qr-codigo-mostrador" className="bg-white p-5 rounded-3xl inline-block shadow-xl border-2 mx-auto mb-6"
+              style={{ borderColor: "#C9920A33" }}>
               <QRCode
-                value={auth.currentUser?.uid ? `https://club-patio-curauma.vercel.app/canje?localId=${auth.currentUser.uid}` : "cargando"}
-                size={250}
-                fgColor="#000000"
+                value={auth.currentUser?.uid
+                  ? `${typeof window !== "undefined" ? window.location.origin : "https://clubpatiocurauma.synaptechspa.cl"}/scan?ref=${auth.currentUser.uid}`
+                  : "cargando"}
+                size={260}
+                fgColor="#1a1a1a"
                 className="rounded-xl"
               />
             </div>
-            
+
+            {/* Instrucción visual */}
+            <div className="flex items-center justify-center gap-6 mb-8 text-xs text-slate-400 font-medium">
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-base">👤</div>
+                <span>Cliente nuevo</span>
+                <span className="text-[10px] text-green-600 font-bold">→ Se registra</span>
+              </div>
+              <div className="text-slate-200 text-lg">|</div>
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-base">🎫</div>
+                <span>Ya registrado</span>
+                <span className="text-[10px] text-blue-600 font-bold">→ Suma sello</span>
+              </div>
+            </div>
+
+            {/* Acciones */}
             <div className="flex flex-col items-center gap-3">
-              <Button 
-                className="w-full max-w-[250px] rounded-xl font-bold bg-primary text-white gap-2 shadow-md hover:scale-[1.02] transition-all"
+              <Button
+                className="w-full max-w-[280px] rounded-xl font-bold gap-2 shadow-md hover:scale-[1.02] transition-all"
+                style={{ background: "linear-gradient(135deg, #C9920A, #8DC63F)", color: "white" }}
                 onClick={handleDownloadQR}
               >
                 <Download className="w-5 h-5" />
-                Descargar Código QR
+                Descargar QR
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full max-w-[250px] rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 gap-2"
+              <Button
+                variant="outline"
+                className="w-full max-w-[280px] rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 gap-2"
                 onClick={() => {
                   if (auth.currentUser?.uid) {
-                    navigator.clipboard.writeText(`https://club-patio-curauma.vercel.app/canje?localId=${auth.currentUser.uid}`);
-                    toast({ title: "Enlace copiado", description: "¡Listo para compartir!" });
+                    navigator.clipboard.writeText(`${window.location.origin}/scan?ref=${auth.currentUser.uid}`);
+                    toast({ title: "Enlace copiado", description: "Compártelo por WhatsApp o Instagram." });
                   }
                 }}
               >
                 <Copy className="w-4 h-4" />
                 Copiar Enlace
               </Button>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
+              <p className="text-[10px] text-slate-300 font-mono mt-1">
                 ID: {auth.currentUser?.uid?.substring(0, 8)}...
               </p>
             </div>
@@ -661,7 +809,28 @@ export default function VendedorPage() {
                         {cat.name}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setShopForm({...shopForm, categoria: "otra"})}
+                      className={cn(
+                        "h-12 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-2",
+                        shopForm.categoria === "otra" || (!CATEGORIES.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+                      )}
+                    >
+                      Otra…
+                    </button>
                   </div>
+                  {(shopForm.categoria === "otra" || (!CATEGORIES.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")) && (
+                    <Input
+                      placeholder="Escribe tu categoría personalizada..."
+                      className="h-11 border-slate-200 focus:border-primary rounded-xl text-sm"
+                      value={shopForm.categoria === "otra" ? "" : shopForm.categoria}
+                      onChange={(e) => setShopForm({...shopForm, categoria: e.target.value || "otra"})}
+                      autoFocus
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -866,9 +1035,20 @@ export default function VendedorPage() {
             </Button>
             <h1 className="text-xl font-bold text-slate-800">Panel del Emprendedor</h1>
           </div>
-          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold">
-            Aliado Activo
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold">
+              Aliado Activo
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowGuide(true)}
+              className="text-slate-400 hover:text-primary"
+              aria-label="¿Cómo funciona?"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -908,16 +1088,14 @@ export default function VendedorPage() {
                 Mi Código QR (Mostrador)
               </Button>
               {/* Panel de Validación — handshake digital */}
-              {auth.currentUser && (
-                <Button
-                  onClick={() => setView("validar")}
-                  className="w-full h-16 rounded-2xl font-bold text-base gap-3 shadow-lg active:scale-[0.97] transition-transform"
-                  style={{ backgroundColor: "#D3B673", color: "#fff" }}
-                >
-                  <span className="text-lg">🛠️</span>
-                  Panel de Validación (Caja)
-                </Button>
-              )}
+              <Button
+                onClick={() => router.push("/validar")}
+                className="w-full h-16 rounded-2xl font-bold text-base gap-3 shadow-lg active:scale-[0.97] transition-transform"
+                style={{ backgroundColor: "#D3B673", color: "#fff" }}
+              >
+                <span className="text-lg">🛠️</span>
+                Panel de Validación (Caja)
+              </Button>
               <div className="grid grid-cols-3 gap-3">
                 <Button
                   onClick={startScanner}
@@ -1051,6 +1229,151 @@ export default function VendedorPage() {
           </div>
         </section>
       </div>
+
+      {/* ── Modal: Confirmar Sello (Emprendedor escaneó cliente) ── */}
+      {vendorSaleTarget && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={handleCancelVendorSale}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4" />
+            <div className="px-7 pt-5 pb-8 space-y-6">
+              {/* Header */}
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: "rgba(211,182,115,0.12)", color: "#D3B673" }}>
+                  <User className="w-7 h-7" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Cliente identificado</p>
+                  <h3 className="text-xl font-black text-slate-800">{vendorSaleTarget.clientName}</h3>
+                </div>
+              </div>
+
+              {/* Monto */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Monto de la compra <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Ej: 5000"
+                    value={vendorSaleMonto}
+                    onChange={(e) => setVendorSaleMonto(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={(e) => e.key === "Enter" && handleConfirmVendorSale()}
+                    disabled={vendorSaleLoading}
+                    autoFocus
+                    className="w-full h-14 pl-8 pr-4 rounded-2xl border-2 border-slate-200 focus:border-primary focus:outline-none text-lg font-black text-slate-800 bg-slate-50 transition-colors"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400">Máximo $150.000.</p>
+              </div>
+
+              {/* Botones */}
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={handleConfirmVendorSale}
+                  disabled={vendorSaleLoading || !vendorSaleMonto}
+                  className="w-full h-14 rounded-2xl font-black text-base gap-2 shadow-lg"
+                  style={{ backgroundColor: "#D3B673" }}
+                >
+                  {vendorSaleLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      Confirmar sello (+1 ⭐)
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleCancelVendorSale}
+                  disabled={vendorSaleLoading}
+                  variant="outline"
+                  className="w-full h-12 rounded-2xl font-bold gap-2 text-slate-500 border-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal de Guía ──────────────────────────────────────────────── */}
+      {showGuide && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowGuide(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-t-3xl px-6 pt-6 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle + Header */}
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2" />
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black text-slate-800">¿Cómo funciona?</h2>
+              <Button variant="ghost" size="icon" onClick={() => setShowGuide(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {/* Guía */}
+            <div className="space-y-4">
+              {[
+                {
+                  icon: "📱",
+                  label: "Mi Código QR (Mostrador)",
+                  desc: "Muestra este código a tus clientes. Ellos lo escanean con su app para registrar su visita y solicitar su sello.",
+                },
+                {
+                  icon: "🛠️",
+                  label: "Panel de Validación (Caja)",
+                  desc: "Tu herramienta principal. Aquí apruebas los sellos que los clientes acaban de solicitar al escanear tu QR y registras el monto de la venta.",
+                },
+                {
+                  icon: "📷",
+                  label: "Escanear",
+                  desc: "Opción alternativa. Úsala para escanear manualmente el QR del teléfono del cliente si ellos tienen problemas de conexión.",
+                },
+                {
+                  icon: "📊",
+                  label: "Clientes / CRM",
+                  desc: "Revisa las estadísticas de quiénes te compran, identifica a tus clientes más leales y analiza tus ventas.",
+                },
+                {
+                  icon: "🏪",
+                  label: "Mi Tienda",
+                  desc: "Actualiza tu perfil público. Cambia tu foto, descripción y horarios para que los socios del club te encuentren fácilmente.",
+                },
+              ].map(({ icon, label, desc }) => (
+                <div key={label} className="flex gap-3">
+                  <span className="text-2xl shrink-0 leading-none mt-0.5">{icon}</span>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{label}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              className="w-full h-12 rounded-2xl font-bold"
+              onClick={() => setShowGuide(false)}
+            >
+              Entendido
+            </Button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

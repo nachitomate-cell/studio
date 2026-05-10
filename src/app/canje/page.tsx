@@ -442,11 +442,13 @@ function CanjeContent() {
     })
       .then(() => {
         console.timeEnd("2-create-pending-stamp");
-        // ✓ Notificar al vendedor en segundo plano (push + Firestore)
+        // ✓ Notificar al vendedor: pasamos pendingId para que el servidor
+        // lea el vendorId directamente desde Firestore (evita que el cliente
+        // pueda alterar el destinatario de la notificación).
         fetch("/api/handshake/notify-vendor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vendorId, clientName: userName || "Un cliente" }),
+          body: JSON.stringify({ pendingId, clientName: userName || "Un cliente" }),
         }).catch(() => {/* silencioso — no bloquear el flujo */});
       })
       .catch(() => {

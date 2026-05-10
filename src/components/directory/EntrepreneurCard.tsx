@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
 import { formatDistance } from "@/hooks/useUserLocation";
+import { Star } from "lucide-react";
 
 interface EntrepreneurCardProps {
   entrepreneur: Entrepreneur;
@@ -22,7 +23,7 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
 
   return (
     <Link href={`/emprendedor/${entrepreneur.id}`} className="block group">
-      <Card className="overflow-hidden border border-slate-100 bg-white shadow-md hover:shadow-xl transition-all duration-300 rounded-[24px] group-hover:-translate-y-0.5">
+      <Card className="overflow-hidden border border-gray-100 bg-white shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] group-hover:-translate-y-0.5">
         <div className={cn("relative w-full overflow-hidden bg-slate-50", fullWidth ? "aspect-[16/7]" : "aspect-square")}>
           {!imageLoaded && (
             <div className="absolute inset-0 bg-slate-200 animate-pulse z-0" />
@@ -65,20 +66,15 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
           {/* Badge patrocinador — solo para locales isPremium */}
           {entrepreneur.isPremium && (
             <span
+              className="absolute top-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold"
               style={{
-                position: "absolute",
-                top: "8px",
-                right: "8px",
-                background: "rgba(0,0,0,0.75)",
-                color: "white",
-                fontSize: "10px",
-                fontWeight: 700,
-                padding: "3px 8px",
-                borderRadius: "20px",
-                letterSpacing: "0.5px",
+                background: "rgba(255,255,255,0.92)",
+                color: "#92400E",
+                backdropFilter: "blur(4px)",
               }}
             >
-              ✦ PATROCINADO
+              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+              Patrocinado
             </span>
           )}
           {/* Badge open/closed — bottom-left of image */}

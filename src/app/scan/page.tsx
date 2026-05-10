@@ -2,25 +2,22 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
-// DESACTIVADO: import { db } from "@/lib/firebase"; — no se usa en flujo Handshake
-// DESACTIVADO: import { doc, getDoc } from "firebase/firestore";
-// DESACTIVADO: import { registrarCompra } from "@/lib/puntos"; — reemplazado por Handshake
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft, Camera, Loader2, AlertCircle,
+  ArrowLeft, Camera, Loader2,
   WifiOff, ScanLine, ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// ── tipos de error del escáner ─────────────────────────────────────────────
 type ScanError =
   | { type: "invalid_qr" }
   | { type: "not_found" }
   | { type: "network" }
-  | { type: "camera" };
+  | { type: "camera" }
+  | { type: "client_qr" };
 
-// ── utilidades ─────────────────────────────────────────────────────────────
 function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void }) {
   const configs: Record<ScanError["type"], { icon: React.ReactNode; title: string; desc: string }> = {
     invalid_qr: {
@@ -42,6 +39,11 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
       icon: <Camera className="w-6 h-6 text-slate-400" />,
       title: "Sin acceso a cámara",
       desc: "Permite el acceso a la cámara desde los ajustes de tu dispositivo.",
+    },
+    client_qr: {
+      icon: <ShieldAlert className="w-6 h-6 text-amber-400" />,
+      title: "QR de un socio",
+      desc: "Este es el código de otro miembro. Para sumar sellos, escanea el QR del mostrador del local adherido.",
     },
   };
 
@@ -69,40 +71,73 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
   );
 }
 
-// ── componente principal ───────────────────────────────────────────────────
 export default function ClientScannerPage() {
   const router = useRouter();
   const { toast } = useToast();
+
+  // "smart"  → llegó con ?ref=, redirigiendo (muestra spinner)
+  // "scanner"→ modo normal, mostrar cámara
+  const [mode, setMode] = useState<"smart" | "scanner">("smart");
 
   const [scanState, setScanState] = useState<"idle" | "loading" | "error">("idle");
   const [scanError, setScanError] = useState<ScanError | null>(null);
   const [scannerReady, setScannerReady] = useState(false);
 
   const scannerInstance = useRef<any>(null);
-  const isScanningRef = useRef(false); // Guard para evitar doble disparo
+  const isScanningRef = useRef(false);
 
-  // ── autenticación ──────────────────────────────────────────────────────
+  // ── Lógica de entrada ──────────────────────────────────────────────────────
+  // Si hay ?ref= → QR Universal del locatario fue escaneado por la cámara del móvil.
+  // Detectamos auth y redirigimos sin mostrar cámara.
+  // Sin ?ref= → flujo normal de escáner de cliente.
   useEffect(() => {
+    const ref = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("ref")
+      : null;
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (!user) {
-        toast({ variant: "destructive", title: "Inicia Sesión", description: "Debes iniciar sesión para escanear." });
-        router.replace("/");
+      if (ref) {
+        // ── MODO QR UNIVERSAL ─────────────────────────────────────────────
+        unsubscribe(); // Solo necesitamos el primer estado auth
+        if (user) {
+          // Cliente ya registrado → ir directo al flujo de sello
+          router.replace(`/canje?localId=${ref}`);
+        } else {
+          // Cliente nuevo → guardar ref + redirigir a registro
+          if (typeof window !== "undefined") {
+            localStorage.setItem("referral_local_id", ref);
+            // url_retorno para que al INICIAR SESIÓN (usuario existente) vuelva al canje
+            localStorage.setItem("url_retorno", `/canje?localId=${ref}`);
+          }
+          router.replace("/unete");
+        }
       } else {
-        setScannerReady(true);
+        // ── MODO ESCÁNER NORMAL ───────────────────────────────────────────
+        if (!user) {
+          toast({
+            variant: "destructive",
+            title: "Inicia Sesión",
+            description: "Debes iniciar sesión para escanear.",
+          });
+          router.replace("/");
+        } else {
+          setMode("scanner");
+          setScannerReady(true);
+        }
       }
     });
+
     return () => {
       unsubscribe();
       stopScanner();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── montar escáner cuando esté listo ──────────────────────────────────
   useEffect(() => {
     if (scannerReady) startScanner();
   }, [scannerReady]);
 
-  // ── control del escáner ───────────────────────────────────────────────
   const startScanner = useCallback(async () => {
     setScanError(null);
     setScanState("idle");
@@ -111,13 +146,11 @@ export default function ClientScannerPage() {
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
 
-      // Esperar a que el DOM esté disponible
       await new Promise<void>((res) => setTimeout(res, 350));
 
       const container = document.getElementById("client-reader");
       if (!container) return;
 
-      // Limpiar instancia anterior si existe
       if (scannerInstance.current) {
         try { await scannerInstance.current.stop(); } catch (_) {}
         scannerInstance.current = null;
@@ -126,17 +159,14 @@ export default function ClientScannerPage() {
       const scanner = new Html5Qrcode("client-reader", { verbose: false });
       scannerInstance.current = scanner;
 
-      // qrbox dinámico: 72% del lado más corto del contenedor
       const shortSide = Math.min(container.offsetWidth, container.offsetHeight);
       const boxSize = Math.round(shortSide * 0.72);
 
       await scanner.start(
-        // facingMode como ideal para mayor compatibilidad en iOS/Android
         { facingMode: { ideal: "environment" } },
         {
           fps: 15,
           qrbox: { width: boxSize, height: boxSize },
-          // SIN aspectRatio — dejar que la cámara use su ratio nativo (evita fallo silencioso)
           videoConstraints: {
             facingMode: { ideal: "environment" },
             width: { ideal: 1280 },
@@ -144,7 +174,7 @@ export default function ClientScannerPage() {
           },
         },
         (decoded) => onScanSuccess(decoded),
-        () => {} // frame-level error, silencioso
+        () => {}
       );
     } catch (err: any) {
       console.error("Camera error:", err);
@@ -164,9 +194,7 @@ export default function ClientScannerPage() {
     }
   };
 
-  // ── lógica del escaneo ────────────────────────────────────────────────
   const onScanSuccess = useCallback(async (decodedText: string) => {
-    // Guard: evitar doble disparo mientras se procesa
     if (isScanningRef.current) return;
     isScanningRef.current = true;
 
@@ -182,33 +210,27 @@ export default function ClientScannerPage() {
       return;
     }
 
-    // ── Extraer el vendorId — soporta 3 formatos ──────────────────────
-    // 1. URL con parámetro localId= (ej: http://localhost:9002/canje?localId=XXX
-    //    o https://clubpatio.app/canje?localId=XXX). Maneja HTTP y HTTPS por igual.
-    // 2. Formato legacy "VND_{uid}"
-    // 3. UID directo de Firebase
+    // Extraer vendorId — soporta 3 formatos:
+    // 1. URL con ?localId= o ?ref=
+    // 2. Formato legacy VND_{uid}
+    // 3. UID directo
     let vendorId = "";
 
-    if (raw.includes("localId=")) {
-      // Parsear como URL para extraer el parámetro localId de forma robusta
+    if (raw.includes("localId=") || raw.includes("ref=")) {
       try {
-        // URL() no acepta protocolos relativos; normalizamos a https si hace falta
         const normalized = raw.startsWith("http") ? raw : `https://${raw}`;
         const url = new URL(normalized);
-        vendorId = url.searchParams.get("localId") || "";
+        vendorId = url.searchParams.get("localId") || url.searchParams.get("ref") || "";
       } catch {
-        // Fallback con split manual si URL() falla
-        const match = raw.match(/[?&]localId=([^&]+)/);
+        const match = raw.match(/[?&](?:localId|ref)=([^&]+)/);
         vendorId = match ? match[1] : "";
       }
     } else if (raw.startsWith("VND_")) {
       vendorId = raw.replace("VND_", "");
     } else {
-      // Asumir que es un UID directo
       vendorId = raw;
     }
 
-    // Validar que tenemos un ID usable (mínimo 10 caracteres)
     if (!vendorId || vendorId.length < 10) {
       setScanError({ type: "invalid_qr" });
       setScanState("error");
@@ -222,23 +244,25 @@ export default function ClientScannerPage() {
       return;
     }
 
-    // ── HANDSHAKE DIGITAL ─────────────────────────────────────────────────────
-    // DESACTIVADO: asignación directa reemplazada por flujo Handshake.
-    // El sello solo se otorga cuando el emprendedor confirma en /validar/[vendorId].
-    //
-    // await registrarCompra(db, currentUser.uid, vendorId, true); // DESACTIVADO
-    //
-    // En su lugar: redirigir a /canje?localId=X que implementa el flujo completo:
-    //   1. Crea pending_stamp con status:'pending'
-    //   3. Muestra spinner "Esperando confirmación del local..."
-    //   4. onSnapshot: cuando emprendedor confirma → asigna sello + pantalla éxito
+    // Verify scanned ID is actually a vendor
+    try {
+      const profileSnap = await getDoc(doc(db, "entrepreneur_profiles", vendorId));
+      if (!profileSnap.exists()) {
+        setScanError({ type: "client_qr" });
+        setScanState("error");
+        isScanningRef.current = false;
+        return;
+      }
+    } catch {
+      setScanError({ type: "network" });
+      setScanState("error");
+      isScanningRef.current = false;
+      return;
+    }
 
-    // Guardar la URL de retorno post-auth si fuera necesario
     if (typeof window !== "undefined") {
       localStorage.setItem("url_retorno", `/canje?localId=${vendorId}`);
     }
-
-    // Navegar al flujo Handshake centralizado
     router.replace(`/canje?localId=${vendorId}`);
   }, [router]);
 
@@ -248,10 +272,31 @@ export default function ClientScannerPage() {
     startScanner();
   }, [startScanner]);
 
-  // ── UI del escáner ────────────────────────────────────────────────────
+  // ── Pantalla de espera para modo QR Universal ──────────────────────────────
+  if (mode === "smart") {
+    return (
+      <main className="fixed inset-0 bg-slate-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative w-20 h-20">
+            <div className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
+            </div>
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-white font-bold text-sm tracking-widest uppercase">
+              Verificando acceso...
+            </p>
+            <p className="text-slate-500 text-xs">Club Patio · Fidelización</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Escáner normal ─────────────────────────────────────────────────────────
   return (
     <main className="fixed inset-0 bg-black flex flex-col">
-      {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-safe-top pb-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent">
         <Button
           variant="ghost"
@@ -268,18 +313,13 @@ export default function ClientScannerPage() {
         <div className="w-10" />
       </div>
 
-      {/* Visor de la cámara */}
       <div className="flex-1 relative overflow-hidden">
         <div id="client-reader" className="absolute inset-0 w-full h-full" />
 
-        {/* Overlay visual con esquinas */}
         <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
-          {/* Oscurecer los bordes */}
           <div className="absolute inset-0 bg-black/45" />
-          {/* Ventana transparente */}
           <div className="relative w-64 h-64 z-10">
             <div className="absolute inset-0 border-2 border-white/20 rounded-2xl" />
-            {/* Esquinas animadas */}
             {["top-0 left-0 border-t-4 border-l-4 rounded-tl-xl",
               "top-0 right-0 border-t-4 border-r-4 rounded-tr-xl",
               "bottom-0 left-0 border-b-4 border-l-4 rounded-bl-xl",
@@ -287,7 +327,6 @@ export default function ClientScannerPage() {
             ].map((cls, i) => (
               <div key={i} className={`absolute w-7 h-7 border-primary ${cls}`} />
             ))}
-            {/* Línea de escaneo animada  */}
             <div
               className="absolute left-2 right-2 h-0.5 bg-primary/80 rounded-full shadow-[0_0_8px_2px_rgba(78,173,31,0.6)]"
               style={{ animation: "scanLine 2s ease-in-out infinite", top: "50%" }}
@@ -295,7 +334,6 @@ export default function ClientScannerPage() {
           </div>
         </div>
 
-        {/* Loading overlay */}
         {scanState === "loading" && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/75 gap-4">
             <div className="relative">
@@ -310,41 +348,28 @@ export default function ClientScannerPage() {
           </div>
         )}
 
-        {/* Error banner */}
         {scanState === "error" && scanError && (
           <ErrorBanner error={scanError} onRetry={handleRetry} />
         )}
       </div>
 
-      {/* Footer con instrucción */}
       <div className="px-6 py-6 bg-gradient-to-t from-black to-transparent text-center space-y-1 z-10">
         <p className="text-white font-bold text-base">Apunta al código QR del mostrador</p>
         <p className="text-slate-400 text-xs">Club Patio · Sistema de fidelización</p>
       </div>
 
-      {/* Keyframe de scan + correcciones de layout html5-qrcode */}
       <style>{`
         @keyframes scanLine {
           0%, 100% { top: 10%; opacity: 0.4; }
           50% { top: 90%; opacity: 1; }
         }
-
-        /* Ocultar dashboard interno de html5-qrcode (status text, switch camera button)
-           que roba altura y muestra UI redundante */
-        #client-reader__dashboard {
-          display: none !important;
-        }
-
-        /* Forzar que el scan_region llene todo el contenedor */
+        #client-reader__dashboard { display: none !important; }
         #client-reader__scan_region {
           position: absolute !important;
           inset: 0 !important;
           width: 100% !important;
           height: 100% !important;
         }
-
-        /* Video que llena el contenedor con object-fit: cover
-           (sin esto el video flota con su ratio nativo sin escalar) */
         #client-reader video {
           object-fit: cover !important;
           width: 100% !important;

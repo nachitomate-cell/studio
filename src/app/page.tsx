@@ -58,6 +58,8 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref) localStorage.setItem("referral_local_id", ref);
       if (params.get("login") === "true" || params.get("register") === "true") {
         setShowAuth(true);
       }
@@ -262,14 +264,25 @@ export default function Home() {
       textAlign: "center",
       position: "relative",
     }}>
-      <img
-        src="/Logo3.webp"
-        alt="Patio Curauma"
-        style={{ width: 110, height: "auto", marginBottom: 16, filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
-      />
-      <h1 style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, fontWeight: 700, color: "white", margin: "0 0 8px 0", lineHeight: 1.1, letterSpacing: "1px" }}>
+      <div style={{ position: "relative", width: 110, marginBottom: 16 }}>
+        <img
+          src="/Logo3.webp"
+          alt="Patio Curauma"
+          style={{ width: 110, height: "auto", display: "block", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
+        />
+        <div style={{
+          position: "absolute",
+          bottom: -6,
+          left: "10%",
+          right: "10%",
+          height: 14,
+          background: "radial-gradient(ellipse at center, rgba(0,0,0,0.28) 0%, transparent 70%)",
+          filter: "blur(4px)",
+        }} />
+      </div>
+      <h1 style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, fontWeight: 900, color: "white", margin: "0 0 8px 0", lineHeight: 1.1, letterSpacing: "1px" }}>
         CLUB<br/>
-        <span style={{ color: "#FFD700", fontSize: 32, fontWeight: 900 }}>PATIO CURAUMA</span>
+        <span style={{ color: "#FFD700", fontSize: 32, fontWeight: 900, textShadow: "0 2px 6px rgba(0,0,0,0.35)" }}>PATIO CURAUMA</span>
       </h1>
       <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, margin: 0, letterSpacing: "0.5px" }}>
         Fidelización · Premios · Comunidad
@@ -317,7 +330,7 @@ export default function Home() {
               <p className="font-bold flex-1 truncate" style={{ color: "#2C6B8A", fontSize: "13px" }}>
                 {selectedLocation.address}
               </p>
-              <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "#5BB8D4" }} />
+              <ChevronDown className="w-4 h-4 shrink-0" style={{ color: "#C9920A" }} />
             </button>
 
             {/* Acceso rápido a Premios */}
@@ -371,7 +384,7 @@ export default function Home() {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar emprendimientos..."
-                  className="pl-11 h-12 rounded-xl bg-slate-50 border-none shadow-inner"
+                  className="pl-11 h-12 rounded-xl bg-slate-50 border-none shadow-inner placeholder:text-gray-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -390,7 +403,7 @@ export default function Home() {
                         ? "bg-primary text-white border-transparent shadow-md border"
                         : "text-[#333333] hover:border-primary/50 hover:text-primary"
                     )}
-                    style={selectedCategory !== cat.id ? { background: "#F5F5F5", border: "1.5px solid #BBBBBB" } : {}}
+                    style={selectedCategory !== cat.id ? { background: "#F5F5F5", border: "1px solid #E5E7EB" } : {}}
                   >
                     {cat.name}
                   </button>

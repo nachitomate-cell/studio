@@ -32,15 +32,27 @@ function getAdminApp(): App {
 
 export async function POST(request: Request) {
   try {
-    const { vendorId, clientName } = await request.json();
+    const { pendingId, clientName } = await request.json();
 
-    if (!vendorId) {
-      return NextResponse.json({ error: "vendorId requerido" }, { status: 400 });
+    if (!pendingId) {
+      return NextResponse.json({ error: "pendingId requerido" }, { status: 400 });
     }
 
     const app = getAdminApp();
     const db  = getFirestore(app);
     const messaging = getMessaging(app);
+
+    // Leer el vendorId desde Firestore — nunca confiar en el body del cliente.
+    // Esto garantiza que la notificación siempre llega al emprendedor correcto.
+    const pendingSnap = await db.collection("pending_stamps").doc(pendingId).get();
+    if (!pendingSnap.exists) {
+      return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+    }
+    const pendingData = pendingSnap.data()!;
+    const vendorId: string = pendingData.vendorId;
+    if (!vendorId) {
+      return NextResponse.json({ error: "vendorId inválido en la solicitud" }, { status: 400 });
+    }
 
     // 1. Leer el fcmToken del vendedor
     const vendorSnap = await db.collection("usuarios").doc(vendorId).get();
@@ -48,7 +60,7 @@ export async function POST(request: Request) {
 
     const titulo  = "🛒 ¡Cliente en mostrador!";
     const cuerpo  = `${clientName || "Un cliente"} escanéo tu QR y espera un sello.`;
-    const actionUrl = "/vendedor"; // El panel de validación ya está embebido aquí
+    const actionUrl = `/validar`;
 
     const timestamp = new Date().toISOString();
 
@@ -63,7 +75,8 @@ export async function POST(request: Request) {
         leida: false,
         fecha: timestamp,
         tipo: "handshake",
-        actionUrl,       // ← Al tocarla en "Mensajes del Club" navega a /vendedor
+        receptorId: vendorId,   // campo explícito para auditoría (el path ya filtra)
+        actionUrl,
         clientName: clientName || "Miembro",
       });
 

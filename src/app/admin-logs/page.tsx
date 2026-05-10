@@ -85,7 +85,7 @@ export default function AdminLogsPage() {
   // Guard de acceso
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user || user.email !== MASTER_EMAIL) {
+      if (!user || user.email?.toLowerCase().trim() !== MASTER_EMAIL.toLowerCase().trim()) {
         setAccessDenied(true);
         setLoadingAuth(false);
         setTimeout(() => router.push("/"), 3000);

@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import TermsModal from "@/components/TermsModal";
+import { registrarCompra } from "@/lib/puntos";
+import { syncUserStampsToWallet } from "@/lib/walletSync";
 
 const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
@@ -100,6 +102,14 @@ export default function UnetePage() {
   };
 
   const preventAutoRedirect = useRef(false);
+
+  // Capturar ?ref= del QR del locatario — persiste en localStorage para sobrevivir redirects OAuth
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref) localStorage.setItem("referral_local_id", ref);
+    }
+  }, []);
 
   // Si ya está autenticado, redirigir al dashboard
   useEffect(() => {
@@ -190,6 +200,9 @@ export default function UnetePage() {
 
         const timestamp = new Date().toISOString();
         const miCodigo = generarCodigoReferido(nombre);
+        const referralLocalId = typeof window !== "undefined"
+          ? localStorage.getItem("referral_local_id")
+          : null;
 
         await setDoc(doc(db, "usuarios", newUser.uid), {
           id: newUser.uid,
@@ -198,8 +211,8 @@ export default function UnetePage() {
           telefono: phone,
           fechaNacimiento: fechaNacimiento,
           rol: rolAsignado,
-          comprasRealizadas: 1,
-          puntos: 100,
+          comprasRealizadas: referralLocalId ? 0 : 1,
+          puntos: referralLocalId ? 50 : 100,
           totalCanjesHistoricos: 0,
           ticketsSorteo: 0,
           recompensaDisponible: false,
@@ -213,6 +226,7 @@ export default function UnetePage() {
           comuna: comuna.trim(),
           codigoReferido: miCodigo,
           referidosExitosos: 0,
+          ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
         });
 
         // Registrar el código en la colección de búsqueda rápida
@@ -234,6 +248,39 @@ export default function UnetePage() {
           fechaRegistro: timestamp,
           fuente: "QR Registro - Club Patio",
         });
+
+        // Atribución del sello de bienvenida
+        if (referralLocalId) {
+          // Vino de QR de locatario: sello atribuido al local (registrarCompra parte de 0 → 1)
+          try {
+            await registrarCompra(db, newUser.uid, referralLocalId, false);
+            // Contar este nuevo socio en el perfil del emprendedor (fire-and-forget)
+            updateDoc(doc(db, "usuarios", referralLocalId), {
+              clientesNuevosRegistrados: increment(1),
+            }).catch(() => {});
+            localStorage.removeItem("referral_local_id");
+            // Limpiar url_retorno: el sello ya fue procesado aquí,
+            // no debe ir a /canje de nuevo (evita doble sello)
+            localStorage.removeItem("url_retorno");
+          } catch {
+            // No crítico: el usuario ya fue creado
+          }
+        } else {
+          // Registro orgánico: log del sello de bienvenida + sync de Google Wallet
+          try {
+            await addDoc(collection(db, "system_logs"), {
+              usuario: nombre.trim(),
+              usuarioId: newUser.uid,
+              accion: "recibió Sello de Bienvenida (registro orgánico)",
+              fecha: timestamp,
+              tipo: "FIDELIZACION",
+              metodo: "BIENVENIDA",
+            });
+            syncUserStampsToWallet(newUser.uid, 1);
+          } catch {
+            // No crítico
+          }
+        }
 
         // Procesar código de referido si se ingresó uno
         if (codigoReferido.trim()) {
@@ -384,7 +431,7 @@ export default function UnetePage() {
               <Button onClick={() => {
                 const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
                 if (retorno) localStorage.removeItem("url_retorno");
-                router.replace(retorno || "/");
+                router.replace(retorno || "/premios");
               }} style={{ width: '100%', height: '52px', borderRadius: '16px', background: 'linear-gradient(135deg, #9DCC65, #7ab84e)', color: 'white', fontWeight: '900', fontSize: '15px', border: 'none' }} className="shadow-lg transition-all hover:opacity-90 active:scale-[0.98]">
                 Ver mi tarjeta de sellos →
               </Button>

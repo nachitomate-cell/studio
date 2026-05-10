@@ -60,6 +60,8 @@ export default function DirectorPage() {
   const [deletingVendor, setDeletingVendor] = useState(false);
   const [isPremioModalOpen, setIsPremioModalOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState<{ id: string; nombre: string } | null>(null);
+  const [comunicadoOpen, setComunicadoOpen] = useState(false);
+  const [profileSearch, setProfileSearch] = useState("");
   const [vendorList, setVendorList] = useState<{ id: string; nombre: string }[]>([]);
   const [premioForm, setPremioForm] = useState<{
     id: string | null;
@@ -524,148 +526,26 @@ export default function DirectorPage() {
           </Card>
         </section>
 
-        {/* COMUNICADO GLOBAL (PUSH) */}
-        <section className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
-            <Megaphone className="w-4 h-4" /> Comunicado Global
-          </h2>
-          <Card className="border-none shadow-xl bg-primary text-white rounded-[2rem] overflow-hidden">
-            <CardContent className="p-6 space-y-4">
-              <div className="space-y-2">
-                {/* Tipo de comunicado */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  {([
-                    { value: "info",    emoji: "📢", label: "Info" },
-                    { value: "urgente", emoji: "🚨", label: "Urgente" },
-                    { value: "promo",   emoji: "🎉", label: "Promo" },
-                    { value: "sorteo",  emoji: "🎟️", label: "Sorteo" },
-                  ] as const).map(({ value, emoji, label }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setMensajeGlobal({...mensajeGlobal, tipo: value})}
-                      className={`flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all ${
-                        mensajeGlobal.tipo === value
-                          ? "bg-white text-primary shadow-sm"
-                          : "bg-white/10 text-white/70 hover:bg-white/20"
-                      }`}
-                    >
-                      <span className="text-base leading-none">{emoji}</span>
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <Input
-                  placeholder="Título del anuncio..."
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl"
-                  value={mensajeGlobal.titulo}
-                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, titulo: e.target.value})}
-                />
-                <Textarea
-                  placeholder="Escribe el mensaje..."
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl min-h-[80px]"
-                  value={mensajeGlobal.cuerpo}
-                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, cuerpo: e.target.value})}
-                />
-                <select
-                  value={mensajeGlobal.destino}
-                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, destino: e.target.value})}
-                  className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
-                >
-                  <option value="todos" className="text-slate-800">Todos los socios</option>
-                  <option value="emprendedor" className="text-slate-800">Solo Emprendedores</option>
-                  <option value="cerca_de_premio" className="text-slate-800">Cerca de su premio (4+ sellos)</option>
-                  <option value="inactivos" className="text-slate-800">Inactivos (+30 días sin compras)</option>
-                  <option value="activos_recientes" className="text-slate-800">Activos en los últimos 30 días</option>
-                  <option value="cumpleanios_mes" className="text-slate-800">Cumpleaños este mes 🎂</option>
-                  <option value="aceptaPromoLocales" className="text-slate-800">Consintieron promos de locales ✅</option>
-                  <option value="visitaron_local" className="text-slate-800">Visitaron un local específico 📍</option>
-                </select>
-
-                {/* Selector de local para segmento "visitaron_local" */}
-                {mensajeGlobal.destino === "visitaron_local" && (
-                  <select
-                    value={mensajeGlobal.vendedorFiltro}
-                    onChange={(e) => setMensajeGlobal({ ...mensajeGlobal, vendedorFiltro: e.target.value })}
-                    className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
-                  >
-                    <option value="" className="text-slate-800">— Selecciona el local —</option>
-                    {vendorList.map((v: any) => (
-                      <option key={v.id} value={v.id} className="text-slate-800">{v.nombre}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* CTA — destino al tocar la notificación */}
-                <select
-                  value={mensajeGlobal.cta}
-                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, cta: e.target.value})}
-                  className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
-                >
-                  <option value="" className="text-slate-800">Al tocar → Inicio</option>
-                  <option value="/premios" className="text-slate-800">Al tocar → Mis Premios</option>
-                  <option value="/directorio" className="text-slate-800">Al tocar → Directorio de locales</option>
-                  <option value="/ruta" className="text-slate-800">Al tocar → Ver Mapa</option>
-                  <option value="/perfil" className="text-slate-800">Al tocar → Mi Perfil</option>
-                </select>
-
-                {/* Programación diferida */}
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs text-white/70 font-bold">Programar envío</span>
-                  <Switch
-                    checked={!!mensajeGlobal.enviarEn}
-                    onCheckedChange={(v) => {
-                      if (v) {
-                        const d = new Date(Date.now() + 60 * 60 * 1000);
-                        setMensajeGlobal({...mensajeGlobal, enviarEn: d.toISOString().slice(0, 16)});
-                      } else {
-                        setMensajeGlobal({...mensajeGlobal, enviarEn: ""});
-                      }
-                    }}
-                  />
-                </div>
-                {mensajeGlobal.enviarEn && (
-                  <input
-                    type="datetime-local"
-                    value={mensajeGlobal.enviarEn}
-                    min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
-                    onChange={(e) => setMensajeGlobal({...mensajeGlobal, enviarEn: e.target.value})}
-                    className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 text-sm outline-none focus:ring-2 focus:ring-white/50 [color-scheme:dark]"
-                  />
-                )}
+        {/* COMUNICADO GLOBAL — CTA */}
+        <section>
+          <button
+            onClick={() => setComunicadoOpen(true)}
+            className="w-full flex items-center justify-between gap-4 px-6 py-5 rounded-[2rem] shadow-lg transition-all active:scale-[0.98]"
+            style={{ background: "linear-gradient(135deg, #C9920A 0%, #E8B028 100%)" }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                <Megaphone className="w-5 h-5 text-white" />
               </div>
-              <Button
-                onClick={handleSendGlobalMessage}
-                disabled={loading}
-                className="w-full bg-white text-primary hover:bg-white/90 font-black rounded-xl h-12 gap-2"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {mensajeGlobal.enviarEn ? "Programar Comunicado" : "Enviar Notificación Push"}
-              </Button>
-              {(() => {
-                const labels: Record<string, string> = {
-                  todos: "todos los socios",
-                  emprendedor: "emprendedores",
-                  cerca_de_premio: "socios con 4+ sellos",
-                  inactivos: "socios inactivos (+30 días)",
-                  activos_recientes: "socios activos en 30 días",
-                  aceptaPromoLocales: "socios con consentimiento de promos",
-                  visitaron_local: mensajeGlobal.vendedorFiltro
-                    ? `socios que visitaron ${vendorList.find((v: any) => v.id === mensajeGlobal.vendedorFiltro)?.nombre ?? "el local"}`
-                    : "socios de un local (selecciona el local)",
-                };
-                const dest = labels[mensajeGlobal.destino] ?? mensajeGlobal.destino;
-                return (
-                  <p className="text-[9px] text-center text-white/60 font-medium">
-                    {mensajeGlobal.enviarEn
-                      ? `Programado para ${new Date(mensajeGlobal.enviarEn).toLocaleString("es-CL")} → ${dest}.`
-                      : `Se enviará en segundo plano a ${dest}.`}
-                  </p>
-                );
-              })()}
-            </CardContent>
-          </Card>
+              <div className="text-left">
+                <p className="text-sm font-black text-white">📢 Enviar Comunicado Global</p>
+                <p className="text-[10px] text-white/75 font-medium">Push · Programado · Segmentado</p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <Send className="w-4 h-4 text-white" />
+            </div>
+          </button>
         </section>
 
         {/* GESTOR DE PREMIOS */}
@@ -759,13 +639,29 @@ export default function DirectorPage() {
             Activa el modo Patrocinado para que el local aparezca en el carrusel "Destacados del Patio".
           </p>
 
+          {/* Buscador sticky */}
+          <div className="sticky top-[73px] z-[9] -mx-6 px-6 py-2 bg-slate-50/90 backdrop-blur-sm">
+            <Input
+              type="search"
+              placeholder="Buscar local..."
+              value={profileSearch}
+              onChange={(e) => setProfileSearch(e.target.value)}
+              className="h-10 rounded-xl bg-white border-slate-200 text-sm shadow-sm"
+            />
+          </div>
+
           {allProfiles.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-400 italic">
               No hay perfiles de locales cargados aún.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3">
-              {allProfiles.map((profile: any) => {
+              {allProfiles
+                .filter((p: any) => {
+                  const nombre = (p.businessName || p.nombre || "").toLowerCase();
+                  return nombre.includes(profileSearch.toLowerCase());
+                })
+                .map((profile: any) => {
                 const nombre = profile.businessName || profile.nombre || profile.id.substring(0, 8);
                 const isPremium = profile.isPremium === true;
                 const promoText = profile.promoText || "";
@@ -942,6 +838,158 @@ export default function DirectorPage() {
         </section>
 
       </div>
+
+      {/* MODAL COMUNICADO GLOBAL */}
+      {comunicadoOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setComunicadoOpen(false)}>
+          <div
+            className="w-full max-w-sm bg-primary text-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-white/30" />
+            </div>
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+              <h2 className="text-base font-black text-white flex items-center gap-2">
+                <Megaphone className="w-4 h-4" /> Comunicado Global
+              </h2>
+              <button
+                onClick={() => setComunicadoOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Tipo de comunicado */}
+              <div className="grid grid-cols-4 gap-1.5">
+                {([
+                  { value: "info",    emoji: "📢", label: "Info" },
+                  { value: "urgente", emoji: "🚨", label: "Urgente" },
+                  { value: "promo",   emoji: "🎉", label: "Promo" },
+                  { value: "sorteo",  emoji: "🎟️", label: "Sorteo" },
+                ] as const).map(({ value, emoji, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMensajeGlobal({...mensajeGlobal, tipo: value})}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all ${
+                      mensajeGlobal.tipo === value
+                        ? "bg-white text-primary shadow-sm"
+                        : "bg-white/10 text-white/70 hover:bg-white/20"
+                    }`}
+                  >
+                    <span className="text-base leading-none">{emoji}</span>
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+              <Input
+                placeholder="Título del anuncio..."
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl"
+                value={mensajeGlobal.titulo}
+                onChange={(e) => setMensajeGlobal({...mensajeGlobal, titulo: e.target.value})}
+              />
+              <Textarea
+                placeholder="Escribe el mensaje..."
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl min-h-[80px]"
+                value={mensajeGlobal.cuerpo}
+                onChange={(e) => setMensajeGlobal({...mensajeGlobal, cuerpo: e.target.value})}
+              />
+              <select
+                value={mensajeGlobal.destino}
+                onChange={(e) => setMensajeGlobal({...mensajeGlobal, destino: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
+              >
+                <option value="todos" className="text-slate-800">Todos los socios</option>
+                <option value="emprendedor" className="text-slate-800">Solo Emprendedores</option>
+                <option value="cerca_de_premio" className="text-slate-800">Cerca de su premio (4+ sellos)</option>
+                <option value="inactivos" className="text-slate-800">Inactivos (+30 días sin compras)</option>
+                <option value="activos_recientes" className="text-slate-800">Activos en los últimos 30 días</option>
+                <option value="cumpleanios_mes" className="text-slate-800">Cumpleaños este mes 🎂</option>
+                <option value="aceptaPromoLocales" className="text-slate-800">Consintieron promos de locales ✅</option>
+                <option value="visitaron_local" className="text-slate-800">Visitaron un local específico 📍</option>
+              </select>
+              {mensajeGlobal.destino === "visitaron_local" && (
+                <select
+                  value={mensajeGlobal.vendedorFiltro}
+                  onChange={(e) => setMensajeGlobal({ ...mensajeGlobal, vendedorFiltro: e.target.value })}
+                  className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
+                >
+                  <option value="" className="text-slate-800">— Selecciona el local —</option>
+                  {vendorList.map((v: any) => (
+                    <option key={v.id} value={v.id} className="text-slate-800">{v.nombre}</option>
+                  ))}
+                </select>
+              )}
+              <select
+                value={mensajeGlobal.cta}
+                onChange={(e) => setMensajeGlobal({...mensajeGlobal, cta: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-white/50 text-sm"
+              >
+                <option value="" className="text-slate-800">Al tocar → Inicio</option>
+                <option value="/premios" className="text-slate-800">Al tocar → Mis Premios</option>
+                <option value="/directorio" className="text-slate-800">Al tocar → Directorio de locales</option>
+                <option value="/ruta" className="text-slate-800">Al tocar → Ver Mapa</option>
+                <option value="/perfil" className="text-slate-800">Al tocar → Mi Perfil</option>
+              </select>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-white/70 font-bold">Programar envío</span>
+                <Switch
+                  checked={!!mensajeGlobal.enviarEn}
+                  onCheckedChange={(v) => {
+                    if (v) {
+                      const d = new Date(Date.now() + 60 * 60 * 1000);
+                      setMensajeGlobal({...mensajeGlobal, enviarEn: d.toISOString().slice(0, 16)});
+                    } else {
+                      setMensajeGlobal({...mensajeGlobal, enviarEn: ""});
+                    }
+                  }}
+                />
+              </div>
+              {mensajeGlobal.enviarEn && (
+                <input
+                  type="datetime-local"
+                  value={mensajeGlobal.enviarEn}
+                  min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
+                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, enviarEn: e.target.value})}
+                  className="w-full bg-white/10 border border-white/20 text-white rounded-xl h-10 px-3 text-sm outline-none focus:ring-2 focus:ring-white/50 [color-scheme:dark]"
+                />
+              )}
+              <Button
+                onClick={async () => { await handleSendGlobalMessage(); if (!loading) setComunicadoOpen(false); }}
+                disabled={loading}
+                className="w-full bg-white text-primary hover:bg-white/90 font-black rounded-xl h-12 gap-2"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {mensajeGlobal.enviarEn ? "Programar Comunicado" : "Enviar Notificación Push"}
+              </Button>
+              {(() => {
+                const labels: Record<string, string> = {
+                  todos: "todos los socios",
+                  emprendedor: "emprendedores",
+                  cerca_de_premio: "socios con 4+ sellos",
+                  inactivos: "socios inactivos (+30 días)",
+                  activos_recientes: "socios activos en 30 días",
+                  aceptaPromoLocales: "socios con consentimiento de promos",
+                  visitaron_local: mensajeGlobal.vendedorFiltro
+                    ? `socios que visitaron ${vendorList.find((v: any) => v.id === mensajeGlobal.vendedorFiltro)?.nombre ?? "el local"}`
+                    : "socios de un local (selecciona el local)",
+                };
+                const dest = labels[mensajeGlobal.destino] ?? mensajeGlobal.destino;
+                return (
+                  <p className="text-[9px] text-center text-white/60 font-medium pb-2">
+                    {mensajeGlobal.enviarEn
+                      ? `Programado para ${new Date(mensajeGlobal.enviarEn).toLocaleString("es-CL")} → ${dest}.`
+                      : `Se enviará en segundo plano a ${dest}.`}
+                  </p>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL ELIMINAR EMPRENDEDOR */}
       {vendorToDelete && (
