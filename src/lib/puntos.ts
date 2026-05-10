@@ -92,22 +92,22 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
     }
 
     if (vendedorId) {
-      const vendedorLogRef = collection(db, "usuarios", vendedorId, "ventas_registradas");
-      // CRÍTICO-07: agregar .catch() para que el fallo no desaparezca silenciosamente
-      addDoc(vendedorLogRef, {
+      // Batch atómico: venta + contador juntos para evitar contadores desincronizados
+      const currentMonth = timestamp.substring(0, 7); // YYYY-MM
+      const ventaRef = doc(collection(db, "usuarios", vendedorId, "ventas_registradas"));
+      const batch = writeBatch(db);
+      batch.set(ventaRef, {
         vendedorId,
         clienteId: userId,
         clienteNombre,
         fecha: timestamp,
-        metodo: isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"
-      }).catch((e) => console.warn("[registrarCompra] Log de venta falló:", e));
-
-      // Incrementar contadores en el emprendedor
-      const currentMonth = timestamp.substring(0, 7); // YYYY-MM
-      updateDoc(doc(db, "usuarios", vendedorId), {
+        metodo: metodoOverride ?? (isClientScan ? "CLIENT_SCAN" : "VENDOR_SCAN"),
+      });
+      batch.update(doc(db, "usuarios", vendedorId), {
         sellosEntregadosHistorico: increment(1),
-        [`sellosEntregadosMensual.${currentMonth}`]: increment(1)
-      }).catch((e) => console.warn("[registrarCompra] Actualización de contadores del vendor falló:", e));
+        [`sellosEntregadosMensual.${currentMonth}`]: increment(1),
+      });
+      await batch.commit().catch((e) => console.warn("[registrarCompra] Batch vendor falló:", e));
 
       if (isClientScan) {
         await enviarNotificacionLocal(vendedorId, "¡Cliente Auto-Verificado! ✅", `${clienteNombre} acaba de escanear tu código y ganó un sello.`);
@@ -332,7 +332,10 @@ export async function confirmarHandshake(
   const timestamp = new Date().toISOString();
   (async () => {
     try {
-      await addDoc(collection(db, "system_logs"), {
+      // Batch atómico: log + venta + contador para evitar contadores desincronizados
+      const currentMonth = timestamp.substring(0, 7); // YYYY-MM
+      const auxBatch = writeBatch(db);
+      auxBatch.set(doc(collection(db, "system_logs")), {
         usuario: result.userName,
         usuarioId: result.userId,
         vendedorId: result.vendorId,
@@ -342,7 +345,7 @@ export async function confirmarHandshake(
         metodo: "HANDSHAKE",
         monto,
       });
-      await addDoc(collection(db, "usuarios", result.vendorId, "ventas_registradas"), {
+      auxBatch.set(doc(collection(db, "usuarios", result.vendorId, "ventas_registradas")), {
         vendedorId: result.vendorId,
         clienteId: result.userId,
         clienteNombre: result.userName,
@@ -350,13 +353,11 @@ export async function confirmarHandshake(
         metodo: "HANDSHAKE",
         monto,
       });
-
-      // Incrementar contadores en el emprendedor
-      const currentMonth = timestamp.substring(0, 7); // YYYY-MM
-      await updateDoc(doc(db, "usuarios", result.vendorId), {
+      auxBatch.update(doc(db, "usuarios", result.vendorId), {
         sellosEntregadosHistorico: increment(1),
-        [`sellosEntregadosMensual.${currentMonth}`]: increment(1)
+        [`sellosEntregadosMensual.${currentMonth}`]: increment(1),
       });
+      await auxBatch.commit();
       await enviarNotificacionLocal(
         result.userId,
         "¡Sello Confirmado! ✅",
