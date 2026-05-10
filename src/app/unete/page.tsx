@@ -345,6 +345,9 @@ export default function UnetePage() {
       if (message.includes("weak-password")) message = "La contraseña debe tener al menos 6 caracteres.";
       if (message.includes("invalid-email")) message = "El formato del correo electrónico no es válido.";
       if (message.includes("wrong-password") || message.includes("invalid-credential")) message = "Correo o contraseña incorrectos.";
+      if (err?.code === "unavailable" || message.includes("IndexedDB") || message.includes("AbortError")) {
+        message = "Error de caché del navegador. Por favor limpia los datos del sitio (Configuración → Privacidad → Borrar datos de navegación) e inténtalo de nuevo.";
+      }
       setError(message);
     } finally {
       setLoading(false);

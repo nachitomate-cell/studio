@@ -647,18 +647,15 @@ export default function ValidarPanel({
     try {
       const q = query(
         collection(db, "canjes"),
-        where("vendorId", "==", vendorId),
-        where("codigo", "==", codigoNormalizado),
-        limit(1)
+        where("vendorId", "==", vendorId)
       );
       const snap = await getDocs(q);
+      const canjeDoc = snap.docs.find((d) => d.data().codigo === codigoNormalizado);
 
-      if (snap.empty) {
+      if (!canjeDoc) {
         toast({ variant: "destructive", title: "Código no encontrado", description: "Verifica el código e intenta de nuevo." });
         return;
       }
-
-      const canjeDoc = snap.docs[0];
       const data = canjeDoc.data();
 
       if (data.status === "used") {
