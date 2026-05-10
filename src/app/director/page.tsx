@@ -1176,7 +1176,7 @@ export default function DirectorPage() {
               </div>
               <div id="qr-codigo-mostrador" className="bg-white p-4 rounded-3xl inline-block shadow-lg border border-slate-100 mx-auto">
                 <QRCode
-                  value={`https://club-patio-curauma.vercel.app/canje?localId=${qrModalOpen.id}`}
+                  value={`https://clubpatiocurauma.synaptechspa.cl/canje?localId=${qrModalOpen.id}`}
                   size={200}
                   fgColor="#000000"
                   className="rounded-xl"
@@ -1194,7 +1194,7 @@ export default function DirectorPage() {
                   variant="outline" 
                   className="w-full h-12 rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 gap-2"
                   onClick={() => {
-                    navigator.clipboard.writeText(`https://club-patio-curauma.vercel.app/canje?localId=${qrModalOpen.id}`);
+                    navigator.clipboard.writeText(`https://clubpatiocurauma.synaptechspa.cl/canje?localId=${qrModalOpen.id}`);
                     toast({ title: "Enlace copiado", description: "¡Listo para compartir!" });
                   }}
                 >
