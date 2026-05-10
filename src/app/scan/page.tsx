@@ -121,8 +121,18 @@ export default function ClientScannerPage() {
           });
           router.replace("/");
         } else {
-          setMode("scanner");
-          setScannerReady(true);
+          // Emprendedores tienen su propio escáner en /vendedor
+          getDoc(doc(db, "entrepreneur_profiles", user.uid)).then((snap) => {
+            if (snap.exists()) {
+              router.replace("/vendedor?action=scan");
+            } else {
+              setMode("scanner");
+              setScannerReady(true);
+            }
+          }).catch(() => {
+            setMode("scanner");
+            setScannerReady(true);
+          });
         }
       }
     });
