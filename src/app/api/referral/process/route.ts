@@ -96,6 +96,7 @@ export async function POST(request: Request) {
         newUserName,
         status: "pending",
         creadoEn: FieldValue.serverTimestamp(),
+        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
       });
     });
 

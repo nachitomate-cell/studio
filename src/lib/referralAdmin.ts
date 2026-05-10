@@ -28,7 +28,14 @@ export async function procesarReferidoPendiente(
 
   if (!pendingSnap.exists || pendingSnap.data()!.status !== "pending") return;
 
-  const { referrerId, referrerName: storedReferrerName } = pendingSnap.data()!;
+  const { referrerId, referrerName: storedReferrerName, expiresAt } = pendingSnap.data()!;
+
+  // Expirar docs con más de 90 días sin actividad
+  if (expiresAt && new Date(expiresAt) < new Date()) {
+    await pendingRef.update({ status: "expired" });
+    return;
+  }
+
   const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
 
   const referrerRef = adminDb.collection("usuarios").doc(referrerId);
@@ -42,8 +49,13 @@ export async function procesarReferidoPendiente(
       tx.get(referrerRef),
     ]);
 
-    // Doble-check dentro de la transacción (idempotencia)
+    // Doble-check dentro de la transacción (idempotencia + expiración)
     if (!pendingDoc.exists || pendingDoc.data()!.status !== "pending") return;
+    const docExpiry = pendingDoc.data()!.expiresAt;
+    if (docExpiry && new Date(docExpiry) < new Date()) {
+      tx.update(pendingRef, { status: "expired" });
+      return;
+    }
 
     // Marcar como completado independientemente del resultado
     tx.update(pendingRef, {

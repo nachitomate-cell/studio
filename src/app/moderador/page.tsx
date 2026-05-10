@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, o
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,11 @@ export default function ModeradorPage() {
   const [recalcSocios, setRecalcSocios] = useState(false);
   const [recalcSociosResult, setRecalcSociosResult] = useState<string | null>(null);
 
+  // Referidos
+  const [referralPending, setReferralPending] = useState<any[]>([]);
+  const [referralCompleted, setReferralCompleted] = useState(0);
+  const [loadingReferrals, setLoadingReferrals] = useState(false);
+
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -94,6 +99,7 @@ export default function ModeradorPage() {
       setLoadingConfig(false);
       fetchClientes();
       loadConfigBienvenida();
+      loadReferralStats();
     });
 
     // Suscripción al Radar de Anomalías (Logs reales si existen en 'system_logs')
@@ -186,6 +192,24 @@ export default function ModeradorPage() {
       console.error("Error al obtener clientes:", error);
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const loadReferralStats = async () => {
+    setLoadingReferrals(true);
+    try {
+      const [pendingSnap, completedSnap] = await Promise.all([
+        getDocs(query(collection(db, "referidos_pendientes"), where("status", "==", "pending"))),
+        getDocs(query(collection(db, "referidos_pendientes"), where("status", "==", "completed"))),
+      ]);
+      const pendingList = pendingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      pendingList.sort((a: any, b: any) => (b.creadoEn?.toMillis?.() ?? 0) - (a.creadoEn?.toMillis?.() ?? 0));
+      setReferralPending(pendingList);
+      setReferralCompleted(completedSnap.size);
+    } catch {
+      // Sin permisos o colección vacía — no crítico
+    } finally {
+      setLoadingReferrals(false);
     }
   };
 
@@ -791,6 +815,87 @@ export default function ModeradorPage() {
                 {savingConfig ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Settings className="w-4 h-4 mr-2" />}
                 Guardar configuración
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* T6. PROGRAMA DE REFERIDOS */}
+          <Card className="border-none shadow-xl shadow-violet-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-violet-100 md:col-span-2">
+            <div className="bg-violet-50/50 p-6 border-b border-violet-100/50 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-violet-600">
+                  <Share2 className="w-5 h-5" />
+                  <h3 className="font-bold text-lg">Programa de Referidos</h3>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadReferralStats}
+                  disabled={loadingReferrals}
+                  className="rounded-xl h-9 px-3 text-xs font-bold border-violet-200 text-violet-600 hover:bg-violet-50"
+                >
+                  {loadingReferrals ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">Referidos pendientes de activación y estadísticas del programa.</p>
+            </div>
+            <CardContent className="p-6 space-y-5 bg-slate-50/20">
+              {/* Contadores */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 text-center">
+                  <p className="text-3xl font-black text-amber-600">{referralPending.length}</p>
+                  <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-1">Esperando 1ª compra</p>
+                </div>
+                <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
+                  <p className="text-3xl font-black text-emerald-600">{referralCompleted}</p>
+                  <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mt-1">Completados</p>
+                </div>
+              </div>
+
+              {/* Lista de pendientes */}
+              {loadingReferrals ? (
+                <div className="flex items-center justify-center py-8 gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
+                  <p className="text-xs text-slate-400 font-bold">Cargando...</p>
+                </div>
+              ) : referralPending.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">No hay referidos pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pendientes (esperando 1ª compra real)</p>
+                  {referralPending.map((r: any) => {
+                    const fecha = r.creadoEn?.toDate ? r.creadoEn.toDate() : r.creadoEn ? new Date(r.creadoEn) : null;
+                    const expira = r.expiresAt ? new Date(r.expiresAt) : null;
+                    const diasRestantes = expira ? Math.ceil((expira.getTime() - Date.now()) / 86400000) : null;
+                    return (
+                      <div key={r.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-700 truncate">
+                            <span className="text-violet-600">{r.referrerName || "—"}</span>
+                            <span className="text-slate-400 font-normal"> refirió a </span>
+                            {r.newUserName || "—"}
+                          </p>
+                          {fecha && (
+                            <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {fecha.toLocaleDateString("es-CL")}
+                              {diasRestantes !== null && (
+                                <span className={`ml-1 font-bold ${diasRestantes <= 10 ? "text-red-400" : "text-slate-400"}`}>
+                                  · vence en {diasRestantes}d
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-600 px-2 py-1 rounded-full">
+                          Pendiente
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 

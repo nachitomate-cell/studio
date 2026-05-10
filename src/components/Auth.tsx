@@ -31,6 +31,14 @@ const EMAILS_EMPRENDEDORES = [
   'aliado@clubpatio.cl',
 ];
 
+function generarCodigoReferido(nombre: string): string {
+  const prefijo = nombre.trim().toUpperCase().replace(/\s/g, "").replace(/[^A-Z]/g, "").substring(0, 4).padEnd(4, "X");
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let sufijo = "";
+  for (let i = 0; i < 4; i++) sufijo += chars[Math.floor(Math.random() * chars.length)];
+  return `${prefijo}-${sufijo}`;
+}
+
 export function Auth() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
@@ -200,6 +208,7 @@ export function Auth() {
         else if (EMAILS_EMPRENDEDORES.includes(emailLimpio)) rolAsignado = "emprendedor";
 
         const timestamp = new Date().toISOString();
+        const miCodigo = generarCodigoReferido(nombre);
         const referralLocalId = typeof window !== "undefined"
           ? localStorage.getItem("referral_local_id")
           : null;
@@ -231,7 +240,14 @@ export function Auth() {
           fechaConsentimiento: timestamp,
           createdAt: timestamp,
           bono_login_reclamado: true,
+          codigoReferido: miCodigo,
+          referidosExitosos: 0,
           ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
+        });
+
+        await setDoc(doc(db, "codigos_referido", miCodigo), {
+          userId: newUser.uid,
+          creadoEn: timestamp,
         });
 
         await setDoc(doc(db, "leads_marketing", newUser.uid), {
