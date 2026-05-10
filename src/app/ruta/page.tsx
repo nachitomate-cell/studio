@@ -7,16 +7,20 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Map, Loader2, X, ChevronRight, HelpCircle } from "lucide-react";
+import { ArrowLeft, Map, Loader2, X, ChevronRight, HelpCircle, Share2 } from "lucide-react";
 import { isVendorVisible, getSafeImageUrl } from "@/lib/utils";
+import { registrarCompra } from "@/lib/puntos";
+import { useToast } from "@/hooks/use-toast";
 
 // ── Real-time hook ────────────────────────────────────────────────────────────
 function useLocalesVisitados(userId: string | null): {
   sellosLocales: Record<string, number>;
   hasSynapTechStamp: boolean;
+  hasSynapTechShared: boolean;
 } {
   const [sellosLocales, setSellosLocales] = useState<Record<string, number>>({});
   const [hasSynapTechStamp, setHasSynapTechStamp] = useState(false);
+  const [hasSynapTechShared, setHasSynapTechShared] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -25,12 +29,13 @@ function useLocalesVisitados(userId: string | null): {
         const data = snap.data();
         setSellosLocales(data.sellosLocales || {});
         setHasSynapTechStamp(!!data.hasSynapTechStamp);
+        setHasSynapTechShared(!!data.hasSynapTechShared);
       }
     });
     return () => unsub();
   }, [userId]);
 
-  return { sellosLocales, hasSynapTechStamp };
+  return { sellosLocales, hasSynapTechStamp, hasSynapTechShared };
 }
 
 // ── Stamp state ───────────────────────────────────────────────────────────────
@@ -170,9 +175,11 @@ function StampCell({
 // ── SynapTech special stamp ───────────────────────────────────────────────────
 function SynapTechStampCell({
   collected,
+  shared,
   onTap,
 }: {
   collected: boolean;
+  shared: boolean;
   onTap: () => void;
 }) {
   return (
@@ -222,6 +229,24 @@ function SynapTechStampCell({
           </div>
         )}
 
+        {/* Share badge */}
+        {collected && !shared && (
+          <div
+            className="absolute -top-2 -right-2 text-white text-[8px] font-black px-1.5 h-5 rounded-full flex items-center justify-center shadow-md animate-pulse"
+            style={{ background: "linear-gradient(135deg, #059669, #10B981)" }}
+          >
+            +1
+          </div>
+        )}
+        {collected && shared && (
+          <div
+            className="absolute -top-2 -right-2 text-white text-[7px] font-black px-1.5 h-5 rounded-full flex items-center justify-center shadow-md"
+            style={{ background: "linear-gradient(135deg, #059669, #10B981)" }}
+          >
+            ✓
+          </div>
+        )}
+
         {/* Special sparkle corner */}
         {collected && (
           <div
@@ -257,7 +282,7 @@ function LogoRain({ onDone }: { onDone: () => void }) {
     left: `${(i * 4.7 + 2) % 94}%`,
     delay: `${(i * 0.15) % 1.6}s`,
     duration: `${1.4 + (i * 0.11) % 1.2}s`,
-    size: 28 + (i * 6) % 38,
+    size: 60 + (i * 12) % 60,
   }));
 
   return (
@@ -272,7 +297,7 @@ function LogoRain({ onDone }: { onDone: () => void }) {
       {items.map((item) => (
         <img
           key={item.id}
-          src="/emp.png"
+          src="/empresa.png"
           alt=""
           style={{
             position: "absolute",
@@ -302,7 +327,8 @@ export default function MiRutaPage() {
   const [showLogoRain, setShowLogoRain] = useState(false);
 
   // Real-time stamp data — auto-updates when any sale is confirmed
-  const { sellosLocales, hasSynapTechStamp } = useLocalesVisitados(userId);
+  const { sellosLocales, hasSynapTechStamp, hasSynapTechShared } = useLocalesVisitados(userId);
+  const { toast } = useToast();
 
   const handleVisitSynapTech = () => {
     window.open("https://synaptechspa.cl", "_blank", "noopener,noreferrer");
@@ -310,6 +336,26 @@ export default function MiRutaPage() {
     setShowLogoRain(true);
     if (userId) {
       updateDoc(doc(db, "usuarios", userId), { hasSynapTechStamp: true }).catch(() => {});
+    }
+  };
+
+  const handleShareSynapTech = async () => {
+    if (!userId || hasSynapTechShared) return;
+    try {
+      await navigator.share({
+        title: "Club Patio Curauma",
+        text: "Descubrí esta app hecha por @SynapTechSpA 🚀 synaptechspa.cl",
+        url: "https://synaptechspa.cl",
+      });
+      await updateDoc(doc(db, "usuarios", userId), { hasSynapTechShared: true });
+      await registrarCompra(db, userId, undefined, false, "synap_share");
+      toast({ title: "¡+1 Sello ganado!", description: "Gracias por compartir SynapTech 🚀" });
+      setShowSynapModal(null);
+      setShowLogoRain(true);
+    } catch (err: any) {
+      if (err?.name !== "AbortError") {
+        toast({ title: "No se pudo compartir", variant: "destructive" });
+      }
     }
   };
 
@@ -500,6 +546,7 @@ export default function MiRutaPage() {
           {/* SynapTech special stamp — always last in the album */}
           <SynapTechStampCell
             collected={hasSynapTechStamp}
+            shared={hasSynapTechShared}
             onTap={() => {
               if (hasSynapTechStamp) {
                 setShowLogoRain(true);
@@ -699,6 +746,39 @@ export default function MiRutaPage() {
               <span className="font-bold" style={{ color: "#7C3AED" }}>synaptechspa.cl</span>{" "}
               encontrarás soluciones digitales para llevar tu negocio al siguiente nivel. ¡Vuelve a visitarnos!
             </p>
+
+            {!hasSynapTechShared && (
+              <div
+                className="rounded-2xl p-4 space-y-2"
+                style={{ background: "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)", border: "1px solid #86EFAC" }}
+              >
+                <p className="text-xs font-black text-emerald-700 uppercase tracking-wide">
+                  🎁 Sello extra disponible
+                </p>
+                <p className="text-sm text-emerald-800 leading-snug">
+                  Comparte SynapTech con tus contactos y gana{" "}
+                  <span className="font-bold">+1 sello</span> en tu tarjeta de fidelidad.
+                </p>
+                <button
+                  onClick={handleShareSynapTech}
+                  className="w-full rounded-xl font-black text-sm text-white transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-1"
+                  style={{ height: 44, background: "linear-gradient(135deg, #059669 0%, #10B981 100%)", boxShadow: "0 4px 14px rgba(5,150,105,0.35)" }}
+                >
+                  <Share2 className="w-4 h-4" />
+                  Compartir SynapTech · +1 Sello
+                </button>
+              </div>
+            )}
+
+            {hasSynapTechShared && (
+              <div
+                className="rounded-2xl p-3 flex items-center gap-3"
+                style={{ background: "#F0FDF4", border: "1px solid #86EFAC" }}
+              >
+                <span className="text-lg">✅</span>
+                <p className="text-sm font-bold text-emerald-700">¡Ya compartiste! Sello extra obtenido.</p>
+              </div>
+            )}
 
             <div className="flex flex-col gap-3">
               <button
