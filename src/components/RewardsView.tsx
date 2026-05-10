@@ -312,9 +312,14 @@ function SuccessScreen({ data, onVerMisCanjes }: { data: SuccessData; onVerMisCa
           <p className="text-white/65 text-sm font-medium">{data.vendorNombre}</p>
         </div>
         <div className="w-full bg-white/15 backdrop-blur-xl rounded-3xl border border-white/25 shadow-2xl p-6 space-y-4">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Tu código único</p>
-            <p className="text-4xl font-black tracking-[0.15em] drop-shadow">{data.codigo}</p>
+          <div className="text-center">
+            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-3">Muestra este QR al vendedor</p>
+            <div className="flex justify-center mb-3">
+              <div className="p-3 bg-white rounded-2xl shadow-lg">
+                <QRCode value={`canje:${data.canjeId}`} size={140} fgColor="#1e293b" />
+              </div>
+            </div>
+            <p className="text-2xl font-black tracking-[0.15em] drop-shadow">{data.codigo}</p>
           </div>
           <div className="h-px bg-white/15" />
           <div className="flex items-center justify-center gap-2 text-white/70">
@@ -847,7 +852,7 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
             {pendingCanjes.map((canje) => (
               <Card key={canje.id} className="border border-emerald-100 bg-white shadow-sm rounded-3xl overflow-hidden">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 to-cyan-400" />
-                <CardContent className="p-4">
+                <CardContent className="p-4 space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl shrink-0">
                       {canje.premioIcono || "🎁"}
@@ -862,9 +867,14 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
                       <p className="text-xs text-slate-500 font-medium mt-0.5">{canje.vendorNombre}</p>
                       <CountdownBadge expiraEn={canje.expiraEn} />
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xl font-black tracking-widest text-primary">{canje.codigo}</p>
-                      <p className="text-[9px] text-slate-400 font-medium uppercase">Muéstralo en caja</p>
+                  </div>
+                  <div className="flex items-center gap-4 pt-2 border-t border-emerald-50">
+                    <div className="p-2 bg-white border border-slate-100 rounded-xl shadow-sm shrink-0">
+                      <QRCode value={`canje:${canje.id}`} size={80} fgColor="#1e293b" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wider mb-1">Muéstralo al vendedor</p>
+                      <p className="text-lg font-black tracking-widest text-primary">{canje.codigo}</p>
                     </div>
                   </div>
                 </CardContent>
