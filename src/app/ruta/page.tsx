@@ -687,13 +687,13 @@ export default function MiRutaPage() {
               <Button
                 onClick={() => {
                   setSelectedVendor(null);
-                  router.push("/directorio");
+                  router.push("/");
                 }}
                 className="flex-1 h-12 rounded-2xl font-bold gap-2 text-white"
                 style={{ backgroundColor: "#D3B673" }}
               >
                 <ChevronRight className="w-4 h-4" />
-                Ver en el directorio
+                Ver directorio
               </Button>
               <Button
                 variant="outline"
