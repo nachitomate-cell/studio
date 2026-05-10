@@ -22,10 +22,13 @@ import { RewardsTab } from "@/components/profile/RewardsTab";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
 import { Auth } from "@/components/Auth";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
+import { OnboardingTutorial } from "@/components/OnboardingTutorial";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useBackgroundGeolocation } from "@/hooks/useBackgroundGeolocation";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, LOCATIONS } from "@/context/LocationContext";
+
+const ADMIN_EMAIL = "ignaciiio.mate@gmail.com";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
@@ -33,6 +36,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboardingCheckedRef = useRef(false);
   const { selectedLocation, setSelectedLocation } = useLocation();
   const { toast } = useToast();
   const router = useRouter();
@@ -69,6 +74,7 @@ export default function Home() {
   useEffect(() => {
     if (!user) {
       setUserData(null);
+      onboardingCheckedRef.current = false;
       return;
     }
 
@@ -79,6 +85,22 @@ export default function Home() {
 
     return () => unsubscribeDoc();
   }, [user]);
+
+  // Show onboarding tutorial once per new client account
+  useEffect(() => {
+    if (!user || !userData || onboardingCheckedRef.current) return;
+    onboardingCheckedRef.current = true;
+
+    const email = (user.email ?? "").toLowerCase().trim();
+    const isAdmin = email === ADMIN_EMAIL;
+    const isVendor = Array.isArray(userData.roles)
+      ? userData.roles.includes("emprendedor")
+      : userData.rol === "emprendedor";
+
+    if (!isAdmin && !isVendor && !userData.hasCompletedOnboarding) {
+      setShowOnboarding(true);
+    }
+  }, [user, userData]);
 
   // Badge de premios — se activa cuando el usuario tiene sellos suficientes para canjear algo
   useEffect(() => {
@@ -529,6 +551,13 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white">
+      {showOnboarding && user && (
+        <OnboardingTutorial
+          userId={user.uid}
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
+
       <div className="max-w-lg mx-auto pb-4">
         {renderContent()}
       </div>
