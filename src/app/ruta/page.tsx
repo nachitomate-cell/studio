@@ -181,19 +181,17 @@ function SynapTechStampCell({
         }
       >
         {/* Centered icon */}
-        <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-500"
+        <img
+          src="/empresa.png"
+          alt="SynapTech SpA"
+          className="w-10 h-10 object-contain transition-all duration-500"
           style={{
-            background: collected
-              ? "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)"
-              : "rgba(148,163,184,0.15)",
-            filter: collected ? "none" : "grayscale(100%) opacity(0.4)",
-            fontSize: 24,
-            boxShadow: collected ? "0 4px 12px rgba(124,58,237,0.35)" : "none",
+            filter: collected
+              ? "drop-shadow(0 4px 12px rgba(124,58,237,0.35))"
+              : "grayscale(100%) opacity(0.35)",
+            transform: collected ? "scale(1)" : "scale(0.9)",
           }}
-        >
-          ⚡
-        </div>
+        />
 
         {/* "ST" badge */}
         {collected && (
@@ -242,13 +240,14 @@ export default function MiRutaPage() {
   // Real-time stamp data — auto-updates when any sale is confirmed
   const { sellosLocales, hasSynapTechStamp } = useLocalesVisitados(userId);
 
-  const handleVisitSynapTech = async () => {
-    if (!userId) return;
-    try {
-      await updateDoc(doc(db, "usuarios", userId), { hasSynapTechStamp: true });
-    } catch { }
+  const handleVisitSynapTech = () => {
+    // Open first (synchronous, so the browser recognises it as user-initiated)
     window.open("https://synaptechspa.cl", "_blank", "noopener,noreferrer");
     setShowSynapModal(null);
+    // Firestore update fires in the background — no need to await
+    if (userId) {
+      updateDoc(doc(db, "usuarios", userId), { hasSynapTechStamp: true }).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -552,10 +551,10 @@ export default function MiRutaPage() {
               style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.22) 0%, rgba(79,70,229,0.10) 100%)" }}
             >
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-3xl"
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 p-2"
                 style={{ background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)", boxShadow: "0 8px 20px rgba(124,58,237,0.4)" }}
               >
-                🚀
+                <img src="/empresa.png" alt="SynapTech" className="w-full h-full object-contain" />
               </div>
               <h2 className="text-xl font-black text-white leading-snug">¿Te gusta esta App? 🚀</h2>
             </div>
@@ -609,10 +608,10 @@ export default function MiRutaPage() {
 
             <div className="flex items-center gap-4">
               <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 text-3xl shadow-lg"
+                className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-lg p-2.5"
                 style={{ background: "linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)" }}
               >
-                ⚡
+                <img src="/empresa.png" alt="SynapTech" className="w-full h-full object-contain" />
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#7C3AED" }}>
