@@ -397,6 +397,119 @@ const getInitials = (name: string | undefined) => {
     .toUpperCase();
 };
 
+function ReferralInfoModal({ onClose }: { onClose: () => void }) {
+  const steps = [
+    {
+      icon: <Share2 className="w-5 h-5" />,
+      color: "#D3B673",
+      bg: "rgba(211,182,115,0.12)",
+      title: "Comparte tu código",
+      desc: "Copia tu código único o usa el botón de compartir para enviárselo a tus amigos.",
+    },
+    {
+      icon: <Users className="w-5 h-5" />,
+      color: "#6366f1",
+      bg: "rgba(99,102,241,0.1)",
+      title: "Tu amigo se registra",
+      desc: "Se inscribe en Club Patio ingresando tu código al crear su cuenta. Él recibe +1 sello extra de bienvenida.",
+    },
+    {
+      icon: <Store className="w-5 h-5" />,
+      color: "#10b981",
+      bg: "rgba(16,185,129,0.1)",
+      title: "Primera visita real",
+      desc: "Tu bono se activa cuando tu amigo realice su primera compra real en un local del Club (no al momento del registro).",
+    },
+    {
+      icon: <Gift className="w-5 h-5" />,
+      color: "#f59e0b",
+      bg: "rgba(245,158,11,0.1)",
+      title: "Tú ganas +1 sello",
+      desc: "Recibirás una notificación y +1 sello en tu tarjeta en cuanto tu amigo haga su primera visita.",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col"
+        style={{ maxHeight: "90vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4 shrink-0" />
+
+        <div className="px-7 pt-5 pb-4 shrink-0 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
+              style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}>
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-800 leading-tight">Programa de Referidos</h2>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">¿Cómo funciona?</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors shrink-0 mt-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-7 pb-7 overflow-y-auto space-y-3">
+          {steps.map((s, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-4 rounded-2xl p-4"
+              style={{ backgroundColor: s.bg, border: `1px solid ${s.color}22` }}
+            >
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                style={{ backgroundColor: s.color, color: "white" }}
+              >
+                {s.icon}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: s.color + "22", color: s.color }}
+                  >
+                    Paso {i + 1}
+                  </span>
+                </div>
+                <p className="text-sm font-black text-slate-800">{s.title}</p>
+                <p className="text-[12px] text-slate-500 leading-relaxed mt-0.5">{s.desc}</p>
+              </div>
+            </div>
+          ))}
+
+          {/* Aviso límite mensual */}
+          <div className="rounded-2xl p-4 flex items-start gap-3"
+            style={{ backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
+            <Info className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <p className="text-[12px] text-slate-500 leading-relaxed">
+              <span className="font-bold text-slate-700">Límite mensual:</span> puedes ganar hasta{" "}
+              <span className="font-bold text-red-500">3 bonos de referido por mes</span> calendario.
+              El límite se reinicia automáticamente cada mes.
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-full h-12 rounded-2xl font-bold text-sm text-white transition-all mt-1"
+            style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
+          >
+            ¡Entendido!
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface UserProfileProps {
   onSwitchMode: () => void;
   onShowAuth: () => void;
@@ -411,6 +524,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [showPermisos, setShowPermisos] = useState(false);
+  const [showReferralInfo, setShowReferralInfo] = useState(false);
   // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
   // pero NO instaló la app en su pantalla de inicio (modo standalone).
   const [showIosHint, setShowIosHint] = useState(false);
@@ -1498,6 +1612,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       )}
 
       {showPermisos && <PermissionsModal onClose={() => setShowPermisos(false)} />}
+      {showReferralInfo && <ReferralInfoModal onClose={() => setShowReferralInfo(false)} />}
 
       {/* ── Código de Referido ─────────────────────────────────────────────── */}
       {userData?.codigoReferido && !isEditing && (
@@ -1523,12 +1638,22 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             >
               <Users className="w-6 h-6 text-white" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-base font-black text-white leading-tight">Programa de Referidos</p>
               <p className="text-[12px] text-white/50 leading-tight mt-1">
                 Gana <span className="text-[#D3B673] font-bold">1 sello gratis</span> por cada amigo
               </p>
             </div>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowReferralInfo(true)}
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors"
+              style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
+              title="¿Cómo funciona?"
+            >
+              <Info className="w-4 h-4" />
+            </motion.button>
           </div>
 
           <div className="px-7 pb-7 space-y-4 relative z-10">
