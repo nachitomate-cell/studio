@@ -191,6 +191,14 @@ export function Auth() {
           ? localStorage.getItem("referral_local_id")
           : null;
 
+        // Leer config del sello de bienvenida
+        const configSnap = await getDoc(doc(db, "configuracion", "general")).catch(() => null);
+        const configBienvenida = configSnap?.exists() ? configSnap.data()?.selloBienvenida : null;
+        const bienvenidaActivo = configBienvenida?.activo !== false;
+        const bienvenidaCantidad: number = Number(configBienvenida?.cantidad ?? 1);
+        const sellosIniciales = referralLocalId ? 0 : (bienvenidaActivo ? bienvenidaCantidad : 0);
+        const puntosIniciales = referralLocalId ? 50 : (bienvenidaActivo ? bienvenidaCantidad * 100 : 0);
+
         await setDoc(doc(db, "usuarios", newUser.uid), {
           id: newUser.uid,
           nombre: nombre.trim(),
@@ -198,8 +206,8 @@ export function Auth() {
           telefono: phone,
           fechaNacimiento: fechaNacimiento,
           rol: rolAsignado,
-          comprasRealizadas: referralLocalId ? 0 : 1,
-          puntos: referralLocalId ? 50 : 100,
+          comprasRealizadas: sellosIniciales,
+          puntos: puntosIniciales,
           totalCanjesHistoricos: 0,
           ticketsSorteo: 0,
           recompensaDisponible: false,
@@ -209,6 +217,7 @@ export function Auth() {
           aceptaMarketing: aceptaMarketing,
           fechaConsentimiento: timestamp,
           createdAt: timestamp,
+          bono_login_reclamado: true,
           ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
         });
 
@@ -237,17 +246,18 @@ export function Auth() {
           } catch {
             // No crítico: el usuario ya fue creado
           }
-        } else {
+        } else if (bienvenidaActivo) {
           try {
             await addDoc(collection(db, "system_logs"), {
               usuario: nombre.trim(),
               usuarioId: newUser.uid,
-              accion: "recibió Sello de Bienvenida (registro orgánico)",
+              accion: `recibió ${bienvenidaCantidad} Sello${bienvenidaCantidad > 1 ? "s" : ""} de Bienvenida (registro orgánico)`,
               fecha: timestamp,
               tipo: "FIDELIZACION",
               metodo: "BIENVENIDA",
+              cantidad: bienvenidaCantidad,
             });
-            syncUserStampsToWallet(newUser.uid, 1);
+            syncUserStampsToWallet(newUser.uid, bienvenidaCantidad);
           } catch {
             // No crítico
           }

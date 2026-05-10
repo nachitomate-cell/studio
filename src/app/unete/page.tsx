@@ -226,6 +226,7 @@ export default function UnetePage() {
           comuna: comuna.trim(),
           codigoReferido: miCodigo,
           referidosExitosos: 0,
+          bono_login_reclamado: true,
           ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
         });
 

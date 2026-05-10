@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  collection, onSnapshot, query, orderBy, limit, getDocs, getDoc, doc,
+  collection, onSnapshot, query, orderBy, limit, getDocs, getDoc, doc, where,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
@@ -190,13 +190,24 @@ export default function ModeradorSellosPage() {
   // ── Cargar vendedores para el dropdown ─────────────────────────────────────
   useEffect(() => {
     if (!authorized) return;
-    getDocs(collection(db, "entrepreneur_profiles"))
-      .then((snap) => {
+    Promise.all([
+      getDocs(collection(db, "entrepreneur_profiles")),
+      getDocs(query(collection(db, "usuarios"), where("rol", "==", "emprendedor"))),
+    ])
+      .then(([profilesSnap, usuariosSnap]) => {
         const list: VendorInfo[] = [];
         const map: Record<string, string> = {};
-        snap.forEach((d) => {
+        profilesSnap.forEach((d) => {
           const data = d.data();
           const nombre = data.businessName || data.nombre || d.id;
+          list.push({ id: d.id, nombre });
+          map[d.id] = nombre;
+        });
+        // Emprendedores sin perfil en entrepreneur_profiles
+        usuariosSnap.forEach((d) => {
+          if (map[d.id]) return;
+          const data = d.data();
+          const nombre = data.nombreTienda || data.businessName || data.nombre || d.id;
           list.push({ id: d.id, nombre });
           map[d.id] = nombre;
         });
@@ -355,7 +366,7 @@ export default function ModeradorSellosPage() {
         Hora: dt.hora,
         Cliente: l.usuarioResuelto || l.usuario,
         "RUT/Tel": l.usuarioId,
-        Local: vendors[l.vendedorId] || l.vendedorId || "—",
+        Local: l.metodo === "BIENVENIDA" ? "Sello de Bienvenida" : l.metodo === "SISTEMA" ? "Bono de Login" : vendors[l.vendedorId] || l.vendedorId || "—",
         Monto: l.monto && l.monto > 0 ? l.monto : 0,
         Sellos: "+1",
         Estado: estado,
@@ -645,7 +656,11 @@ export default function ModeradorSellosPage() {
                             {log.usuarioResuelto || log.usuario || "—"}
                           </td>
                           <td className="px-6 py-4 text-slate-500 font-medium">
-                            {vendors[log.vendedorId] || log.vendedorId || "—"}
+                            {log.metodo === "BIENVENIDA"
+                              ? <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full">🎁 Sello de Bienvenida</span>
+                              : log.metodo === "SISTEMA"
+                              ? <span className="inline-flex items-center gap-1 text-blue-600 font-bold text-xs bg-blue-50 px-2 py-1 rounded-full">⚡ Bono de Login</span>
+                              : vendors[log.vendedorId] || log.vendedorId || "—"}
                           </td>
                           <td className="px-6 py-4">
                             {log.anulada ? (

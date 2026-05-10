@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2 } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,10 @@ export default function ModeradorPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
+  // Config sello bienvenida
+  const [configBienvenida, setConfigBienvenida] = useState<{ activo: boolean; cantidad: number }>({ activo: true, cantidad: 1 });
+  const [savingConfig, setSavingConfig] = useState(false);
+
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -85,6 +89,7 @@ export default function ModeradorPage() {
       setCurrentUserEmail((user.email ?? "").trim().toLowerCase());
       setLoadingConfig(false);
       fetchClientes();
+      loadConfigBienvenida();
     });
 
     // Suscripción al Radar de Anomalías (Logs reales si existen en 'system_logs')
@@ -177,6 +182,30 @@ export default function ModeradorPage() {
       console.error("Error al obtener clientes:", error);
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const loadConfigBienvenida = async () => {
+    try {
+      const snap = await getDoc(doc(db, "configuracion", "general"));
+      if (snap.exists()) {
+        const data = snap.data()?.selloBienvenida;
+        if (data) setConfigBienvenida({ activo: data.activo !== false, cantidad: Number(data.cantidad ?? 1) });
+      }
+    } catch { /* no crítico */ }
+  };
+
+  const saveConfigBienvenida = async () => {
+    setSavingConfig(true);
+    try {
+      await setDoc(doc(db, "configuracion", "general"), {
+        selloBienvenida: { activo: configBienvenida.activo, cantidad: configBienvenida.cantidad },
+      }, { merge: true });
+      toast({ title: "Configuración guardada", description: `Sello de bienvenida ${configBienvenida.activo ? `activo · ${configBienvenida.cantidad} sello(s)` : "desactivado"}.` });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la configuración." });
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -664,7 +693,60 @@ export default function ModeradorPage() {
               </div>
             </CardContent>
           </Card>
-          
+          {/* T4. SELLO DE BIENVENIDA */}
+          <Card className="border-none shadow-xl shadow-emerald-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-emerald-100 md:col-span-2">
+            <div className="bg-emerald-50/50 p-6 border-b border-emerald-100/50 flex flex-col gap-2">
+              <div className="flex items-center gap-3 text-emerald-600">
+                <Settings className="w-5 h-5" />
+                <h3 className="font-bold text-lg">Sello de Bienvenida</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">Configura el sello que recibe cada nuevo socio al registrarse sin link de referido.</p>
+            </div>
+            <CardContent className="p-6 space-y-5 bg-slate-50/20">
+              {/* Toggle activo/inactivo */}
+              <div className="flex items-center justify-between bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-sm">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Estado</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{configBienvenida.activo ? "Los nuevos socios reciben el sello al registrarse" : "No se entrega sello al registrarse"}</p>
+                </div>
+                <button
+                  onClick={() => setConfigBienvenida(c => ({ ...c, activo: !c.activo }))}
+                  className="shrink-0 transition-transform active:scale-95"
+                >
+                  {configBienvenida.activo
+                    ? <ToggleRight className="w-10 h-10 text-emerald-500" />
+                    : <ToggleLeft className="w-10 h-10 text-slate-300" />}
+                </button>
+              </div>
+
+              {/* Cantidad */}
+              <div className={`bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-sm space-y-3 transition-opacity ${!configBienvenida.activo ? "opacity-40 pointer-events-none" : ""}`}>
+                <p className="text-sm font-bold text-slate-800">Cantidad de sellos</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setConfigBienvenida(c => ({ ...c, cantidad: Math.max(1, c.cantidad - 1) }))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-slate-600 text-lg flex items-center justify-center transition-colors"
+                  >−</button>
+                  <span className="w-12 text-center text-2xl font-black text-slate-800">{configBienvenida.cantidad}</span>
+                  <button
+                    onClick={() => setConfigBienvenida(c => ({ ...c, cantidad: Math.min(10, c.cantidad + 1) }))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-slate-600 text-lg flex items-center justify-center transition-colors"
+                  >+</button>
+                  <span className="text-xs text-slate-400 font-medium ml-1">máx. 10</span>
+                </div>
+              </div>
+
+              <Button
+                onClick={saveConfigBienvenida}
+                disabled={savingConfig}
+                className="w-full h-11 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+              >
+                {savingConfig ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Settings className="w-4 h-4 mr-2" />}
+                Guardar configuración
+              </Button>
+            </CardContent>
+          </Card>
+
         </div>
       </div>
 
