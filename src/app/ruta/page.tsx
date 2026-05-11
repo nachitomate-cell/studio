@@ -543,8 +543,8 @@ export default function MiRutaPage() {
             </div>
           )}
 
-          {/* SynapTech special stamp — always last in the album */}
-          <SynapTechStampCell
+          {/* SynapTech special stamp — only visible in "Todos" view */}
+          {activeCategory === null && <SynapTechStampCell
             collected={hasSynapTechStamp}
             shared={hasSynapTechShared}
             onTap={() => {
@@ -555,7 +555,7 @@ export default function MiRutaPage() {
                 setShowSynapModal("invite");
               }
             }}
-          />
+          />}
         </div>
       </div>
 
