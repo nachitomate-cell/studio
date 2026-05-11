@@ -37,14 +37,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // Borrar de Firestore
+    // Borrar de Firestore primero — si falla, abortar para evitar zombie records
     try {
       await adminDb.collection("usuarios").doc(userId).delete();
-    } catch (e) {
-      console.warn("[delete-user] Firestore delete failed:", e);
+    } catch (e: any) {
+      console.error("[delete-user] Firestore delete failed:", e);
+      return NextResponse.json({ error: "No se pudo eliminar el registro del usuario" }, { status: 500 });
     }
 
-    // Borrar de Firebase Auth
+    // Borrar de Firebase Auth — Firestore ya fue eliminado correctamente
     try {
       await adminAuth.deleteUser(userId);
     } catch (e: any) {

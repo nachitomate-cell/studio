@@ -104,6 +104,7 @@ export default function VendedorPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const scannerInstance = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const profileLoadedRef = useRef(false);
 
   const [shopForm, setShopForm] = useState({
     nombreTienda: "",
@@ -130,20 +131,18 @@ export default function VendedorPage() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
         stream.getTracks().forEach(track => track.stop && track.stop());
-      } catch (error) {
+      } catch {
         setHasCameraPermission(false);
+      }
+      // Abrir scanner DESPUÉS de resolver el permiso para evitar race condition
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("action") === "scan") {
+          startScanner();
+        }
       }
     };
     checkPermission();
-
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get("action") === "scan") {
-        setTimeout(() => {
-          startScanner();
-        }, 300);
-      }
-    }
 
     let unsubscribeProfile: () => void = () => {};
     let unsubscribeUser: () => void = () => {};
@@ -151,6 +150,14 @@ export default function VendedorPage() {
 
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
       if (!user) {
+        // Limpiar listeners activos al cerrar sesión
+        unsubscribeProfile();
+        unsubscribeUser();
+        unsubscribeVentas();
+        unsubscribeProfile = () => {};
+        unsubscribeUser = () => {};
+        unsubscribeVentas = () => {};
+        profileLoadedRef.current = false;
         setProfileChecked(true);
         return;
       }
@@ -182,14 +189,15 @@ export default function VendedorPage() {
               isPremium: data.isPremium === true,
             });
             setPreviewUrl(data.imageUrl || data.imageUrls?.[0] || null);
-            if (!businessName.trim() || businessName.trim() === "—") {
+            if (!profileLoadedRef.current && (!businessName.trim() || businessName.trim() === "—")) {
               toast({ title: "¡Bienvenido! Configura tu local", description: "Por favor, configura el nombre de tu local para empezar a entregar sellos." });
               router.push("/tienda");
             }
-          } else {
+          } else if (!profileLoadedRef.current) {
             toast({ title: "¡Bienvenido! Configura tu local", description: "Por favor, configura el nombre de tu local para empezar a entregar sellos." });
             router.push("/tienda");
           }
+          profileLoadedRef.current = true;
           setProfileChecked(true);
         });
 

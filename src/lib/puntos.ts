@@ -78,7 +78,7 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
     await addDoc(logRef, {
       usuario: clienteNombre,
       usuarioId: userId,
-      vendedorId: vendedorId || "simulacion",
+      vendedorId: vendedorId || (metodoOverride === "MODERADOR_GRANT" ? "MODERADOR" : "simulacion"),
       accion: "recibió un sello",
       fecha: timestamp,
       tipo: "FIDELIZACION",

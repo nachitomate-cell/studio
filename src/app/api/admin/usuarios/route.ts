@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     try {
       decoded = await adminAuth.verifyIdToken(idToken);
     } catch (tokenError) {
-      console.error("[admin/usuarios] Token inválido:", tokenError);
+      console.warn("[admin/usuarios] Token inválido o expirado");
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 

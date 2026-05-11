@@ -790,8 +790,14 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     });
     if (typeof window !== "undefined") {
       if ("Notification" in window) {
-        setPushEnabled(Notification.permission === "granted");
-        setNotifDenied(Notification.permission === "denied");
+        const perm = Notification.permission;
+        setPushEnabled(perm === "granted");
+        setNotifDenied(perm === "denied");
+        // Refrescar token FCM silenciosamente si el permiso ya fue otorgado.
+        // Previene que tokens rotados por el SDK queden desactualizados en Firestore.
+        if (perm === "granted") {
+          registerFcmToken().catch(() => {});
+        }
       }
       setNotifBannerDismissed(localStorage.getItem("notif_banner_dismissed") === "true");
       // Detectar iOS fuera de modo standalone (no instalada como PWA).

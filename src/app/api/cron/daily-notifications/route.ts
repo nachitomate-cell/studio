@@ -157,22 +157,26 @@ export async function GET(request: Request) {
       });
     }
 
-    // Guardar notificación en Firestore para cada usuario (visible en el centro de notifs)
-    const batch = adminDb.batch();
-    const now   = new Date().toISOString();
-    userIds.forEach((uid) => {
-      const ref = adminDb.collection("usuarios").doc(uid).collection("notificaciones").doc();
-      batch.set(ref, {
-        titulo: msg.titulo,
-        mensaje: msg.cuerpo,
-        leida: false,
-        fecha: now,
-        tipo: "diaria",
-        isAI: false,
-        cta: "Ver App",
+    // Guardar notificación en Firestore — en lotes de 500 (límite de Firestore batch)
+    const now = new Date().toISOString();
+    const FIRESTORE_CHUNK = 500;
+    for (let i = 0; i < userIds.length; i += FIRESTORE_CHUNK) {
+      const chunk = userIds.slice(i, i + FIRESTORE_CHUNK);
+      const batch = adminDb.batch();
+      chunk.forEach((uid) => {
+        const ref = adminDb.collection("usuarios").doc(uid).collection("notificaciones").doc();
+        batch.set(ref, {
+          titulo: msg.titulo,
+          mensaje: msg.cuerpo,
+          leida: false,
+          fecha: now,
+          tipo: "diaria",
+          isAI: false,
+          cta: "Ver App",
+        });
       });
-    });
-    await batch.commit();
+      await batch.commit();
+    }
 
     // Limpiar tokens inválidos de Firestore
     if (invalidTokens.length > 0) {
