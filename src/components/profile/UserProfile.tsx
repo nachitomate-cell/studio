@@ -523,6 +523,8 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [notifDenied, setNotifDenied] = useState(false);
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
   const [showPermisos, setShowPermisos] = useState(false);
   const [showReferralInfo, setShowReferralInfo] = useState(false);
   // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
@@ -562,7 +564,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     if (typeof window !== "undefined") {
       if ("Notification" in window) {
         setPushEnabled(Notification.permission === "granted");
+        setNotifDenied(Notification.permission === "denied");
       }
+      setNotifBannerDismissed(localStorage.getItem("notif_banner_dismissed") === "true");
       // Detectar iOS fuera de modo standalone (no instalada como PWA).
       // Las notificaciones push en iOS SOLO funcionan en modo standalone.
       const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -574,6 +578,19 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       }
     }
     return () => unsubscribeAuth();
+  }, []);
+
+  // Re-check notification permission when user returns from device settings
+  useEffect(() => {
+    const recheck = () => {
+      if (document.visibilityState === "visible" && "Notification" in window) {
+        const perm = Notification.permission;
+        setPushEnabled(perm === "granted");
+        setNotifDenied(perm === "denied");
+      }
+    };
+    document.addEventListener("visibilitychange", recheck);
+    return () => document.removeEventListener("visibilitychange", recheck);
   }, []);
 
   useEffect(() => {
@@ -680,7 +697,10 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
     if (result.ok) {
       setPushEnabled(true);
-      toast({ title: "¡Alertas activadas!", description: "Recibirás notificaciones en tu celular." });
+      setNotifDenied(false);
+      setNotifBannerDismissed(false);
+      localStorage.removeItem("notif_banner_dismissed");
+      toast({ title: "¡Notificaciones activadas!", description: "Recibirás avisos de sellos y premios." });
       dispararAlertaSistema("¡Club Patio activado!", "Gracias por habilitar las alertas.");
       return;
     }
@@ -690,7 +710,8 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         toast({ title: "No disponible", description: "Instala la app en tu pantalla de inicio y vuelve a intentarlo." });
         break;
       case "denied":
-        toast({ variant: "destructive", title: "Permiso denegado", description: "Ve a Ajustes → [tu navegador] → Notificaciones y habilita Club Patio." });
+        setNotifDenied(true);
+        toast({ variant: "destructive", title: "Permiso bloqueado", description: "Actívalo desde los Ajustes del sistema." });
         break;
       case "no_vapid_key":
         toast({ variant: "destructive", title: "Error de configuración", description: "Falta clave del servidor. Contacta al administrador." });
@@ -1161,17 +1182,58 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
       )}
 
-      {/* ── Banner Android / Web: activar alertas push ────────────────────── */}
-      {!pushEnabled && !isEditing && !showIosHint && !isEntrepreneur && (
-        <Card className="border-none shadow-md bg-blue-50/50 rounded-2xl">
-          <CardContent className="p-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-600">
-                <Bell className="w-5 h-5" />
+      {/* ── Banner push: activar / bloqueado ─────────────────────────────── */}
+      {!pushEnabled && !isEditing && !showIosHint && !isEntrepreneur && !notifBannerDismissed && (
+        <Card className={`border-none shadow-md rounded-2xl ${notifDenied ? "bg-red-50/60" : "bg-blue-50/50"}`}>
+          <CardContent className="p-4 space-y-3">
+            {/* Top row */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${notifDenied ? "bg-red-100 text-red-500" : "bg-blue-500/10 text-blue-600"}`}>
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className={`text-xs font-black ${notifDenied ? "text-red-700" : "text-blue-800"}`}>
+                    {notifDenied ? "Notificaciones bloqueadas" : "Activa las notificaciones"}
+                  </p>
+                  <p className={`text-[11px] font-medium ${notifDenied ? "text-red-500" : "text-blue-500"}`}>
+                    {notifDenied ? "Actívalas desde Ajustes del sistema" : "Recibe avisos de sellos y premios"}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs font-bold text-blue-800">Recibe avisos al celular cuando pases cerca.</p>
+              <button
+                onClick={() => {
+                  setNotifBannerDismissed(true);
+                  localStorage.setItem("notif_banner_dismissed", "true");
+                }}
+                className="text-slate-300 hover:text-slate-500 transition-colors shrink-0 mt-0.5"
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <Button size="sm" onClick={requestNotificationPermission} className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">Activar</Button>
+
+            {/* Action */}
+            {notifDenied ? (
+              <div className="bg-red-100/60 rounded-xl px-3 py-2">
+                <p className="text-[11px] font-bold text-red-700">
+                  {/iphone|ipad|ipod/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "")
+                    ? "Ajustes → Safari → Notificaciones → Activar"
+                    : /android/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "")
+                    ? "Configuración → Aplicaciones → [Navegador] → Notificaciones → Activar"
+                    : "Candado (barra URL) → Notificaciones → Permitir"}
+                </p>
+                <p className="text-[10px] text-red-400 mt-0.5">Vuelve a la app después — se actualizará solo.</p>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                onClick={requestNotificationPermission}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold h-9"
+              >
+                Activar notificaciones
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
