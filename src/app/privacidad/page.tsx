@@ -13,7 +13,7 @@ export default function PrivacidadPage() {
         style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }}
       >
         <button
-          onClick={() => router.back()}
+          onClick={() => window.history.length > 1 ? router.back() : router.push("/")}
           className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
