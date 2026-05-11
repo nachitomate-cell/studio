@@ -118,6 +118,16 @@ export function useBackgroundGeolocation({
         return () => {};
       }
 
+      // Deduplicar: getCurrentPosition y watchPosition disparan el error por separado
+      // cuando el permiso está denegado — solo notificar una vez.
+      let errorReported = false;
+      const reportError = (e: GeolocationPositionError) => {
+        if (!errorReported) {
+          errorReported = true;
+          onErrorRef.current?.(e.message);
+        }
+      };
+
       const opts: PositionOptions = {
         enableHighAccuracy: true,
         timeout: 15_000,
@@ -126,23 +136,15 @@ export function useBackgroundGeolocation({
 
       // Posición inmediata al iniciar
       navigator.geolocation.getCurrentPosition(
-        (p) =>
-          onPositionRef.current({
-            latitude: p.coords.latitude,
-            longitude: p.coords.longitude,
-          }),
-        (e) => onErrorRef.current?.(e.message),
+        (p) => onPositionRef.current({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+        reportError,
         opts
       );
 
       // Seguimiento continuo
       const watchId = navigator.geolocation.watchPosition(
-        (p) =>
-          onPositionRef.current({
-            latitude: p.coords.latitude,
-            longitude: p.coords.longitude,
-          }),
-        (e) => onErrorRef.current?.(e.message),
+        (p) => onPositionRef.current({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+        reportError,
         opts
       );
 

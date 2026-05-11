@@ -53,10 +53,7 @@ export function useGeofencing() {
     mountedRef.current = true;
 
     // Solo corre en dispositivos nativos (iOS/Android), no en la web.
-    if (!Capacitor.isNativePlatform()) {
-      console.log('Geofencing ignorado: El motor de geocercas requiere un entorno nativo (iOS/Android).');
-      return;
-    }
+    if (!Capacitor.isNativePlatform()) return;
 
     const initGeofencing = async () => {
       try {
