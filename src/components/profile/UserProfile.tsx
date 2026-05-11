@@ -1517,7 +1517,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   }
                   // Fallback si no tiene código aún
                   if (userData?.codigoReferido) {
-                    const msg = `¡Únete al Club Patio Curauma! Usa mi código *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.cl/unete`;
+                    const msg = `¡Únete al Club Patio Curauma! Usa mi código *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.synaptechspa.cl/unete`;
                     if (typeof navigator.share === "function") {
                       navigator.share({ title: "Club Patio Curauma", text: msg }).catch(() => {});
                     } else {
@@ -1698,7 +1698,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
-                const msg = `¡Únete al Club Patio Curauma y gana sellos y premios! Usa mi código de referido *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.cl/unete`;
+                const msg = `¡Únete al Club Patio Curauma y gana sellos y premios! Usa mi código de referido *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.synaptechspa.cl/unete`;
                 if (typeof navigator.share === "function") {
                   navigator.share({ title: "Club Patio Curauma", text: msg }).catch(() => {});
                 } else {
