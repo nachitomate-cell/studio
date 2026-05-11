@@ -59,6 +59,232 @@ function calcularRango(sellos: number): { nombre: string; color: string; emoji: 
   return { nombre: "Visitante", color: "#9DCC65", emoji: "🌱", siguiente: 5, progreso: Math.round((sellos / 5) * 100) };
 }
 
+// ── Stats Info Modal ─────────────────────────────────────────────────────────
+const RANGOS = [
+  { nombre: "Visitante", emoji: "🌱", color: "#9DCC65", bg: "#F0FDF4", min: 0,   max: 4   },
+  { nombre: "Bronce",    emoji: "🥉", color: "#C9920A", bg: "#FEF9EC", min: 5,   max: 14  },
+  { nombre: "Plata",     emoji: "⭐", color: "#94A3B8", bg: "#F8FAFC", min: 15,  max: 49  },
+  { nombre: "Oro",       emoji: "🏆", color: "#D3B673", bg: "#FEFCE8", min: 50,  max: 99  },
+  { nombre: "Platino",   emoji: "💎", color: "#A8D5E2", bg: "#F0F9FF", min: 100, max: null },
+];
+
+function StatsInfoModal({
+  sellos,
+  sellosHistoricos,
+  racha,
+  rachaMaxima,
+  rango,
+  onClose,
+}: {
+  sellos: number;
+  sellosHistoricos: number;
+  racha: number;
+  rachaMaxima: number;
+  rango: ReturnType<typeof calcularRango>;
+  onClose: () => void;
+}) {
+  const sellosEnTarjeta = sellos % 10 || (sellos > 0 && sellos % 10 === 0 ? 10 : 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col"
+        style={{ maxHeight: "90vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4 shrink-0" />
+
+        {/* Header */}
+        <div className="px-7 pt-5 pb-4 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-xl font-black text-slate-800">Tus Estadísticas</h2>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">Cómo funcionan sellos, racha y rango</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="h-px bg-slate-100 mx-7 shrink-0" />
+
+        <div className="overflow-y-auto px-7 py-5 space-y-5 flex-1">
+
+          {/* ── Sellos ── */}
+          <div className="rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 bg-primary/5">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <span className="text-xl">🎟️</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-black text-slate-800">Sellos</p>
+                <p className="text-[11px] text-slate-400 font-medium">Tu tarjeta de fidelidad</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-black text-primary leading-none">{sellos}</p>
+                <p className="text-[10px] text-slate-400 font-bold">total</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-500 leading-relaxed">
+                Cada visita a un local aliado y escaneo de QR te otorga <span className="font-bold text-slate-700">1 sello</span>.
+                Junta <span className="font-bold text-slate-700">10 sellos</span> para completar una tarjeta y canjear un premio.
+              </p>
+              {/* Mini tarjeta visual */}
+              <div className="flex gap-1.5 flex-wrap">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black"
+                    style={{
+                      background: i < sellosEnTarjeta ? "var(--primary)" : "#F1F5F9",
+                      color: i < sellosEnTarjeta ? "#fff" : "#CBD5E1",
+                    }}
+                  >
+                    {i < sellosEnTarjeta ? "★" : "○"}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-3 text-center">
+                <div className="flex-1 bg-slate-50 rounded-xl py-2 px-3">
+                  <p className="text-base font-black text-slate-700">{sellosEnTarjeta}<span className="text-xs font-bold text-slate-400">/10</span></p>
+                  <p className="text-[10px] text-slate-400 font-bold">En tarjeta actual</p>
+                </div>
+                <div className="flex-1 bg-slate-50 rounded-xl py-2 px-3">
+                  <p className="text-base font-black text-slate-700">{sellosHistoricos}</p>
+                  <p className="text-[10px] text-slate-400 font-bold">Histórico total</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Racha ── */}
+          <div className="rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4" style={{ background: racha >= 3 ? "#FFF7ED" : "#F8FAFC" }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: racha >= 3 ? "#FED7AA" : "#F1F5F9" }}>
+                <span className="text-xl">{racha >= 3 ? "🔥" : "📅"}</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-black text-slate-800">Racha</p>
+                <p className="text-[11px] text-slate-400 font-medium">Días consecutivos en la app</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-black leading-none" style={{ color: racha >= 3 ? "#f97316" : "#94a3b8" }}>
+                  {racha}{racha >= 3 ? "🔥" : ""}
+                </p>
+                <p className="text-[10px] text-slate-400 font-bold">días</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-500 leading-relaxed">
+                Abre la app cada día para mantener tu racha. Si saltas un día,
+                vuelve a <span className="font-bold text-slate-700">1</span>.
+                Con <span className="font-bold text-orange-500">3 días seguidos</span> se activa el 🔥.
+              </p>
+              <div className="flex gap-3 text-center">
+                <div className="flex-1 rounded-xl py-2 px-3" style={{ background: "#FFF7ED" }}>
+                  <p className="text-base font-black leading-none" style={{ color: "#f97316" }}>{racha}🔥</p>
+                  <p className="text-[10px] font-bold mt-0.5" style={{ color: "#fdba74" }}>Racha actual</p>
+                </div>
+                <div className="flex-1 bg-slate-50 rounded-xl py-2 px-3">
+                  <p className="text-base font-black text-slate-700 leading-none">{rachaMaxima}</p>
+                  <p className="text-[10px] text-slate-400 font-bold mt-0.5">Mejor racha</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Rango ── */}
+          <div className="rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4" style={{ background: RANGOS.find(r => r.nombre === rango.nombre)?.bg ?? "#F8FAFC" }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${rango.color}22` }}>
+                <span className="text-xl">{rango.emoji}</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-black text-slate-800">Rango</p>
+                <p className="text-[11px] font-bold" style={{ color: rango.color }}>{rango.nombre}</p>
+              </div>
+              {rango.siguiente !== null && (
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-400 font-bold">{sellosHistoricos} / {rango.siguiente}</p>
+                  <p className="text-[10px] text-slate-400">para el siguiente</p>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-sm text-slate-500 leading-relaxed">
+                El rango sube automáticamente según tus <span className="font-bold text-slate-700">sellos históricos</span> acumulados,
+                nunca baja aunque canjees premios.
+              </p>
+
+              {/* Progress bar */}
+              {rango.siguiente !== null && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                    <span>{rango.nombre}</span>
+                    <span>{RANGOS.find(r => r.min === rango.siguiente)?.nombre ?? ""}</span>
+                  </div>
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${rango.progreso}%`, backgroundColor: rango.color }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 text-right">{rango.progreso}% completado</p>
+                </div>
+              )}
+
+              {/* Rangos list */}
+              <div className="space-y-2">
+                {RANGOS.map((r) => {
+                  const isCurrent = r.nombre === rango.nombre;
+                  return (
+                    <div
+                      key={r.nombre}
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all"
+                      style={{ background: isCurrent ? `${r.color}18` : "#F8FAFC", border: isCurrent ? `1.5px solid ${r.color}55` : "1.5px solid transparent" }}
+                    >
+                      <span className="text-base w-6 text-center">{r.emoji}</span>
+                      <div className="flex-1">
+                        <p className="text-xs font-black" style={{ color: isCurrent ? r.color : "#475569" }}>{r.nombre}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {r.max !== null ? `${r.min} – ${r.max} sellos` : `${r.min}+ sellos`}
+                        </p>
+                      </div>
+                      {isCurrent && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: r.color }}>
+                          Actual
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-7 py-5 shrink-0 border-t border-slate-100">
+          <button
+            onClick={onClose}
+            className="w-full h-12 rounded-2xl font-black text-sm text-white transition-all active:scale-[0.98]"
+            style={{ backgroundColor: "#D3B673" }}
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const AVATAR_OPTIONS = [
   { id: 'User',        icon: UserIcon,     color: 'bg-slate-100 text-slate-600' },
   { id: 'Smile',       icon: Smile,        color: 'bg-yellow-100 text-yellow-600' },
@@ -525,6 +751,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [notifDenied, setNotifDenied] = useState(false);
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
+  const [showStatsInfo, setShowStatsInfo] = useState(false);
   const [showPermisos, setShowPermisos] = useState(false);
   const [showReferralInfo, setShowReferralInfo] = useState(false);
   // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
@@ -1015,10 +1242,15 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
         {/* Stats Rápidos */}
         {!isEditing && !isEntrepreneur && (
-          <div className="grid grid-cols-3 gap-px bg-slate-100/50 border-t border-slate-50">
-            <div className="p-4 bg-white/50 backdrop-blur-sm flex flex-col items-center justify-center border-r border-slate-50">
+          <button
+            className="w-full grid grid-cols-3 gap-px bg-slate-100/50 border-t border-slate-50 cursor-pointer active:bg-slate-50/80 transition-colors"
+            onClick={() => setShowStatsInfo(true)}
+            aria-label="Ver explicación de estadísticas"
+          >
+            <div className="p-4 bg-white/50 backdrop-blur-sm flex flex-col items-center justify-center border-r border-slate-50 relative">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sellos</span>
               <span className="text-xl font-black text-primary">{sellos}</span>
+              <Info className="absolute top-2 right-2 w-3 h-3 text-slate-300" />
             </div>
             <div className="p-4 bg-white/50 backdrop-blur-sm flex flex-col items-center justify-center border-r border-slate-50">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Racha</span>
@@ -1030,7 +1262,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rango</span>
               <span className="text-xl font-black">{rango.emoji}</span>
             </div>
-          </div>
+          </button>
         )}
       </div>
 
@@ -1675,6 +1907,16 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {showPermisos && <PermissionsModal onClose={() => setShowPermisos(false)} />}
       {showReferralInfo && <ReferralInfoModal onClose={() => setShowReferralInfo(false)} />}
+      {showStatsInfo && (
+        <StatsInfoModal
+          sellos={sellos}
+          sellosHistoricos={sellosHistoricos}
+          racha={racha}
+          rachaMaxima={userData?.rachaMaxima || racha}
+          rango={rango}
+          onClose={() => setShowStatsInfo(false)}
+        />
+      )}
 
       {/* ── Código de Referido ─────────────────────────────────────────────── */}
       {userData?.codigoReferido && !isEditing && (
