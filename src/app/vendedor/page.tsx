@@ -220,6 +220,14 @@ export default function VendedorPage() {
     };
   }, []);
 
+  // Auto-load CRM when entering the clientes view
+  useEffect(() => {
+    if (view === "clientes" && allVentas.length === 0 && !crmLoading) {
+      loadCRM();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
   const loadCRM = async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -706,7 +714,7 @@ export default function VendedorPage() {
                     <TrendingUp className="w-4 h-4 text-amber-500" />
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Total sellos</span>
                   </div>
-                  <p className="text-xl font-black text-slate-800">{crm.totalRegistros}</p>
+                  <p className="text-xl font-black text-slate-800">{userData?.sellosEntregadosHistorico ?? crm.totalRegistros}</p>
                 </div>
               </div>
 
