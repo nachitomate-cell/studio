@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { X, Bell, MapPin, Camera, CheckCircle2, XCircle, AlertTriangle, ChevronRight } from "lucide-react";
+import { registerFcmToken } from "@/lib/fcmTokenManager";
 
 interface PermissionsModalProps {
   onClose: () => void;
@@ -15,6 +16,34 @@ interface PermsState {
   camera: PermissionStatus;
 }
 
+type Platform = "ios" | "android" | "desktop";
+
+function detectPlatform(): Platform {
+  if (typeof window === "undefined") return "desktop";
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua)) return "ios";
+  if (/Android/.test(ua)) return "android";
+  return "desktop";
+}
+
+const INSTRUCTIONS: Record<keyof PermsState, Record<Platform, string>> = {
+  notifications: {
+    ios: "Ajustes → [Safari/Chrome] → Notificaciones → Activar",
+    android: "Configuración → Aplicaciones → [Navegador] → Notificaciones → Activar",
+    desktop: "Haz clic en el candado (barra de URL) → Notificaciones → Permitir",
+  },
+  location: {
+    ios: 'Ajustes → Privacidad → Localización → [Navegador] → "Al usar la app"',
+    android: "Configuración → Aplicaciones → [Navegador] → Permisos → Ubicación → Permitir",
+    desktop: "Haz clic en el candado (barra de URL) → Ubicación → Permitir",
+  },
+  camera: {
+    ios: "Ajustes → Privacidad → Cámara → [Navegador] → Activar",
+    android: "Configuración → Aplicaciones → [Navegador] → Permisos → Cámara → Permitir",
+    desktop: "Haz clic en el candado (barra de URL) → Cámara → Permitir",
+  },
+};
+
 export default function PermissionsModal({ onClose }: PermissionsModalProps) {
   const [perms, setPerms] = useState<PermsState>({
     notifications: "checking",
@@ -22,50 +51,74 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
     camera: "checking",
   });
   const [loading, setLoading] = useState<keyof PermsState | null>(null);
+  const [platform] = useState<Platform>(() => detectPlatform());
 
-  // Leer estados actuales
+  // Re-check notification permission (property-based, no event API)
+  const recheckNotifications = useCallback(() => {
+    if (!("Notification" in window)) {
+      setPerms((p) => ({ ...p, notifications: "unsupported" }));
+    } else {
+      setPerms((p) => ({ ...p, notifications: Notification.permission as PermissionStatus }));
+    }
+  }, []);
+
+  // Initial setup: read current states + register change listeners (once)
   useEffect(() => {
-    const check = async () => {
-      // Notificaciones
-      if (!("Notification" in window)) {
-        setPerms((p) => ({ ...p, notifications: "unsupported" }));
-      } else {
-        setPerms((p) => ({ ...p, notifications: Notification.permission as PermissionStatus }));
+    const cleanups: (() => void)[] = [];
+
+    recheckNotifications();
+
+    if (!("permissions" in navigator)) {
+      setPerms((p) => ({ ...p, location: "prompt", camera: "prompt" }));
+      return;
+    }
+
+    const setup = async () => {
+      // Geolocation
+      try {
+        const geo = await navigator.permissions.query({ name: "geolocation" });
+        setPerms((p) => ({ ...p, location: geo.state as PermissionStatus }));
+        const onGeo = () => setPerms((p) => ({ ...p, location: geo.state as PermissionStatus }));
+        geo.addEventListener("change", onGeo);
+        cleanups.push(() => geo.removeEventListener("change", onGeo));
+      } catch {
+        setPerms((p) => ({ ...p, location: "unsupported" }));
       }
 
-      // Ubicación y Cámara via permissions API
-      if ("permissions" in navigator) {
-        try {
-          const geo = await navigator.permissions.query({ name: "geolocation" });
-          setPerms((p) => ({ ...p, location: geo.state as PermissionStatus }));
-          geo.onchange = () => setPerms((p) => ({ ...p, location: geo.state as PermissionStatus }));
-        } catch {
-          setPerms((p) => ({ ...p, location: "unsupported" }));
-        }
-
-        try {
-          const cam = await navigator.permissions.query({ name: "camera" as PermissionName });
-          setPerms((p) => ({ ...p, camera: cam.state as PermissionStatus }));
-          cam.onchange = () => setPerms((p) => ({ ...p, camera: cam.state as PermissionStatus }));
-        } catch {
-          // En algunos navegadores camera no es consultable — asumimos prompt
-          setPerms((p) => ({ ...p, camera: "prompt" }));
-        }
-      } else {
-        setPerms((p) => ({ ...p, location: "prompt", camera: "prompt" }));
+      // Camera
+      try {
+        const cam = await navigator.permissions.query({ name: "camera" as PermissionName });
+        setPerms((p) => ({ ...p, camera: cam.state as PermissionStatus }));
+        const onCam = () => setPerms((p) => ({ ...p, camera: cam.state as PermissionStatus }));
+        cam.addEventListener("change", onCam);
+        cleanups.push(() => cam.removeEventListener("change", onCam));
+      } catch {
+        setPerms((p) => ({ ...p, camera: "prompt" }));
       }
     };
 
-    check();
-  }, []);
+    setup();
+    return () => cleanups.forEach((fn) => fn());
+  }, [recheckNotifications]);
+
+  // Re-check notification status when user returns from device settings
+  // (location/camera auto-update via their permission change listeners)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") recheckNotifications();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [recheckNotifications]);
 
   const requestNotifications = async () => {
-    if (!("Notification" in window)) return;
     setLoading("notifications");
     try {
-      const result = await Notification.requestPermission();
-      setPerms((p) => ({ ...p, notifications: result as PermissionStatus }));
+      // registerFcmToken handles requestPermission + FCM token save in one call
+      await registerFcmToken();
     } finally {
+      // Read the actual permission state regardless of FCM result
+      recheckNotifications();
       setLoading(null);
     }
   };
@@ -73,14 +126,8 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
   const requestLocation = () => {
     setLoading("location");
     navigator.geolocation.getCurrentPosition(
-      () => {
-        setPerms((p) => ({ ...p, location: "granted" }));
-        setLoading(null);
-      },
-      () => {
-        setPerms((p) => ({ ...p, location: "denied" }));
-        setLoading(null);
-      },
+      () => { setPerms((p) => ({ ...p, location: "granted" })); setLoading(null); },
+      () => { setPerms((p) => ({ ...p, location: "denied" })); setLoading(null); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
@@ -109,10 +156,8 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
         style={{ maxHeight: "85vh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Pastilla */}
         <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4 shrink-0" />
 
-        {/* Header */}
         <div className="px-8 pt-5 pb-4 shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -132,7 +177,6 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
 
         <div className="h-px bg-slate-100 mx-8 shrink-0" />
 
-        {/* Lista de permisos */}
         <div className="overflow-y-auto px-8 py-5 space-y-4 flex-1">
           <PermRow
             icon={<Bell className="w-5 h-5" />}
@@ -141,7 +185,7 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
             status={perms.notifications}
             loading={loading === "notifications"}
             onRequest={requestNotifications}
-            iosInstructions="Ajustes → [Tu navegador] → Notificaciones → Activar"
+            instructions={INSTRUCTIONS.notifications[platform]}
           />
 
           <PermRow
@@ -151,7 +195,7 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
             status={perms.location}
             loading={loading === "location"}
             onRequest={requestLocation}
-            iosInstructions='Ajustes → Privacidad → Localización → [Tu navegador] → "Al usar la app"'
+            instructions={INSTRUCTIONS.location[platform]}
           />
 
           <PermRow
@@ -161,12 +205,10 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
             status={perms.camera}
             loading={loading === "camera"}
             onRequest={requestCamera}
-            iosInstructions="Ajustes → Privacidad → Cámara → [Tu navegador] → Activar"
+            instructions={INSTRUCTIONS.camera[platform]}
           />
-
         </div>
 
-        {/* Footer */}
         <div className="px-8 py-5 shrink-0 border-t border-slate-100">
           <button
             onClick={onClose}
@@ -183,7 +225,7 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
 
 function StatusBadge({ status }: { status: PermissionStatus }) {
   if (status === "checking") {
-    return <span className="text-[11px] font-bold text-slate-400">Verificando...</span>;
+    return <span className="text-[11px] font-bold text-slate-400">Verificando…</span>;
   }
   if (status === "granted") {
     return (
@@ -206,7 +248,6 @@ function StatusBadge({ status }: { status: PermissionStatus }) {
       </span>
     );
   }
-  // prompt
   return (
     <span className="flex items-center gap-1 text-[11px] font-bold text-amber-500">
       <AlertTriangle className="w-3.5 h-3.5" /> Sin configurar
@@ -221,7 +262,7 @@ function PermRow({
   status,
   loading,
   onRequest,
-  iosInstructions,
+  instructions,
 }: {
   icon: React.ReactNode;
   name: string;
@@ -229,11 +270,10 @@ function PermRow({
   status: PermissionStatus;
   loading: boolean;
   onRequest: () => void;
-  iosInstructions: string;
+  instructions: string;
 }) {
   return (
     <div className="rounded-2xl border border-slate-100 overflow-hidden">
-      {/* Fila principal */}
       <div className="flex items-center gap-3 p-4">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
@@ -263,7 +303,6 @@ function PermRow({
         <StatusBadge status={status} />
       </div>
 
-      {/* Acción según estado */}
       {status === "prompt" && (
         <div className="px-4 pb-4">
           <button
@@ -272,7 +311,7 @@ function PermRow({
             className="w-full h-9 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] disabled:opacity-60"
             style={{ backgroundColor: "#D3B673" }}
           >
-            {loading ? "Solicitando..." : <>Activar <ChevronRight className="w-3.5 h-3.5" /></>}
+            {loading ? "Solicitando…" : <><span>Activar</span><ChevronRight className="w-3.5 h-3.5" /></>}
           </button>
         </div>
       )}
@@ -280,11 +319,14 @@ function PermRow({
       {status === "denied" && (
         <div className="px-4 pb-4 space-y-2">
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Permiso bloqueado. Para activarlo ve a:
+            Permiso bloqueado. Actívalo desde:
           </p>
           <div className="bg-slate-50 rounded-xl px-3 py-2">
-            <p className="text-[11px] font-bold text-slate-600">{iosInstructions}</p>
+            <p className="text-[11px] font-bold text-slate-600">{instructions}</p>
           </div>
+          <p className="text-[10px] text-slate-400">
+            Luego vuelve a la app — el estado se actualizará solo.
+          </p>
         </div>
       )}
     </div>
