@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy, getDoc, setDoc, writeBatch, increment, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, limit, orderBy, getDoc, setDoc, writeBatch, increment, addDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,6 +77,9 @@ export default function ModeradorPage() {
   const [sugerencias, setSugerencias] = useState<any[]>([]);
   const [loadingSugerencias, setLoadingSugerencias] = useState(true);
 
+  // Refresh manual (reemplaza onSnapshot)
+  const [refreshing, setRefreshing] = useState(false);
+
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -107,29 +110,28 @@ export default function ModeradorPage() {
       fetchClientes();
       loadConfigBienvenida();
       loadReferralStats();
+      fetchLiveData();
     });
 
-    // Suscripción a Sugerencias de usuarios
-    const sugerenciasQ = query(collection(db, "sugerencias"), orderBy("fecha", "desc"), limit(50));
-    const unsubSugerencias = onSnapshot(sugerenciasQ, (snap) => {
-      setSugerencias(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoadingSugerencias(false);
-    }, () => setLoadingSugerencias(false));
-
-    // Suscripción al Radar de Anomalías
-    const transQ = query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(30));
-    const unsubscribeTrans = onSnapshot(transQ, (snapshot) => {
-      setRecentTrans(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (error) => {
-      console.warn("Radar de anomalías no tiene permisos o colección vacía:", error);
-    });
-
-    return () => {
-      unsubscribe();
-      unsubscribeTrans();
-      unsubSugerencias();
-    };
+    return () => { unsubscribe(); };
   }, [router]);
+
+  const fetchLiveData = async (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true);
+    try {
+      const [sugerSnap, logsSnap] = await Promise.all([
+        getDocs(query(collection(db, "sugerencias"), orderBy("fecha", "desc"), limit(50))),
+        getDocs(query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(30))),
+      ]);
+      setSugerencias(sugerSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setRecentTrans(logsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.warn("fetchLiveData:", e);
+    } finally {
+      setLoadingSugerencias(false);
+      if (showSpinner) setRefreshing(false);
+    }
+  };
 
   // Countdown para el bloqueo del PIN
   useEffect(() => {
@@ -531,6 +533,15 @@ export default function ModeradorPage() {
             <p className="text-slate-500 font-medium">Panel de administración global avanzado para Master Admin.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => { fetchClientes(); loadReferralStats(); fetchLiveData(true); }}
+              disabled={refreshing}
+              className="flex items-center gap-2 rounded-2xl h-12 px-5 border-slate-200 text-slate-600 font-bold shadow-sm hover:bg-slate-100 transition-all whitespace-nowrap"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Actualizando…" : "Actualizar"}
+            </Button>
             <Link href="/moderador/sellos">
               <Button
                 variant="outline"
