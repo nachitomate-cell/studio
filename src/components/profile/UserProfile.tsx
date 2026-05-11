@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
-import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -754,6 +754,11 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [showStatsInfo, setShowStatsInfo] = useState(false);
   const [showPermisos, setShowPermisos] = useState(false);
   const [showReferralInfo, setShowReferralInfo] = useState(false);
+  const [showSugerencias, setShowSugerencias] = useState(false);
+  const [sugerenciaTexto, setSugerenciaTexto] = useState("");
+  const [sugerenciaCategoria, setSugerenciaCategoria] = useState<"mejora" | "problema" | "otro">("mejora");
+  const [sugerenciaLoading, setSugerenciaLoading] = useState(false);
+  const [sugerenciaEnviada, setSugerenciaEnviada] = useState(false);
   // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
   // pero NO instaló la app en su pantalla de inicio (modo standalone).
   const [showIosHint, setShowIosHint] = useState(false);
@@ -2050,6 +2055,21 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
 
       {/* FOOTER DE CUMPLIMIENTO APP STORE */}
       <section className="px-8 space-y-4 pt-6">
+        {/* Botón de sugerencias */}
+        <button
+          onClick={() => { setShowSugerencias(true); setSugerenciaEnviada(false); setSugerenciaTexto(""); setSugerenciaCategoria("mejora"); }}
+          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-primary/30 hover:bg-primary/5 transition-all group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/15 transition-colors">
+            <MessageSquare className="w-4 h-4" style={{ color: "#D3B673" }} />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-bold text-slate-700 group-hover:text-slate-900">Enviar sugerencia</p>
+            <p className="text-[11px] text-slate-400 font-medium">Ayúdanos a mejorar la app</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary transition-colors" />
+        </button>
+
         <div className="flex flex-col gap-3">
           <Link href="/privacidad" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-primary transition-colors">
             POLÍTICA DE PRIVACIDAD <ExternalLink className="w-3 h-3" />
@@ -2067,6 +2087,132 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           <p className="text-[10px] text-slate-400 font-light mt-4">© {new Date().getFullYear()} {PATIO_INFO.name}</p>
         </div>
       </section>
+      {/* ── Modal de Sugerencias ─────────────────────────────────────────── */}
+      {showSugerencias && (
+        <div
+          className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowSugerencias(false)}
+        >
+          <div
+            className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col"
+            style={{ maxHeight: "85vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4 shrink-0" />
+
+            <div className="px-7 pt-5 pb-4 flex items-start justify-between shrink-0">
+              <div>
+                <h2 className="text-xl font-black text-slate-800">Enviar sugerencia</h2>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Tu feedback llega directo al equipo</p>
+              </div>
+              <button
+                onClick={() => setShowSugerencias(false)}
+                className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="h-px bg-slate-100 mx-7 shrink-0" />
+
+            {sugerenciaEnviada ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 px-7 py-12 text-center">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(157,204,101,0.15)" }}>
+                  <CheckCircle2 className="w-8 h-8" style={{ color: "#9DCC65" }} />
+                </div>
+                <div>
+                  <p className="text-lg font-black text-slate-800">¡Gracias por tu feedback!</p>
+                  <p className="text-sm text-slate-400 font-medium mt-1">El equipo revisará tu sugerencia pronto.</p>
+                </div>
+                <button
+                  onClick={() => setShowSugerencias(false)}
+                  className="mt-2 h-12 px-8 rounded-2xl font-black text-sm text-white transition-all active:scale-[0.98]"
+                  style={{ backgroundColor: "#D3B673" }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-y-auto px-7 py-5 flex-1 flex flex-col gap-5">
+                {/* Categoría */}
+                <div className="space-y-2">
+                  <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Tipo</p>
+                  <div className="flex gap-2">
+                    {([
+                      { key: "mejora",   label: "💡 Mejora",   color: "#d97706", bg: "#fef3c7" },
+                      { key: "problema", label: "🐛 Problema",  color: "#dc2626", bg: "#fee2e2" },
+                      { key: "otro",     label: "💬 Otro",      color: "#6366f1", bg: "#ede9fe" },
+                    ] as const).map(({ key, label, color, bg }) => (
+                      <button
+                        key={key}
+                        onClick={() => setSugerenciaCategoria(key)}
+                        className="flex-1 py-2 rounded-xl text-xs font-black transition-all border-2"
+                        style={
+                          sugerenciaCategoria === key
+                            ? { backgroundColor: bg, color, borderColor: color }
+                            : { backgroundColor: "#f8fafc", color: "#94a3b8", borderColor: "transparent" }
+                        }
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Texto */}
+                <div className="space-y-2 flex-1">
+                  <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Tu sugerencia</p>
+                  <textarea
+                    value={sugerenciaTexto}
+                    onChange={(e) => setSugerenciaTexto(e.target.value)}
+                    placeholder="Escribe aquí tu idea, mejora o problema que encontraste…"
+                    maxLength={500}
+                    rows={5}
+                    className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+                  />
+                  <p className="text-[10px] text-slate-400 text-right">{sugerenciaTexto.length}/500</p>
+                </div>
+              </div>
+            )}
+
+            {!sugerenciaEnviada && (
+              <div className="px-7 py-5 shrink-0 border-t border-slate-100">
+                <button
+                  disabled={sugerenciaTexto.trim().length < 10 || sugerenciaLoading}
+                  onClick={async () => {
+                    if (!user || sugerenciaTexto.trim().length < 10) return;
+                    setSugerenciaLoading(true);
+                    try {
+                      await addDoc(collection(db, "sugerencias"), {
+                        userId: user.uid,
+                        userName: userData?.nombre || user.displayName || "Anónimo",
+                        userEmail: user.email || "",
+                        texto: sugerenciaTexto.trim(),
+                        categoria: sugerenciaCategoria,
+                        fecha: new Date().toISOString(),
+                        leida: false,
+                      });
+                      setSugerenciaEnviada(true);
+                    } catch {
+                      toast({ variant: "destructive", title: "Error", description: "No se pudo enviar la sugerencia. Intenta de nuevo." });
+                    } finally {
+                      setSugerenciaLoading(false);
+                    }
+                  }}
+                  className="w-full h-12 rounded-2xl font-black text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ backgroundColor: "#D3B673" }}
+                >
+                  {sugerenciaLoading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                    : <><MessageSquare className="w-4 h-4" /> Enviar sugerencia</>
+                  }
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Modal Selector de Avatar ──────────────────────────────────────── */}
       {showAvatarModal && (
         <div

@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy, getDoc, setDoc, writeBatch, increment } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy, getDoc, setDoc, writeBatch, increment, addDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock, MessageSquare, CheckCheck, Eye } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,10 @@ export default function ModeradorPage() {
   // Confirmación de eliminación
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<Cliente | null>(null);
 
+  // Sugerencias de usuarios
+  const [sugerencias, setSugerencias] = useState<any[]>([]);
+  const [loadingSugerencias, setLoadingSugerencias] = useState(true);
+
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -105,6 +109,13 @@ export default function ModeradorPage() {
       loadReferralStats();
     });
 
+    // Suscripción a Sugerencias de usuarios
+    const sugerenciasQ = query(collection(db, "sugerencias"), orderBy("fecha", "desc"), limit(50));
+    const unsubSugerencias = onSnapshot(sugerenciasQ, (snap) => {
+      setSugerencias(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoadingSugerencias(false);
+    }, () => setLoadingSugerencias(false));
+
     // Suscripción al Radar de Anomalías
     const transQ = query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(30));
     const unsubscribeTrans = onSnapshot(transQ, (snapshot) => {
@@ -116,6 +127,7 @@ export default function ModeradorPage() {
     return () => {
       unsubscribe();
       unsubscribeTrans();
+      unsubSugerencias();
     };
   }, [router]);
 
@@ -388,6 +400,14 @@ export default function ModeradorPage() {
       toast({ title: "Usuario eliminado", description: `${cliente.nombre} fue eliminado del sistema completo.` });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error al eliminar", description: error.message || "No se pudo eliminar el usuario." });
+    }
+  };
+
+  const markSugerenciaLeida = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "sugerencias", id), { leida: true });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo marcar la sugerencia." });
     }
   };
 
@@ -1016,6 +1036,90 @@ export default function ModeradorPage() {
                         <span className="shrink-0 text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-600 px-2 py-1 rounded-full">
                           Pendiente
                         </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* T7. SUGERENCIAS DE USUARIOS */}
+          <Card className="border-none shadow-xl shadow-pink-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-pink-100 md:col-span-2">
+            <div className="bg-pink-50/50 p-6 border-b border-pink-100/50 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-pink-600">
+                  <MessageSquare className="w-5 h-5" />
+                  <h3 className="font-bold text-lg">Sugerencias de Usuarios</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {sugerencias.filter(s => !s.leida).length > 0 && (
+                    <span className="text-[10px] font-black bg-pink-500 text-white px-2.5 py-1 rounded-full">
+                      {sugerencias.filter(s => !s.leida).length} nueva{sugerencias.filter(s => !s.leida).length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">Feedback enviado por los socios desde la app.</p>
+            </div>
+            <CardContent className="p-0 bg-slate-50/20 max-h-[420px] overflow-y-auto">
+              {loadingSugerencias ? (
+                <div className="flex items-center justify-center py-10 gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-pink-400" />
+                  <p className="text-xs text-slate-400 font-bold">Cargando sugerencias...</p>
+                </div>
+              ) : sugerencias.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                    <MessageSquare className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Sin sugerencias aún</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {sugerencias.map((s) => {
+                    const CATEGORIA_MAP: Record<string, { label: string; color: string; bg: string }> = {
+                      mejora:   { label: "💡 Mejora",  color: "#d97706", bg: "#fef3c7" },
+                      problema: { label: "🐛 Problema", color: "#dc2626", bg: "#fee2e2" },
+                      otro:     { label: "💬 Otro",    color: "#6366f1", bg: "#ede9fe" },
+                    };
+                    const cat = CATEGORIA_MAP[s.categoria] ?? CATEGORIA_MAP.otro;
+                    return (
+                      <div
+                        key={s.id}
+                        className={`p-5 flex gap-4 transition-colors ${s.leida ? "opacity-60" : "bg-pink-50/30"}`}
+                      >
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black text-slate-700">{s.userName || "Anónimo"}</span>
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                              style={{ color: cat.color, backgroundColor: cat.bg }}
+                            >
+                              {cat.label}
+                            </span>
+                            {!s.leida && (
+                              <span className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 leading-relaxed">{s.texto}</p>
+                          <p className="text-[10px] text-slate-400 font-medium">
+                            {s.fecha ? new Date(s.fecha).toLocaleString("es-CL") : "—"}
+                            {s.userEmail ? ` · ${s.userEmail}` : ""}
+                          </p>
+                        </div>
+                        {!s.leida && (
+                          <button
+                            onClick={() => markSugerenciaLeida(s.id)}
+                            title="Marcar como leída"
+                            className="shrink-0 w-8 h-8 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-400 hover:text-emerald-600 flex items-center justify-center transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        )}
+                        {s.leida && (
+                          <CheckCheck className="w-4 h-4 text-slate-300 shrink-0 mt-1" />
+                        )}
                       </div>
                     );
                   })}
