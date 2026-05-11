@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, updateDoc, doc, onSnapshot, limit, orderBy, getDoc, setDoc, writeBatch, increment } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -70,6 +70,9 @@ export default function ModeradorPage() {
   const [referralCompleted, setReferralCompleted] = useState(0);
   const [loadingReferrals, setLoadingReferrals] = useState(false);
 
+  // Confirmación de eliminación
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<Cliente | null>(null);
+
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -102,8 +105,8 @@ export default function ModeradorPage() {
       loadReferralStats();
     });
 
-    // Suscripción al Radar de Anomalías (Logs reales si existen en 'system_logs')
-    const transQ = query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(5));
+    // Suscripción al Radar de Anomalías
+    const transQ = query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(30));
     const unsubscribeTrans = onSnapshot(transQ, (snapshot) => {
       setRecentTrans(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (error) => {
@@ -188,8 +191,8 @@ export default function ModeradorPage() {
 
       data.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
       setClientes(data);
-    } catch (error) {
-      console.error("Error al obtener clientes:", error);
+    } catch {
+      // error silenciado — loadingData: false muestra tabla vacía
     } finally {
       setLoadingData(false);
     }
@@ -282,21 +285,41 @@ export default function ModeradorPage() {
 
   const handleSearchUserForRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchTerm) {
-      setFoundUser(null);
-      return;
-    }
+    if (!searchTerm) { setFoundUser(null); return; }
     setLoadingRole(true);
     try {
-      const q = query(collection(db, "usuarios"), where("correo", "==", searchTerm.toLowerCase().trim()));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        setFoundUser({ id: snap.docs[0].id, ...snap.docs[0].data() });
-      } else {
-        setFoundUser(null);
-        toast({ title: "Sin resultados", description: "Ese correo no existe en la base de datos.", variant: "destructive" });
+      const term = searchTerm.toLowerCase().trim();
+
+      // Buscar por email en ambos campos posibles (correo y email)
+      const [snapCorreo, snapEmail] = await Promise.all([
+        getDocs(query(collection(db, "usuarios"), where("correo", "==", term))),
+        getDocs(query(collection(db, "usuarios"), where("email", "==", term))),
+      ]);
+      const seen = new Set<string>();
+      const uniqueDocs = [...snapCorreo.docs, ...snapEmail.docs].filter(d => {
+        if (seen.has(d.id)) return false;
+        seen.add(d.id);
+        return true;
+      });
+
+      if (uniqueDocs.length > 0) {
+        setFoundUser({ id: uniqueDocs[0].id, ...uniqueDocs[0].data() });
+        return;
       }
-    } catch (error) {
+
+      // Fallback: buscar por nombre en el directorio ya cargado
+      const byName = clientes.filter(c => c.nombre.toLowerCase().includes(term));
+      if (byName.length > 0) {
+        const docSnap = await getDoc(doc(db, "usuarios", byName[0].id));
+        if (docSnap.exists()) {
+          setFoundUser({ id: docSnap.id, ...docSnap.data() });
+          return;
+        }
+      }
+
+      setFoundUser(null);
+      toast({ title: "Sin resultados", description: "No se encontró usuario con ese correo o nombre.", variant: "destructive" });
+    } catch {
       toast({ variant: "destructive", title: "Error", description: "Fallo de comunicación con Firebase." });
     } finally {
       setLoadingRole(false);
@@ -308,11 +331,15 @@ export default function ModeradorPage() {
     setActionLoading(true);
     try {
       const userRef = doc(db, "usuarios", foundUser.id);
-      await updateDoc(userRef, { rol: newRole, updatedAt: new Date().toISOString() });
-      setFoundUser({ ...foundUser, rol: newRole });
+      const currentRoles: string[] = foundUser.roles || [];
+      const oldRole: string | undefined = foundUser.rol;
+      // Sincronizar array `roles` junto con el campo `rol`
+      const updatedRoles = [...new Set([...currentRoles.filter((r: string) => r !== oldRole), newRole])];
+      await updateDoc(userRef, { rol: newRole, roles: updatedRoles, updatedAt: new Date().toISOString() });
+      setFoundUser({ ...foundUser, rol: newRole, roles: updatedRoles });
       toast({ title: "¡Rol Actualizado!", description: `El usuario ahora tiene el rol: ${newRole}` });
       fetchClientes();
-    } catch (error) {
+    } catch {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el rol." });
     } finally {
       setActionLoading(false);
@@ -323,7 +350,7 @@ export default function ModeradorPage() {
     if (!foundUser) return;
     setActionLoading(true);
     try {
-      await registrarCompra(db, foundUser.id, "MODERADOR_GRANT");
+      await registrarCompra(db, foundUser.id, undefined, false, "MODERADOR_GRANT");
       const nuevosSell = (foundUser.comprasRealizadas || 0) + 1;
       setFoundUser({ ...foundUser, comprasRealizadas: nuevosSell });
       toast({
@@ -337,34 +364,51 @@ export default function ModeradorPage() {
     }
   };
 
-  const handleDeleteUser = async (cliente: Cliente) => {
-    const confirmed = window.confirm(
-      `¿Eliminar a ${cliente.nombre}? Esto borrará sus datos de Firestore Y su acceso de inicio de sesión.`
-    );
-    if (!confirmed) return;
+  const handleDeleteUser = (cliente: Cliente) => {
+    setDeleteConfirmUser(cliente);
+  };
 
+  const confirmDeleteUser = async () => {
+    if (!deleteConfirmUser) return;
+    const cliente = deleteConfirmUser;
+    setDeleteConfirmUser(null);
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Sin sesión activa");
-
       const res = await fetch("/api/admin/delete-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: cliente.id, idToken }),
       });
-
       if (!res.ok) {
         const { error } = await res.json();
         throw new Error(error);
       }
-
       setClientes((prev) => prev.filter((c) => c.id !== cliente.id));
       toast({ title: "Usuario eliminado", description: `${cliente.nombre} fue eliminado del sistema completo.` });
     } catch (error: any) {
-      console.error("Error al eliminar usuario:", error);
       toast({ variant: "destructive", title: "Error al eliminar", description: error.message || "No se pudo eliminar el usuario." });
     }
   };
+
+  // Detectar anomalías: usuarios con ≥ 2 sellos en los últimos logs
+  const anomalies = useMemo(() => {
+    const twelfveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
+    const countByUser: Record<string, number> = {};
+    recentTrans.forEach((log) => {
+      const ts = log.fecha ? new Date(log.fecha).getTime() : 0;
+      if (ts > twelfveHoursAgo && log.usuarioId) {
+        countByUser[log.usuarioId] = (countByUser[log.usuarioId] || 0) + 1;
+      }
+    });
+    return recentTrans
+      .filter((log) => {
+        if (!log.usuarioId) return false;
+        const ts = log.fecha ? new Date(log.fecha).getTime() : 0;
+        return ts > twelfveHoursAgo && (countByUser[log.usuarioId] || 0) >= 2;
+      })
+      .slice(0, 10);
+  }, [recentTrans]);
 
   // --- Renderización Principal --- //
 
@@ -454,6 +498,7 @@ export default function ModeradorPage() {
   }
 
   return (
+    <>
     <main className="min-h-screen bg-slate-50/50 pb-20 p-6 md:p-12 font-sans animate-in slide-in-from-bottom-8 duration-500">
       <div className="max-w-7xl mx-auto space-y-10">
         
@@ -532,24 +577,75 @@ export default function ModeradorPage() {
         </div>
 
         {/* METRICAS (TARJETAS SUPERIORES) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="border-none shadow-lg rounded-3xl bg-white overflow-hidden relative">
-             <div className="absolute top-0 left-0 h-full w-2 bg-primary" />
-             <CardContent className="p-8">
-               <div className="flex items-center gap-6">
-                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                   <Users className="w-8 h-8" />
-                 </div>
-                 <div>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Total Registrados</p>
-                   {loadingData ? (
-                     <Loader2 className="w-6 h-6 animate-spin text-slate-300 mt-2" />
-                   ) : (
-                     <p className="text-4xl font-black text-slate-800">{clientes.length}</p>
-                   )}
-                 </div>
-               </div>
-             </CardContent>
+            <div className="absolute top-0 left-0 h-full w-2 bg-primary" />
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-0.5">Total Socios</p>
+                  {loadingData ? <Loader2 className="w-5 h-5 animate-spin text-slate-300 mt-1" /> : (
+                    <p className="text-3xl font-black text-slate-800">{clientes.length}</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-lg rounded-3xl bg-white overflow-hidden relative">
+            <div className="absolute top-0 left-0 h-full w-2 bg-violet-400" />
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center text-violet-500 shrink-0">
+                  <UserCog className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-0.5">Emprendedores</p>
+                  {loadingData ? <Loader2 className="w-5 h-5 animate-spin text-slate-300 mt-1" /> : (
+                    <p className="text-3xl font-black text-slate-800">
+                      {clientes.filter(c => c.rol === "emprendedor").length}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-lg rounded-3xl bg-white overflow-hidden relative">
+            <div className="absolute top-0 left-0 h-full w-2 bg-emerald-400" />
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shrink-0">
+                  <Share2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-0.5">Ref. Completados</p>
+                  {loadingReferrals ? <Loader2 className="w-5 h-5 animate-spin text-slate-300 mt-1" /> : (
+                    <p className="text-3xl font-black text-slate-800">{referralCompleted}</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-lg rounded-3xl bg-white overflow-hidden relative">
+            <div className="absolute top-0 left-0 h-full w-2 bg-amber-400" />
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-0.5">Ref. Pendientes</p>
+                  {loadingReferrals ? <Loader2 className="w-5 h-5 animate-spin text-slate-300 mt-1" /> : (
+                    <p className="text-3xl font-black text-slate-800">{referralPending.length}</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </div>
 
@@ -580,6 +676,7 @@ export default function ModeradorPage() {
                     <th scope="col" className="px-8 py-5">Teléfono</th>
                     <th scope="col" className="px-8 py-5">Nacimiento</th>
                     <th scope="col" className="px-8 py-5">Sellos</th>
+                    <th scope="col" className="px-8 py-5">Rol</th>
                     {currentUserEmail === MASTER_EMAIL && (
                       <th scope="col" className="px-8 py-5">Acciones</th>
                     )}
@@ -612,6 +709,26 @@ export default function ModeradorPage() {
                             {cliente.sellos} sellos
                           </span>
                         </td>
+                        <td className="px-8 py-5">
+                          {(() => {
+                            const r = cliente.rol ?? "cliente";
+                            const map: Record<string, { label: string; color: string; bg: string }> = {
+                              emprendedor:    { label: "Emprendedor", color: "#7c3aed", bg: "#f5f3ff" },
+                              director_patio: { label: "Director",    color: "#0ea5e9", bg: "#f0f9ff" },
+                              moderador:      { label: "Moderador",   color: "#ef4444", bg: "#fef2f2" },
+                              cliente:        { label: "Socio",       color: "#64748b", bg: "#f8fafc" },
+                            };
+                            const style = map[r] ?? map.cliente;
+                            return (
+                              <span
+                                className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide"
+                                style={{ color: style.color, backgroundColor: style.bg }}
+                              >
+                                {style.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         {currentUserEmail === MASTER_EMAIL && (
                           <td className="px-8 py-5">
                             <button
@@ -628,7 +745,7 @@ export default function ModeradorPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={currentUserEmail === MASTER_EMAIL ? 6 : 5} className="px-8 py-16 text-center">
+                      <td colSpan={currentUserEmail === MASTER_EMAIL ? 7 : 6} className="px-8 py-16 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <AlertTriangle className="w-8 h-8 text-slate-300" />
                           <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No hay clientes registrados en la base de datos.</p>
@@ -659,7 +776,7 @@ export default function ModeradorPage() {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input 
-                    placeholder="Buscar por correo..." 
+                    placeholder="Buscar por correo o nombre..."
                     className="pl-9 bg-white border-slate-200 rounded-xl h-12 text-sm focus:ring-primary shadow-sm"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -730,35 +847,43 @@ export default function ModeradorPage() {
           {/* T3. DETECCION DE ANOMALIAS */}
           <Card className="border-none shadow-xl shadow-amber-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-amber-100">
             <div className="bg-amber-50/50 p-6 border-b border-amber-100/50 flex flex-col gap-2">
-              <div className="flex items-center gap-3 text-amber-600">
-                <Zap className="w-5 h-5" />
-                <h3 className="font-bold text-lg">Detección de Anomalías</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-amber-600">
+                  <Zap className="w-5 h-5" />
+                  <h3 className="font-bold text-lg">Detección de Anomalías</h3>
+                </div>
+                {anomalies.length > 0 && (
+                  <span className="text-[10px] font-black bg-amber-500 text-white px-2.5 py-1 rounded-full">
+                    {anomalies.length} alerta{anomalies.length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-500 font-medium line-clamp-2">Vigila comportamientos inusuales en eventos del sistema.</p>
+              <p className="text-xs text-slate-500 font-medium">Usuarios con ≥ 2 sellos en las últimas 12 h.</p>
             </div>
             <CardContent className="p-0 bg-slate-50/20 max-h-[300px] overflow-y-auto">
               <div className="divide-y divide-slate-100">
-                {recentTrans.length > 0 ? (
-                  recentTrans.map((log) => (
-                    <div key={log.id} className="p-5 flex items-center justify-between hover:bg-white transition-colors cursor-default">
+                {anomalies.length > 0 ? (
+                  anomalies.map((log) => (
+                    <div key={log.id} className="p-5 flex items-center justify-between hover:bg-amber-50/40 transition-colors cursor-default">
                       <div className="space-y-1">
                         <p className="text-xs font-bold text-slate-700">
-                          <span className="text-primary">{log.usuario || "Admin"}</span> {log.accion || "System Call"}
+                          <span className="text-amber-600">{log.usuario || "Usuario"}</span>{" "}
+                          <span className="text-slate-400 font-normal">{log.accion || "acción"}</span>
                         </p>
                         <p className="text-[10px] text-slate-400 uppercase font-medium">
-                          {log.fecha ? new Date(log.fecha).toLocaleTimeString() : "--:--"} • TICKET: {log.id.slice(0,6)}
+                          {log.fecha ? new Date(log.fecha).toLocaleString("es-CL") : "--"} · {log.metodo || "—"}
                         </p>
                       </div>
-                      <AlertTriangle className="w-4 h-4 text-slate-300" />
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                     </div>
                   ))
                 ) : (
                   <div className="p-10 text-center flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
-                       <Zap className="w-6 h-6 text-slate-300" />
+                    <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                      <Zap className="w-6 h-6 text-emerald-300" />
                     </div>
-                    <p className="text-xs text-slate-400 font-bold tracking-wider uppercase">El sistema está limpio.</p>
-                    <p className="text-[10px] text-slate-400">No hay actividad anómala reciente.</p>
+                    <p className="text-xs text-slate-400 font-bold tracking-wider uppercase">Sin anomalías detectadas</p>
+                    <p className="text-[10px] text-slate-400">Ningún usuario acumuló sellos inusualmente rápido.</p>
                   </div>
                 )}
               </div>
@@ -934,5 +1059,51 @@ export default function ModeradorPage() {
       </div>
 
     </main>
+
+    {/* Modal de confirmación de eliminación */}
+    {deleteConfirmUser && (
+      <div
+        className="fixed inset-0 z-[300] flex items-center justify-center p-6"
+        onClick={() => setDeleteConfirmUser(null)}
+      >
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div
+          className="relative bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full space-y-5 animate-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 text-red-600">
+            <div className="w-11 h-11 rounded-2xl bg-red-50 flex items-center justify-center shrink-0">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-black text-slate-800 text-base">Eliminar usuario</p>
+              <p className="text-xs text-slate-400 font-medium">Esta acción no se puede deshacer</p>
+            </div>
+          </div>
+          <div className="bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+            <p className="text-sm font-bold text-slate-800">{deleteConfirmUser.nombre}</p>
+            <p className="text-xs text-slate-400">{deleteConfirmUser.email}</p>
+          </div>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Se eliminarán sus datos de Firestore <strong>y</strong> su acceso de inicio de sesión de forma permanente.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setDeleteConfirmUser(null)}
+              className="flex-1 h-11 rounded-2xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmDeleteUser}
+              className="flex-1 h-11 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-sm font-black transition-colors"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
