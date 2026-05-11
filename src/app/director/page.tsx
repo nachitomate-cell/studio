@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,9 @@ export default function DirectorPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [hasVendorRole, setHasVendorRole] = useState(false);
   const [activatingStore, setActivatingStore] = useState(false);
-  const [ranking, setRanking] = useState<any[]>([]);
+  const [rankingByRol, setRankingByRol] = useState<any[]>([]);
+  const [rankingByRoles, setRankingByRoles] = useState<any[]>([]);
+  const [showAllRanking, setShowAllRanking] = useState(false);
   const [premios, setPremios] = useState<any[]>([]);
   const [mensajeGlobal, setMensajeGlobal] = useState({
     titulo: "", cuerpo: "", destino: "todos", enviarEn: "",
@@ -166,25 +168,26 @@ export default function DirectorPage() {
 
     });
 
-    // ── Ranking por vendedor (Listener separado a usuarios) ────────
-    const unsubRanking = onSnapshot(
+    // ── Ranking por vendedor — doble query para cubrir rol (string) y roles (array) ──
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const toRankRow = (d: any) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        nombreTienda: data.nombreTienda || data.nombre || "Local Aliado",
+        rubro: data.rubro || "General",
+        sellosEntregados: (data.sellosEntregadosMensual?.[currentMonth]) || 0,
+        sellosEntregadosHistorico: data.sellosEntregadosHistorico || 0,
+        ultimaActividad: data.ultimaVenta || data.ultimaVisita || null,
+      };
+    };
+    const unsubRankingRol = onSnapshot(
       query(collection(db, "usuarios"), where("rol", "==", "emprendedor")),
-      (snap) => {
-        const currentMonth = new Date().toISOString().substring(0, 7);
-        const rankingData = snap.docs
-          .map((d) => {
-            const data = d.data() as any;
-            return {
-              id: d.id,
-              nombreTienda: data.nombreTienda || data.nombre || "Local Aliado",
-              rubro: data.rubro || "General",
-              sellosEntregados: (data.sellosEntregadosMensual && data.sellosEntregadosMensual[currentMonth]) || 0,
-              sellosEntregadosHistorico: data.sellosEntregadosHistorico || 0,
-            };
-          })
-          .sort((a, b) => b.sellosEntregados - a.sellosEntregados);
-        setRanking(rankingData);
-      }
+      (snap) => setRankingByRol(snap.docs.map(toRankRow))
+    );
+    const unsubRankingRoles = onSnapshot(
+      query(collection(db, "usuarios"), where("roles", "array-contains", "emprendedor")),
+      (snap) => setRankingByRoles(snap.docs.map(toRankRow))
     );
 
     // Escuchar premios en tiempo real (nueva colección)
@@ -209,11 +212,41 @@ export default function DirectorPage() {
 
     return () => {
       unsubLogs();
-      unsubRanking();
+      unsubRankingRol();
+      unsubRankingRoles();
       unsubPremios();
       unsubProfiles();
     };
   }, [isAuthorized]);
+
+  // Merged ranking: deduplica por ID, ordena por sellos del mes
+  const ranking = useMemo(() => {
+    const map = new Map<string, any>();
+    [...rankingByRol, ...rankingByRoles].forEach((emp) => {
+      if (!map.has(emp.id)) map.set(emp.id, emp);
+    });
+    return Array.from(map.values()).sort((a, b) => b.sellosEntregados - a.sellosEntregados);
+  }, [rankingByRol, rankingByRoles]);
+
+  // KPIs derivados del ranking
+  const kpiSellosMes = ranking.reduce((s, v) => s + v.sellosEntregados, 0);
+  const kpiLocalesActivos = ranking.filter((v) => v.sellosEntregados > 0).length;
+  const kpiTotalLocales = Math.max(ranking.length, allProfiles.length);
+
+  const handleExportRanking = async () => {
+    const { default: XLSX } = await import("xlsx");
+    const rows = ranking.map((emp, i) => ({
+      "#": i + 1,
+      Local: emp.nombreTienda,
+      Rubro: emp.rubro,
+      "Sellos Mes": emp.sellosEntregados,
+      "Sellos Histórico": emp.sellosEntregadosHistorico,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ranking");
+    XLSX.writeFile(wb, `ranking_emprendedores_${mesLabel.replace(/\s/g, "_").toLowerCase()}.xlsx`);
+  };
 
   const handleSendGlobalMessage = async () => {
     if (!mensajeGlobal.titulo || !mensajeGlobal.cuerpo) {
@@ -244,8 +277,7 @@ export default function DirectorPage() {
       setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "", vendedorFiltro: "" });
       // Recargar historial tras enviar
       loadHistorial();
-    } catch (error) {
-      console.error("Error encolando comunicado:", error);
+    } catch {
       toast({ variant: "destructive", title: "Error", description: "No se pudo encolar el comunicado." });
     } finally {
       setLoading(false);
@@ -445,9 +477,12 @@ export default function DirectorPage() {
       const storageRef = ref(storage, `entrepreneur_photos/${vendorId}/profile_${Date.now()}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
+      const profileSnap = await getDoc(doc(db, "entrepreneur_profiles", vendorId));
+      const existing: string[] = profileSnap.data()?.imageUrls || [];
+      const imageUrls = [url, ...existing.filter((u) => u !== url)].slice(0, 5);
       await updateDoc(doc(db, "entrepreneur_profiles", vendorId), {
         imageUrl: url,
-        imageUrls: [url],
+        imageUrls,
         imagenTarjeta: url,
         imagenPerfil: url,
       });
@@ -486,7 +521,7 @@ export default function DirectorPage() {
             >
               <FolderOpen className="w-3 h-3" /> Directorio
             </Button>
-            <Button size="sm" variant="outline" className="rounded-xl gap-2 font-bold text-[10px] uppercase">
+            <Button size="sm" variant="outline" onClick={handleExportRanking} className="rounded-xl gap-2 font-bold text-[10px] uppercase">
               <Download className="w-3 h-3" /> Reporte
             </Button>
           </div>
@@ -495,6 +530,21 @@ export default function DirectorPage() {
 
       <div className="max-w-lg mx-auto p-6 space-y-8">
         
+        {/* KPI CARDS */}
+        <section className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Sellos del mes", value: kpiSellosMes, color: "#D3B673", icon: "🎟️" },
+            { label: "Locales activos", value: kpiLocalesActivos, color: "#9DCC65", icon: "✅" },
+            { label: "Total locales", value: kpiTotalLocales, color: "#6EBBD1", icon: "🏪" },
+          ].map(({ label, value, color, icon }) => (
+            <div key={label} className="bg-white rounded-2xl p-4 shadow-sm text-center space-y-1 border border-slate-50">
+              <span className="text-lg leading-none">{icon}</span>
+              <p className="text-xl font-black" style={{ color }}>{value}</p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-tight">{label}</p>
+            </div>
+          ))}
+        </section>
+
         {/* RANKING DE EMPRENDEDORES */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-1">
@@ -506,38 +556,46 @@ export default function DirectorPage() {
           <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
             <CardContent className="p-2">
               {ranking.length > 0 ? (
-                ranking.slice(0, 5).map((emp, i) => (
-                  <div key={emp.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors rounded-2xl group">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-yellow-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                        {i + 1}
+                <>
+                  {(showAllRanking ? ranking : ranking.slice(0, 5)).map((emp, i) => (
+                    <div key={emp.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors rounded-2xl group">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${i === 0 ? "bg-yellow-400 text-white" : i === 1 ? "bg-slate-300 text-white" : i === 2 ? "bg-amber-600/80 text-white" : "bg-slate-100 text-slate-400"}`}>
+                          {i + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-800 truncate">{emp.nombreTienda || "Local Aliado"}</p>
+                          <p className="text-[10px] text-slate-400 uppercase font-black">{emp.rubro || "General"}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{emp.nombreTienda || emp.nombre || "Local Aliado"}</p>
-                        <p className="text-[10px] text-slate-400 uppercase font-black">{emp.rubro || "General"}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
                         <div className="text-right">
                           <p className="text-sm font-black text-primary">{emp.sellosEntregados || 0}</p>
                           <p className="text-[8px] font-bold text-slate-400 uppercase">Mes</p>
                         </div>
                         <div className="text-right border-l pl-3 ml-1 border-slate-100">
                           <p className="text-sm font-black text-slate-600">{emp.sellosEntregadosHistorico || 0}</p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase">Histórico</p>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase">Total</p>
                         </div>
+                        <button
+                          onClick={() => setVendorToDelete({ id: emp.id, nombre: emp.nombreTienda || "Local Aliado" })}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50"
+                          title="Eliminar local"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setVendorToDelete({ id: emp.id, nombre: emp.nombreTienda || emp.nombre || "Local Aliado" })}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50"
-                        title="Eliminar local"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  {ranking.length > 5 && (
+                    <button
+                      onClick={() => setShowAllRanking((v) => !v)}
+                      className="w-full py-3 text-[11px] font-black text-slate-400 hover:text-primary transition-colors uppercase tracking-widest"
+                    >
+                      {showAllRanking ? "▲ Ver menos" : `▼ Ver todos (${ranking.length})`}
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="p-8 text-center text-xs text-slate-400 italic">No hay datos de actividad aún.</div>
               )}
@@ -1091,6 +1149,7 @@ export default function DirectorPage() {
                   cerca_de_premio: "socios con 4+ sellos",
                   inactivos: "socios inactivos (+30 días)",
                   activos_recientes: "socios activos en 30 días",
+                  cumpleanios_mes: "socios con cumpleaños este mes 🎂",
                   aceptaPromoLocales: "socios con consentimiento de promos",
                   visitaron_local: mensajeGlobal.vendedorFiltro
                     ? `socios que visitaron ${vendorList.find((v: any) => v.id === mensajeGlobal.vendedorFiltro)?.nombre ?? "el local"}`
