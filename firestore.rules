@@ -179,6 +179,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Sugerencias de Usuarios ───────────────────────────────────────────────
+    match /sugerencias/{sugerenciaId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
     // ── Leads de Marketing ─────────────────────────────────────────────────────
     match /leads_marketing/{leadId} {
       allow read: if isStaff();

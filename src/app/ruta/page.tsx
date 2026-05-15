@@ -76,10 +76,12 @@ function ProgressBar({ visited, total }: { visited: number; total: number }) {
 function StampCell({
   vendor,
   stampCount,
+  isNew,
   onTapInactive,
 }: {
   vendor: any;
   stampCount: number;
+  isNew?: boolean;
   onTapInactive: () => void;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -155,6 +157,16 @@ function StampCell({
             style={{ backgroundColor: "#D3B673" }}
           >
             <span style={{ fontSize: 8, lineHeight: 1 }}>⭐</span>
+          </div>
+        )}
+
+        {/* Nuevo badge */}
+        {isNew && !isFrequent && (
+          <div
+            className="absolute top-1.5 left-1.5 px-1.5 rounded-md font-black uppercase tracking-wide text-white"
+            style={{ fontSize: 8, lineHeight: "16px", backgroundColor: "#22c55e" }}
+          >
+            Nuevo
           </div>
         )}
       </div>
@@ -396,10 +408,10 @@ export default function MiRutaPage() {
     return () => unsubAuth();
   }, [router]);
 
-  // Unique categories (sorted, non-null)
+  // Unique categories (sorted, non-null) — "portal" excluded from filters
   const categories = useMemo(() => {
     const cats = new Set(
-      entrepreneurs.map((v) => v.category).filter(Boolean) as string[]
+      entrepreneurs.map((v) => v.category).filter((c): c is string => !!c && c !== "portal")
     );
     return Array.from(cats).sort();
   }, [entrepreneurs]);
@@ -412,6 +424,15 @@ export default function MiRutaPage() {
         : entrepreneurs,
     [entrepreneurs, activeCategory]
   );
+
+  // Count per category for chip labels
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const v of entrepreneurs) {
+      if (v.category && v.category !== "portal") counts[v.category] = (counts[v.category] || 0) + 1;
+    }
+    return counts;
+  }, [entrepreneurs]);
 
   // Visited count (real-time derived) — SynapTech counts as +1 special stamp
   const visitedCount = useMemo(
@@ -476,6 +497,28 @@ export default function MiRutaPage() {
           <ProgressBar visited={visitedCount} total={entrepreneurs.length + 1} />
         </div>
 
+        {/* Próximos premios por descubrimiento */}
+        <div
+          className="rounded-2xl p-4 flex gap-3 items-start"
+          style={{
+            background: "linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)",
+            border: "1px solid #fde68a",
+          }}
+        >
+          <span style={{ fontSize: 22, lineHeight: 1, marginTop: 2 }}>🏆</span>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: "#92400e" }}>
+              Próximamente
+            </p>
+            <p className="text-sm font-bold text-amber-900 leading-snug mt-0.5">
+              ¡Premios por descubrir locales!
+            </p>
+            <p className="text-[12px] text-amber-800 leading-relaxed mt-1">
+              Pronto, completar cierta cantidad de estampillas del álbum te dará acceso a recompensas exclusivas. ¡Empieza a recorrer el Patio!
+            </p>
+          </div>
+        </div>
+
         {/* Legend */}
         <div className="flex items-center justify-center gap-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">
           <div className="flex items-center gap-1.5">
@@ -504,7 +547,7 @@ export default function MiRutaPage() {
               }`}
               style={activeCategory === null ? { backgroundColor: "#D3B673", borderColor: "#D3B673" } : {}}
             >
-              Todos
+              Todos · {entrepreneurs.length}
             </button>
             {categories.map((cat) => {
               const isActive = activeCategory === cat;
@@ -519,7 +562,7 @@ export default function MiRutaPage() {
                   }`}
                   style={isActive ? { backgroundColor: "#D3B673", borderColor: "#D3B673" } : {}}
                 >
-                  {cat}
+                  {cat} · {categoryCounts[cat] ?? 0}
                 </button>
               );
             })}
@@ -529,14 +572,19 @@ export default function MiRutaPage() {
         {/* Stamp grid */}
         <div className="grid grid-cols-3 gap-4">
           {filteredVendors.length > 0 ? (
-            filteredVendors.map((vendor) => (
-              <StampCell
-                key={vendor.id}
-                vendor={vendor}
-                stampCount={sellosLocales[vendor.id] || 0}
-                onTapInactive={() => setSelectedVendor(vendor)}
-              />
-            ))
+            filteredVendors.map((vendor) => {
+              const createdAt = vendor.createdAt?.toDate?.() ?? (vendor.createdAt ? new Date(vendor.createdAt) : null);
+              const isNew = createdAt ? (Date.now() - createdAt.getTime()) < 14 * 24 * 60 * 60 * 1000 : false;
+              return (
+                <StampCell
+                  key={vendor.id}
+                  vendor={vendor}
+                  stampCount={sellosLocales[vendor.id] || 0}
+                  isNew={isNew}
+                  onTapInactive={() => setSelectedVendor(vendor)}
+                />
+              );
+            })
           ) : (
             <div className="col-span-2 py-10 text-center text-sm text-slate-400 italic">
               No hay locales en esta categoría.
@@ -595,8 +643,7 @@ export default function MiRutaPage() {
               <div className="flex gap-3">
                 <span className="text-xl shrink-0 mt-0.5">⭐</span>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  ¡Esta es tu colección personal de aventuras! Cada vez que compras y
-                  recibes un sello en un local del Patio, su estampilla se{" "}
+                  ¡Esta es tu colección personal de aventuras! Cada vez que escaneas el QR del mostrador de un local del Patio, su estampilla se{" "}
                   <span className="font-bold text-white">iluminará a color</span> en esta pantalla.
                 </p>
               </div>

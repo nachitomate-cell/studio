@@ -166,10 +166,13 @@ function DetailContent() {
   };
 
   const handleShare = async () => {
+    const shareUrl = `https://clubpatiocurauma.synaptechspa.cl/emprendedor/${id}`;
+    const nombre = entrepreneur?.nombre ?? "este emprendimiento";
+    const rubro = entrepreneur?.rubro ? ` · ${entrepreneur.rubro}` : "";
     const shareData = {
-      title: entrepreneur?.nombre,
-      text: "¡Mira este emprendimiento en Club Patio Curauma!",
-      url: window.location.href,
+      title: `${nombre} — Club Patio Curauma`,
+      text: `¡Te recomiendo visitar ${nombre}${rubro} en Patio Curauma! 🛍️ Encuéntralo en la app del Club:`,
+      url: shareUrl,
     };
     if (navigator.share) {
       try {
@@ -178,7 +181,7 @@ function DetailContent() {
         // Ignorar si el usuario canceló
       }
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(shareUrl);
       toast({ description: "Enlace copiado al portapapeles" });
     }
   };
@@ -229,36 +232,28 @@ function DetailContent() {
 
       {/* ── Botones flotantes ───────────────────────────────────────────── */}
       <div className="fixed top-4 left-4 right-4 z-50 flex justify-between items-center">
-        <Button
-          variant="secondary"
-          size="icon"
+        <button
           onClick={() => router.push("/")}
-          className="rounded-full shadow-xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:bg-slate-800/80"
+          className="w-10 h-10 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
+          style={{ background: "rgba(15,23,42,0.85)", border: "1px solid rgba(255,255,255,0.12)" }}
         >
           <ArrowLeft className="w-5 h-5 text-white" />
-        </Button>
+        </button>
         <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="icon"
+          <button
             onClick={handleFavoriteToggle}
-            className="rounded-full shadow-xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:bg-slate-800/80"
+            className="w-10 h-10 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
+            style={{ background: "rgba(15,23,42,0.85)", border: "1px solid rgba(255,255,255,0.12)" }}
           >
-            <Heart
-              className={cn(
-                "w-5 h-5 transition-colors",
-                isFavorite ? "fill-red-500 text-red-500" : "text-slate-300"
-              )}
-            />
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
+            <Heart className={cn("w-5 h-5 transition-colors", isFavorite ? "fill-red-500 text-red-500" : "text-slate-300")} />
+          </button>
+          <button
             onClick={handleShare}
-            className="rounded-full shadow-xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:bg-slate-800/80"
+            className="w-10 h-10 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
+            style={{ background: "rgba(15,23,42,0.85)", border: "1px solid rgba(255,255,255,0.12)" }}
           >
             <Share2 className="w-5 h-5 text-slate-300" />
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -633,10 +628,39 @@ function DetailContent() {
           })()}
         </div>
 
+        {/* ── Favorito + Compartir ────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={handleFavoriteToggle}
+            className="flex items-center justify-center gap-2 h-12 rounded-2xl font-bold text-sm transition-all active:scale-95"
+            style={{
+              background: isFavorite ? "rgba(239,68,68,0.15)" : "rgba(30,41,59,0.6)",
+              border: `1px solid ${isFavorite ? "rgba(239,68,68,0.4)" : "rgba(211,182,115,0.3)"}`,
+              color: isFavorite ? "#f87171" : "#D3B673",
+            }}
+          >
+            <Heart className={cn("w-4 h-4", isFavorite ? "fill-red-400 text-red-400" : "")} />
+            {isFavorite ? "Guardado" : "Favorito"}
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center justify-center gap-2 h-12 rounded-2xl font-bold text-sm transition-all active:scale-95"
+            style={{
+              background: "rgba(30,41,59,0.6)",
+              border: "1px solid rgba(211,182,115,0.3)",
+              color: "#D3B673",
+            }}
+          >
+            <Share2 className="w-4 h-4" />
+            Compartir
+          </button>
+        </div>
+
         {/* ── Banner de recompensas — oculto para patrocinadores ──────── */}
         {!esPremium && <div
-          className="rounded-3xl overflow-hidden mt-6"
+          className="rounded-3xl overflow-hidden mt-6 cursor-pointer active:scale-[0.98] transition-transform"
           style={{ boxShadow: "0 0 15px rgba(201,146,10,0.15), 0 8px 32px rgba(0,0,0,0.4)" }}
+          onClick={() => router.push("/premios")}
         >
           <div
             className="p-5 flex items-center gap-4"
@@ -663,9 +687,10 @@ function DetailContent() {
                 className="font-medium leading-snug mt-0.5"
                 style={{ fontSize: "13px", color: "#cbd5e1" }}
               >
-                Muestra tu QR al pagar en este local para sumar sellos.
+                Escanea el QR del mostrador de este local para sumar sellos.
               </p>
             </div>
+            <span style={{ color: "#C9920A", fontSize: 20, lineHeight: 1 }}>›</span>
           </div>
         </div>}
         </div>{/* end space-y-2 */}

@@ -15,7 +15,7 @@ const SLIDES = [
   {
     emoji: "📱",
     title: "Suma Sellos fácilmente",
-    text: "Muestra tu Código QR en caja al momento de pagar. El local lo escaneará y recibirás una estampilla digital al instante.",
+    text: "Cada local tiene su código QR en el mostrador. Escanéalo con la app al visitar y recibirás una estampilla digital al instante.",
   },
   {
     emoji: "🎁",
