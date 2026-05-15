@@ -7,7 +7,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 import ValidarPanel from "@/components/ValidarPanel";
 
-const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 export default function ValidarPage() {
   const router = useRouter();

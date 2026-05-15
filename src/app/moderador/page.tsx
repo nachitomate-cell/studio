@@ -16,8 +16,7 @@ import Link from "next/link";
 
 import { registrarCompra } from "@/lib/puntos";
 
-const MASTER_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
-const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
+import { ADMIN_EMAIL as MASTER_EMAIL, ALLOWED_MOD_EMAILS as ALLOWED_EMAILS } from "@/lib/constants";
 
 const MAX_PIN_ATTEMPTS = 3;
 const PIN_LOCKOUT_SECONDS = 60;

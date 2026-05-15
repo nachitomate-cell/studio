@@ -25,10 +25,11 @@ import { onAuthStateChanged } from "firebase/auth";
 import { db, auth, storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, Cell 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 const COLORS = ['#D3B673', '#9DCC65', '#6EBBD1', '#BFA05C'];
 
@@ -92,8 +93,7 @@ export default function DirectorPage() {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUserId(user.uid);
-        const masterEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
-        if ((user.email ?? "").trim().toLowerCase() === masterEmail) {
+        if ((user.email ?? "").trim().toLowerCase() === ADMIN_EMAIL) {
           setIsAuthorized(true);
         } else {
           try {

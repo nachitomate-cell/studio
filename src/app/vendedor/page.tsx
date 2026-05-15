@@ -27,7 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/data";
 
-const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase();
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 // ── Helpers CRM ──────────────────────────────────────────────────────────────
 function currentMonth() {

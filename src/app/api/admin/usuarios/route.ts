@@ -12,7 +12,8 @@ import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 const ROLES_STAFF = ["moderador", "admin", "director", "director_patio"];
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "ignaciiio.mate@gmail.com";
+import { ADMIN_EMAIL } from "@/lib/constants";
+import { getUserRoles } from "@/lib/roles";
 
 export async function GET(request: Request) {
   try {
@@ -33,10 +34,10 @@ export async function GET(request: Request) {
     // Verificar que es staff o admin email
     const callerDoc  = await adminDb.collection("usuarios").doc(decoded.uid).get();
     const callerData = callerDoc.exists ? callerDoc.data() : null;
-    const callerRol  = callerData?.rol ?? "";
+    const callerRoles = getUserRoles(callerData);
     const isAdmin    = decoded.email === ADMIN_EMAIL;
 
-    if (!isAdmin && !ROLES_STAFF.includes(callerRol)) {
+    if (!isAdmin && !callerRoles.some((r) => ROLES_STAFF.includes(r))) {
       return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
     }
 

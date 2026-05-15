@@ -13,8 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
 
-const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
-const ALLOWED_EMAILS = [MASTER_EMAIL, "fgcservicios@gmail.com"];
+import { ADMIN_EMAIL as MASTER_EMAIL, ALLOWED_MOD_EMAILS as ALLOWED_EMAILS } from "@/lib/constants";
 const PAGE_SIZE = 25;
 
 const MESES = [

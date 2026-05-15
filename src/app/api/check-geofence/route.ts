@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 import { getFirestore } from "firebase-admin/firestore";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // ── Zonas geofence ─────────────────────────────────────────────────────────────
 const GEOFENCE_ZONES = [
@@ -84,6 +85,10 @@ export async function POST(request: Request) {
         { success: false, error: "Faltan parámetros: userId, latitude, longitude" },
         { status: 400 }
       );
+    }
+
+    if (!checkRateLimit(`geofence:${userId}`, 10, 60_000)) {
+      return NextResponse.json({ success: false, triggered: false }, { status: 429 });
     }
 
     // Calcular distancia a cada zona

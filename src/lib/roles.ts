@@ -1,9 +1,9 @@
-/**
- * Helpers para el sistema de roles híbrido.
- * Soporta tanto `rol` (string legacy) como `roles` (array nuevo).
- */
+interface UserLike {
+  roles?: string[];
+  rol?: string;
+}
 
-export const hasRole = (userData: any, role: string): boolean => {
+export const hasRole = (userData: UserLike | null | undefined, role: string): boolean => {
   if (!userData) return false;
   if (Array.isArray(userData.roles) && userData.roles.length > 0) {
     return userData.roles.includes(role);
@@ -11,7 +11,7 @@ export const hasRole = (userData: any, role: string): boolean => {
   return userData.rol === role;
 };
 
-export const getUserRoles = (userData: any): string[] => {
+export const getUserRoles = (userData: UserLike | null | undefined): string[] => {
   if (!userData) return ["cliente"];
   if (Array.isArray(userData.roles) && userData.roles.length > 0) return userData.roles;
   if (userData.rol) return [userData.rol];

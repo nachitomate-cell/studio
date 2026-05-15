@@ -12,7 +12,7 @@ import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
 import { useUserLocation, haversineKm } from "@/hooks/useUserLocation";
 import { isOpenNow } from "@/lib/horarios";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { cn, isVendorVisible } from "@/lib/utils";
 import { UserProfile } from "@/components/profile/UserProfile";
 import { RewardsTab } from "@/components/profile/RewardsTab";
 import { RecommendationWidget } from "@/components/ai/RecommendationWidget";
+import { AIAssistantModal } from "@/components/ai/AIAssistantModal";
 import { Auth } from "@/components/Auth";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 import { OnboardingTutorial } from "@/components/OnboardingTutorial";
@@ -28,7 +29,7 @@ import { useBackgroundGeolocation } from "@/hooks/useBackgroundGeolocation";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, LOCATIONS } from "@/context/LocationContext";
 
-const ADMIN_EMAIL = "ignaciiio.mate@gmail.com";
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
@@ -36,6 +37,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const onboardingCheckedRef = useRef(false);
   const { selectedLocation, setSelectedLocation } = useLocation();
@@ -49,6 +51,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [filterAbierto, setFilterAbierto] = useState(false);
   const [filterCercano, setFilterCercano] = useState(false);
+  const [filterFavoritos, setFilterFavoritos] = useState(false);
   const { coords: userCoords, loading: locLoading, denied: locDenied, request: requestLocation } = useUserLocation();
   const [debugGps, setDebugGps] = useState<{ lat: number; lng: number; zona: string; dist: string; server?: string } | null>(null);
   const lastGeoApiCallRef = useRef<number>(0);
@@ -241,6 +244,13 @@ export default function Home() {
     distanceFilter: 50,
   });
 
+  // Normaliza acentos y mayúsculas para búsqueda tolerante
+  const normalize = (s: string) =>
+    s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  const searchNorm = normalize(searchQuery);
+  const searchTokens = searchNorm.split(/\s+/).filter(Boolean);
+
   let result = entrepreneurs.filter((e: any) => {
     // Visibility gate: exclude vendors with no real name or no real image.
     // Applied before category/search so incomplete profiles never appear publicly.
@@ -251,13 +261,21 @@ export default function Home() {
     if (e.isHiddenFromFeed && !searchQuery) return false;
 
     const matchesCategory = selectedCategory === "all" || e.category === selectedCategory;
-    const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          e.description.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Búsqueda tolerante: sin acentos, por tokens, sobre nombre + descripción + categoría
+    const haystack = normalize(`${e.name} ${e.description} ${e.category ?? ""}`);
+    const matchesSearch = searchTokens.length === 0 || searchTokens.every((t) => haystack.includes(t));
+
     if (!matchesCategory || !matchesSearch) return false;
 
     if (filterAbierto) {
       const open = isOpenNow((e as any).horariosEstructurados);
       if (open !== true) return false;
+    }
+
+    if (filterFavoritos) {
+      const favoritos: string[] = Array.isArray(userData?.favoritos) ? userData.favoritos : [];
+      if (!favoritos.includes(e.id)) return false;
     }
 
     return true;
@@ -329,7 +347,7 @@ export default function Home() {
 
             {/* Saludo personalizado */}
             {user && userData && (
-              <div className="px-6" style={{ marginTop: "24px", marginBottom: "12px" }}>
+              <div className="px-6 flex items-center justify-between" style={{ marginTop: "24px", marginBottom: "12px" }}>
                 <p className="text-sm font-medium text-slate-600">
                   Hola,{" "}
                   <span className="font-bold text-slate-800">{userData.nombre?.split(" ")[0] || "Club Member"}</span>
@@ -339,6 +357,20 @@ export default function Home() {
                   <span className="font-black" style={{ color: "#C9920A" }}>{userData.ticketsSorteo || 0}</span>
                   {" tickets"}
                 </p>
+                <button
+                  onClick={() => setShowAIModal(true)}
+                  className="flex items-center gap-1 shrink-0 ml-3 px-2.5 py-1 rounded-full transition-all active:scale-90"
+                  style={{
+                    background: "linear-gradient(135deg, #6D28D9 0%, #0EA5E9 100%)",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    color: "white",
+                  }}
+                  aria-label="Abrir Asistente IA"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  IA
+                </button>
               </div>
             )}
 
@@ -413,7 +445,7 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="space-y-4">
+            <section className="space-y-3">
               <div className="flex gap-2 overflow-x-auto pb-2 px-6 no-scrollbar">
                 {CATEGORIES.map((cat) => (
                   <button
@@ -431,38 +463,30 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              {/* Filtros rápidos */}
-              <div className="flex gap-2 px-6 pb-2">
-                <button
-                  onClick={() => setFilterAbierto((v) => !v)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border",
-                    filterAbierto
-                      ? "bg-green-500 text-white border-green-500 shadow"
-                      : "bg-white text-slate-500 border-slate-200"
-                  )}
-                >
-                  🕐 Abierto ahora
-                </button>
-                <button
-                  disabled={locDenied}
-                  title={locDenied ? "Permiso de ubicación denegado" : undefined}
-                  onClick={() => {
-                    if (!userCoords) requestLocation();
-                    setFilterCercano((v) => !v);
-                  }}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border",
-                    filterCercano
-                      ? "text-white border-transparent shadow"
-                      : "bg-white text-slate-500 border-slate-200",
-                    locDenied ? "opacity-40 cursor-not-allowed" : ""
-                  )}
-                  style={filterCercano ? { background: "#C9920A", borderColor: "#C9920A" } : {}}
-                >
-                  📍 {locLoading ? "Buscando…" : "Cerca de mí"}
-                </button>
-              </div>
+
+              {/* Filtro favoritos — solo visible si el usuario está logueado */}
+              {user && (
+                <div className="px-6">
+                  <button
+                    onClick={() => setFilterFavoritos((v) => !v)}
+                    className={cn(
+                      "inline-flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border",
+                      filterFavoritos
+                        ? "text-white border-transparent shadow"
+                        : "bg-white text-slate-500 border-slate-200"
+                    )}
+                    style={filterFavoritos ? { background: "#C9920A", borderColor: "#C9920A" } : {}}
+                  >
+                    <Heart className={cn("w-3.5 h-3.5", filterFavoritos ? "fill-white text-white" : "text-slate-400")} />
+                    Mis Favoritos
+                    {filterFavoritos && Array.isArray(userData?.favoritos) && userData.favoritos.length > 0 && (
+                      <span className="ml-0.5 bg-white/25 rounded-full px-1.5 py-0.5 text-[9px] font-black">
+                        {userData.favoritos.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
             </section>
 
             <section className="space-y-6 px-6 pt-4">
@@ -518,19 +542,66 @@ export default function Home() {
               )}
             </section>
 
-            <section className="px-6 py-12 text-center space-y-4 bg-slate-50 mt-10">
-              <p style={{ fontSize: '12px', color: '#999999', letterSpacing: '2px', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px' }}>Síguenos</p>
-              <div className="flex justify-center gap-6">
-                <button onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')} className="text-pink-600 hover:scale-110 transition-transform">
-                  <Instagram className="w-6 h-6" />
+            <section
+              className="mx-6 mt-10 mb-2 rounded-3xl overflow-hidden"
+              style={{ background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 55%, #5BB8D4 100%)" }}
+            >
+              {/* Header con logo */}
+              <div className="px-6 pt-6 pb-4 flex items-center gap-4">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255,255,255,0.25)", backdropFilter: "blur(8px)" }}
+                >
+                  <img src="/Logo3.webp" alt="Patio Curauma" className="w-10 h-10 object-contain" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[3px]" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    Club Patio Curauma
+                  </p>
+                  <h3 className="text-lg font-black text-white leading-tight">
+                    Síguenos en redes
+                  </h3>
+                  <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.8)" }}>
+                    Novedades y promociones
+                  </p>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="mx-5" style={{ height: 1, background: "rgba(255,255,255,0.25)" }} />
+
+              {/* Social buttons */}
+              <div className="flex gap-3 px-5 py-5">
+                {/* Instagram */}
+                <button
+                  onClick={() => window.open(`https://instagram.com/${PATIO_INFO.instagram}`, '_blank')}
+                  className="flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl active:scale-95 transition-transform"
+                  style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,0.35)" }}
+                >
+                  <Instagram className="w-5 h-5 text-white" />
+                  <span className="text-[9px] font-black text-white uppercase tracking-wide">Instagram</span>
                 </button>
-                <button onClick={() => window.open(`https://facebook.com/${PATIO_INFO.facebook}`, '_blank')} className="text-blue-600 hover:scale-110 transition-transform">
-                  <Facebook className="w-6 h-6" />
+
+                {/* Facebook */}
+                <button
+                  onClick={() => window.open(`https://facebook.com/${PATIO_INFO.facebook}`, '_blank')}
+                  className="flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl active:scale-95 transition-transform"
+                  style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,0.35)" }}
+                >
+                  <Facebook className="w-5 h-5 text-white" />
+                  <span className="text-[9px] font-black text-white uppercase tracking-wide">Facebook</span>
                 </button>
-                <button onClick={() => window.open(`https://www.tiktok.com/@${PATIO_INFO.tiktok}`, '_blank')} className="text-slate-800 hover:scale-110 transition-transform">
-                  <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+
+                {/* TikTok */}
+                <button
+                  onClick={() => window.open(`https://www.tiktok.com/@${PATIO_INFO.tiktok}`, '_blank')}
+                  className="flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl active:scale-95 transition-transform"
+                  style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,0.35)" }}
+                >
+                  <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
                     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.04-.1z"/>
                   </svg>
+                  <span className="text-[9px] font-black text-white uppercase tracking-wide">TikTok</span>
                 </button>
               </div>
             </section>
@@ -547,7 +618,7 @@ export default function Home() {
     }
   };
 
-  const isAdmin = user?.email?.toLowerCase().trim() === "ignaciiio.mate@gmail.com";
+  const isAdmin = user?.email?.toLowerCase().trim() === ADMIN_EMAIL;
 
   return (
     <main className="min-h-screen bg-white">
@@ -638,6 +709,12 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <AIAssistantModal
+        isOpen={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        userData={userData}
+      />
 
       {/* Panel debug GPS — solo visible para admin */}
       {isAdmin && (

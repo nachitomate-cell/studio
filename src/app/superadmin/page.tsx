@@ -8,9 +8,7 @@ import {
 } from "firebase/firestore";
 import { Loader2, ShieldAlert, RefreshCw, AlertTriangle, Users, Store, Stamp, DollarSign, Activity } from "lucide-react";
 
-const SUPERADMIN_EMAIL = (
-  process.env.NEXT_PUBLIC_SUPERADMIN_EMAIL || "ignaciiio.mate@gmail.com"
-).trim().toLowerCase();
+import { SUPERADMIN_EMAIL } from "@/lib/constants";
 
 function fmtCLP(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);

@@ -17,7 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 
 
-const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
+import { ADMIN_EMAIL as MASTER_EMAIL } from "@/lib/constants";
 const PAGE_SIZE = 20;
 
 // Nombres genéricos que indican que el registro no tiene nombre real

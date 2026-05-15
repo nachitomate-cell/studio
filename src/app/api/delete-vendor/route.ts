@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 function getAdminApp(): App {
   if (getApps().length > 0) return getApps()[0];
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     const callerData = callerDoc.exists ? callerDoc.data() : null;
     const callerRol: string = callerData?.rol ?? "";
     const callerRoles: string[] = Array.isArray(callerData?.roles) ? callerData.roles : [];
-    const isAdminEmail = decoded.email === (process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "ignaciiio.mate@gmail.com");
+    const isAdminEmail = decoded.email === ADMIN_EMAIL;
 
     const hasPermission = ROLES_PERMITIDOS.includes(callerRol) ||
       callerRoles.some((r: string) => ROLES_PERMITIDOS.includes(r));

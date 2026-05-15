@@ -8,7 +8,7 @@ import { auth, db } from "@/lib/firebase";
 import { Search, Loader2, ShieldCheck, AlertTriangle, ClipboardList, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
+import { ADMIN_EMAIL as MASTER_EMAIL } from "@/lib/constants";
 
 interface LogEntry {
   id: string;

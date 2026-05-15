@@ -12,10 +12,7 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
-const ALLOWED_EMAILS = [
-  (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com").trim().toLowerCase(),
-  "fgcservicios@gmail.com",
-];
+import { ALLOWED_MOD_EMAILS as ALLOWED_EMAILS } from "@/lib/constants";
 
 export async function POST(request: Request) {
   try {

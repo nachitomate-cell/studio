@@ -40,7 +40,7 @@ import TermsModal from "@/components/TermsModal";
 import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
 
-const EMAIL_MASTER_ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
+import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
 
 function generarCodigoReferido(nombre: string): string {

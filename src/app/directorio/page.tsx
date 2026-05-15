@@ -21,6 +21,7 @@ import {
   Search, ImagePlus, X, Check, Crown,
 } from "lucide-react";
 import { getSafeImageUrl } from "@/lib/utils";
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,11 +124,7 @@ export default function DirectorioPage() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { router.replace("/"); return; }
 
-      const masterEmail = (
-        process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com"
-      ).trim().toLowerCase();
-
-      if ((user.email ?? "").trim().toLowerCase() === masterEmail) {
+      if ((user.email ?? "").trim().toLowerCase() === ADMIN_EMAIL) {
         setIsAuthorized(true);
         return;
       }

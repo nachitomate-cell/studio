@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 
-const MASTER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ignaciiio.mate@gmail.com";
+import { ADMIN_EMAIL as MASTER_EMAIL } from "@/lib/constants";
 const CONFIRM_WORD = "CONFIRMAR";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
