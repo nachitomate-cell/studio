@@ -16,7 +16,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-com
 // ── Cache offline ─────────────────────────────────────────────────────────────
 // IMPORTANTE: incrementar CACHE_VERSION en cada deploy significativo para
 // forzar que los navegadores descarten el caché anterior y descarguen el nuevo SW.
-const CACHE_VERSION = '3';
+const CACHE_VERSION = '4';
 const CACHE_NAME = `club-patio-shell-v${CACHE_VERSION}`;
 
 // Solo se cachean assets del shell de la app (imágenes, manifest).
