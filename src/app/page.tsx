@@ -123,41 +123,39 @@ export default function Home() {
       .catch(() => {});
   }, [userData]);
 
-  // Listener en tiempo real para el directorio de emprendedores
+  // Carga one-shot del directorio — los perfiles de locales cambian raramente,
+  // no justifican un listener persistente que mantiene conexión por cada usuario activo.
   useEffect(() => {
-    const q = query(collection(db, "entrepreneur_profiles"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.businessName || data.nombre || "Local Aliado",
-          category: data.category || data.rubro || "all",
-          description: data.description || "",
-          imageUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo2.png",
-          contact: data.whatsapp || data.contactPhone || "",
-          schedule: data.operatingHours || data.horario || "",
-          locationId: data.ubicacionTienda || "loc-1",
-          // Campos Premium (quedan undefined si el local no los tiene)
-          imagenTarjeta: data.imagenTarjeta || undefined,
-          imagenPerfil: data.imagenPerfil || undefined,
-          logoHeader: data.logoHeader || undefined,
-          isPremium: data.isPremium === true || undefined,
-          isHiddenFromFeed: data.isHiddenFromFeed === true,
-          horariosEstructurados: data.horariosEstructurados || null,
-          lat: data.lat || null,
-          lng: data.lng || null,
-        } as Entrepreneur & { isHiddenFromFeed?: boolean };
+    getDocs(query(collection(db, "entrepreneur_profiles")))
+      .then((snapshot) => {
+        const docs = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.businessName || data.nombre || "Local Aliado",
+            category: data.category || data.rubro || "all",
+            description: data.description || "",
+            imageUrl: data.imageUrls?.[0] || data.imagenUrl || "/Logo2.png",
+            contact: data.whatsapp || data.contactPhone || "",
+            schedule: data.operatingHours || data.horario || "",
+            locationId: data.ubicacionTienda || "loc-1",
+            imagenTarjeta: data.imagenTarjeta || undefined,
+            imagenPerfil: data.imagenPerfil || undefined,
+            logoHeader: data.logoHeader || undefined,
+            isPremium: data.isPremium === true || undefined,
+            isHiddenFromFeed: data.isHiddenFromFeed === true,
+            horariosEstructurados: data.horariosEstructurados || null,
+            lat: data.lat || null,
+            lng: data.lng || null,
+          } as Entrepreneur & { isHiddenFromFeed?: boolean };
+        });
+        setEntrepreneurs(docs);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Error cargando directorio:", error);
+        setLoading(false);
       });
-      
-      setEntrepreneurs(docs);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error cargando directorio:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
   }, []);
 
   // FIX: usar ref para userData — evita que el efecto se reinicie en cada snapshot

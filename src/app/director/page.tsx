@@ -182,11 +182,11 @@ export default function DirectorPage() {
       };
     };
     const unsubRankingRol = onSnapshot(
-      query(collection(db, "usuarios"), where("rol", "==", "emprendedor")),
+      query(collection(db, "usuarios"), where("rol", "==", "emprendedor"), limit(200)),
       (snap) => setRankingByRol(snap.docs.map(toRankRow))
     );
     const unsubRankingRoles = onSnapshot(
-      query(collection(db, "usuarios"), where("roles", "array-contains", "emprendedor")),
+      query(collection(db, "usuarios"), where("roles", "array-contains", "emprendedor"), limit(200)),
       (snap) => setRankingByRoles(snap.docs.map(toRankRow))
     );
 
