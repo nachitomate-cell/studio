@@ -137,6 +137,7 @@ export default function UnetePage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    let createdAuthUser: User | null = null;
 
     try {
       preventAutoRedirect.current = true;
@@ -202,6 +203,7 @@ export default function UnetePage() {
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
+        createdAuthUser = newUser;
         const emailLimpio = email.toLowerCase().trim();
 
         // Setear displayName en Firebase Auth para que aparezca en el panel del vendedor
@@ -346,7 +348,12 @@ export default function UnetePage() {
       if (message.includes("invalid-email")) message = "El formato del correo electrónico no es válido.";
       if (message.includes("wrong-password") || message.includes("invalid-credential")) message = "Correo o contraseña incorrectos.";
       if (err?.code === "unavailable" || message.includes("IndexedDB") || message.includes("AbortError")) {
-        message = "Error de caché del navegador. Por favor limpia los datos del sitio (Configuración → Privacidad → Borrar datos de navegación) e inténtalo de nuevo.";
+        // Si el usuario de Auth fue creado pero los datos de Firestore no pudieron guardarse,
+        // eliminar la cuenta para evitar que quede "huérfana" (email-already-in-use en el siguiente intento)
+        if (createdAuthUser) {
+          try { await createdAuthUser.delete(); } catch {}
+        }
+        message = "Tu navegador bloqueó el almacenamiento local necesario para el registro. Abre esta página en una ventana normal (no privada/incógnito) e inténtalo de nuevo.";
       }
       setError(message);
     } finally {
