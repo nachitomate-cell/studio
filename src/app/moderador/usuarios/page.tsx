@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, getDoc, doc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, getDoc, getDocFromServer, doc, query, orderBy } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Loader2, ChevronLeft, Download, Search, Users, CalendarDays, Phone, Mail } from "lucide-react";
@@ -67,6 +67,8 @@ export default function ModeradorUsuariosPage() {
   const [authorized, setAuthorized] = useState(false);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Filtros
   const [busqueda, setBusqueda] = useState("");
@@ -81,7 +83,8 @@ export default function ModeradorUsuariosPage() {
       if (!user) { router.replace("/"); setAuthLoading(false); return; }
       if (ALLOWED_EMAILS.includes(user.email ?? "")) { setAuthorized(true); setAuthLoading(false); return; }
       try {
-        const snap = await getDoc(doc(db, "usuarios", user.uid));
+        // getDocFromServer: ignora caché local para leer el rol actualizado
+        const snap = await getDocFromServer(doc(db, "usuarios", user.uid));
         const rol = snap.exists() ? (snap.data().rol as string) : "";
         if (["moderador", "admin", "director", "director_patio"].includes(rol)) {
           setAuthorized(true);
@@ -97,6 +100,7 @@ export default function ModeradorUsuariosPage() {
   // ── Cargar usuarios ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!authorized) return;
+    setLoadError(null);
     setLoading(true);
 
     (async () => {
@@ -135,13 +139,14 @@ export default function ModeradorUsuariosPage() {
         });
         data.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
         setUsuarios(data);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error al cargar usuarios:", err);
+        setLoadError(err?.message || "No se pudieron cargar los usuarios.");
       } finally {
         setLoading(false);
       }
     })();
-  }, [authorized]);
+  }, [authorized, retryCount]);
 
   // ── Filtrado ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -331,6 +336,17 @@ export default function ModeradorUsuariosPage() {
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <Loader2 className="w-10 h-10 animate-spin" style={{ color: "#D3B673" }} />
               <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Cargando usuarios...</p>
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
+              <p className="text-sm font-bold text-red-400 uppercase tracking-widest">Error al cargar</p>
+              <p className="text-xs text-slate-400">{loadError}</p>
+              <button
+                onClick={() => { setLoading(true); setRetryCount(c => c + 1); }}
+                className="mt-2 text-xs font-bold text-primary underline"
+              >
+                Reintentar
+              </button>
             </div>
           ) : (
             <>
