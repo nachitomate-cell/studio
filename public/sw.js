@@ -2,6 +2,7 @@
 /**
  * Service Worker - Club Patio Curauma
  * Este archivo permite que la app funcione como PWA y maneje notificaciones.
+ * @version 3
  */
 
 self.addEventListener('install', (event) => {
