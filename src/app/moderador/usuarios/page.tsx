@@ -2,18 +2,17 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, getDoc, getDocFromServer, doc, query, orderBy } from "firebase/firestore";
+import { getDocFromServer, doc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { Loader2, ChevronLeft, Download, Search, Users, CalendarDays, Phone, Mail } from "lucide-react";
+import { Loader2, ChevronLeft, Download, Search, CalendarDays, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
+import { ALLOWED_MOD_EMAILS as ALLOWED_EMAILS } from "@/lib/constants";
 
-import { ADMIN_EMAIL as MASTER_EMAIL, ALLOWED_MOD_EMAILS as ALLOWED_EMAILS } from "@/lib/constants";
 const PAGE_SIZE = 25;
 
 const MESES = [
@@ -21,12 +20,23 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
+const ROLES_OPCIONES = [
+  { value: "", label: "Todos los roles" },
+  { value: "cliente", label: "Cliente" },
+  { value: "emprendedor", label: "Emprendedor" },
+  { value: "director", label: "Director" },
+  { value: "director_patio", label: "Director Patio" },
+  { value: "moderador", label: "Moderador" },
+  { value: "admin", label: "Admin" },
+];
+
 interface Usuario {
   id: string;
   nombre: string;
   telefono: string;
   email: string;
-  fechaNacimiento: string;      // ISO string o "N/A"
+  comuna: string;
+  fechaNacimiento: string;
   fechaNacimientoRaw: Date | null;
   fechaRegistro: string;
   fechaRegistroRaw: Date | null;
@@ -70,11 +80,19 @@ export default function ModeradorUsuariosPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Filtros
+  // Filtros existentes
   const [busqueda, setBusqueda] = useState("");
   const [mesCumple, setMesCumple] = useState("");
   const [nacDesde, setNacDesde] = useState("");
   const [nacHasta, setNacHasta] = useState("");
+  // Filtros nuevos
+  const [rolFiltro, setRolFiltro] = useState("");
+  const [sellosMin, setSellosMin] = useState("");
+  const [sellosMax, setSellosMax] = useState("");
+  const [regDesde, setRegDesde] = useState("");
+  const [regHasta, setRegHasta] = useState("");
+  const [comunaFiltro, setComunaFiltro] = useState("");
+
   const [currentPage, setCurrentPage] = useState(1);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -83,7 +101,6 @@ export default function ModeradorUsuariosPage() {
       if (!user) { router.replace("/"); setAuthLoading(false); return; }
       if (ALLOWED_EMAILS.includes(user.email ?? "")) { setAuthorized(true); setAuthLoading(false); return; }
       try {
-        // getDocFromServer: ignora caché local para leer el rol actualizado
         const snap = await getDocFromServer(doc(db, "usuarios", user.uid));
         const rol = snap.exists() ? (snap.data().rol as string) : "";
         if (["moderador", "admin", "director", "director_patio"].includes(rol)) {
@@ -129,6 +146,7 @@ export default function ModeradorUsuariosPage() {
             nombre: d.nombre || d.correo || "Sin nombre",
             telefono: d.telefono || d.phone || "—",
             email: d.email || d.correo || "—",
+            comuna: (d.comuna || "").trim(),
             fechaNacimiento: fmtFecha(nacRaw),
             fechaNacimientoRaw: nacRaw,
             fechaRegistro: fmtFecha(regRaw),
@@ -148,8 +166,19 @@ export default function ModeradorUsuariosPage() {
     })();
   }, [authorized, retryCount]);
 
+  // Comunas únicas para el select
+  const comunasDisponibles = useMemo(() => {
+    const set = new Set(usuarios.map(u => u.comuna).filter(Boolean));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+  }, [usuarios]);
+
   // ── Filtrado ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
+    const minS = sellosMin !== "" ? parseInt(sellosMin) : null;
+    const maxS = sellosMax !== "" ? parseInt(sellosMax) : null;
+    const regD = regDesde ? new Date(regDesde) : null;
+    const regH = regHasta ? new Date(regHasta + "T23:59:59") : null;
+
     return usuarios.filter((u) => {
       if (busqueda) {
         const q = busqueda.toLowerCase();
@@ -165,13 +194,19 @@ export default function ModeradorUsuariosPage() {
       if (nacHasta && u.fechaNacimientoRaw) {
         if (u.fechaNacimientoRaw > new Date(nacHasta + "T23:59:59")) return false;
       }
+      if (rolFiltro && u.rol !== rolFiltro) return false;
+      if (minS !== null && u.totalSellos < minS) return false;
+      if (maxS !== null && u.totalSellos > maxS) return false;
+      if (regD && u.fechaRegistroRaw && u.fechaRegistroRaw < regD) return false;
+      if (regH && u.fechaRegistroRaw && u.fechaRegistroRaw > regH) return false;
+      if (comunaFiltro && u.comuna.toLowerCase() !== comunaFiltro.toLowerCase()) return false;
       return true;
     });
-  }, [usuarios, busqueda, mesCumple, nacDesde, nacHasta]);
+  }, [usuarios, busqueda, mesCumple, nacDesde, nacHasta, rolFiltro, sellosMin, sellosMax, regDesde, regHasta, comunaFiltro]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const hayFiltros = busqueda || mesCumple || nacDesde || nacHasta;
+  const hayFiltros = busqueda || mesCumple || nacDesde || nacHasta || rolFiltro || sellosMin || sellosMax || regDesde || regHasta || comunaFiltro;
 
   // ── Exportar Excel ────────────────────────────────────────────────────────
   const exportExcel = async () => {
@@ -181,6 +216,7 @@ export default function ModeradorUsuariosPage() {
       Nombre: u.nombre,
       Teléfono: u.telefono,
       Email: u.email,
+      Comuna: u.comuna || "—",
       "Fecha Nacimiento": u.fechaNacimiento,
       "Fecha Registro": u.fechaRegistro,
       "Total Sellos": u.totalSellos,
@@ -189,7 +225,7 @@ export default function ModeradorUsuariosPage() {
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
       { wch: 30 }, { wch: 16 }, { wch: 30 }, { wch: 18 },
-      { wch: 18 }, { wch: 14 }, { wch: 14 },
+      { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Usuarios");
@@ -197,8 +233,13 @@ export default function ModeradorUsuariosPage() {
   };
 
   const resetFiltros = () => {
-    setBusqueda(""); setMesCumple(""); setNacDesde(""); setNacHasta(""); setCurrentPage(1);
+    setBusqueda(""); setMesCumple(""); setNacDesde(""); setNacHasta("");
+    setRolFiltro(""); setSellosMin(""); setSellosMax("");
+    setRegDesde(""); setRegHasta(""); setComunaFiltro("");
+    setCurrentPage(1);
   };
+
+  const selectClass = "h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors";
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (authLoading) {
@@ -260,8 +301,9 @@ export default function ModeradorUsuariosPage() {
         {/* Filtros */}
         <div className="bg-white rounded-3xl shadow-md p-5 space-y-4">
           <p className="text-xs font-black uppercase tracking-widest text-slate-400">Filtros</p>
+
+          {/* Fila 1: búsqueda + rol + comuna */}
           <div className="flex flex-wrap gap-3 items-end">
-            {/* Buscador */}
             <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Buscar por nombre, teléfono o email
@@ -277,15 +319,84 @@ export default function ModeradorUsuariosPage() {
               </div>
             </div>
 
-            {/* Mes de cumpleaños */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Mes de cumpleaños
-              </label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rol</label>
+              <select
+                value={rolFiltro}
+                onChange={(e) => { setRolFiltro(e.target.value); setCurrentPage(1); }}
+                className={selectClass}
+              >
+                {ROLES_OPCIONES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Comuna</label>
+              <select
+                value={comunaFiltro}
+                onChange={(e) => { setComunaFiltro(e.target.value); setCurrentPage(1); }}
+                className={selectClass}
+              >
+                <option value="">Todas las comunas</option>
+                {comunasDisponibles.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 2: sellos + registro + nacimiento */}
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sellos mín.</label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={sellosMin}
+                onChange={(e) => { setSellosMin(e.target.value); setCurrentPage(1); }}
+                className="h-10 w-24 rounded-xl border-slate-200 text-sm font-medium"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sellos máx.</label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="∞"
+                value={sellosMax}
+                onChange={(e) => { setSellosMax(e.target.value); setCurrentPage(1); }}
+                className="h-10 w-24 rounded-xl border-slate-200 text-sm font-medium"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Registro desde</label>
+              <input
+                type="date"
+                value={regDesde}
+                onChange={(e) => { setRegDesde(e.target.value); setCurrentPage(1); }}
+                className={selectClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Registro hasta</label>
+              <input
+                type="date"
+                value={regHasta}
+                onChange={(e) => { setRegHasta(e.target.value); setCurrentPage(1); }}
+                className={selectClass}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mes cumpleaños</label>
               <select
                 value={mesCumple}
                 onChange={(e) => { setMesCumple(e.target.value); setCurrentPage(1); }}
-                className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+                className={selectClass}
               >
                 <option value="">Todos los meses</option>
                 {MESES.map((m, i) => (
@@ -294,27 +405,22 @@ export default function ModeradorUsuariosPage() {
               </select>
             </div>
 
-            {/* Rango fecha nacimiento */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Nac. desde
-              </label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nac. desde</label>
               <input
                 type="date"
                 value={nacDesde}
                 onChange={(e) => { setNacDesde(e.target.value); setCurrentPage(1); }}
-                className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+                className={selectClass}
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Nac. hasta
-              </label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nac. hasta</label>
               <input
                 type="date"
                 value={nacHasta}
                 onChange={(e) => { setNacHasta(e.target.value); setCurrentPage(1); }}
-                className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+                className={selectClass}
               />
             </div>
 
@@ -324,7 +430,7 @@ export default function ModeradorUsuariosPage() {
                 onClick={resetFiltros}
                 className="h-10 text-slate-400 hover:text-slate-600 text-xs font-bold rounded-xl"
               >
-                Limpiar
+                Limpiar filtros
               </Button>
             )}
           </div>
@@ -363,6 +469,7 @@ export default function ModeradorUsuariosPage() {
                       <th className="px-6 py-4">Nombre</th>
                       <th className="px-6 py-4">Teléfono</th>
                       <th className="px-6 py-4">Email</th>
+                      <th className="px-6 py-4">Comuna</th>
                       <th className="px-6 py-4">F. Nacimiento</th>
                       <th className="px-6 py-4">F. Registro</th>
                       <th className="px-6 py-4">Sellos</th>
@@ -372,7 +479,7 @@ export default function ModeradorUsuariosPage() {
                   <tbody className="divide-y divide-slate-100">
                     {paginated.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-20 text-center text-slate-300 font-bold">
+                        <td colSpan={8} className="px-6 py-20 text-center text-slate-300 font-bold">
                           Sin usuarios para los filtros seleccionados
                         </td>
                       </tr>
@@ -389,8 +496,11 @@ export default function ModeradorUsuariosPage() {
                           <td className="px-6 py-4 text-slate-500 font-medium">
                             <div className="flex items-center gap-1.5">
                               <Mail className="w-3.5 h-3.5 text-slate-300" />
-                              <span className="truncate max-w-[200px]">{u.email}</span>
+                              <span className="truncate max-w-[180px]">{u.email}</span>
                             </div>
+                          </td>
+                          <td className="px-6 py-4 text-slate-500 font-medium">
+                            {u.comuna || <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
