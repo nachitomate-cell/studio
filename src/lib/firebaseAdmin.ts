@@ -13,6 +13,7 @@
 import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getMessaging, type Messaging } from "firebase-admin/messaging";
 
 function createAdminApp(): App {
   // Evita re-inicialización en Fast Refresh (dev) y en Workers concurrentes
@@ -50,5 +51,6 @@ function createAdminApp(): App {
 
 const app: App = createAdminApp();
 
-export const adminAuth: Auth      = getAuth(app);
-export const adminDb:   Firestore = getFirestore(app);
+export const adminAuth:      Auth      = getAuth(app);
+export const adminDb:        Firestore = getFirestore(app);
+export const adminMessaging: Messaging = getMessaging(app);

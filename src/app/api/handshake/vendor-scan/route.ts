@@ -10,7 +10,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 
@@ -105,6 +105,8 @@ export async function POST(request: Request) {
     (async () => {
       try {
         const currentMonth = timestamp.substring(0, 7);
+
+        // Logs, ventas y contadores del vendedor
         await Promise.all([
           adminDb.collection("system_logs").add({
             usuario: result!.userName,
@@ -128,15 +130,55 @@ export async function POST(request: Request) {
             sellosEntregadosHistorico: FieldValue.increment(1),
             [`sellosEntregadosMensual.${currentMonth}`]: FieldValue.increment(1),
           }),
-          adminDb.collection("usuarios").doc(result!.userId).collection("notificaciones").add({
-            titulo: "¡Sello Confirmado! ✅",
-            mensaje: `Tu compra en ${result!.vendorName} fue registrada. ¡Un sello más para tu premio!`,
-            leida: false,
-            fecha: timestamp,
-          }),
         ]);
 
-        // Capa 1: si este es el primer sello real del usuario, otorgar sello al referidor
+        // Notificación al cliente con push FCM
+        const SELLOS_PARA_PREMIO = 5;
+        const { nuevoTotal, vendorName, userId } = result!;
+        const premioAlcanzado = nuevoTotal % SELLOS_PARA_PREMIO === 0;
+        const faltanPara = premioAlcanzado ? 0 : SELLOS_PARA_PREMIO - (nuevoTotal % SELLOS_PARA_PREMIO);
+
+        const notifTitulo = premioAlcanzado
+          ? "¡Premio disponible! 🎁"
+          : `+1 sello en ${vendorName} ✅`;
+        const notifMensaje = premioAlcanzado
+          ? `¡Completaste ${nuevoTotal} sellos! Ya puedes canjear tu recompensa en caja.`
+          : `Llevas ${nuevoTotal} ${nuevoTotal === 1 ? "sello" : "sellos"}. ¡${faltanPara} más para tu próximo premio! 🎯`;
+        const notifCta = premioAlcanzado ? "/premios" : "/";
+
+        // Guardar en Firestore y leer FCM token en paralelo
+        const [, clientSnap] = await Promise.all([
+          adminDb.collection("usuarios").doc(userId).collection("notificaciones").add({
+            titulo: notifTitulo,
+            mensaje: notifMensaje,
+            leida: false,
+            fecha: timestamp,
+            tipo: premioAlcanzado ? "PREMIO" : "SELLO",
+            cta: notifCta,
+            fuente: "vendor_scan",
+          }),
+          adminDb.collection("usuarios").doc(userId).get(),
+        ]);
+
+        // Enviar push si el cliente tiene FCM token registrado
+        const fcmToken = clientSnap.data()?.fcmToken as string | undefined;
+        if (fcmToken) {
+          const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://club-patio-curauma.vercel.app";
+          const link = `${BASE_URL}${notifCta}`;
+          await adminMessaging.send({
+            token: fcmToken,
+            notification: { title: notifTitulo, body: notifMensaje },
+            data: { type: premioAlcanzado ? "PREMIO" : "SELLO", cta: notifCta },
+            android: {
+              priority: "high",
+              notification: { channelId: "club_patio_default", icon: "ic_notification", color: "#4EAD1F" },
+            },
+            apns: { payload: { aps: { badge: 1, sound: premioAlcanzado ? "alert" : "default" } } },
+            webpush: { fcmOptions: { link } },
+          });
+        }
+
+        // Si este es el primer sello real del usuario, otorgar sello al referidor
         await procesarReferidoPendiente(result!.userId, result!.userName);
       } catch (e) {
         console.warn("[vendor-scan] Side effect failed:", e);
