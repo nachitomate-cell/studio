@@ -31,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { CatalogoPremios } from "./CatalogoPremios";
+import { ActivityFeed } from "./ActivityFeed";
 import PermissionsModal from "@/components/PermissionsModal";
 import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
@@ -1913,6 +1914,8 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               )}
             </div>
           </section>
+
+          {user && <ActivityFeed userId={user.uid} />}
         </motion.div>
       )}
 
