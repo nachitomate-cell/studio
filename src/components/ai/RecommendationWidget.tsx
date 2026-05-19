@@ -13,7 +13,6 @@ interface PremiumLocal {
   category: string;
   imageUrl: string;
   imagenTarjeta?: string;
-  logoHeader?: string;
   promoText?: string;
 }
 
@@ -38,7 +37,6 @@ export function RecommendationWidget() {
             category: doc.category || doc.rubro || "",
             imageUrl: doc.imageUrls?.[0] || doc.imageUrl || "/Logo2.png",
             imagenTarjeta: doc.imagenTarjeta || undefined,
-            logoHeader: doc.logoHeader || undefined,
             promoText: doc.promoText || undefined,
           };
         });
@@ -78,9 +76,9 @@ export function RecommendationWidget() {
           ))
         ) : (
           premiumLocales.map((local) => {
-            const logoSrc = local.logoHeader ? getSafeImageUrl(local.logoHeader) : null;
             // Misma lógica que EntrepreneurCard del directorio: imagenTarjeta || imageUrl
-            const heroSrc = logoSrc || getSafeImageUrl(local.imagenTarjeta || local.imageUrl);
+            // logoHeader NO se usa aquí — no lo actualiza el formulario de /directorio
+            const heroSrc = getSafeImageUrl(local.imagenTarjeta || local.imageUrl);
 
             return (
               <Link
