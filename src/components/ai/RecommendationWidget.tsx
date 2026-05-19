@@ -101,12 +101,12 @@ export function RecommendationWidget() {
                   style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.35)" }}
                 />
 
-                {/* Panel de metal cepillado — unifica cualquier fondo de logo */}
-                <div className="absolute inset-x-8 top-6 flex items-center justify-center p-4 border border-neutral-700/50 rounded-xl bg-gradient-to-br from-neutral-800 to-neutral-900 shadow-inner aspect-[3/1.5]">
+                {/* Logo centrado — object-contain para que se vea completo */}
+                <div className="absolute inset-0 flex items-center justify-center p-6 pb-16">
                   <img
                     src={heroSrc}
                     alt={local.businessName}
-                    className="h-12 w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                    className="max-w-full max-h-20 w-auto h-auto object-contain drop-shadow-2xl transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
 
