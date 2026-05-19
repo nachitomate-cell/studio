@@ -12,6 +12,7 @@ interface PremiumLocal {
   businessName: string;
   category: string;
   imageUrl: string;
+  imagenTarjeta?: string;
   logoHeader?: string;
   promoText?: string;
 }
@@ -35,7 +36,8 @@ export function RecommendationWidget() {
             id: d.id,
             businessName: doc.businessName || doc.nombre || "Local Destacado",
             category: doc.category || doc.rubro || "",
-            imageUrl: doc.imageUrl || doc.imageUrls?.[0] || "/Logo2.png",
+            imageUrl: doc.imageUrls?.[0] || doc.imageUrl || "/Logo2.png",
+            imagenTarjeta: doc.imagenTarjeta || undefined,
             logoHeader: doc.logoHeader || undefined,
             promoText: doc.promoText || undefined,
           };
@@ -77,8 +79,8 @@ export function RecommendationWidget() {
         ) : (
           premiumLocales.map((local) => {
             const logoSrc = local.logoHeader ? getSafeImageUrl(local.logoHeader) : null;
-            // Usa siempre la foto subida por el local; logoHeader como overlay opcional
-            const heroSrc = logoSrc || getSafeImageUrl(local.imageUrl);
+            // Misma lógica que EntrepreneurCard del directorio: imagenTarjeta || imageUrl
+            const heroSrc = logoSrc || getSafeImageUrl(local.imagenTarjeta || local.imageUrl);
 
             return (
               <Link
