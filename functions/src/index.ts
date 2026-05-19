@@ -189,7 +189,7 @@ async function sendPushNotification(user: UserDoc, promo: PromoMessage): Promise
           requireInteraction: false,
         },
         fcmOptions: {
-          link: "https://clubpatiocurauma.synaptechspa.cl/",
+          link: "https://club-patio-curauma.vercel.app/",
         },
       },
     });
@@ -379,34 +379,35 @@ async function executeBroadcast(
     const snap = await db.collection("usuarios").where("rol", "==", "emprendedor").get();
     docs = snap.docs.filter(d => d.data().baneado !== true);
   } else {
-    const snap = await db.collection("usuarios").where("baneado", "!=", true).get();
+    const snap = await db.collection("usuarios").get();
+    const notBanned = snap.docs.filter(d => d.data().baneado !== true);
     if (destino === "cerca_de_premio") {
-      docs = snap.docs.filter(d => (d.data().comprasRealizadas ?? 0) >= 4);
+      docs = notBanned.filter(d => (d.data().comprasRealizadas ?? 0) >= 4);
     } else if (destino === "inactivos") {
-      docs = snap.docs.filter(d => {
+      docs = notBanned.filter(d => {
         const last: string | undefined = d.data().lastPurchaseAt;
         return !last || last < thirtyDaysAgo;
       });
     } else if (destino === "activos_recientes") {
-      docs = snap.docs.filter(d => {
+      docs = notBanned.filter(d => {
         const last: string | undefined = d.data().lastPurchaseAt;
         return !!last && last >= thirtyDaysAgo;
       });
     } else if (destino === "cumpleanios_mes") {
-      docs = snap.docs.filter(d => {
+      docs = notBanned.filter(d => {
         const fn = d.data().fechaNacimiento;
         if (!fn) return false;
         const date = fn instanceof admin.firestore.Timestamp ? fn.toDate() : new Date(fn);
         return !isNaN(date.getTime()) && date.getMonth() === currentMonth;
       });
     } else if (destino === "aceptaPromoLocales") {
-      docs = snap.docs.filter(d => d.data().aceptaPromoLocales === true);
+      docs = notBanned.filter(d => d.data().aceptaPromoLocales === true);
     } else if (destino === "visitaron_local") {
       if (!vendedorFiltro) {
         docs = [];
         logger.warn(`Comunicado ${ref.id}: destino=visitaron_local sin vendedorFiltro — cancelado.`);
       } else {
-        docs = snap.docs.filter(d => {
+        docs = notBanned.filter(d => {
           const data = d.data();
           return (
             (data.sellosLocales?.[vendedorFiltro] ?? 0) > 0 ||
@@ -419,14 +420,14 @@ async function executeBroadcast(
         docs = [];
         logger.warn(`Comunicado ${ref.id}: destino=usuario_especifico sin usuarioFiltro — cancelado.`);
       } else {
-        const userDoc = snap.docs.find(d => d.id === usuarioFiltro);
+        const userDoc = notBanned.find(d => d.id === usuarioFiltro);
         docs = userDoc ? [userDoc] : [];
         if (!userDoc) {
           logger.warn(`Comunicado ${ref.id}: usuario ${usuarioFiltro} no encontrado o está baneado.`);
         }
       }
     } else {
-      docs = snap.docs; // "todos"
+      docs = notBanned; // "todos"
     }
   }
 
@@ -464,7 +465,7 @@ async function executeBroadcast(
     await batch.commit();
   }
 
-  const BASE_URL = process.env.BASE_URL ?? "https://clubpatiocurauma.synaptechspa.cl";
+  const BASE_URL = process.env.BASE_URL ?? "https://club-patio-curauma.vercel.app";
 
   for (let i = 0; i < tokens.length; i += 500) {
     const tokenBatch = tokens.slice(i, i + 500);

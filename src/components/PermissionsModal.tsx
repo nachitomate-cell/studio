@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { X, Bell, MapPin, Camera, CheckCircle2, XCircle, AlertTriangle, ChevronRight } from "lucide-react";
+import { X, Bell, MapPin, Camera, CheckCircle2, XCircle, AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
 import { registerFcmToken } from "@/lib/fcmTokenManager";
 
 interface PermissionsModalProps {
@@ -186,6 +186,7 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
             loading={loading === "notifications"}
             onRequest={requestNotifications}
             instructions={INSTRUCTIONS.notifications[platform]}
+            canReactivate
           />
 
           <PermRow
@@ -263,6 +264,7 @@ function PermRow({
   loading,
   onRequest,
   instructions,
+  canReactivate = false,
 }: {
   icon: React.ReactNode;
   name: string;
@@ -271,6 +273,7 @@ function PermRow({
   loading: boolean;
   onRequest: () => void;
   instructions: string;
+  canReactivate?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-slate-100 overflow-hidden">
@@ -316,8 +319,28 @@ function PermRow({
         </div>
       )}
 
+      {status === "granted" && canReactivate && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={onRequest}
+            disabled={loading}
+            className="w-full h-9 rounded-xl text-xs font-bold border border-slate-200 text-slate-500 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] disabled:opacity-60 hover:bg-slate-50"
+          >
+            {loading ? "Actualizando…" : <><RefreshCw className="w-3.5 h-3.5" /><span>Reactivar notificaciones</span></>}
+          </button>
+        </div>
+      )}
+
       {status === "denied" && (
         <div className="px-4 pb-4 space-y-2">
+          <button
+            onClick={onRequest}
+            disabled={loading}
+            className="w-full h-9 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] disabled:opacity-60"
+            style={{ backgroundColor: "#D3B673" }}
+          >
+            {loading ? "Verificando…" : <><span>Ya lo activé — verificar</span><ChevronRight className="w-3.5 h-3.5" /></>}
+          </button>
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Permiso bloqueado. Actívalo desde:
           </p>
