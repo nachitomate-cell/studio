@@ -11,9 +11,8 @@ interface PremiumLocal {
   id: string;
   businessName: string;
   category: string;
-  imageUrl: string;        // fallback universal
-  imagenTarjeta?: string;  // fondo de la tarjeta del carrusel
-  logoHeader?: string;     // logo/marca visible en la esquina superior
+  imageUrl: string;
+  logoHeader?: string;
   promoText?: string;
 }
 
@@ -36,8 +35,7 @@ export function RecommendationWidget() {
             id: d.id,
             businessName: doc.businessName || doc.nombre || "Local Destacado",
             category: doc.category || doc.rubro || "",
-            imageUrl: doc.imageUrls?.[0] || doc.imageUrl || "/Logo2.png",
-            imagenTarjeta: doc.imagenTarjeta || undefined,
+            imageUrl: doc.imageUrl || doc.imageUrls?.[0] || "/Logo2.png",
             logoHeader: doc.logoHeader || undefined,
             promoText: doc.promoText || undefined,
           };
@@ -78,11 +76,9 @@ export function RecommendationWidget() {
           ))
         ) : (
           premiumLocales.map((local) => {
-            const bgImage = getSafeImageUrl(local.imagenTarjeta || local.imageUrl);
             const logoSrc = local.logoHeader ? getSafeImageUrl(local.logoHeader) : null;
-
-            // Logo a mostrar: logoHeader si existe, si no la imagen del local
-            const heroSrc = logoSrc || bgImage;
+            // Usa siempre la foto subida por el local; logoHeader como overlay opcional
+            const heroSrc = logoSrc || getSafeImageUrl(local.imageUrl);
 
             return (
               <Link
