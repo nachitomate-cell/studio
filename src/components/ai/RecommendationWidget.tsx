@@ -81,6 +81,9 @@ export function RecommendationWidget() {
             const bgImage = getSafeImageUrl(local.imagenTarjeta || local.imageUrl);
             const logoSrc = local.logoHeader ? getSafeImageUrl(local.logoHeader) : null;
 
+            // Logo a mostrar: logoHeader si existe, si no la imagen del local
+            const heroSrc = logoSrc || bgImage;
+
             return (
               <Link
                 key={local.id}
@@ -88,73 +91,46 @@ export function RecommendationWidget() {
                 className="group min-w-[260px] max-w-[260px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-end snap-start transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98]"
                 style={{ height: "200px" }}
               >
-                {/* ── 1. Imagen de fondo a full opacidad ──────────────── */}
+                {/* 1. Fondo base neutro — nunca compite con el logo */}
                 <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-500 ease-in-out group-hover:scale-105"
-                  style={{ backgroundImage: `url(${bgImage})` }}
+                  className="absolute inset-0"
+                  style={{
+                    background: "linear-gradient(140deg, #0d1117 0%, #1a1f2e 50%, #0d1117 100%)",
+                  }}
                 />
 
-                {/* ── Gradiente: solo en la franja inferior para texto ─── */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-
-                {/* ── Borde dorado sutil ──────────────────────────────── */}
+                {/* Borde dorado sutil */}
                 <div
                   className="absolute inset-0 rounded-2xl pointer-events-none"
-                  style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.4)" }}
+                  style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.35)" }}
                 />
 
-                {/* ── Insignia del logo — top-right ────────────────────── */}
-                {logoSrc && (
-                  <div className="absolute top-2.5 right-2.5 z-10">
-                    <div
-                      className="flex items-center justify-center rounded-lg"
-                      style={{
-                        background: "rgba(255,255,255,0.90)",
-                        backdropFilter: "blur(6px)",
-                        padding: "3px 6px",
-                        maxWidth: "64px",
-                        height: "28px",
-                      }}
-                    >
-                      <img
-                        src={logoSrc}
-                        alt={local.businessName}
-                        style={{
-                          maxWidth: "54px",
-                          maxHeight: "20px",
-                          width: "auto",
-                          height: "auto",
-                          objectFit: "contain",
-                          display: "block",
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+                {/* 1. Logo protagonista centrado — object-contain, jamás se corta */}
+                <div className="absolute inset-0 flex items-center justify-center p-6 pb-16">
+                  <img
+                    src={heroSrc}
+                    alt={local.businessName}
+                    className="max-w-full max-h-20 w-auto h-auto object-contain drop-shadow-2xl transition-transform duration-300 group-hover:scale-105"
+                  />
+                </div>
 
-                {/* ── Contenido inferior ──────────────────────────────── */}
+                {/* 3. Gradiente inferior para legibilidad del texto */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+
+                {/* 2. Textos pequeños y sutiles */}
                 <div className="relative z-10 px-3 pb-3 space-y-0.5">
-                  {/* Badge PATROCINADO — minimalista */}
                   <span
-                    className="inline-flex items-center gap-0.5 rounded-full border border-amber-400/60 bg-black/25 backdrop-blur-sm px-2 py-px text-[9px] font-semibold uppercase tracking-widest"
+                    className="inline-flex items-center gap-0.5 rounded-full border border-amber-400/60 bg-black/30 backdrop-blur-sm px-2 py-px text-[9px] font-semibold uppercase tracking-widest"
                     style={{ color: "#F5C842" }}
                   >
                     ✦ Patrocinado
                   </span>
 
-                  {/* Nombre del local */}
-                  <h4
-                    className="text-white font-bold leading-tight line-clamp-1"
-                    style={{ fontSize: "14px" }}
-                  >
+                  <h4 className="text-white/90 font-semibold leading-tight line-clamp-1 text-sm">
                     {local.businessName}
                   </h4>
 
-                  {/* Texto promocional */}
-                  <p
-                    className="leading-snug line-clamp-1 overflow-hidden"
-                    style={{ fontSize: "11px", color: "rgba(255,255,255,0.70)" }}
-                  >
+                  <p className="leading-snug line-clamp-1 overflow-hidden text-[11px] text-white/60">
                     {local.promoText || "¡Descúbrela hoy en el Patio Curauma!"}
                   </p>
                 </div>
