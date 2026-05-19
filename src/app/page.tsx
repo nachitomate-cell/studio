@@ -12,7 +12,7 @@ import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
 import { useUserLocation, haversineKm } from "@/hooks/useUserLocation";
 import { isOpenNow } from "@/lib/horarios";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check, Heart } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check, Heart, X, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -37,6 +37,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const redirectAfterLoginRef = useRef<string | null>(null);
+  const [pushNotif, setPushNotif] = useState<{ titulo: string; body: string; tipo: string; cta: string } | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -80,6 +81,17 @@ export default function Home() {
       if (redirectParam) {
         redirectAfterLoginRef.current = redirectParam;
         setShowAuth(true);
+      }
+      const nt = params.get("n_t");
+      const nb = params.get("n_b");
+      if (nt && nb) {
+        setPushNotif({
+          titulo: nt,
+          body: nb,
+          tipo: params.get("n_tipo") || "",
+          cta: params.get("n_cta") || "/",
+        });
+        window.history.replaceState({}, "", "/");
       }
     }
   }, []);
@@ -723,6 +735,66 @@ export default function Home() {
         onClose={() => setShowAIModal(false)}
         userData={userData}
       />
+
+      {/* Modal de notificación push */}
+      {pushNotif && (() => {
+        const TIPO_MAP: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
+          BROADCAST_INFO:    { label: "Información", color: "#3b82f6", bg: "rgba(59,130,246,0.12)",  emoji: "📢" },
+          BROADCAST_URGENTE: { label: "Urgente",     color: "#ef4444", bg: "rgba(239,68,68,0.12)",   emoji: "🚨" },
+          BROADCAST_PROMO:   { label: "Promoción",   color: "#10b981", bg: "rgba(16,185,129,0.12)",  emoji: "🎉" },
+          BROADCAST_SORTEO:  { label: "Sorteo",      color: "#8b5cf6", bg: "rgba(139,92,246,0.12)",  emoji: "🎟️" },
+        };
+        const cfg = TIPO_MAP[pushNotif.tipo];
+        const hasCta = pushNotif.cta && pushNotif.cta !== "/";
+        return (
+          <div
+            className="fixed inset-0 z-[300] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setPushNotif(null)}
+          >
+            <div
+              className="w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-slate-200" />
+              </div>
+              <div className="px-6 pt-3 pb-8 space-y-4">
+                <div className="flex items-center justify-between">
+                  {cfg ? (
+                    <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: cfg.bg, color: cfg.color }}>
+                      {cfg.emoji} {cfg.label}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Club Patio Curauma</span>
+                  )}
+                  <button
+                    onClick={() => setPushNotif(null)}
+                    className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <h2 className="text-xl font-black text-slate-800 leading-snug">{pushNotif.titulo}</h2>
+                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{pushNotif.body}</p>
+                {hasCta && (
+                  <Button
+                    className="w-full h-12 rounded-2xl font-bold gap-2 bg-primary text-white hover:bg-primary/90"
+                    onClick={() => { router.push(pushNotif.cta); setPushNotif(null); }}
+                  >
+                    <ExternalLink className="w-4 h-4" /> Ver más
+                  </Button>
+                )}
+                <button
+                  onClick={() => setPushNotif(null)}
+                  className="w-full h-10 rounded-2xl text-sm font-bold text-slate-400 hover:bg-slate-50 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Panel debug GPS — solo visible para admin */}
       {isAdmin && (

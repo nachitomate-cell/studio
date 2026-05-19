@@ -5,7 +5,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-const CACHE_VERSION = '10';
+const CACHE_VERSION = '11';
 const CACHE_NAME = `club-patio-shell-v${CACHE_VERSION}`;
 const SHELL_ASSETS = ['/Logo.png', '/Logo2.png', '/manifest.json'];
 
@@ -80,23 +80,17 @@ const messaging = firebase.messaging();
 // Solución: cerramos la notificación de Firebase y mostramos la nuestra con data: { url }.
 // Firebase's notificationclick ve que no hay FCM_MSG → retorna early SIN bloquear el nuestro.
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] onBackgroundMessage payload:', JSON.stringify(payload));
-
   const title = payload.notification?.title || payload.data?.title || 'Club Patio';
   const body  = payload.notification?.body  || payload.data?.body  || '';
-  const url   = payload.data?.url || '/';
+  const tipo  = payload.data?.type || '';
+  const cta   = payload.data?.cta  || '/';
 
-  // Cerrar la notificación que Firebase ya mostró (tiene FCM_MSG, causaría el bloqueo)
+  // Cerrar la notificación automática de Firebase (tiene FCM_MSG, bloquearía el click handler)
   self.registration.getNotifications().then(notifs => {
-    notifs.forEach(n => {
-      if (n.data && n.data.FCM_MSG) {
-        console.log('[SW] Cerrando notificación de Firebase (FCM_MSG)');
-        n.close();
-      }
-    });
+    notifs.forEach(n => { if (n.data?.FCM_MSG) n.close(); });
   });
 
-  // Mostrar nuestra notificación con data: { url } — sin FCM_MSG
+  // Mostrar nuestra notificación con data limpia (sin FCM_MSG)
   self.registration.showNotification(title, {
     body,
     icon: '/Logo.png',
@@ -104,15 +98,35 @@ messaging.onBackgroundMessage((payload) => {
     vibrate: [200, 100, 200],
     tag: 'club-patio-broadcast',
     renotify: true,
-    data: { url },
+    data: { tipo, cta },
   });
 });
 
-// Firebase retorna early de su notificationclick cuando no encuentra FCM_MSG en data.
-// Por lo tanto, este listener corre sin interferencia.
+// Firebase retorna early de su notificationclick cuando no encuentra FCM_MSG → este corre sin interferencia
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] notificationclick url:', event.notification.data?.url);
   event.notification.close();
-  const url = event.notification.data?.url || '/';
-  event.waitUntil(self.clients.openWindow(url));
+  const { tipo = '', cta = '/' } = event.notification.data || {};
+
+  // Pasar el contenido de la notificación como URL params para mostrar modal inmediato
+  const params = new URLSearchParams({
+    n_t: event.notification.title || '',
+    n_b: event.notification.body  || '',
+    n_tipo: tipo,
+    n_cta: cta,
+  });
+  const targetUrl = self.location.origin + '/?' + params.toString();
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      // Navegar en la ventana PWA ya abierta si existe
+      for (const client of clients) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          client.focus();
+          if ('navigate' in client) return client.navigate(targetUrl);
+        }
+      }
+      // Si la app no estaba abierta, abrir nueva ventana
+      return self.clients.openWindow(targetUrl);
+    })
+  );
 });
