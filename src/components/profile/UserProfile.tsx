@@ -32,6 +32,7 @@ import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { CatalogoPremios } from "./CatalogoPremios";
 import { ActivityFeed } from "./ActivityFeed";
+import { FavoriteShops } from "./FavoriteShops";
 import PermissionsModal from "@/components/PermissionsModal";
 import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
@@ -1914,6 +1915,10 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               )}
             </div>
           </section>
+
+          {userData?.sellosLocales && Object.keys(userData.sellosLocales).length > 0 && (
+            <FavoriteShops sellosLocales={userData.sellosLocales} />
+          )}
 
           {user && <ActivityFeed userId={user.uid} />}
         </motion.div>
