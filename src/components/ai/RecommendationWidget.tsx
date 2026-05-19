@@ -13,6 +13,7 @@ interface PremiumLocal {
   category: string;
   imageUrl: string;
   imagenTarjeta?: string;
+  logoHeader?: string;
   promoText?: string;
 }
 
@@ -37,6 +38,7 @@ export function RecommendationWidget() {
             category: doc.category || doc.rubro || "",
             imageUrl: doc.imageUrls?.[0] || doc.imageUrl || "/Logo2.png",
             imagenTarjeta: doc.imagenTarjeta || undefined,
+            logoHeader: doc.logoHeader || undefined,
             promoText: doc.promoText || undefined,
           };
         });
@@ -76,9 +78,8 @@ export function RecommendationWidget() {
           ))
         ) : (
           premiumLocales.map((local) => {
-            // Misma lógica que EntrepreneurCard del directorio: imagenTarjeta || imageUrl
-            // logoHeader NO se usa aquí — no lo actualiza el formulario de /directorio
             const heroSrc = getSafeImageUrl(local.imagenTarjeta || local.imageUrl);
+            const logoSrc = local.logoHeader ? getSafeImageUrl(local.logoHeader) : null;
 
             return (
               <Link
@@ -87,13 +88,16 @@ export function RecommendationWidget() {
                 className="group min-w-[260px] max-w-[260px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-end snap-start transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]"
                 style={{ height: "200px" }}
               >
-                {/* Fondo base oscuro */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: "linear-gradient(140deg, #0d1117 0%, #1a1f2e 50%, #0d1117 100%)",
-                  }}
+                {/* Imagen de fondo — cubre todo el cuadro */}
+                <img
+                  src={heroSrc}
+                  alt={local.businessName}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
                 />
+
+                {/* Gradiente inferior para legibilidad del texto */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
 
                 {/* Borde dorado sutil */}
                 <div
@@ -101,19 +105,19 @@ export function RecommendationWidget() {
                   style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.35)" }}
                 />
 
-                {/* Logo centrado — object-contain para que se vea completo */}
-                <div className="absolute inset-0 flex items-center justify-center p-6 pb-16">
-                  <img
-                    src={heroSrc}
-                    alt={local.businessName}
-                    className="max-w-full max-h-20 w-auto h-auto object-contain drop-shadow-2xl transition-transform duration-300 group-hover:scale-105"
-                  />
-                </div>
+                {/* Logo superpuesto — visible al 100% en esquina superior derecha */}
+                {logoSrc && (
+                  <div className="absolute top-2.5 right-2.5 w-14 h-14 rounded-xl overflow-hidden bg-white/15 backdrop-blur-md p-1.5 shadow-lg">
+                    <img
+                      src={logoSrc}
+                      alt={`Logo ${local.businessName}`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                )}
 
-                {/* Gradiente inferior para legibilidad del texto */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-
-                {/* Textos sutiles */}
+                {/* Textos en la parte inferior */}
                 <div className="relative z-10 px-3 pb-3 space-y-0.5">
                   <span
                     className="inline-flex items-center gap-0.5 rounded-full border border-amber-400/60 bg-black/30 backdrop-blur-sm px-2 py-px text-[9px] font-semibold uppercase tracking-widest"
@@ -126,7 +130,7 @@ export function RecommendationWidget() {
                     {local.businessName}
                   </h4>
 
-                  <p className="leading-snug line-clamp-1 overflow-hidden text-[11px] text-neutral-400">
+                  <p className="leading-snug line-clamp-1 overflow-hidden text-[11px] text-neutral-300">
                     {local.promoText || "¡Descúbrela hoy en el Patio Curauma!"}
                   </p>
                 </div>
