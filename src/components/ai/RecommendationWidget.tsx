@@ -73,7 +73,7 @@ export function RecommendationWidget() {
             <div
               key={i}
               className="min-w-[260px] shrink-0 rounded-2xl bg-slate-200 animate-pulse snap-start"
-              style={{ height: "160px" }}
+              style={{ height: "200px" }}
             />
           ))
         ) : (
@@ -85,60 +85,46 @@ export function RecommendationWidget() {
               <Link
                 key={local.id}
                 href={`/emprendedor/${local.id}`}
-                className="min-w-[260px] max-w-[260px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-between snap-start active:opacity-80 transition-opacity"
-                style={{
-                  height: "168px",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
-                  background: "linear-gradient(135deg, #111111 0%, #2a2412 60%, #1a1a0e 100%)",
-                }}
+                className="group min-w-[260px] max-w-[260px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-end snap-start transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98]"
+                style={{ height: "200px" }}
               >
-                {/* ── Imagen de fondo ─────────────────────────────────── */}
+                {/* ── 1. Imagen de fondo a full opacidad ──────────────── */}
                 <div
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url(${bgImage})`,
-                    opacity: 0.22,
-                  }}
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-500 ease-in-out group-hover:scale-105"
+                  style={{ backgroundImage: `url(${bgImage})` }}
                 />
 
-                {/* ── Gradiente para legibilidad ──────────────────────── */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.65) 100%)",
-                  }}
-                />
+                {/* ── 2. Gradiente: oscuro abajo → transparente arriba ── */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/10" />
 
                 {/* ── Borde dorado sutil ──────────────────────────────── */}
                 <div
                   className="absolute inset-0 rounded-2xl pointer-events-none"
-                  style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.35)" }}
+                  style={{ boxShadow: "inset 0 0 0 1.5px rgba(212,175,55,0.5)" }}
                 />
 
-                {/* ── Logo en esquina superior derecha ────────────────── */}
+                {/* ── 3. Insignia del logo — top-right ────────────────── */}
                 {logoSrc && (
-                  <div className="relative z-10 flex justify-end p-3 pb-0">
+                  <div className="absolute top-3 right-3 z-10">
                     <div
-                      className="flex items-center justify-center"
+                      className="flex items-center justify-center rounded-xl shadow-lg"
                       style={{
-                        background: "rgba(0,0,0,0.45)",
-                        backdropFilter: "blur(6px)",
-                        borderRadius: "10px",
-                        padding: "5px 8px",
-                        maxWidth: "96px",
-                        height: "36px",
+                        background: "rgba(255,255,255,0.96)",
+                        backdropFilter: "blur(8px)",
+                        padding: "5px 9px",
+                        maxWidth: "90px",
+                        height: "38px",
                       }}
                     >
                       <img
                         src={logoSrc}
                         alt={local.businessName}
                         style={{
-                          maxWidth: "80px",
+                          maxWidth: "72px",
                           maxHeight: "26px",
                           width: "auto",
                           height: "auto",
-                          objectFit: "contain",  // ← preserva proporciones logos anchos
+                          objectFit: "contain",
                           display: "block",
                         }}
                       />
@@ -146,39 +132,28 @@ export function RecommendationWidget() {
                   </div>
                 )}
 
-                {/* ── Contenido inferior ──────────────────────────────── */}
-                <div className="relative z-10 p-4 pt-2 space-y-1.5">
-                  {/* Badge PATROCINADO */}
-                  <div>
-                    <span
-                      className="inline-block rounded-full font-semibold uppercase tracking-wider"
-                      style={{
-                        background: "#D4AF37",
-                        color: "#3D2B00",
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        padding: "2px 10px",
-                      }}
-                    >
-                      ✦ Patrocinado
-                    </span>
-                  </div>
+                {/* ── 4. Contenido inferior ───────────────────────────── */}
+                <div className="relative z-10 p-4 space-y-1">
+                  {/* 2. Badge PATROCINADO — outlined accesible */}
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-400/80 bg-black/35 backdrop-blur-sm px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                    style={{ color: "#F5C842" }}
+                  >
+                    ✦ Patrocinado
+                  </span>
 
                   {/* Nombre del local */}
                   <h4
-                    className="text-white leading-tight line-clamp-1"
-                    style={{ fontSize: "16px", fontWeight: 700 }}
+                    className="text-white font-bold leading-tight line-clamp-1"
+                    style={{ fontSize: "16px" }}
                   >
                     {local.businessName}
                   </h4>
 
-                  {/* Texto promocional — máximo 2 líneas para igualar alturas */}
+                  {/* 4. Texto promocional — line-clamp consistente */}
                   <p
-                    className="leading-snug line-clamp-2"
-                    style={{
-                      fontSize: "13px",
-                      color: "rgba(255,255,255,0.72)",
-                    }}
+                    className="leading-snug line-clamp-2 overflow-hidden"
+                    style={{ fontSize: "12px", color: "rgba(255,255,255,0.78)" }}
                   >
                     {local.promoText || "¡Descúbrela hoy en el Patio Curauma!"}
                   </p>
