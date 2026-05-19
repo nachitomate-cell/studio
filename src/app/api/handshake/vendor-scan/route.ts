@@ -21,9 +21,9 @@ const SELLOS_PARA_PREMIO = 5;
  * Tiers ajustables sin redeploy si se mueven a Firestore en el futuro.
  */
 function calcularSellos(monto: number): number {
-  if (monto >= 30_000) return 4;
-  if (monto >= 15_000) return 3;
-  if (monto >= 5_000)  return 2;
+  if (monto >= 40_000) return 4;
+  if (monto >= 25_001) return 3;
+  if (monto >= 10_001) return 2;
   return 1;
 }
 
