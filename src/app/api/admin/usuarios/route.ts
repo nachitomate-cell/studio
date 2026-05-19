@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 const ROLES_STAFF = ["moderador", "admin", "director", "director_patio"];
-import { ADMIN_EMAIL } from "@/lib/constants";
+import { ALLOWED_MOD_EMAILS } from "@/lib/constants";
 import { getUserRoles } from "@/lib/roles";
 
 export async function GET(request: Request) {
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const callerDoc  = await adminDb.collection("usuarios").doc(decoded.uid).get();
     const callerData = callerDoc.exists ? callerDoc.data() : null;
     const callerRoles = getUserRoles(callerData);
-    const isAdmin    = decoded.email === ADMIN_EMAIL;
+    const isAdmin    = ALLOWED_MOD_EMAILS.includes((decoded.email ?? "").toLowerCase());
 
     if (!isAdmin && !callerRoles.some((r) => ROLES_STAFF.includes(r))) {
       return NextResponse.json({ error: "Sin permisos" }, { status: 403 });

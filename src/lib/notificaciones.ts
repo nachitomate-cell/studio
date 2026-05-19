@@ -58,7 +58,7 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
       if (fcmToken) {
         const baseUrl = typeof window !== "undefined"
           ? window.location.origin
-          : process.env.NEXT_PUBLIC_BASE_URL || "https://club-patio-curauma.vercel.app";
+          : process.env.NEXT_PUBLIC_BASE_URL || "https://clubpatiocurauma.synaptechspa.cl";
 
         await fetch(`${baseUrl}/api/send-notification`, {
           method: "POST",

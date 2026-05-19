@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         </head>
         <body>
           <div class="container">
-            <img src="https://club-patio-curauma.vercel.app/Logo2.png" alt="Club Patio Logo" class="logo" />
+            <img src="https://clubpatiocurauma.synaptechspa.cl/Logo2.png" alt="Club Patio Logo" class="logo" />
             <h2 class="title">Recupera tu contraseña</h2>
             <p class="text">Hemos recibido una solicitud para restablecer la contraseña de tu cuenta. Haz clic en el botón de abajo para crear una nueva.</p>
             <a href="${resetLink}" class="button">Restablecer mi contraseña</a>

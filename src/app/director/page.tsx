@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Users, Ticket, TrendingUp,
   ArrowLeft, Download, Send, Plus, Trash2,
-  Edit3, Trophy, Megaphone, Loader2, Store, Crown, Check, X, ImagePlus, FolderOpen, Copy, QrCode
+  Edit3, Trophy, Megaphone, Loader2, Store, Crown, Check, X, ImagePlus, FolderOpen, Copy, QrCode,
+  Search, UserCheck,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Switch } from "@/components/ui/switch";
@@ -50,7 +51,12 @@ export default function DirectorPage() {
     tipo: "info" as "info" | "urgente" | "promo" | "sorteo",
     cta: "",
     vendedorFiltro: "",
+    usuarioFiltro: "",
   });
+  const [userSearchQuery, setUserSearchQuery]   = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<{ uid: string; nombre: string; email: string }[]>([]);
+  const [searchingUser, setSearchingUser]       = useState(false);
+  const [selectedUserInfo, setSelectedUserInfo] = useState<{ uid: string; nombre: string; email: string } | null>(null);
 
   const [vendorToDelete, setVendorToDelete] = useState<{ id: string; nombre: string } | null>(null);
 
@@ -248,9 +254,35 @@ export default function DirectorPage() {
     XLSX.writeFile(wb, `ranking_emprendedores_${mesLabel.replace(/\s/g, "_").toLowerCase()}.xlsx`);
   };
 
+  const searchUsers = async (q: string) => {
+    const term = q.trim();
+    if (term.length < 2) { setUserSearchResults([]); return; }
+    setSearchingUser(true);
+    try {
+      const [byNombre, byEmail] = await Promise.all([
+        getDocs(query(collection(db, "usuarios"), where("nombre", ">=", term), where("nombre", "<=", term + ""), limit(6))),
+        getDocs(query(collection(db, "usuarios"), where("correo", ">=", term), where("correo", "<=", term + ""), limit(6))),
+      ]);
+      const map = new Map<string, { uid: string; nombre: string; email: string }>();
+      [...byNombre.docs, ...byEmail.docs].forEach(d => {
+        const data = d.data();
+        map.set(d.id, { uid: d.id, nombre: data.nombre || "Sin nombre", email: data.correo || "" });
+      });
+      setUserSearchResults([...map.values()].slice(0, 8));
+    } catch {
+      setUserSearchResults([]);
+    } finally {
+      setSearchingUser(false);
+    }
+  };
+
   const handleSendGlobalMessage = async () => {
     if (!mensajeGlobal.titulo || !mensajeGlobal.cuerpo) {
       toast({ variant: "destructive", title: "Campos incompletos", description: "Escribe un título y un mensaje." });
+      return;
+    }
+    if (mensajeGlobal.destino === "usuario_especifico" && !mensajeGlobal.usuarioFiltro) {
+      toast({ variant: "destructive", title: "Falta el destinatario", description: "Busca y selecciona un usuario." });
       return;
     }
     const isProgramado = !!mensajeGlobal.enviarEn && new Date(mensajeGlobal.enviarEn) > new Date();
@@ -262,6 +294,8 @@ export default function DirectorPage() {
         mensaje: mensajeGlobal.cuerpo,
         destino: mensajeGlobal.destino,
         vendedorFiltro: mensajeGlobal.destino === "visitaron_local" ? mensajeGlobal.vendedorFiltro : null,
+        usuarioFiltro: mensajeGlobal.destino === "usuario_especifico" ? mensajeGlobal.usuarioFiltro : null,
+        usuarioFiltroNombre: mensajeGlobal.destino === "usuario_especifico" ? (selectedUserInfo?.nombre ?? null) : null,
         tipo: mensajeGlobal.tipo,
         cta: mensajeGlobal.cta || "/",
         fechaCreacion: new Date().toISOString(),
@@ -274,7 +308,10 @@ export default function DirectorPage() {
           ? `Se enviará el ${new Date(mensajeGlobal.enviarEn).toLocaleString("es-CL")}.`
           : "El mensaje se enviará en segundo plano a la brevedad.",
       });
-      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "", vendedorFiltro: "" });
+      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "", vendedorFiltro: "", usuarioFiltro: "" });
+      setSelectedUserInfo(null);
+      setUserSearchQuery("");
+      setUserSearchResults([]);
       // Recargar historial tras enviar
       loadHistorial();
     } catch {
@@ -995,6 +1032,7 @@ export default function DirectorPage() {
                         cumpleanios_mes: "Cumpleaños",
                         aceptaPromoLocales: "Con consentimiento",
                         visitaron_local: "Visitaron local",
+                        usuario_especifico: h.usuarioFiltroNombre ? `👤 ${h.usuarioFiltroNombre}` : "Usuario específico",
                       };
                       return (
                         <div key={h.id} className="rounded-2xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1087,7 +1125,80 @@ export default function DirectorPage() {
                 <option value="cumpleanios_mes" className="text-slate-800">Cumpleaños este mes 🎂</option>
                 <option value="aceptaPromoLocales" className="text-slate-800">Consintieron promos de locales ✅</option>
                 <option value="visitaron_local" className="text-slate-800">Visitaron un local específico 📍</option>
+                <option value="usuario_especifico" className="text-slate-800">Usuario específico 👤</option>
               </select>
+
+              {/* ── Búsqueda de usuario específico ─────────────────────── */}
+              {mensajeGlobal.destino === "usuario_especifico" && (
+                <div className="space-y-2">
+                  {selectedUserInfo ? (
+                    <div className="flex items-center gap-3 bg-white/15 border border-white/20 rounded-xl px-3 py-2.5">
+                      <div className="w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center text-primary font-black text-sm shrink-0">
+                        {selectedUserInfo.nombre.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black text-white truncate">{selectedUserInfo.nombre}</p>
+                        <p className="text-xs text-white/50 truncate">{selectedUserInfo.email}</p>
+                      </div>
+                      <UserCheck className="w-4 h-4 text-green-400 shrink-0" />
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedUserInfo(null); setMensajeGlobal({ ...mensajeGlobal, usuarioFiltro: "" }); }}
+                        className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors shrink-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Buscar por nombre o email..."
+                        className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-xl"
+                        value={userSearchQuery}
+                        onChange={(e) => setUserSearchQuery(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") searchUsers(userSearchQuery); }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => searchUsers(userSearchQuery)}
+                        disabled={searchingUser || userSearchQuery.trim().length < 2}
+                        className="h-10 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white disabled:opacity-40 transition-colors shrink-0"
+                      >
+                        {searchingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  )}
+                  {!selectedUserInfo && userSearchResults.length > 0 && (
+                    <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                      {userSearchResults.map((u) => (
+                        <button
+                          key={u.uid}
+                          type="button"
+                          onClick={() => {
+                            setSelectedUserInfo(u);
+                            setMensajeGlobal({ ...mensajeGlobal, usuarioFiltro: u.uid });
+                            setUserSearchResults([]);
+                            setUserSearchQuery("");
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/10 transition-colors text-left border-b border-white/5 last:border-0"
+                        >
+                          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-black text-xs shrink-0">
+                            {u.nombre.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{u.nombre}</p>
+                            <p className="text-xs text-white/50 truncate">{u.email}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!selectedUserInfo && !searchingUser && userSearchQuery.trim().length >= 2 && userSearchResults.length === 0 && (
+                    <p className="text-xs text-white/40 text-center py-1">Sin resultados — intenta con otro término</p>
+                  )}
+                </div>
+              )}
+
               {mensajeGlobal.destino === "visitaron_local" && (
                 <select
                   value={mensajeGlobal.vendedorFiltro}
@@ -1154,6 +1265,9 @@ export default function DirectorPage() {
                   visitaron_local: mensajeGlobal.vendedorFiltro
                     ? `socios que visitaron ${vendorList.find((v: any) => v.id === mensajeGlobal.vendedorFiltro)?.nombre ?? "el local"}`
                     : "socios de un local (selecciona el local)",
+                  usuario_especifico: selectedUserInfo
+                    ? `${selectedUserInfo.nombre} (${selectedUserInfo.email})`
+                    : "usuario específico (selecciona uno)",
                 };
                 const dest = labels[mensajeGlobal.destino] ?? mensajeGlobal.destino;
                 return (

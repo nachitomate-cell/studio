@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { collection, query, orderBy, onSnapshot, limit, where, doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -19,10 +20,44 @@ import { useGeofencing } from "@/hooks/useGeofencing";
  */
 export function NotificationSystem() {
   const { toast } = useToast();
+  const router = useRouter();
   const [mountTime] = useState(new Date().toISOString());
 
   // Inicializa el motor de geocercas en background
   useGeofencing();
+
+  // Escucha el postMessage que Firebase SW envía al app después de un notificationclick.
+  // Firebase's notificationclick handler: abre/enfoca el app, luego envía
+  // { messageType: 'notification-clicked', isFirebaseMessaging: true, ...internalPayload }
+  // internalPayload.notification.click_action = fcmOptions.link = /notificacion?id=...
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+    const handleSWMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data?.isFirebaseMessaging) return;
+      if (data.messageType !== "notification-clicked") return;
+
+      // FCM escribe fcmOptions.link en notification.click_action del payload interno
+      const url: string | undefined =
+        data.notification?.click_action ||
+        data.fcmOptions?.link ||
+        data.data?.url;
+
+      if (url) {
+        try {
+          // Convertir URL absoluta a ruta relativa para el router de Next.js
+          const path = url.startsWith("http") ? new URL(url).pathname + new URL(url).search : url;
+          router.push(path);
+        } catch {
+          window.location.href = url;
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("message", handleSWMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", handleSWMessage);
+  }, [router]);
 
   useEffect(() => {
     // Registrar el SW de Firebase Messaging como SW principal.

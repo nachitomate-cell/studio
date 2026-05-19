@@ -53,6 +53,7 @@ function DetailContent() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [scrollY, setScrollY] = useState(0);
 
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [associatedShopsData, setAssociatedShopsData] = useState<any[]>([]);
   const [loadingShops, setLoadingShops] = useState(false);
 
@@ -76,6 +77,27 @@ function DetailContent() {
     });
     return () => unsub();
   }, [id]);
+
+  // Oscurecer el header global para integrar con el tema oscuro de esta vista
+  useEffect(() => {
+    const header = document.querySelector("header") as HTMLElement | null;
+    if (!header) return;
+    const prevBg    = header.style.background;
+    const prevBorder = header.style.borderBottomColor;
+    const prevShadow = header.style.boxShadow;
+    header.style.background        = "rgba(15, 23, 42, 0.95)";
+    header.style.borderBottomColor = "rgba(255, 255, 255, 0.07)";
+    header.style.boxShadow         = "none";
+    const subtitle = header.querySelector("span") as HTMLElement | null;
+    const prevSubColor = subtitle?.style.color ?? "";
+    if (subtitle) subtitle.style.color = "rgba(255,255,255,0.45)";
+    return () => {
+      header.style.background        = prevBg;
+      header.style.borderBottomColor = prevBorder;
+      header.style.boxShadow         = prevShadow;
+      if (subtitle) subtitle.style.color = prevSubColor;
+    };
+  }, []);
 
   // Parallax scroll listener
   useEffect(() => {
@@ -362,85 +384,82 @@ function DetailContent() {
                 src={getSafeImageUrl(entrepreneur.logoHeader, "/Logo2.png")}
                 alt={`Logo ${entrepreneur.nombre}`}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/Logo2.png";
-                }}
+                onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
               />
             </div>
-            {esPremium ? (
-              <p className="font-medium text-slate-200 text-lg flex-1 pt-0.5 leading-snug">
-                {entrepreneur.descripcion}
-              </p>
-            ) : (
+            <div className="flex-1 pt-0.5 min-w-0">
               <p
-                className="leading-relaxed flex-1 pt-0.5"
-                style={{ fontSize: "14px", color: "#e2e8f0" }}
+                className={cn(
+                  "leading-relaxed",
+                  esPremium ? "font-medium text-slate-200 text-lg" : "text-sm text-slate-300",
+                  !isDescExpanded && "line-clamp-3"
+                )}
               >
                 {entrepreneur.descripcion}
               </p>
-            )}
+              {entrepreneur.descripcion?.length > 120 && (
+                <button
+                  onClick={() => setIsDescExpanded((v) => !v)}
+                  className="mt-1.5 text-[11px] font-bold tracking-wide"
+                  style={{ color: "#D3B673" }}
+                >
+                  {isDescExpanded ? "Ver menos ↑" : "Leer más ↓"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Divisor */}
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.10)", margin: "16px 0" }} />
 
-          {/* Fila inferior: Sector + Horario */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#D3B673]/10 rounded-xl flex items-center justify-center shrink-0">
-                <MapPin className="w-4 h-4 text-[#D3B673]" />
+          {/* Fila inferior: Sector + Horario (igual altura, horario condicional) */}
+          {(() => {
+            const horarioTexto = entrepreneur.horario || "";
+            const horarioVacio = !horarioTexto || horarioTexto.trim().toLowerCase() === "consultar";
+            const showHorario = !horarioVacio || openStatus.isOpen !== null;
+            return (
+              <div className={cn("grid gap-4 items-stretch", showHorario ? "grid-cols-2" : "grid-cols-1")}>
+                <div className="flex items-start gap-3 h-full">
+                  <div className="w-10 h-10 bg-[#D3B673]/10 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                    <MapPin className="w-4 h-4 text-[#D3B673]" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sector</p>
+                    {(() => {
+                      const texto = entrepreneur.ubicacion || "Consultar en local";
+                      const esLargo = texto.length > 40;
+                      return esLargo ? (
+                        <button onClick={() => setSectorExpanded((v) => !v)} className="text-left w-full">
+                          <p className={cn("text-xs font-bold text-slate-200 leading-tight", sectorExpanded ? "" : "line-clamp-2")}>{texto}</p>
+                          <span className="text-[10px] text-[#D3B673] font-semibold mt-1 block">{sectorExpanded ? "Ver menos ↑" : "Ver más ↓"}</span>
+                        </button>
+                      ) : (
+                        <p className="text-xs font-bold text-slate-200 leading-tight">{texto}</p>
+                      );
+                    })()}
+                  </div>
+                </div>
+                {showHorario && (
+                  <div className="flex items-start gap-3 h-full">
+                    <div className="w-10 h-10 bg-[#D3B673]/10 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                      <Clock className="w-4 h-4 text-[#D3B673]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Horario</p>
+                      {!horarioVacio && (
+                        <p className="text-xs font-bold text-slate-200 leading-tight">{horarioTexto}</p>
+                      )}
+                      {openStatus.isOpen !== null && (
+                        <p className="text-[10px] font-bold leading-tight mt-0.5" style={{
+                          color: openStatus.color === "green" ? "#4ade80" : openStatus.color === "red" ? "#f87171" : "#fbbf24"
+                        }}>{openStatus.label}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
-                  Sector
-                </p>
-                {(() => {
-                  const texto = entrepreneur.ubicacion || "Consultar en local";
-                  const esLargo = texto.length > 40;
-                  return esLargo ? (
-                    <button
-                      onClick={() => setSectorExpanded((v) => !v)}
-                      className="text-left w-full"
-                    >
-                      <p className={cn(
-                        "text-xs font-bold text-slate-200 leading-tight",
-                        sectorExpanded ? "" : "truncate"
-                      )}>
-                        {texto}
-                      </p>
-                      <span className="text-[10px] text-[#D3B673] font-semibold mt-1 block">
-                        {sectorExpanded ? "Ver menos ↑" : "Ver más ↓"}
-                      </span>
-                    </button>
-                  ) : (
-                    <p className="text-xs font-bold text-slate-200 leading-tight">
-                      {texto}
-                    </p>
-                  );
-                })()}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#D3B673]/10 rounded-xl flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 text-[#D3B673]" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
-                  Horario
-                </p>
-                <>
-                  <p className="text-xs font-bold text-slate-200 leading-tight truncate">
-                    {entrepreneur.horario || "Consultar"}
-                  </p>
-                  {openStatus.isOpen !== null && (
-                    <p className="text-[10px] font-bold leading-tight mt-0.5" style={{
-                      color: openStatus.color === "green" ? "#4ade80" : openStatus.color === "red" ? "#f87171" : "#fbbf24"
-                    }}>{openStatus.label}</p>
-                  )}
-                </>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {/* ── Galería de imágenes ──────────────────────────────────────── */}
@@ -486,40 +505,58 @@ function DetailContent() {
               return allItems.map((pay, i) => {
                 const isActive = !hasConfig || medios.includes(pay.key);
                 const { Icon } = pay;
-
                 return (
-                  <div
+                  <span
                     key={i}
-                    className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none transition-opacity"
+                    className="inline-flex items-center gap-1.5 shrink-0"
                     style={{
-                      background: PAYMENT_PILL_STYLE.bg,
-                      color: PAYMENT_PILL_STYLE.text,
-                      border: `1px solid ${PAYMENT_PILL_STYLE.border}`,
+                      background: isActive ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)",
+                      color: isActive ? "#e2e8f0" : "#64748b",
                       borderRadius: "20px",
-                      padding: "6px 12px",
-                      fontSize: "12px",
+                      padding: "4px 10px",
+                      fontSize: "11px",
                       fontWeight: 600,
-                      opacity: hasConfig && !isActive ? 0.35 : 1,
-                    }}
-                    onClick={() => {
-                      if (!hasConfig) {
-                        toast({
-                          description:
-                            "Consulta los medios de pago directamente en el local",
-                        });
-                      }
                     }}
                   >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <Icon className="w-3 h-3 shrink-0" />
                     {pay.label}
-                  </div>
+                  </span>
                 );
               });
             })()}
           </div>
         </section>}
 
-        {/* ── Botones de acción + Banner (agrupados para gap ajustado) ── */}
+        {/* ── Banner de recompensas — justo antes del CTA principal ─────── */}
+        {!esPremium && (
+          <div
+            className="mx-4 rounded-3xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+            style={{ boxShadow: "0 0 15px rgba(201,146,10,0.15), 0 8px 32px rgba(0,0,0,0.4)" }}
+            onClick={() => router.push("/premios")}
+          >
+            <div
+              className="p-4 flex items-center gap-4"
+              style={{
+                background: "linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))",
+                border: "1px solid rgba(201, 146, 10, 0.50)",
+                borderRadius: "24px",
+              }}
+            >
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: "rgba(201,146,10,0.15)" }}>
+                <Gift className="w-5 h-5 text-[#C9920A]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="uppercase tracking-widest font-black" style={{ fontSize: "10px", color: "#C9920A" }}>Gana Recompensas</p>
+                <p className="font-medium leading-snug mt-0.5" style={{ fontSize: "12px", color: "#cbd5e1" }}>
+                  Escanea el QR del mostrador para sumar sellos.
+                </p>
+              </div>
+              <span style={{ color: "#C9920A", fontSize: 18, lineHeight: 1, flexShrink: 0 }}>›</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Botones de acción ────────────────────────────────────────────── */}
         <div className="space-y-4 px-4 pt-2">
         <div className="space-y-3">
           {/* Botón principal — "Agendar / Cotizar" para premium, WhatsApp para estándar */}
@@ -656,44 +693,7 @@ function DetailContent() {
           </button>
         </div>
 
-        {/* ── Banner de recompensas — oculto para patrocinadores ──────── */}
-        {!esPremium && <div
-          className="rounded-3xl overflow-hidden mt-6 cursor-pointer active:scale-[0.98] transition-transform"
-          style={{ boxShadow: "0 0 15px rgba(201,146,10,0.15), 0 8px 32px rgba(0,0,0,0.4)" }}
-          onClick={() => router.push("/premios")}
-        >
-          <div
-            className="p-5 flex items-center gap-4"
-            style={{
-              background: "linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))",
-              border: "1px solid rgba(201, 146, 10, 0.50)",
-              borderRadius: "24px"
-            }}
-          >
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: "rgba(201, 146, 10, 0.15)" }}
-            >
-              <Gift className="w-[22px] h-[22px] text-[#C9920A]" />
-            </div>
-            <div className="flex-1">
-              <p
-                className="uppercase tracking-widest font-black"
-                style={{ fontSize: "11px", color: "#C9920A" }}
-              >
-                Gana Recompensas
-              </p>
-              <p
-                className="font-medium leading-snug mt-0.5"
-                style={{ fontSize: "13px", color: "#cbd5e1" }}
-              >
-                Escanea el QR del mostrador de este local para sumar sellos.
-              </p>
-            </div>
-            <span style={{ color: "#C9920A", fontSize: 20, lineHeight: 1 }}>›</span>
-          </div>
-        </div>}
-        </div>{/* end space-y-2 */}
+        </div>{/* end action buttons */}
 
         {/* ── Comercios Asociados (Portal) ────────────────────────────── */}
         {entrepreneur.associatedShops && entrepreneur.associatedShops.length > 0 && (

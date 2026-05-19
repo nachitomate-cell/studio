@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, updateDoc, doc, limit, orderBy, getD
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock, MessageSquare, CheckCheck, Eye } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock, MessageSquare, CheckCheck, Eye, Hourglass, X, Store, ArrowRight } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,18 @@ interface Cliente {
   fechaNacimiento: string;
   rol?: string;
   sellos?: number;
+}
+
+interface PendingStamp {
+  id: string;
+  userId: string | null;
+  userName: string;
+  vendorId: string | null;
+  vendorName: string | null;
+  status: "pending" | "vendor_processing";
+  monto: number | null;
+  initiatedBy: string;
+  createdAt: number | null;
 }
 
 export default function ModeradorPage() {
@@ -68,6 +80,11 @@ export default function ModeradorPage() {
   const [referralPending, setReferralPending] = useState<any[]>([]);
   const [referralCompleted, setReferralCompleted] = useState(0);
   const [loadingReferrals, setLoadingReferrals] = useState(false);
+
+  // Transacciones pendientes
+  const [pendingStamps, setPendingStamps] = useState<PendingStamp[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [showPendingModal, setShowPendingModal] = useState(false);
 
   // Confirmación de eliminación
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<Cliente | null>(null);
@@ -110,6 +127,7 @@ export default function ModeradorPage() {
       loadConfigBienvenida();
       loadReferralStats();
       fetchLiveData();
+      fetchPendingStamps();
     });
 
     return () => { unsubscribe(); };
@@ -208,6 +226,24 @@ export default function ModeradorPage() {
       // error silenciado — loadingData: false muestra tabla vacía
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const fetchPendingStamps = async () => {
+    setLoadingPending(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión");
+      const res = await fetch("/api/admin/pending-stamps", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { stamps } = await res.json();
+      setPendingStamps(stamps ?? []);
+    } catch {
+      setPendingStamps([]);
+    } finally {
+      setLoadingPending(false);
     }
   };
 
@@ -607,7 +643,7 @@ export default function ModeradorPage() {
         </div>
 
         {/* METRICAS (TARJETAS SUPERIORES) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card className="border-none shadow-lg rounded-3xl bg-white overflow-hidden relative">
             <div className="absolute top-0 left-0 h-full w-2 bg-primary" />
             <CardContent className="p-6">
@@ -672,6 +708,31 @@ export default function ModeradorPage() {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-0.5">Ref. Pendientes</p>
                   {loadingReferrals ? <Loader2 className="w-5 h-5 animate-spin text-slate-300 mt-1" /> : (
                     <p className="text-3xl font-black text-slate-800">{referralPending.length}</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="border-none shadow-lg rounded-3xl bg-white overflow-hidden relative cursor-pointer hover:shadow-xl transition-all hover:-translate-y-0.5 group"
+            onClick={() => { setShowPendingModal(true); fetchPendingStamps(); }}
+          >
+            <div className="absolute top-0 left-0 h-full w-2 bg-orange-400" />
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
+                  <Hourglass className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-0.5">Handshakes</p>
+                  {loadingPending ? <Loader2 className="w-5 h-5 animate-spin text-slate-300 mt-1" /> : (
+                    <div className="flex items-center gap-2">
+                      <p className="text-3xl font-black text-slate-800">{pendingStamps.length}</p>
+                      {pendingStamps.length > 0 && (
+                        <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">Ver</span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1173,6 +1234,166 @@ export default function ModeradorPage() {
       </div>
 
     </main>
+
+    {/* Modal de transacciones pendientes */}
+    {showPendingModal && (
+      <div
+        className="fixed inset-0 z-[300] flex items-center justify-center p-4 md:p-6"
+        onClick={() => setShowPendingModal(false)}
+      >
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div
+          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-7 pt-7 pb-5 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
+                <Hourglass className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-black text-slate-800 text-lg leading-tight">Handshakes Pendientes</p>
+                <p className="text-xs text-slate-400 font-medium">Transacciones a la espera de confirmación del emprendedor</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchPendingStamps()}
+                disabled={loadingPending}
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingPending ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                onClick={() => setShowPendingModal(false)}
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="overflow-y-auto flex-1 px-7 py-5">
+            {loadingPending ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Consultando...</p>
+              </div>
+            ) : pendingStamps.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500">
+                  <CheckCheck className="w-7 h-7" />
+                </div>
+                <p className="font-black text-slate-700 text-base">Todo al día</p>
+                <p className="text-sm text-slate-400">No hay transacciones pendientes en este momento.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingStamps.map((stamp) => {
+                  const now = Date.now();
+                  const createdMs = stamp.createdAt ?? now;
+                  const elapsedSec = Math.floor((now - createdMs) / 1000);
+                  const remainingSec = Math.max(0, 300 - elapsedSec);
+                  const isExpiring = remainingSec < 60;
+                  const elapsedLabel = elapsedSec < 60
+                    ? `hace ${elapsedSec}s`
+                    : `hace ${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
+                  const remainingLabel = remainingSec > 0
+                    ? `${Math.floor(remainingSec / 60)}m ${remainingSec % 60}s restantes`
+                    : "Expirado";
+
+                  const isVendorProcessing = stamp.status === "vendor_processing";
+
+                  return (
+                    <div
+                      key={stamp.id}
+                      className={`rounded-2xl border p-4 flex flex-col gap-3 ${
+                        isExpiring
+                          ? "border-red-200 bg-red-50/50"
+                          : isVendorProcessing
+                          ? "border-blue-200 bg-blue-50/50"
+                          : "border-slate-100 bg-slate-50/50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isVendorProcessing ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600"
+                          }`}>
+                            {isVendorProcessing
+                              ? <Store className="w-4 h-4" />
+                              : <Users className="w-4 h-4" />
+                            }
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-800 text-sm truncate">{stamp.userName}</p>
+                            <p className="text-xs text-slate-400 font-medium truncate">
+                              {stamp.vendorName ? `Local: ${stamp.vendorName}` : "Vendedor sin nombre"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <Badge
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border-0 ${
+                              isVendorProcessing
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-orange-100 text-orange-700"
+                            }`}
+                          >
+                            {isVendorProcessing ? "En proceso" : "Esperando"}
+                          </Badge>
+                          {stamp.monto != null && (
+                            <span className="text-xs font-black text-slate-700">
+                              ${stamp.monto.toLocaleString("es-CL")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-semibold">
+                        <span className="text-slate-400">{elapsedLabel}</span>
+                        <div className="flex items-center gap-1.5">
+                          <ArrowRight className={`w-3 h-3 ${isExpiring ? "text-red-400" : "text-slate-300"}`} />
+                          <span className={isExpiring ? "text-red-500 font-black" : "text-slate-400"}>
+                            {remainingLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            isExpiring ? "bg-red-400" : isVendorProcessing ? "bg-blue-400" : "bg-orange-400"
+                          }`}
+                          style={{ width: `${Math.min(100, (remainingSec / 300) * 100)}%` }}
+                        />
+                      </div>
+
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        {stamp.initiatedBy === "vendor"
+                          ? "Iniciado por emprendedor (escaneó QR del socio)"
+                          : "Iniciado por socio (escaneó QR del local)"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          {!loadingPending && pendingStamps.length > 0 && (
+            <div className="px-7 py-4 border-t border-slate-100 shrink-0">
+              <p className="text-xs text-slate-400 font-medium text-center">
+                {pendingStamps.length} transacci{pendingStamps.length === 1 ? "ón" : "ones"} activa{pendingStamps.length !== 1 ? "s" : ""} · Los handshakes expiran a los 5 minutos
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
 
     {/* Modal de confirmación de eliminación */}
     {deleteConfirmUser && (

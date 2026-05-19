@@ -189,7 +189,7 @@ async function sendPushNotification(user: UserDoc, promo: PromoMessage): Promise
           requireInteraction: false,
         },
         fcmOptions: {
-          link: "https://clubpatio.app/",
+          link: "https://clubpatiocurauma.synaptechspa.cl/",
         },
       },
     });
@@ -351,10 +351,25 @@ async function executeBroadcast(
   ref: admin.firestore.DocumentReference,
   messageData: admin.firestore.DocumentData
 ): Promise<void> {
-  const { titulo, mensaje, destino, tipo = "info", cta = "/", vendedorFiltro } = messageData;
+  const { titulo, mensaje, destino, tipo = "info", cta = "/", vendedorFiltro, usuarioFiltro } = messageData;
   logger.info(`Iniciando envío de comunicado: ${ref.id} → destino="${destino}" tipo="${tipo}"`);
 
-  await ref.update({ estado: "procesando", inicioProceso: new Date().toISOString() });
+  // Guarda atómica: solo una instancia de la función puede procesar este documento.
+  // Si Cloud Functions reintenta (retry automático tras timeout/error), las instancias
+  // adicionales leen estado != "pendiente" y abortan sin enviar duplicados.
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const estadoActual = snap.data()?.estado;
+      if (estadoActual !== "pendiente") {
+        throw new Error(`SKIP: estado ya es "${estadoActual}" — instancia duplicada o reintento.`);
+      }
+      tx.update(ref, { estado: "procesando", inicioProceso: new Date().toISOString() });
+    });
+  } catch (err: any) {
+    logger.warn(`[executeBroadcast] ${ref.id} abortado: ${err.message}`);
+    return;
+  }
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const currentMonth = new Date().getMonth();
@@ -388,7 +403,6 @@ async function executeBroadcast(
       docs = snap.docs.filter(d => d.data().aceptaPromoLocales === true);
     } else if (destino === "visitaron_local") {
       if (!vendedorFiltro) {
-        // Sin local seleccionado: no enviar a nadie para evitar broadcast masivo accidental
         docs = [];
         logger.warn(`Comunicado ${ref.id}: destino=visitaron_local sin vendedorFiltro — cancelado.`);
       } else {
@@ -399,6 +413,17 @@ async function executeBroadcast(
             !!data.lastVendorScans?.[vendedorFiltro]
           );
         });
+      }
+    } else if (destino === "usuario_especifico") {
+      if (!usuarioFiltro) {
+        docs = [];
+        logger.warn(`Comunicado ${ref.id}: destino=usuario_especifico sin usuarioFiltro — cancelado.`);
+      } else {
+        const userDoc = snap.docs.find(d => d.id === usuarioFiltro);
+        docs = userDoc ? [userDoc] : [];
+        if (!userDoc) {
+          logger.warn(`Comunicado ${ref.id}: usuario ${usuarioFiltro} no encontrado o está baneado.`);
+        }
       }
     } else {
       docs = snap.docs; // "todos"
@@ -430,6 +455,7 @@ async function executeBroadcast(
         leida: false,
         fuente: "director_panel",
         cta,
+        broadcastId: ref.id,
       });
       if (userData.fcmToken) tokens.push(userData.fcmToken);
       processed++;
@@ -438,23 +464,24 @@ async function executeBroadcast(
     await batch.commit();
   }
 
-  const BASE_URL = "https://club-patio-curauma.vercel.app";
-  const pushLink = cta.startsWith("http") ? cta : `${BASE_URL}${cta || "/"}`;
+  const BASE_URL = process.env.BASE_URL ?? "https://clubpatiocurauma.synaptechspa.cl";
 
   for (let i = 0; i < tokens.length; i += 500) {
     const tokenBatch = tokens.slice(i, i + 500);
     if (tokenBatch.length === 0) continue;
     try {
+      const cleanTitle = titulo.replace(/^[^\w\s]+\s/, "");
+      const notifUrl = `${BASE_URL}/notificacion?id=${ref.id}`;
       const response = await messaging.sendEachForMulticast({
         tokens: tokenBatch,
-        notification: { title: titulo.replace(/^[^\w\s]+\s/, ""), body: mensaje },
-        data: { type: `BROADCAST_${tipo.toUpperCase()}`, cta },
+        notification: { title: cleanTitle, body: mensaje },
+        data: { type: `BROADCAST_${tipo.toUpperCase()}`, cta, url: notifUrl },
         android: {
           priority: androidPriority[tipo] ?? "normal",
           notification: { channelId: "club_patio_marketing", icon: "ic_notification", color: "#4EAD1F" },
         },
         apns: { payload: { aps: { badge: 1, sound: tipo === "urgente" ? "alert" : "default" } } },
-        webpush: { fcmOptions: { link: pushLink } },
+        webpush: { fcmOptions: { link: notifUrl } },
       });
       pushSent += response.successCount;
       errors += response.failureCount;
@@ -485,7 +512,18 @@ export const processGlobalBroadcast = onDocumentCreated(
     const snap = event.data;
     if (!snap) return;
     const messageData = snap.data();
+    // Verificación rápida con el snapshot del trigger
     if (messageData.estado !== "pendiente") return;
+
+    // Re-lectura directa de Firestore para detectar reintentos del trigger:
+    // Cloud Functions puede entregar el evento original (estado="pendiente") incluso
+    // si ya lo procesamos. Leer el doc actualizado descarta la mayoría de duplicados
+    // antes de entrar a la transacción de executeBroadcast.
+    const freshSnap = await snap.ref.get();
+    if (freshSnap.data()?.estado !== "pendiente") {
+      logger.info(`[processGlobalBroadcast] ${snap.id} ya procesado — reintento ignorado.`);
+      return;
+    }
 
     try {
       await executeBroadcast(snap.ref, messageData);

@@ -36,6 +36,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
+  const redirectAfterLoginRef = useRef<string | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -59,6 +60,10 @@ export default function Home() {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser && redirectAfterLoginRef.current) {
+        router.replace(redirectAfterLoginRef.current);
+        redirectAfterLoginRef.current = null;
+      }
     });
     return () => unsubscribeAuth();
   }, []);
@@ -69,6 +74,11 @@ export default function Home() {
       const ref = params.get("ref");
       if (ref) localStorage.setItem("referral_local_id", ref);
       if (params.get("login") === "true" || params.get("register") === "true") {
+        setShowAuth(true);
+      }
+      const redirectParam = params.get("redirect");
+      if (redirectParam) {
+        redirectAfterLoginRef.current = redirectParam;
         setShowAuth(true);
       }
     }

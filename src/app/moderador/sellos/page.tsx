@@ -10,6 +10,7 @@ import { auth, db } from "@/lib/firebase";
 import {
   Loader2, ChevronLeft, Download, Search, BarChart2,
   TrendingUp, Store, Star, Stamp, Gift, Undo2,
+  Trophy, X, RefreshCw, ShoppingBag, Repeat2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,6 +171,11 @@ export default function ModeradorSellosPage() {
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Modal stats por local
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsLocales, setStatsLocales] = useState<any[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // KPIs
   const [kpis, setKpis] = useState({
@@ -380,6 +386,25 @@ export default function ModeradorSellosPage() {
     currentPage * PAGE_SIZE
   );
 
+  // ── Stats por local ────────────────────────────────────────────────────────
+  const fetchStatsLocales = async () => {
+    setLoadingStats(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Sin sesión");
+      const res = await fetch("/api/admin/stats-locales", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { locales } = await res.json();
+      setStatsLocales(locales ?? []);
+    } catch {
+      setStatsLocales([]);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   // ── Exportar Excel ─────────────────────────────────────────────────────────
   const exportExcel = async () => {
     const XLSX = await import("xlsx");
@@ -479,6 +504,7 @@ export default function ModeradorSellosPage() {
 
   // ── Render principal ────────────────────────────────────────────────────────
   return (
+    <>
     <div className="min-h-screen bg-slate-50 pb-16">
       {/* Header sticky */}
       <div className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm">
@@ -505,6 +531,14 @@ export default function ModeradorSellosPage() {
               Ver Canjes
             </Button>
           </Link>
+          <Button
+            onClick={() => { setShowStatsModal(true); fetchStatsLocales(); }}
+            variant="outline"
+            className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-amber-200 text-amber-600 hover:border-amber-400 hover:bg-amber-50 transition-all whitespace-nowrap"
+          >
+            <Trophy className="w-4 h-4" />
+            Top Clientes
+          </Button>
           <Button
             onClick={exportExcel}
             variant="outline"
@@ -776,5 +810,138 @@ export default function ModeradorSellosPage() {
         </Card>
       </div>
     </div>
+
+    {/* ── Modal Top Clientes por Local ──────────────────────────────────── */}
+    {showStatsModal && (
+      <div
+        className="fixed inset-0 z-[300] flex items-center justify-center p-4 md:p-6"
+        onClick={() => setShowStatsModal(false)}
+      >
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div
+          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col animate-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-7 pt-7 pb-5 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-black text-slate-800 text-lg leading-tight">Top Clientes por Local</p>
+                <p className="text-xs text-slate-400 font-medium">Mayor compra acumulada y cliente más frecuente · histórico total</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchStatsLocales()}
+                disabled={loadingStats}
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingStats ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                onClick={() => setShowStatsModal(false)}
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="overflow-y-auto flex-1 px-7 py-6">
+            {loadingStats ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Calculando estadísticas...</p>
+              </div>
+            ) : statsLocales.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
+                  <BarChart2 className="w-7 h-7" />
+                </div>
+                <p className="font-black text-slate-700 text-base">Sin datos suficientes</p>
+                <p className="text-sm text-slate-400">No hay transacciones con monto registrado aún.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {statsLocales.map((local) => (
+                  <div key={local.vendorId} className="rounded-2xl border border-slate-100 bg-slate-50/50 overflow-hidden">
+                    {/* Nombre del local */}
+                    <div className="flex items-center justify-between px-5 py-3 bg-slate-100/70 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Store className="w-4 h-4 text-slate-500" />
+                        <p className="font-black text-slate-800 text-sm">{local.vendorName}</p>
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-400 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                        {local.totalTransacciones} visita{local.totalTransacciones !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                      {/* Top Spender */}
+                      <div className="px-5 py-4 flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 mt-0.5">
+                          <ShoppingBag className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Mayor compra acumulada</p>
+                          {local.topSpender ? (
+                            <>
+                              <p className="font-black text-slate-800 text-sm truncate">{local.topSpender.nombre}</p>
+                              <p className="text-sm font-black text-emerald-600 mt-0.5">
+                                {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(local.topSpender.totalMonto)}
+                              </p>
+                              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                Ticket promedio: {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(local.topSpender.avgTicket)}
+                                {" "}· {local.topSpender.compras} compra{local.topSpender.compras !== 1 ? "s" : ""}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-slate-400 font-medium">Sin montos registrados</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Top Frecuente */}
+                      <div className="px-5 py-4 flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 shrink-0 mt-0.5">
+                          <Repeat2 className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Cliente más frecuente</p>
+                          {local.topFrecuente ? (
+                            <>
+                              <p className="font-black text-slate-800 text-sm truncate">{local.topFrecuente.nombre}</p>
+                              <p className="text-sm font-black text-violet-600 mt-0.5">
+                                {local.topFrecuente.visitas} visita{local.topFrecuente.visitas !== 1 ? "s" : ""}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-slate-400 font-medium">Sin datos</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          {!loadingStats && statsLocales.length > 0 && (
+            <div className="px-7 py-4 border-t border-slate-100 shrink-0">
+              <p className="text-xs text-slate-400 font-medium text-center">
+                {statsLocales.length} local{statsLocales.length !== 1 ? "es" : ""} con actividad · Solo incluye transacciones reales (excluye sellos de bienvenida y referidos)
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+  </>
   );
 }
