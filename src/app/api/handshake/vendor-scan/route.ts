@@ -14,6 +14,19 @@ import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 
+const SELLOS_PARA_PREMIO = 5;
+
+/**
+ * Devuelve la cantidad de sellos según el monto de la transacción.
+ * Tiers ajustables sin redeploy si se mueven a Firestore en el futuro.
+ */
+function calcularSellos(monto: number): number {
+  if (monto >= 30_000) return 4;
+  if (monto >= 15_000) return 3;
+  if (monto >= 5_000)  return 2;
+  return 1;
+}
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("Authorization");
@@ -40,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     const pendingRef = adminDb.collection("pending_stamps").doc(pendingId);
-    let result: { userId: string; userName: string; vendorName: string; nuevoTotal: number };
+    let result: { userId: string; userName: string; vendorName: string; nuevoTotal: number; numSellos: number; prevSellos: number };
 
     await adminDb.runTransaction(async (tx) => {
       const pendingSnap = await tx.get(pendingRef);
@@ -62,42 +75,44 @@ export async function POST(request: Request) {
       const userRef = adminDb.collection("usuarios").doc(userId);
       const userSnap = await tx.get(userRef);
 
-      const currentSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
-      const nuevoTotal = currentSellos + 1;
+      const prevSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
+      const numSellos = calcularSellos(monto);
+      const nuevoTotal = prevSellos + numSellos;
       const timestamp = new Date().toISOString();
       const realUserName = (userSnap.exists ? userSnap.data()!.nombre : null) || userName || "Miembro";
 
       tx.update(pendingRef, {
         status: "vendor_confirmed",
         monto,
+        numSellos,
         nuevoTotal,
         confirmedAt: FieldValue.serverTimestamp(),
       });
 
       if (userSnap.exists) {
         tx.update(userRef, {
-          comprasRealizadas: FieldValue.increment(1),
-          recompensaDisponible: nuevoTotal >= 5,
-          puntos: FieldValue.increment(50),
+          comprasRealizadas: FieldValue.increment(numSellos),
+          recompensaDisponible: nuevoTotal >= SELLOS_PARA_PREMIO,
+          puntos: FieldValue.increment(50 * numSellos),
           lastPurchaseAt: timestamp,
           lastUpdate: timestamp,
           [`lastVendorScans.${vendorId}`]: timestamp,
-          [`sellosLocales.${vendorId}`]: FieldValue.increment(1),
+          [`sellosLocales.${vendorId}`]: FieldValue.increment(numSellos),
         });
       } else {
         tx.set(userRef, {
-          comprasRealizadas: 1,
-          recompensaDisponible: false,
-          puntos: 100,
+          comprasRealizadas: numSellos,
+          recompensaDisponible: nuevoTotal >= SELLOS_PARA_PREMIO,
+          puntos: numSellos * 50,
           totalCanjesHistoricos: 0,
           baneado: false,
           createdAt: timestamp,
           lastVendorScans: { [vendorId]: timestamp },
-          sellosLocales: { [vendorId]: 1 },
+          sellosLocales: { [vendorId]: numSellos },
         });
       }
 
-      result = { userId, userName: realUserName, vendorName: vendorName || "el local", nuevoTotal };
+      result = { userId, userName: realUserName, vendorName: vendorName || "el local", nuevoTotal, numSellos, prevSellos };
     });
 
     // Fire-and-forget side effects
@@ -105,6 +120,7 @@ export async function POST(request: Request) {
     (async () => {
       try {
         const currentMonth = timestamp.substring(0, 7);
+        const { nuevoTotal, vendorName, userId, numSellos, prevSellos } = result!;
 
         // Logs, ventas y contadores del vendedor
         await Promise.all([
@@ -112,11 +128,12 @@ export async function POST(request: Request) {
             usuario: result!.userName,
             usuarioId: result!.userId,
             vendedorId: vendorId,
-            accion: "recibió un sello (vendor-scan)",
+            accion: `recibió ${numSellos} ${numSellos === 1 ? "sello" : "sellos"} (vendor-scan, $${monto.toLocaleString("es-CL")})`,
             fecha: timestamp,
             tipo: "FIDELIZACION",
             metodo: "VENDOR_SCAN",
             monto,
+            numSellos,
           }),
           adminDb.collection("usuarios").doc(vendorId).collection("ventas_registradas").add({
             vendedorId: vendorId,
@@ -125,22 +142,23 @@ export async function POST(request: Request) {
             fecha: timestamp,
             metodo: "VENDOR_SCAN",
             monto,
+            numSellos,
           }),
           adminDb.collection("usuarios").doc(vendorId).update({
-            sellosEntregadosHistorico: FieldValue.increment(1),
-            [`sellosEntregadosMensual.${currentMonth}`]: FieldValue.increment(1),
+            sellosEntregadosHistorico: FieldValue.increment(numSellos),
+            [`sellosEntregadosMensual.${currentMonth}`]: FieldValue.increment(numSellos),
           }),
         ]);
 
         // Notificación al cliente con push FCM
-        const SELLOS_PARA_PREMIO = 5;
-        const { nuevoTotal, vendorName, userId } = result!;
-        const premioAlcanzado = nuevoTotal % SELLOS_PARA_PREMIO === 0;
+        // Detecta si se cruzó algún umbral de premio (funciona con múltiples sellos por compra)
+        const premioAlcanzado = Math.floor(nuevoTotal / SELLOS_PARA_PREMIO) > Math.floor(prevSellos / SELLOS_PARA_PREMIO);
         const faltanPara = premioAlcanzado ? 0 : SELLOS_PARA_PREMIO - (nuevoTotal % SELLOS_PARA_PREMIO);
 
+        const sellosLabel = numSellos === 1 ? "sello" : "sellos";
         const notifTitulo = premioAlcanzado
           ? "¡Premio disponible! 🎁"
-          : `+1 sello en ${vendorName} ✅`;
+          : `+${numSellos} ${sellosLabel} en ${vendorName} ✅`;
         const notifMensaje = premioAlcanzado
           ? `¡Completaste ${nuevoTotal} sellos! Ya puedes canjear tu recompensa en caja.`
           : `Llevas ${nuevoTotal} ${nuevoTotal === 1 ? "sello" : "sellos"}. ¡${faltanPara} más para tu próximo premio! 🎯`;
