@@ -73,6 +73,7 @@ export default function UnetePage() {
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [codigoReferido, setCodigoReferido] = useState("");
+  const [step, setStep] = useState(1); // 1 = básico, 2 = adicional, 3 = términos
 
   const handlePasswordReset = async () => {
     if (!email.trim()) {
@@ -183,10 +184,6 @@ export default function UnetePage() {
       } else {
         if (!aceptaTerminos) throw new Error("Debes aceptar los términos de uso.");
         if (!nombre.trim()) throw new Error("Ingresa tu nombre completo.");
-        if (!fechaNacimiento) throw new Error("Ingresa tu fecha de nacimiento.");
-        if (phone && !/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
-          throw new Error("Teléfono inválido. Usa formato +56 9 XXXX XXXX.");
-        }
 
         // Capa 3: verificar unicidad del teléfono
         const normalizedPhone = phone.replace(/\s/g, "");
@@ -359,6 +356,32 @@ export default function UnetePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!isLogin) {
+      if (step === 1) {
+        if (!nombre.trim()) { setError("Ingresa tu nombre completo."); return; }
+        if (!email.trim()) { setError("Ingresa tu correo electrónico."); return; }
+        if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+        setStep(2);
+        return;
+      }
+      if (step === 2) {
+        if (!fechaNacimiento) { setError("Ingresa tu fecha de nacimiento."); return; }
+        if (phone && !/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
+          setError("Teléfono inválido. Usa formato +56 9 XXXX XXXX.");
+          return;
+        }
+        setStep(3);
+        return;
+      }
+    }
+
+    handleAuth(e);
   };
 
   // Pantalla de carga mientras se verifica autenticación
@@ -568,6 +591,7 @@ export default function UnetePage() {
               onClick={() => {
                 setIsLogin(false);
                 setError(null);
+                setStep(1);
               }}
             >
               <UserPlus style={{ width: 16, height: 16 }} />
@@ -579,6 +603,7 @@ export default function UnetePage() {
               onClick={() => {
                 setIsLogin(true);
                 setError(null);
+                setStep(1);
               }}
             >
               <LogIn style={{ width: 16, height: 16 }} />
@@ -586,7 +611,7 @@ export default function UnetePage() {
             </button>
           </div>
 
-          <form onSubmit={handleAuth} className="unete-form">
+          <form onSubmit={handleFormSubmit} noValidate className="unete-form">
             {error && (
               <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -595,8 +620,20 @@ export default function UnetePage() {
               </Alert>
             )}
 
-            {/* === Registro fields === */}
+            {/* === Indicador de pasos (solo registro) === */}
             {!isLogin && (
+              <div className="unete-steps">
+                {(['Datos', 'Perfil', 'Confirmar'] as const).map((label, i) => (
+                  <div key={i} className={`unete-step${step > i + 1 ? ' unete-step-done' : step === i + 1 ? ' unete-step-active' : ''}`}>
+                    <div className="unete-step-dot">{step > i + 1 ? '✓' : i + 1}</div>
+                    <span className="unete-step-label">{label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* === Paso 1 / Login: Nombre === */}
+            {!isLogin && step === 1 && (
               <div className="unete-field">
                 <div className="flex items-center gap-2">
                   <UserIcon className="w-4 h-4 text-[#D3B673]" />
@@ -608,34 +645,77 @@ export default function UnetePage() {
                   placeholder="Juan Pérez"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  required
+                  className="rounded-xl"
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {/* === Paso 1 / Login: Email === */}
+            {(isLogin || step === 1) && (
+              <div className="unete-field">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-[#D3B673]" />
+                  <Label htmlFor="unete-email">Correo Electrónico</Label>
+                </div>
+                <Input
+                  id="unete-email"
+                  type="email"
+                  placeholder="tu@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="rounded-xl"
                 />
               </div>
             )}
 
-            <div className="unete-field">
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[#D3B673]" />
-                <Label htmlFor="unete-email">Correo Electrónico</Label>
+            {/* === Paso 1 / Login: Contraseña === */}
+            {(isLogin || step === 1) && (
+              <div className="unete-field">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-[#D3B673]" />
+                  <Label htmlFor="unete-password">Contraseña</Label>
+                </div>
+                <Input
+                  id="unete-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="rounded-xl"
+                  minLength={6}
+                />
               </div>
-              <Input
-                id="unete-email"
-                type="email"
-                placeholder="tu@ejemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="rounded-xl"
-              />
-            </div>
+            )}
 
-            {!isLogin && (
+            {/* === Solo login: Recuperar contraseña === */}
+            {isLogin && (
+              <div className="text-right" style={{ marginTop: -8 }}>
+                {resetSent ? (
+                  <p className="text-xs font-bold" style={{ color: "#9DCC65" }}>
+                    ✅ Revisa tu correo para restablecer tu contraseña.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePasswordReset}
+                    disabled={resetLoading}
+                    className="unete-link text-xs font-bold"
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                  >
+                    {resetLoading ? "Enviando..." : "¿Olvidaste tu contraseña?"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* === Paso 2: Datos adicionales === */}
+            {!isLogin && step === 2 && (
               <>
                 <div className="unete-field">
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-[#D3B673]" />
-                    <Label htmlFor="unete-phone">Teléfono (WhatsApp)</Label>
+                    <Label htmlFor="unete-phone">Teléfono (Opcional)</Label>
                   </div>
                   <Input
                     id="unete-phone"
@@ -643,7 +723,6 @@ export default function UnetePage() {
                     placeholder="+56 9 1234 5678"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    required
                     className="rounded-xl"
                   />
                 </div>
@@ -657,7 +736,6 @@ export default function UnetePage() {
                     type="date"
                     value={fechaNacimiento}
                     onChange={(e) => setFechaNacimiento(e.target.value)}
-                    required
                     className="rounded-xl"
                     max={new Date().toISOString().split("T")[0]}
                   />
@@ -694,46 +772,8 @@ export default function UnetePage() {
               </>
             )}
 
-            <div className="unete-field">
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#D3B673]" />
-                <Label htmlFor="unete-password">Contraseña</Label>
-              </div>
-              <Input
-                id="unete-password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="rounded-xl"
-                minLength={6}
-              />
-            </div>
-
-            {/* === Recuperar contraseña === */}
-            {isLogin && (
-              <div className="text-right" style={{ marginTop: -8 }}>
-                {resetSent ? (
-                  <p className="text-xs font-bold" style={{ color: "#9DCC65" }}>
-                    ✅ Revisa tu correo para restablecer tu contraseña.
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handlePasswordReset}
-                    disabled={resetLoading}
-                    className="unete-link text-xs font-bold"
-                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
-                  >
-                    {resetLoading ? "Enviando..." : "¿Olvidaste tu contraseña?"}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* === Términos === */}
-            {!isLogin && (
+            {/* === Paso 3: Términos === */}
+            {!isLogin && step === 3 && (
               <div className="unete-terms">
                 <p className="unete-terms-title">Términos y Privacidad</p>
 
@@ -800,6 +840,11 @@ export default function UnetePage() {
                   <LogIn className="w-5 h-5" />
                   Entrar al Club
                 </>
+              ) : step < 3 ? (
+                <>
+                  Continuar
+                  <ChevronRight className="w-5 h-5" />
+                </>
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
@@ -808,6 +853,17 @@ export default function UnetePage() {
               )}
             </Button>
 
+            {/* === Botón volver (pasos 2 y 3) === */}
+            {!isLogin && step > 1 && (
+              <button
+                type="button"
+                className="unete-toggle"
+                onClick={() => { setStep(step - 1); setError(null); }}
+              >
+                ← Volver
+              </button>
+            )}
+
             {/* === Toggle login/register === */}
             <button
               type="button"
@@ -815,6 +871,7 @@ export default function UnetePage() {
               onClick={() => {
                 setIsLogin(!isLogin);
                 setError(null);
+                setStep(1);
                 setNombre("");
                 setFechaNacimiento("");
                 setComuna("");
@@ -1250,6 +1307,73 @@ export default function UnetePage() {
           .unete-form {
             gap: 16px;
           }
+        }
+
+        /* ━━━ Step Indicator ━━━ */
+        .unete-steps {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          position: relative;
+          padding: 0 8px;
+          margin-bottom: 4px;
+        }
+        .unete-steps::before {
+          content: '';
+          position: absolute;
+          top: 15px;
+          left: calc(16.67% + 8px);
+          right: calc(16.67% + 8px);
+          height: 2px;
+          background: rgba(255,255,255,0.08);
+        }
+        .unete-step {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+          flex: 1;
+          position: relative;
+          z-index: 1;
+        }
+        .unete-step-dot {
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.05);
+          border: 2px solid rgba(255,255,255,0.1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 800;
+          color: #475569;
+          transition: all 0.3s ease;
+        }
+        .unete-step-label {
+          font-size: 10px;
+          font-weight: 700;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          transition: color 0.3s ease;
+        }
+        .unete-step-active .unete-step-dot {
+          background: rgba(211,182,115,0.15);
+          border-color: #D3B673;
+          color: #D3B673;
+          box-shadow: 0 0 0 4px rgba(211,182,115,0.1);
+        }
+        .unete-step-active .unete-step-label {
+          color: #D3B673;
+        }
+        .unete-step-done .unete-step-dot {
+          background: rgba(157,204,101,0.15);
+          border-color: #9DCC65;
+          color: #9DCC65;
+        }
+        .unete-step-done .unete-step-label {
+          color: #9DCC65;
         }
       `}</style>
     </div>
