@@ -313,6 +313,27 @@ export default function Home() {
 
   const filteredEntrepreneurs = result;
 
+  const isCarouselMode =
+    selectedCategory === "all" &&
+    !searchQuery &&
+    !filterAbierto &&
+    !filterFavoritos;
+
+  const knownCategoryIds = new Set(CATEGORIES.filter((c) => c.id !== "all").map((c) => c.id));
+  const categorizedGroups = [
+    ...CATEGORIES.filter((cat) => cat.id !== "all")
+      .map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        locals: filteredEntrepreneurs.filter((e) => e.category === cat.id),
+      }))
+      .filter((g) => g.locals.length > 0),
+    ...((): { id: string; name: string; locals: Entrepreneur[] }[] => {
+      const unknowns = filteredEntrepreneurs.filter((e) => !knownCategoryIds.has(e.category));
+      return unknowns.length > 0 ? [{ id: "otros", name: "Otros", locals: unknowns }] : [];
+    })(),
+  ];
+
   const renderHero = () => (
     <section style={{
       background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 50%, #5BB8D4 100%)",
@@ -509,27 +530,50 @@ export default function Home() {
               )}
             </section>
 
-            <section className="space-y-6 px-6 pt-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <section className="space-y-6 pt-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 px-6">
                 <h2 className="text-lg font-black text-foreground">Descubre</h2>
                 <Badge variant="outline" className="rounded-md border-slate-100 font-bold text-[10px]">
                   {filteredEntrepreneurs.length} Locales
                 </Badge>
               </div>
-              
+
               {loading ? (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 px-6">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="aspect-square bg-slate-100 animate-pulse rounded-2xl" />
                   ))}
                 </div>
               ) : filteredEntrepreneurs.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground text-xs italic">
+                <div className="py-12 text-center text-muted-foreground text-xs italic px-6">
                   No se encontraron resultados en el directorio.
                 </div>
+              ) : isCarouselMode ? (
+                /* ── Modo carrusel: agrupado por categoría ── */
+                <div className="space-y-7">
+                  {categorizedGroups.map((group) => (
+                    <div key={group.id} className="space-y-2">
+                      <div className="flex items-center justify-between px-6">
+                        <h3 className="text-sm font-black text-slate-700">{group.name}</h3>
+                        <span className="text-[10px] text-slate-400 font-semibold">{group.locals.length} local{group.locals.length !== 1 ? "es" : ""}</span>
+                      </div>
+                      <div className="flex gap-3 overflow-x-auto pb-2 px-6 no-scrollbar snap-x snap-mandatory">
+                        {group.locals.map((entrepreneur, idx) => {
+                          const isOpen = isOpenNow((entrepreneur as any).horariosEstructurados);
+                          const distKm = userCoords ? haversineKm(userCoords.lat, userCoords.lng, (entrepreneur as any).lat ?? PATIO_INFO.coordinates.lat, (entrepreneur as any).lng ?? PATIO_INFO.coordinates.lng) : undefined;
+                          return (
+                            <div key={entrepreneur.id} className="min-w-[150px] max-w-[150px] shrink-0 snap-start">
+                              <EntrepreneurCard entrepreneur={entrepreneur} isOpen={isOpen} distanceKm={filterCercano && distKm !== undefined ? distKm : undefined} priority={idx < 3} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <>
-                  {/* Primeras 4 tarjetas */}
+                /* ── Modo grid: búsqueda o filtro activo ── */
+                <div className="px-6 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     {filteredEntrepreneurs.slice(0, 4).map((entrepreneur, idx) => {
                       const isOpen = isOpenNow((entrepreneur as any).horariosEstructurados);
@@ -541,8 +585,6 @@ export default function Home() {
                       );
                     })}
                   </div>
-
-                  {/* Resto de tarjetas */}
                   {filteredEntrepreneurs.length > 4 && (
                     <div className="grid grid-cols-2 gap-4">
                       {filteredEntrepreneurs.slice(4).map((entrepreneur, index, arr) => {
@@ -558,7 +600,7 @@ export default function Home() {
                       })}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </section>
 
