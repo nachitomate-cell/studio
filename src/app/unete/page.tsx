@@ -73,6 +73,7 @@ export default function UnetePage() {
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [codigoReferido, setCodigoReferido] = useState("");
+  const [comunaSeleccionada, setComunaSeleccionada] = useState("");
   const [step, setStep] = useState(1); // 1 = básico, 2 = adicional, 3 = términos
 
   const handlePasswordReset = async () => {
@@ -745,14 +746,61 @@ export default function UnetePage() {
                     <MapPin className="w-4 h-4 text-[#D3B673]" />
                     <Label htmlFor="unete-comuna">Comuna / Región (Opcional)</Label>
                   </div>
-                  <Input
+                  <select
                     id="unete-comuna"
-                    type="text"
-                    placeholder="Ej: Curauma, Valparaíso"
-                    value={comuna}
-                    onChange={(e) => setComuna(e.target.value)}
-                    className="rounded-xl"
-                  />
+                    className="unete-select"
+                    value={comunaSeleccionada}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setComunaSeleccionada(val);
+                      if (val !== "otra") setComuna(val);
+                      else setComuna("");
+                    }}
+                  >
+                    <option value="">— Selecciona tu comuna —</option>
+                    <optgroup label="Zona Curauma">
+                      <option value="Curauma / Placilla">Curauma / Placilla</option>
+                    </optgroup>
+                    <optgroup label="Región de Valparaíso">
+                      <option value="Valparaíso">Valparaíso</option>
+                      <option value="Viña del Mar">Viña del Mar</option>
+                      <option value="Quilpué">Quilpué</option>
+                      <option value="Villa Alemana">Villa Alemana</option>
+                      <option value="Concón">Concón</option>
+                      <option value="San Antonio">San Antonio</option>
+                      <option value="Casablanca">Casablanca</option>
+                    </optgroup>
+                    <optgroup label="Región Metropolitana">
+                      <option value="Santiago">Santiago</option>
+                      <option value="Providencia">Providencia</option>
+                      <option value="Las Condes">Las Condes</option>
+                      <option value="Ñuñoa">Ñuñoa</option>
+                      <option value="La Florida">La Florida</option>
+                      <option value="Maipú">Maipú</option>
+                      <option value="Puente Alto">Puente Alto</option>
+                    </optgroup>
+                    <optgroup label="Otras ciudades">
+                      <option value="Rancagua">Rancagua</option>
+                      <option value="Concepción">Concepción</option>
+                      <option value="Temuco">Temuco</option>
+                      <option value="La Serena">La Serena</option>
+                      <option value="Antofagasta">Antofagasta</option>
+                      <option value="Iquique">Iquique</option>
+                      <option value="Arica">Arica</option>
+                      <option value="Puerto Montt">Puerto Montt</option>
+                    </optgroup>
+                    <option value="otra">Otra (escribir)...</option>
+                  </select>
+                  {comunaSeleccionada === "otra" && (
+                    <Input
+                      type="text"
+                      placeholder="Escribe tu comuna o ciudad..."
+                      value={comuna}
+                      onChange={(e) => setComuna(e.target.value)}
+                      className="rounded-xl"
+                      autoFocus
+                    />
+                  )}
                 </div>
                 <div className="unete-field">
                   <div className="flex items-center gap-2">
@@ -875,6 +923,7 @@ export default function UnetePage() {
                 setNombre("");
                 setFechaNacimiento("");
                 setComuna("");
+                setComunaSeleccionada("");
                 setCodigoReferido("");
                 setAceptaTerminos(false);
                 setAceptaMarketing(false);
@@ -1164,6 +1213,38 @@ export default function UnetePage() {
           color: #cbd5e1;
           font-size: 13px;
           font-weight: 600;
+        }
+
+        /* ━━━ Select (comuna) ━━━ */
+        .unete-select {
+          appearance: none;
+          -webkit-appearance: none;
+          width: 100%;
+          height: 48px;
+          padding: 0 40px 0 16px;
+          background-color: rgba(15, 23, 42, 0.6);
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23D3B673' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 14px center;
+          background-size: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          color: #f8fafc;
+          font-size: 14px;
+          font-family: inherit;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+        .unete-select:focus {
+          outline: none;
+          border-color: #D3B673;
+          box-shadow: 0 0 0 3px rgba(211, 182, 115, 0.15);
+          background-color: rgba(15, 23, 42, 0.8);
+        }
+        .unete-select option,
+        .unete-select optgroup {
+          background-color: #1e293b;
+          color: #f8fafc;
         }
 
         /* ━━━ Terms ━━━ */
