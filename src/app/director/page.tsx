@@ -31,6 +31,66 @@ import {
   Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import { ADMIN_EMAIL } from "@/lib/constants";
+import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
+
+function generarInsightsDirector(
+  ranking: any[],
+  kpiSellosMes: number,
+  kpiLocalesActivos: number,
+  kpiTotalLocales: number,
+  chartData: { name: string; sellos: number }[]
+): AIInsight[] {
+  const out: AIInsight[] = [];
+  if (ranking.length === 0) return out;
+
+  // Locales dormidos
+  const dormidos = ranking.filter(r => r.sellosEntregados === 0);
+  if (dormidos.length > 0) {
+    const pct = Math.round((dormidos.length / ranking.length) * 100);
+    out.push({
+      icon: "😴", type: dormidos.length >= ranking.length * 0.5 ? "alert" : "warning",
+      text: `${dormidos.length} de ${ranking.length} locales (${pct}%) no han entregado ningún sello este mes. ${dormidos.length >= 3 ? "Considera contactarlos para reactivar su participación." : "Mantén el seguimiento cercano."}`,
+    });
+  }
+
+  // Concentración en top 3
+  if (ranking.length >= 4) {
+    const top3 = ranking.slice(0, 3).reduce((s, r) => s + r.sellosEntregados, 0);
+    const pctConc = kpiSellosMes > 0 ? Math.round((top3 / kpiSellosMes) * 100) : 0;
+    if (pctConc > 70) {
+      out.push({ icon: "📊", type: "warning", text: `Los 3 locales más activos concentran el ${pctConc}% de todos los sellos del mes. Alta dependencia — incentiva a los locales de menor actividad para distribuir mejor el flujo.` });
+    } else if (pctConc > 0) {
+      out.push({ icon: "📊", type: "positive", text: `El top 3 de locales representa el ${pctConc}% de los sellos mensuales. Distribución saludable — el resto del ecosistema también aporta volumen.` });
+    }
+  }
+
+  // Local estrella del mes
+  const lider = ranking[0];
+  if (lider?.sellosEntregados > 0) {
+    out.push({ icon: "🏆", type: "positive", text: `Líder del mes: "${lider.nombreTienda || "Local #1"}" con ${lider.sellosEntregados} sellos entregados. ${lider.sellosEntregados > (ranking[1]?.sellosEntregados || 0) * 2 ? "Domina con ventaja holgada sobre el segundo puesto." : "Diferencia ajustada con el segundo puesto."}` });
+  }
+
+  // Tendencia semanal
+  const semanas = chartData.filter(s => s.sellos > 0);
+  if (semanas.length >= 2) {
+    const ultima = chartData[chartData.length - 1];
+    const penultima = chartData[chartData.length - 2];
+    if (ultima.sellos > penultima.sellos) {
+      const delta = ultima.sellos - penultima.sellos;
+      out.push({ icon: "📈", type: "positive", text: `La última semana registrada (${ultima.sellos} sellos) superó a la anterior en ${delta} sello${delta !== 1 ? "s" : ""}. Tendencia positiva del mes en curso.` });
+    } else if (ultima.sellos < penultima.sellos) {
+      out.push({ icon: "📉", type: "warning", text: `La actividad de la última semana (${ultima.sellos} sellos) bajó respecto a la anterior (${penultima.sellos}). Puede ser estacional — monitorea si continúa la semana siguiente.` });
+    }
+  }
+
+  // Promedio por local activo
+  if (kpiLocalesActivos > 0 && kpiSellosMes > 0) {
+    const promedio = Math.round(kpiSellosMes / kpiLocalesActivos);
+    out.push({ icon: "🔢", type: "neutral", text: `Promedio de ${promedio} sello${promedio !== 1 ? "s" : ""} por local activo este mes. ${promedio >= 20 ? "Nivel de actividad sólido." : "Hay margen para crecer con capacitación o incentivos a emprendedores."}` });
+  }
+
+  return out;
+}
 
 const COLORS = ['#D3B673', '#9DCC65', '#6EBBD1', '#BFA05C'];
 
@@ -581,6 +641,14 @@ export default function DirectorPage() {
             </div>
           ))}
         </section>
+
+        {/* ANÁLISIS SYNAPTECH AI */}
+        {ranking.length > 0 && (
+          <SynapTechAIPanel
+            title="Diagnóstico del Club"
+            insights={generarInsightsDirector(ranking, kpiSellosMes, kpiLocalesActivos, kpiTotalLocales, chartData)}
+          />
+        )}
 
         {/* RANKING DE EMPRENDEDORES */}
         <section className="space-y-4">

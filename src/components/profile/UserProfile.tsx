@@ -52,6 +52,62 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { hasRole } from "@/lib/roles";
+import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
+
+function generarInsightosSocio(data: any): AIInsight[] {
+  if (!data) return [];
+  const out: AIInsight[] = [];
+  const sellos: number = data.comprasRealizadas || 0;
+  const historicos: number = data.sellosHistoricos ?? sellos;
+  const racha: number = data.rachaActual || 0;
+  const sellosLocales: Record<string, number> = data.sellosLocales || {};
+
+  // Progreso a próxima tarjeta
+  const restantesTarjeta = sellos === 0 ? 10 : (10 - (sellos % 10)) || 10;
+  if (sellos === 0) {
+    out.push({ icon: "⭐", type: "neutral", text: "Aún no tienes sellos. Visita cualquier local aliado y escanea su QR para empezar a acumular." });
+  } else if (restantesTarjeta <= 2) {
+    out.push({ icon: "🎁", type: "positive", text: `¡Estás muy cerca! Te faltan solo ${restantesTarjeta} sello${restantesTarjeta !== 1 ? "s" : ""} para completar tu próxima tarjeta y canjear un premio.` });
+  } else {
+    out.push({ icon: "⭐", type: "neutral", text: `Llevas ${sellos} sello${sellos !== 1 ? "s" : ""} activos. Te faltan ${restantesTarjeta} para completar tu próxima tarjeta y acceder a un premio.` });
+  }
+
+  // Racha de visitas
+  if (racha >= 7) {
+    out.push({ icon: "🔥", type: "positive", text: `Racha de ${racha} días consecutivos. ¡Impresionante constancia! Mantenerla es la forma más rápida de acumular sellos y subir de rango.` });
+  } else if (racha >= 3) {
+    out.push({ icon: "🔥", type: "positive", text: `Llevas ${racha} días seguidos visitando el Patio. Visita mañana para mantener la racha activa.` });
+  } else if (racha === 0 || racha === 1) {
+    out.push({ icon: "📅", type: "neutral", text: "Visita el Patio al menos un día seguido para comenzar tu racha. Las rachas largas aceleran tu progreso de rango." });
+  }
+
+  // Local favorito
+  const localEntries = Object.entries(sellosLocales);
+  if (localEntries.length > 0) {
+    const [favId, favCount] = localEntries.sort((a, b) => b[1] - a[1])[0];
+    if (favCount >= 3) {
+      out.push({ icon: "🏪", type: "neutral", text: `Tienes ${favCount} visitas en tu local más frecuentado. La fidelidad con un local te da acceso prioritario a sus premios exclusivos.` });
+    }
+  }
+
+  // Rango y progreso
+  if (historicos >= 50) {
+    out.push({ icon: "🏆", type: "positive", text: `Con ${historicos} sellos históricos estás en el rango más alto de socios activos. Tu historial refleja un compromiso excepcional con el Club.` });
+  } else if (historicos >= 15) {
+    const faltanOro = 50 - historicos;
+    out.push({ icon: "🏆", type: "neutral", text: `Estás en Plata. Te faltan ${faltanOro} sellos históricos para alcanzar el rango Oro y desbloquear beneficios exclusivos.` });
+  } else if (historicos >= 5) {
+    const faltanPlata = 15 - historicos;
+    out.push({ icon: "🥉", type: "neutral", text: `Rango Bronce activo. Con ${faltanPlata} sellos históricos más llegarás al rango Plata.` });
+  }
+
+  // Perfil incompleto
+  if (!data.perfilCompletoBonus && !(data.telefono?.trim() && data.fechaNacimiento?.trim())) {
+    out.push({ icon: "💡", type: "warning", text: "Completa tu perfil (teléfono + fecha de nacimiento) para recibir 1 sello extra de bono. Toca el botón de editar." });
+  }
+
+  return out;
+}
 
 function calcularRango(sellos: number): { nombre: string; color: string; emoji: string; siguiente: number | null; progreso: number } {
   if (sellos >= 100) return { nombre: "Platino", color: "#A8D5E2", emoji: "💎", siguiente: null, progreso: 100 };
@@ -1323,6 +1379,14 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           </div>
           <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />
         </button>
+      )}
+
+      {/* Análisis SynapTech AI — solo socios, vista no-edición */}
+      {!isEditing && !isEntrepreneur && userData && (
+        <SynapTechAIPanel
+          title="Tu Resumen Inteligente"
+          insights={generarInsightosSocio(userData)}
+        />
       )}
 
       {isEditing && (

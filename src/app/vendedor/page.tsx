@@ -29,6 +29,7 @@ import { CATEGORIES } from "@/lib/data";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
 import VendorStampModal from "@/components/VendorStampModal";
+import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
 
 // ── Helpers CRM ──────────────────────────────────────────────────────────────
 function currentMonth() {
@@ -58,6 +59,61 @@ interface ClienteStats {
 
 
 const DIAS_SEMANA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function generarInsightsCRM(
+  crm: ReturnType<typeof calcularCRM>,
+  totalSellosHistorico: number
+): AIInsight[] {
+  const out: AIInsight[] = [];
+
+  // Retención
+  if (crm.tasaRetorno >= 55) {
+    out.push({ icon: "🔄", type: "positive", text: `Tasa de retorno del ${crm.tasaRetorno}%: más de la mitad de tus clientes históricos ha vuelto a comprarte. Excelente fidelización.` });
+  } else if (crm.tasaRetorno > 0 && crm.tasaRetorno < 30) {
+    out.push({ icon: "⚠️", type: "warning", text: `Tasa de retorno baja: ${crm.tasaRetorno}%. Menos de 1 de cada 3 clientes regresa. Usa las plantillas de reactivación para mejorar este número.` });
+  } else if (crm.tasaRetorno > 0) {
+    out.push({ icon: "🔄", type: "neutral", text: `Tasa de retorno del ${crm.tasaRetorno}%. Hay margen para mejorar — los incentivos por visita frecuente pueden impulsar esta cifra.` });
+  }
+
+  // Día más activo
+  const mejorDiaIdx = crm.visitasPorDia.indexOf(crm.maxDia);
+  if (crm.maxDia > 1) {
+    const segundoMayor = [...crm.visitasPorDia].sort((a, b) => b - a)[1];
+    const flojo = crm.visitasPorDia.indexOf(Math.min(...crm.visitasPorDia.filter(v => v > 0)));
+    out.push({
+      icon: "📅", type: "neutral",
+      text: `Tu día estrella es el ${DIAS_SEMANA[mejorDiaIdx]} (${crm.maxDia} visitas). ${segundoMayor < crm.maxDia * 0.5 && flojo >= 0 ? `El ${DIAS_SEMANA[flojo]} es el más flojo — considera una promoción ese día para nivelar el flujo.` : "Mantén reforzado stock y atención ese día."}`,
+    });
+  }
+
+  // Clientes inactivos
+  if (crm.clientesInactivos.length >= 3) {
+    out.push({ icon: "💤", type: "warning", text: `${crm.clientesInactivos.length} clientes llevan más de 30 días sin visitarte. Un mensaje de reactivación personalizado puede recuperar entre el 20–30% de ellos.` });
+  } else if (crm.clientesInactivos.length > 0) {
+    out.push({ icon: "💤", type: "neutral", text: `${crm.clientesInactivos.length} cliente${crm.clientesInactivos.length !== 1 ? "s" : ""} no ha regresado en más de 30 días. Aprovecha el botón WhatsApp de la sección de inactivos para reactivarlos.` });
+  }
+
+  // Ticket promedio
+  if (crm.ticketPromedio > 0) {
+    if (crm.ticketPromedio >= 25000) {
+      out.push({ icon: "💰", type: "positive", text: `Ticket promedio alto: ${formatCLP(crm.ticketPromedio)}. Tus clientes gastan bien — prioriza la frecuencia de visitas sobre la captación masiva.` });
+    } else if (crm.ticketPromedio < 8000) {
+      out.push({ icon: "💰", type: "neutral", text: `Ticket promedio de ${formatCLP(crm.ticketPromedio)}. Combos o productos complementarios podrían aumentar el valor por visita sin perder volumen de clientes.` });
+    } else {
+      out.push({ icon: "💰", type: "neutral", text: `Ticket promedio del mes: ${formatCLP(crm.ticketPromedio)}. Nivel razonable — monitorea si sube con las promociones activas.` });
+    }
+  }
+
+  // Volumen mensual vs histórico
+  if (totalSellosHistorico > 0 && crm.totalRegistros > 0) {
+    const pctMesDelTotal = Math.round((crm.clientesUnicos / Math.max(crm.totalRegistros, 1)) * 100);
+    if (crm.clientesUnicos > 0 && pctMesDelTotal > 60) {
+      out.push({ icon: "🆕", type: "positive", text: `Este mes predominan clientes nuevos o de primera visita. Señal positiva de captación — asegúrate de fidelizarlos desde el primer contacto.` });
+    }
+  }
+
+  return out;
+}
 
 function calcularCRM(ventas: VentaRecord[]) {
   const mes = currentMonth();
@@ -820,6 +876,14 @@ export default function VendedorPage() {
                   </div>
                 )}
               </div>
+
+              {/* ── Análisis SynapTech AI ─────────────────────────────────────── */}
+              {allVentas.length > 0 && (
+                <SynapTechAIPanel
+                  title="Análisis de tu Local"
+                  insights={generarInsightsCRM(crm, userData?.sellosEntregadosHistorico ?? crm.totalRegistros)}
+                />
+              )}
 
               {/* ── Top clientes (con WhatsApp) ───────────────────────────────── */}
               {crm.topClientes.length > 0 && (
