@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation, LOCATIONS } from "@/context/LocationContext";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
+import VendorStampModal from "@/components/VendorStampModal";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
@@ -681,6 +682,11 @@ export default function Home() {
   };
 
   const isAdmin = user?.email?.toLowerCase().trim() === ADMIN_EMAIL;
+  const isVendor = userData
+    ? Array.isArray(userData.roles)
+      ? userData.roles.includes("emprendedor")
+      : userData.rol === "emprendedor"
+    : false;
 
   return (
     <main className="min-h-screen bg-white">
@@ -837,6 +843,8 @@ export default function Home() {
           </div>
         );
       })()}
+
+      <VendorStampModal vendorId={isVendor && user ? user.uid : null} />
 
       {/* Panel debug GPS — solo visible para admin */}
       {isAdmin && (
