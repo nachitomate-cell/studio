@@ -614,15 +614,14 @@ export default function VendedorPage() {
   };
 
   const handleCancelVendorSale = async () => {
-    if (vendorSalePendingId) {
-      // Fire-and-forget cleanup
-      import("firebase/firestore").then(({ doc: fsDoc, deleteDoc }) => {
-        deleteDoc(fsDoc(db, "pending_stamps", vendorSalePendingId)).catch(() => {});
-      });
-    }
+    const idToDelete = vendorSalePendingId;
     setVendorSaleTarget(null);
     setVendorSalePendingId(null);
     setVendorSaleMonto("");
+    if (idToDelete) {
+      const { doc: fsDoc, deleteDoc } = await import("firebase/firestore");
+      deleteDoc(fsDoc(db, "pending_stamps", idToDelete)).catch(() => {});
+    }
   };
 
   const handleDownloadQR = () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { collection, doc, onSnapshot, query, updateDoc, where, Timestamp } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, updateDoc, where, Timestamp, and } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -24,13 +24,16 @@ export default function VendorStampModal({ vendorId }: { vendorId: string | null
 
   useEffect(() => {
     if (!vendorId) return;
-    const q = query(collection(db, "pending_stamps"), where("vendorId", "==", vendorId));
+    const q = query(
+      collection(db, "pending_stamps"),
+      where("vendorId", "==", vendorId),
+      where("status", "==", "pending")
+    );
     const unsub = onSnapshot(q, (snapshot) => {
       const now = Date.now();
       const stamps: PendingClientStamp[] = [];
       snapshot.docs.forEach((d) => {
         const data = d.data();
-        if (data.status !== "pending") return;
         const createdAt: Timestamp | null = data.createdAt ?? null;
         if (!createdAt) return;
         if ((now - createdAt.toDate().getTime()) / 1000 > 5 * 60) return;
@@ -80,12 +83,17 @@ export default function VendorStampModal({ vendorId }: { vendorId: string | null
 
   const handleReject = async () => {
     if (!confirmingStamp) return;
+    setLoading(true);
     try {
       await updateDoc(doc(db, "pending_stamps", confirmingStamp.id), { status: "rejected" });
       toast({ title: "Solicitud rechazada" });
-    } catch { /* ignore */ }
-    setConfirmingStamp(null);
-    setMonto("");
+      setConfirmingStamp(null);
+      setMonto("");
+    } catch {
+      toast({ variant: "destructive", title: "Error al rechazar", description: "No se pudo rechazar la solicitud. Intenta de nuevo." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!vendorId) return null;
