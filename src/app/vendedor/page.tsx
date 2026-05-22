@@ -547,18 +547,7 @@ export default function VendedorPage() {
 
     setVendorSaleLoading(true);
     try {
-      // Check if it's another vendor
-      const profileSnap = await getDoc(doc(db, "entrepreneur_profiles", raw));
-      if (profileSnap.exists()) {
-        toast({
-          variant: "destructive",
-          title: "QR de otro local",
-          description: "Estás escaneando el código de otro local. Solo puedes entregar sellos a clientes.",
-        });
-        return;
-      }
-
-      // Check if it's a registered client
+      // Check if it's a registered user (clients and other vendors are both valid recipients)
       const userSnap = await getDoc(doc(db, "usuarios", raw));
       if (!userSnap.exists()) {
         toast({ variant: "destructive", title: "Código no reconocido", description: "Este código no corresponde a un socio registrado." });
