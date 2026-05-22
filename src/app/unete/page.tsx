@@ -63,6 +63,7 @@ export default function UnetePage() {
   const [comunaSeleccionada, setComunaSeleccionada] = useState("");
   const [showOptional, setShowOptional] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [comoNosConocio, setComoNosConocio] = useState("");
 
   const preventAutoRedirect = useRef(false);
 
@@ -163,6 +164,9 @@ export default function UnetePage() {
         const miCodigo = generarCodigoReferido(nombre);
         const referralLocalId = typeof window !== "undefined" ? localStorage.getItem("referral_local_id") : null;
 
+        const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+        const dispositivo = /android/i.test(ua) ? "android" : /iphone|ipad|ipod/i.test(ua) ? "ios" : "web";
+
         const [, configSnap] = await Promise.all([
           updateProfile(newUser, { displayName: nombre.trim() }),
           getDoc(doc(db, "configuracion", "general")).catch(() => null),
@@ -197,6 +201,8 @@ export default function UnetePage() {
             codigoReferido: miCodigo,
             referidosExitosos: 0,
             bono_login_reclamado: true,
+            dispositivo,
+            ...(comoNosConocio ? { comoNosConocio } : {}),
             ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
           }),
           setDoc(doc(db, "codigos_referido", miCodigo), { userId: newUser.uid, creadoEn: timestamp }),
@@ -212,6 +218,8 @@ export default function UnetePage() {
             aceptaTerminos: true,
             fechaRegistro: timestamp,
             fuente: "QR Registro - Club Patio",
+            dispositivo,
+            ...(comoNosConocio ? { comoNosConocio } : {}),
           }),
         ]);
 
@@ -289,7 +297,7 @@ export default function UnetePage() {
     setNombre(""); setFechaNacimiento(""); setComuna(""); setComunaSeleccionada("");
     setCodigoReferido(""); setAceptaTerminos(false); setAceptaMarketing(false);
     setAceptaPromoLocales(false); setShowOptional(false); setShowPassword(false);
-    setResetSent(false);
+    setResetSent(false); setComoNosConocio("");
   };
 
   return (
@@ -581,6 +589,21 @@ export default function UnetePage() {
                           <Input id="u-ref" type="text" placeholder="Ej: JUAN-A3K9"
                             value={codigoReferido} onChange={(e) => setCodigoReferido(e.target.value.toUpperCase())}
                             className="u-input" maxLength={9} />
+                        </div>
+                        <div className="u-field">
+                          <Label htmlFor="u-conocio" className="u-label u-label--sm">
+                            <Sparkles className="u-label-icon" /> ¿Cómo nos conociste?
+                          </Label>
+                          <select id="u-conocio" className="u-select" value={comoNosConocio}
+                            onChange={(e) => setComoNosConocio(e.target.value)}>
+                            <option value="">— Selecciona una opción —</option>
+                            <option value="amigo">Me lo recomendó un amigo/a</option>
+                            <option value="redes_sociales">Redes sociales (Instagram, Facebook...)</option>
+                            <option value="qr_local">Escaneé el QR en un local</option>
+                            <option value="flyer">Vi un flyer o afiche</option>
+                            <option value="paso_por_ahi">Pasé por el Patio y lo vi</option>
+                            <option value="otro">Otra forma</option>
+                          </select>
                         </div>
                       </div>
                     )}

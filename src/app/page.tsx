@@ -24,6 +24,7 @@ import { AIAssistantModal } from "@/components/ai/AIAssistantModal";
 import { Auth } from "@/components/Auth";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 import { OnboardingTutorial } from "@/components/OnboardingTutorial";
+import { NpsSurvey } from "@/components/NpsSurvey";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useBackgroundGeolocation } from "@/hooks/useBackgroundGeolocation";
 import { useToast } from "@/hooks/use-toast";
@@ -42,7 +43,9 @@ export default function Home() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showNpsSurvey, setShowNpsSurvey] = useState(false);
   const onboardingCheckedRef = useRef(false);
+  const npsCheckedRef = useRef(false);
   const { selectedLocation, setSelectedLocation } = useLocation();
   const { toast } = useToast();
   const router = useRouter();
@@ -125,6 +128,18 @@ export default function Home() {
 
     if (!isAdmin && !isVendor && !userData.hasCompletedOnboarding) {
       setShowOnboarding(true);
+    }
+  }, [user, userData]);
+
+  // Show NPS survey 30 days after registration if not yet answered
+  useEffect(() => {
+    if (!user || !userData || npsCheckedRef.current) return;
+    if (userData.nps) return;
+    if (!userData.createdAt) return;
+    const daysSince = (Date.now() - new Date(userData.createdAt).getTime()) / 86_400_000;
+    if (daysSince >= 30) {
+      npsCheckedRef.current = true;
+      setShowNpsSurvey(true);
     }
   }, [user, userData]);
 
@@ -694,6 +709,12 @@ export default function Home() {
         <OnboardingTutorial
           userId={user.uid}
           onComplete={() => setShowOnboarding(false)}
+        />
+      )}
+      {showNpsSurvey && user && !showOnboarding && (
+        <NpsSurvey
+          userId={user.uid}
+          onClose={() => setShowNpsSurvey(false)}
         />
       )}
 
