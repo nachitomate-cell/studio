@@ -52,7 +52,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { hasRole } from "@/lib/roles";
-import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
+import { type AIInsight } from "@/components/SynapTechAI";
+import { AIAssistantModal } from "@/components/ai/AIAssistantModal";
 
 function generarInsightosSocio(data: any): AIInsight[] {
   if (!data) return [];
@@ -823,6 +824,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [pendingAvatarId, setPendingAvatarId] = useState("User");
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const [showProfileAI, setShowProfileAI] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -1217,7 +1219,8 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const racha = userData?.rachaActual || 1;
 
   return (
-    <motion.div 
+    <>
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6 pb-20"
@@ -1294,14 +1297,26 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             </motion.button>
 
             {!isEditing ? (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="rounded-2xl border-primary/20 text-primary bg-white/80 backdrop-blur-md shadow-sm" 
-                onClick={() => setIsEditing(true)}
-              >
-                <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Ajustes
-              </Button>
+              <div className="flex items-center gap-2">
+                {!isEntrepreneur && (
+                  <button
+                    onClick={() => setShowProfileAI(true)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-white font-black shadow-sm active:scale-95 transition-transform"
+                    style={{ background: "linear-gradient(135deg,#6D28D9,#4F46E5)", fontSize: "10px" }}
+                    aria-label="Abrir análisis IA"
+                  >
+                    <Sparkles className="w-3 h-3" /> IA
+                  </button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-2xl border-primary/20 text-primary bg-white/80 backdrop-blur-md shadow-sm"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Ajustes
+                </Button>
+              </div>
             ) : (
               <Button variant="ghost" size="sm" className="rounded-full bg-white/80 backdrop-blur-md" onClick={() => setIsEditing(false)}>
                 <X className="w-5 h-5 text-slate-400" />
@@ -1379,14 +1394,6 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           </div>
           <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />
         </button>
-      )}
-
-      {/* Análisis SynapTech AI — solo socios, vista no-edición */}
-      {!isEditing && !isEntrepreneur && userData && (
-        <SynapTechAIPanel
-          title="Tu Resumen Inteligente"
-          insights={generarInsightosSocio(userData)}
-        />
       )}
 
       {isEditing && (
@@ -2445,5 +2452,13 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
       )}
     </motion.div>
+
+    <AIAssistantModal
+      isOpen={showProfileAI}
+      onClose={() => setShowProfileAI(false)}
+      userData={userData}
+      insights={generarInsightosSocio(userData)}
+    />
+    </>
   );
 }

@@ -782,6 +782,7 @@ export default function Home() {
         isOpen={showAIModal}
         onClose={() => setShowAIModal(false)}
         userData={userData}
+        locals={entrepreneurs}
       />
 
       {/* Modal de notificación push */}

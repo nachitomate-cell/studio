@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sparkles, X, RefreshCw } from "lucide-react";
+import type { AIInsight } from "@/components/SynapTechAI";
 
 interface Insight {
   emoji: string;
@@ -13,7 +14,7 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function generateInsights(userData: any): Insight[] {
+function generateInsights(userData: any, locals?: LocalBasic[]): Insight[] {
   const sellos = userData?.comprasRealizadas || 0;
   const tickets = userData?.ticketsSorteo || 0;
   const historicos = userData?.sellosHistoricos || sellos;
@@ -168,29 +169,59 @@ function generateInsights(userData: any): Insight[] {
 
   insights.push(pick(loyaltyPool));
 
+  // Slot 4: recomendación de local aleatorio
+  if (locals && locals.length > 0) {
+    const local = pick(locals);
+    const intros = [
+      "Te recomendamos visitar",
+      "Hoy es un buen día para conocer",
+      "¿Ya visitaste",
+    ];
+    const intro = pick(intros);
+    const closing = intro.startsWith("¿Ya visitaste")
+      ? `${local.name}? ${local.description ? local.description.slice(0, 60) + (local.description.length > 60 ? "…" : "") : "¡Podría sorprenderte!"}`
+      : `${local.name}${local.category ? ` (${local.category})` : ""}. ${local.description ? local.description.slice(0, 60) + (local.description.length > 60 ? "…" : "") : "Cada visita suma un sello."}`;
+    insights.push({
+      emoji: "📍",
+      title: "Local recomendado para ti",
+      body: `${intro.startsWith("¿") ? "" : intro + " "}${closing}`,
+    });
+  }
+
   return insights;
+}
+
+interface LocalBasic {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   userData: any;
+  insights?: AIInsight[];
+  locals?: LocalBasic[];
 }
 
-export function AIAssistantModal({ isOpen, onClose, userData }: Props) {
+export function AIAssistantModal({ isOpen, onClose, userData, insights: externalInsights, locals }: Props) {
   const [phase, setPhase] = useState<"loading" | "done">("loading");
   const [insights, setInsights] = useState<Insight[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const isSynaptech = Boolean(externalInsights);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (isSynaptech) { setPhase("done"); return; }
     setPhase("loading");
     const t = setTimeout(() => {
-      setInsights(generateInsights(userData));
+      setInsights(generateInsights(userData, locals));
       setPhase("done");
     }, 1800);
     return () => clearTimeout(t);
-  }, [isOpen, refreshKey, userData]);
+  }, [isOpen, refreshKey, userData, isSynaptech]);
 
   if (!isOpen) return null;
 
@@ -237,10 +268,10 @@ export function AIAssistantModal({ isOpen, onClose, userData }: Props) {
                     className="font-black uppercase tracking-[3px]"
                     style={{ fontSize: "9px", color: "rgba(255,255,255,0.6)" }}
                   >
-                    Club Patio Curauma
+                    {isSynaptech ? "SynapTech AI" : "Club Patio Curauma"}
                   </p>
                   <h2 className="text-lg font-black text-white leading-tight">
-                    Asistente IA
+                    {isSynaptech ? "Tu Resumen Inteligente" : "Asistente IA"}
                   </h2>
                 </div>
               </div>
@@ -276,7 +307,7 @@ export function AIAssistantModal({ isOpen, onClose, userData }: Props) {
                 className="font-bold tracking-wide"
                 style={{ fontSize: "9px", color: "rgba(255,255,255,0.8)" }}
               >
-                Powered by IA · Personalizado para ti
+                {isSynaptech ? "Motor analítico de SynapTech AI" : "Powered by IA · Personalizado para ti"}
               </span>
             </div>
           </div>
@@ -302,6 +333,22 @@ export function AIAssistantModal({ isOpen, onClose, userData }: Props) {
                   Analizando tu perfil de socio…
                 </p>
               </div>
+            ) : isSynaptech ? (
+              (externalInsights ?? []).map((ins, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl p-4 flex gap-3 items-start animate-in fade-in slide-in-from-bottom-2"
+                  style={{
+                    background: "#F8F7FF",
+                    border: "1px solid #EDE9FE",
+                    animationDelay: `${i * 100}ms`,
+                    animationFillMode: "both",
+                  }}
+                >
+                  <span className="text-2xl shrink-0 mt-0.5">{ins.icon}</span>
+                  <p className="text-xs text-slate-600 leading-relaxed mt-0.5">{ins.text}</p>
+                </div>
+              ))
             ) : (
               insights.map((insight, i) => (
                 <div
@@ -329,7 +376,9 @@ export function AIAssistantModal({ isOpen, onClose, userData }: Props) {
           {/* Footer */}
           <div className="px-5 pb-8 pt-2 shrink-0">
             <p className="text-center font-medium text-slate-300" style={{ fontSize: "9px" }}>
-              Análisis generado por inteligencia artificial · Club Patio Curauma
+              {isSynaptech
+                ? "Motor analítico de SynapTech AI · Conclusiones basadas en los datos cargados."
+                : "Análisis generado por inteligencia artificial · Club Patio Curauma"}
             </p>
           </div>
         </div>
