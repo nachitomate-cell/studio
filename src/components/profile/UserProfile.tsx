@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
-import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc, addDoc, serverTimestamp, increment } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -992,9 +992,34 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         updateData.ubicacionTienda = editForm.ubicacionTienda;
       }
 
+      const wasComplete = Boolean(userData?.telefono?.trim()) && Boolean(userData?.fechaNacimiento?.trim());
+      const willBeComplete = Boolean(editForm.telefono?.trim()) && Boolean(editForm.fechaNacimiento?.trim());
+      const giveBonus = !wasComplete && willBeComplete && !userData?.perfilCompletoBonus && !hasRole(userData, "emprendedor");
+
+      if (giveBonus) {
+        const currentSellos = userData?.comprasRealizadas || 0;
+        updateData.comprasRealizadas = increment(1);
+        updateData.sellosHistoricos = increment(1);
+        updateData.recompensaDisponible = (currentSellos + 1) >= 5;
+        updateData.perfilCompletoBonus = true;
+      }
+
       await updateDoc(userRef, updateData);
       setIsEditing(false);
-      toast({ title: "Perfil actualizado", description: "Tus datos se han guardado correctamente." });
+
+      if (giveBonus) {
+        toast({ title: "¡Perfil completo! +1 sello extra", description: "Gracias por completar tu información. ¡El sello ya está en tu cuenta!" });
+        addDoc(collection(db, "system_logs"), {
+          usuario: editForm.nombre || "Miembro del Club",
+          usuarioId: user.uid,
+          accion: "recibió sello por perfil completo",
+          fecha: new Date().toISOString(),
+          tipo: "FIDELIZACION",
+          metodo: "PERFIL_COMPLETO",
+        }).catch(() => {});
+      } else {
+        toast({ title: "Perfil actualizado", description: "Tus datos se han guardado correctamente." });
+      }
     } catch (error) {
       toast({ variant: "destructive", title: "Error al guardar", description: "No se pudieron actualizar los datos." });
     } finally {
@@ -1279,6 +1304,27 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         )}
       </div>
 
+      {/* Banner: completar perfil para ganar sello */}
+      {!isEditing && !isEntrepreneur && !userData?.perfilCompletoBonus &&
+        !(Boolean(userData?.telefono?.trim()) && Boolean(userData?.fechaNacimiento?.trim())) && (
+        <button
+          onClick={() => setIsEditing(true)}
+          className="w-full text-left flex items-center gap-4 rounded-2xl px-5 py-4 animate-in slide-in-from-top duration-300"
+          style={{ background: "linear-gradient(135deg, #FEF9EC 0%, #FFFBF0 100%)", border: "1.5px solid #D3B673" }}
+        >
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}>
+            <Gift className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-amber-900">Completa tu perfil → +1 sello extra</p>
+            <p className="text-[11px] text-amber-700 mt-0.5">
+              Agrega tu teléfono y fecha de nacimiento para recibir el bono.
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />
+        </button>
+      )}
+
       {isEditing && (
         <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden animate-in slide-in-from-top duration-300">
           <CardHeader className="bg-slate-50 pb-4">
@@ -1334,10 +1380,49 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                   className="rounded-xl h-12"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-fecha">Fecha de Nacimiento</Label>
+                <Input
+                  id="edit-fecha"
+                  type="date"
+                  value={editForm.fechaNacimiento}
+                  onChange={(e) => setEditForm({ ...editForm, fechaNacimiento: e.target.value })}
+                  className="rounded-xl h-12"
+                />
+              </div>
             </div>
-            
-            <Button 
-              onClick={handleSaveProfile} 
+
+            {/* Indicador de bono por perfil completo */}
+            {!hasRole(userData, "emprendedor") && !userData?.perfilCompletoBonus && (
+              <div className={`flex items-center gap-3 rounded-2xl px-4 py-3 transition-colors ${
+                Boolean(editForm.telefono?.trim()) && Boolean(editForm.fechaNacimiento?.trim())
+                  ? "bg-green-50 border border-green-200"
+                  : "bg-amber-50 border border-amber-200"
+              }`}>
+                <Gift className={`w-5 h-5 shrink-0 ${
+                  Boolean(editForm.telefono?.trim()) && Boolean(editForm.fechaNacimiento?.trim())
+                    ? "text-green-600" : "text-amber-600"
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-black ${
+                    Boolean(editForm.telefono?.trim()) && Boolean(editForm.fechaNacimiento?.trim())
+                      ? "text-green-700" : "text-amber-700"
+                  }`}>
+                    {Boolean(editForm.telefono?.trim()) && Boolean(editForm.fechaNacimiento?.trim())
+                      ? "¡Listo! Guardar te dará 1 sello extra"
+                      : "Completa teléfono y nacimiento → +1 sello"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {[!editForm.telefono?.trim() && "Teléfono", !editForm.fechaNacimiento?.trim() && "Fecha de nacimiento"]
+                      .filter(Boolean).join(" y ")}
+                    {(Boolean(editForm.telefono?.trim()) && Boolean(editForm.fechaNacimiento?.trim())) ? "Bonus de bienvenida por completar tu perfil" : " pendiente"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={handleSaveProfile}
               disabled={loading}
               className="w-full h-12 rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
             >
