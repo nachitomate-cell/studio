@@ -75,6 +75,7 @@ export async function procesarReferidoPendiente(
     const referrerSellos = (referrerDoc.data()!.comprasRealizadas || 0) + 1;
     tx.update(referrerRef, {
       comprasRealizadas: FieldValue.increment(1),
+      sellosHistoricos: FieldValue.increment(1),
       puntos: FieldValue.increment(50),
       recompensaDisponible: referrerSellos >= 5,
       referidosExitosos: FieldValue.increment(1),

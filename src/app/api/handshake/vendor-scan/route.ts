@@ -75,6 +75,10 @@ export async function POST(request: Request) {
       const userRef = adminDb.collection("usuarios").doc(userId);
       const userSnap = await tx.get(userRef);
 
+      if (userSnap.exists && userSnap.data()!.baneado) {
+        throw new Error("Usuario baneado — no se puede otorgar el sello.");
+      }
+
       const prevSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
       const numSellos = calcularSellos(monto);
       const nuevoTotal = prevSellos + numSellos;

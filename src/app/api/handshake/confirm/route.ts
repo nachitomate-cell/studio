@@ -75,6 +75,10 @@ export async function POST(request: Request) {
       const userRef = adminDb.collection("usuarios").doc(userId);
       const userSnap = await tx.get(userRef);
 
+      if (userSnap.exists && userSnap.data()!.baneado) {
+        throw new Error("Usuario baneado — no se puede otorgar el sello.");
+      }
+
       const timestamp = new Date().toISOString();
       const currentSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
       const nuevoTotal = currentSellos + 1;
@@ -90,6 +94,7 @@ export async function POST(request: Request) {
       if (userSnap.exists) {
         tx.update(userRef, {
           comprasRealizadas: FieldValue.increment(1),
+          sellosHistoricos: FieldValue.increment(1),
           recompensaDisponible: nuevoTotal >= 5,
           puntos: FieldValue.increment(50),
           lastPurchaseAt: timestamp,
@@ -100,6 +105,7 @@ export async function POST(request: Request) {
       } else {
         tx.set(userRef, {
           comprasRealizadas: 1,
+          sellosHistoricos: 1,
           recompensaDisponible: false,
           puntos: 100,
           totalCanjesHistoricos: 0,

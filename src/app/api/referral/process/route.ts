@@ -83,6 +83,7 @@ export async function POST(request: Request) {
       // +1 sello al nuevo usuario por registrarse con código
       tx.update(newUserRef, {
         comprasRealizadas: FieldValue.increment(1),
+        sellosHistoricos: FieldValue.increment(1),
         puntos: FieldValue.increment(50),
         recompensaDisponible: newUserSellos >= 5,
         referidoPor: referrerId,
