@@ -74,7 +74,7 @@ function MontoCell({ monto, metodo }: { monto?: number; metodo?: string }) {
     );
   }
   // Sellos del sistema: no hay compra asociada
-  if (metodo === "BIENVENIDA" || metodo === "SISTEMA" || metodo === "REFERIDO") {
+  if (metodo === "BIENVENIDA" || metodo === "SISTEMA" || metodo === "REFERIDO" || metodo === "PERFIL_COMPLETO") {
     return <span className="text-slate-300 font-medium">—</span>;
   }
   // VENDOR_SCAN: emprendedor escaneó al cliente manualmente sin ingresar monto
@@ -419,7 +419,7 @@ export default function ModeradorSellosPage() {
         Hora: dt.hora,
         Cliente: l.usuarioResuelto || l.usuario,
         "RUT/Tel": l.usuarioId,
-        Local: l.metodo === "BIENVENIDA" ? "Sello de Bienvenida" : l.metodo === "SISTEMA" ? "Bono de Login" : l.metodo === "REFERIDO" ? `Registro Referido · ${vendors[l.vendedorId] || l.vendedorId || "—"}` : vendors[l.vendedorId] || l.vendedorId || "—",
+        Local: l.metodo === "BIENVENIDA" ? "Sello de Bienvenida" : l.metodo === "SISTEMA" ? "Bono de Login" : l.metodo === "REFERIDO" ? `Registro Referido · ${vendors[l.vendedorId] || l.vendedorId || "—"}` : l.metodo === "PERFIL_COMPLETO" ? "Perfil Completado" : vendors[l.vendedorId] || l.vendedorId || "—",
         Monto: l.monto && l.monto > 0 ? l.monto : 0,
         Sellos: "+1",
         Estado: estado,
@@ -724,6 +724,8 @@ export default function ModeradorSellosPage() {
                               ? <span className="inline-flex items-center gap-1 text-blue-600 font-bold text-xs bg-blue-50 px-2 py-1 rounded-full">⚡ Bono de Login</span>
                               : log.metodo === "REFERIDO"
                               ? <span className="inline-flex items-center gap-1 text-violet-600 font-bold text-xs bg-violet-50 px-2 py-1 rounded-full">🔗 Registro Referido · {vendors[log.vendedorId] || log.vendedorId || "—"}</span>
+                              : log.metodo === "PERFIL_COMPLETO"
+                              ? <span className="inline-flex items-center gap-1 text-amber-600 font-bold text-xs bg-amber-50 px-2 py-1 rounded-full">✅ Perfil Completado</span>
                               : vendors[log.vendedorId] || log.vendedorId || "—"}
                           </td>
                           <td className="px-6 py-4">
