@@ -32,23 +32,24 @@ export async function GET(request: Request) {
     const snap = await adminDb
       .collection("pending_stamps")
       .where("status", "in", PENDING_STATUSES)
-      .orderBy("createdAt", "desc")
       .get();
 
-    const stamps = snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        userId: data.userId ?? null,
-        userName: data.userName ?? "Miembro del Club",
-        vendorId: data.vendorId ?? null,
-        vendorName: data.vendorName ?? null,
-        status: data.status,
-        monto: data.monto ?? null,
-        initiatedBy: data.initiatedBy ?? "client",
-        createdAt: data.createdAt?.toMillis?.() ?? null,
-      };
-    });
+    const stamps = snap.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          userId: data.userId ?? null,
+          userName: data.userName ?? "Miembro del Club",
+          vendorId: data.vendorId ?? null,
+          vendorName: data.vendorName ?? null,
+          status: data.status,
+          monto: data.monto ?? null,
+          initiatedBy: data.initiatedBy ?? "client",
+          createdAt: data.createdAt?.toMillis?.() ?? null,
+        };
+      })
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
     return NextResponse.json({ stamps });
   } catch (error) {

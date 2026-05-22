@@ -6,6 +6,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 import ValidarPanel from "@/components/ValidarPanel";
+import VendorStampModal from "@/components/VendorStampModal";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
 
@@ -58,5 +59,10 @@ export default function ValidarPage() {
 
   if (!vendorId) return null;
 
-  return <ValidarPanel vendorId={vendorId} />;
+  return (
+    <>
+      <ValidarPanel vendorId={vendorId} />
+      <VendorStampModal vendorId={vendorId} />
+    </>
+  );
 }

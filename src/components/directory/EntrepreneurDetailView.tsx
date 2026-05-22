@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, onSnapshot, query, collection, documentId, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -23,6 +23,7 @@ import {
   Share2,
   Heart,
   Gift,
+  X,
 } from "lucide-react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +53,9 @@ function DetailContent() {
   const [sectorExpanded, setSectorExpanded] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [scrollY, setScrollY] = useState(0);
+  const [userStamps, setUserStamps] = useState<{ total: number; enEsteLocal: number } | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const lightboxTouchRef = useRef<{ x: number } | null>(null);
 
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [associatedShopsData, setAssociatedShopsData] = useState<any[]>([]);
@@ -70,6 +74,10 @@ function DetailContent() {
             const data = snap.data();
             const favoritos: string[] = Array.isArray(data.favoritos) ? data.favoritos : [];
             setIsFavorite(favoritos.includes(id as string));
+            setUserStamps({
+              total: data.comprasRealizadas || 0,
+              enEsteLocal: data.sellosLocales?.[id as string] || 0,
+            });
           }
         });
         return () => unsubSnap();
@@ -105,6 +113,19 @@ function DetailContent() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Lightbox keyboard navigation
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const images: string[] = entrepreneur?.imageUrls || [];
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(null);
+      if (e.key === "ArrowRight") setLightboxIndex((i) => i !== null ? (i + 1) % images.length : null);
+      if (e.key === "ArrowLeft") setLightboxIndex((i) => i !== null ? (i - 1 + images.length) % images.length : null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [lightboxIndex, entrepreneur]);
 
   useEffect(() => {
     if (entrepreneur?.associatedShops?.length > 0) {
@@ -462,15 +483,49 @@ function DetailContent() {
           })()}
         </div>
 
+        {/* ── Promo activa del local ───────────────────────────────────── */}
+        {entrepreneur.promoText && (
+          <section className="px-4 pt-2">
+            <div
+              className="rounded-2xl p-4 flex items-start gap-3"
+              style={{
+                background: "linear-gradient(135deg, rgba(201,146,10,0.18), rgba(201,146,10,0.06))",
+                border: "1px solid rgba(201,146,10,0.35)",
+                boxShadow: "0 0 20px rgba(201,146,10,0.08)",
+              }}
+            >
+              <span className="text-lg shrink-0 mt-0.5">🏷️</span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#C9920A" }}>
+                  Promo activa
+                </p>
+                <p className="text-sm font-medium leading-snug" style={{ color: "#e2e8f0" }}>
+                  {entrepreneur.promoText}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ── Galería de imágenes ──────────────────────────────────────── */}
         {entrepreneur.imageUrls?.length > 1 && (
           <section className="px-4 space-y-2 pt-2">
             <h3 className="text-[11px] font-black text-[#D3B673] uppercase tracking-widest">Galería</h3>
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
               {(entrepreneur.imageUrls as string[]).map((url: string, i: number) => (
-                <img key={i} src={getSafeImageUrl(url)} alt={`Foto ${i+1}`}
-                  className="h-32 w-32 object-cover rounded-2xl shrink-0 border border-white/10"
-                  onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }} />
+                <button
+                  key={i}
+                  onClick={() => setLightboxIndex(i)}
+                  className="shrink-0 rounded-2xl overflow-hidden border border-white/10 active:scale-95 transition-transform"
+                  style={{ height: "128px", width: "128px" }}
+                >
+                  <img
+                    src={getSafeImageUrl(url)}
+                    alt={`Foto ${i + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
+                  />
+                </button>
               ))}
             </div>
           </section>
@@ -546,10 +601,39 @@ function DetailContent() {
                 <Gift className="w-5 h-5 text-[#C9920A]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="uppercase tracking-widest font-black" style={{ fontSize: "10px", color: "#C9920A" }}>Gana Recompensas</p>
-                <p className="font-medium leading-snug mt-0.5" style={{ fontSize: "12px", color: "#cbd5e1" }}>
-                  Escanea el QR del mostrador para sumar sellos.
-                </p>
+                {userStamps && userStamps.total > 0 ? (
+                  <>
+                    <p className="uppercase tracking-widest font-black" style={{ fontSize: "10px", color: "#C9920A" }}>
+                      {userStamps.total >= 5 ? "¡Premio listo!" : "Tu progreso"}
+                    </p>
+                    <p className="font-medium leading-snug mt-0.5" style={{ fontSize: "12px", color: "#cbd5e1" }}>
+                      {userStamps.total >= 5
+                        ? `${userStamps.total} sellos acumulados · Canjea ahora`
+                        : `${userStamps.total} de 5 sellos · Faltan ${5 - userStamps.total}`}
+                      {userStamps.enEsteLocal > 0 && (
+                        <span style={{ color: "#D3B673" }}> · {userStamps.enEsteLocal} visita{userStamps.enEsteLocal !== 1 ? "s" : ""} aquí</span>
+                      )}
+                    </p>
+                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.1)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min((userStamps.total / 5) * 100, 100)}%`,
+                          background: userStamps.total >= 5
+                            ? "linear-gradient(90deg, #4ade80, #22c55e)"
+                            : "linear-gradient(90deg, #C9920A, #D3B673)",
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="uppercase tracking-widest font-black" style={{ fontSize: "10px", color: "#C9920A" }}>Gana Recompensas</p>
+                    <p className="font-medium leading-snug mt-0.5" style={{ fontSize: "12px", color: "#cbd5e1" }}>
+                      Escanea el QR del mostrador para sumar sellos.
+                    </p>
+                  </>
+                )}
               </div>
               <span style={{ color: "#C9920A", fontSize: 18, lineHeight: 1, flexShrink: 0 }}>›</span>
             </div>
@@ -711,6 +795,80 @@ function DetailContent() {
           </p>
         </footer>
       </div>
+
+      {/* ── Lightbox de galería ─────────────────────────────────────────── */}
+      {lightboxIndex !== null && (entrepreneur.imageUrls as string[])?.length > 0 && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 animate-in fade-in duration-200"
+          onClick={() => setLightboxIndex(null)}
+          onTouchStart={(e) => { lightboxTouchRef.current = { x: e.touches[0].clientX }; }}
+          onTouchEnd={(e) => {
+            if (!lightboxTouchRef.current) return;
+            const dx = e.changedTouches[0].clientX - lightboxTouchRef.current.x;
+            const images = entrepreneur.imageUrls as string[];
+            if (Math.abs(dx) > 50) {
+              if (dx < 0) setLightboxIndex((i) => i !== null ? (i + 1) % images.length : null);
+              else setLightboxIndex((i) => i !== null ? (i - 1 + images.length) % images.length : null);
+            }
+            lightboxTouchRef.current = null;
+          }}
+        >
+          {/* Botón cerrar */}
+          <button
+            className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-10"
+            style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
+            onClick={() => setLightboxIndex(null)}
+          >
+            <X className="w-5 h-5 text-white" />
+          </button>
+
+          {/* Contador */}
+          <div
+            className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white/60 z-10"
+            style={{ background: "rgba(255,255,255,0.1)" }}
+          >
+            {lightboxIndex + 1} / {(entrepreneur.imageUrls as string[]).length}
+          </div>
+
+          {/* Imagen principal */}
+          <img
+            src={getSafeImageUrl((entrepreneur.imageUrls as string[])[lightboxIndex])}
+            alt={`Foto ${lightboxIndex + 1}`}
+            className="max-w-full object-contain px-4 animate-in zoom-in-95 duration-200"
+            style={{ maxHeight: "85vh" }}
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
+          />
+
+          {/* Navegación prev/next */}
+          {(entrepreneur.imageUrls as string[]).length > 1 && (
+            <>
+              <button
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-10"
+                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const images = entrepreneur.imageUrls as string[];
+                  setLightboxIndex((i) => i !== null ? (i - 1 + images.length) % images.length : null);
+                }}
+              >
+                <ArrowLeft className="w-5 h-5 text-white" />
+              </button>
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-10"
+                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const images = entrepreneur.imageUrls as string[];
+                  setLightboxIndex((i) => i !== null ? (i + 1) % images.length : null);
+                }}
+              >
+                <ArrowLeft className="w-5 h-5 text-white rotate-180" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </main>
   );
 }
