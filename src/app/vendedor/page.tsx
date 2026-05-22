@@ -15,7 +15,7 @@ import {
   Gift, Clock, ChevronRight, LayoutDashboard,
   X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
   DollarSign, BarChart2, RefreshCw, FileDown, HelpCircle,
-  CheckCircle2, User,
+  CheckCircle2, User, MessageCircle, CalendarDays,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -57,6 +57,8 @@ interface ClienteStats {
 }
 
 
+const DIAS_SEMANA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
 function calcularCRM(ventas: VentaRecord[]) {
   const mes = currentMonth();
   const ventasMes = ventas.filter(v => v.fecha?.startsWith(mes));
@@ -65,15 +67,12 @@ function calcularCRM(ventas: VentaRecord[]) {
   const clientesSet = new Set(ventasMes.map(v => v.clienteId));
   const clientesUnicos = clientesSet.size;
 
-  // Clientes que volvieron (aparecen > 1 vez en todos los registros)
   const conteo: Record<string, number> = {};
   ventas.forEach(v => { conteo[v.clienteId] = (conteo[v.clienteId] || 0) + 1; });
   const retorno = Object.values(conteo).filter(c => c > 1).length;
   const tasaRetorno = ventas.length > 0
-    ? Math.round((retorno / Object.keys(conteo).length) * 100)
-    : 0;
+    ? Math.round((retorno / Object.keys(conteo).length) * 100) : 0;
 
-  // Top clientes (todo el historial)
   const clienteMap: Record<string, ClienteStats> = {};
   ventas.forEach(v => {
     if (!clienteMap[v.clienteId]) {
@@ -81,13 +80,31 @@ function calcularCRM(ventas: VentaRecord[]) {
     }
     clienteMap[v.clienteId].visitas++;
     clienteMap[v.clienteId].gasto += v.monto || 0;
-    if (v.fecha > clienteMap[v.clienteId].ultimaVisita) {
-      clienteMap[v.clienteId].ultimaVisita = v.fecha;
-    }
+    if (v.fecha > clienteMap[v.clienteId].ultimaVisita) clienteMap[v.clienteId].ultimaVisita = v.fecha;
   });
   const topClientes = Object.values(clienteMap).sort((a, b) => b.visitas - a.visitas).slice(0, 10);
 
-  return { ingresosMes, clientesUnicos, tasaRetorno, topClientes, totalRegistros: ventas.length };
+  // Clientes inactivos: última visita > 30 días
+  const hace30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const clientesInactivos = Object.values(clienteMap)
+    .filter(c => c.ultimaVisita.slice(0, 10) < hace30)
+    .sort((a, b) => a.ultimaVisita.localeCompare(b.ultimaVisita))
+    .slice(0, 5);
+
+  // Visitas por día de la semana (fecha ISO viene como "YYYY-MM-DDTHH:mm...")
+  const visitasPorDia: number[] = Array(7).fill(0);
+  ventas.forEach(v => {
+    if (v.fecha) visitasPorDia[new Date(v.fecha.length === 10 ? v.fecha + "T12:00" : v.fecha).getDay()]++;
+  });
+  const maxDia = Math.max(...visitasPorDia, 1);
+
+  // Ticket promedio del mes
+  const ventasConMonto = ventasMes.filter(v => (v.monto || 0) > 0);
+  const ticketPromedio = ventasConMonto.length > 0
+    ? Math.round(ventasConMonto.reduce((s, v) => s + (v.monto || 0), 0) / ventasConMonto.length) : 0;
+  const ventasConMontoCount = ventasConMonto.length;
+
+  return { ingresosMes, clientesUnicos, tasaRetorno, topClientes, totalRegistros: ventas.length, clientesInactivos, visitasPorDia, maxDia, ticketPromedio, ventasConMontoCount };
 }
 
 export default function VendedorPage() {
@@ -126,6 +143,7 @@ export default function VendedorPage() {
   const [vendorSalePendingId, setVendorSalePendingId] = useState<string | null>(null);
   const [vendorSaleLoading, setVendorSaleLoading] = useState(false);
   const [vendorSaleMonto, setVendorSaleMonto] = useState("");
+  const [wspLoading, setWspLoading] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -272,6 +290,36 @@ export default function VendedorPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Mis Clientes");
     XLSX.writeFile(wb, `clientes_${auth.currentUser?.uid?.substring(0, 6)}_${currentMonth()}.xlsx`);
+  };
+
+  const abrirWhatsApp = async (
+    clienteId: string,
+    clienteNombre: string,
+    tiendaNombre: string,
+    vendorNombre: string,
+    tipo: "fidelizacion" | "reactivacion" | "bienvenida" | "promo"
+  ) => {
+    setWspLoading(clienteId);
+    try {
+      const snap = await getDoc(doc(db, "usuarios", clienteId));
+      const tel = snap.exists() ? (snap.data().telefono || "").replace(/\s/g, "") : "";
+      if (!tel || tel.length < 8) {
+        toast({ title: "Sin teléfono", description: `${clienteNombre} no ha registrado su número.` });
+        return;
+      }
+      const num = tel.startsWith("+") ? tel.slice(1) : tel;
+      const mensajes: Record<string, string> = {
+        fidelizacion: `Hola ${clienteNombre}! 👋 Soy ${vendorNombre} de ${tiendaNombre} en Patio Curauma. ¡Gracias por visitarnos! Cada compra suma un sello ⭐ y te acerca a tu premio. ¡Vuelve pronto! 🎁`,
+        reactivacion: `Hola ${clienteNombre}! 😊 Te echamos de menos en ${tiendaNombre}. ¿Cómo has estado? Esta semana tenemos novedades que te van a gustar. ¡Te esperamos en Patio Curauma! 🙌`,
+        bienvenida: `¡Bienvenida/o ${clienteNombre}! 🥳 Soy ${vendorNombre} de ${tiendaNombre}. Ya eres parte del Club Patio Curauma. Cada visita te suma un sello y al llegar a 10 ¡ganas un premio especial! ⭐🎁`,
+        promo: `Hola ${clienteNombre}! 🎉 Hoy tenemos algo especial en ${tiendaNombre}. Ven a visitarnos y suma tu sello del día. ¡Te esperamos con novedades en Patio Curauma! 👋`,
+      };
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(mensajes[tipo])}`, "_blank");
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo obtener el contacto." });
+    } finally {
+      setWspLoading(null);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -664,6 +712,32 @@ export default function VendedorPage() {
   if (view === "clientes") {
     const crm = calcularCRM(allVentas);
     const mes = currentMonth();
+    const tiendaNombre = userData?.nombreTienda || "nuestra tienda";
+    const vendorNombre = userData?.nombre || "tu emprendedor/a";
+
+    const PLANTILLAS = [
+      {
+        label: "Fidelización", emoji: "⭐",
+        bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700",
+        msg: `¡Hola! 👋 Soy ${vendorNombre} de ${tiendaNombre} en Patio Curauma. ¡Gracias por visitarnos! Cada compra suma un sello ⭐ y te acerca a tu premio. ¡Vuelve pronto! 🎁`,
+      },
+      {
+        label: "Bienvenida", emoji: "🥳",
+        bg: "bg-green-50", border: "border-green-200", text: "text-green-700",
+        msg: `¡Bienvenida/o al Club! 🥳 Soy ${vendorNombre} de ${tiendaNombre}. Ya eres parte del Club Patio Curauma: cada visita suma un sello ⭐ y al llegar a 10 ¡ganas un premio especial! 🎁`,
+      },
+      {
+        label: "Promoción", emoji: "🎉",
+        bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700",
+        msg: `¡Hola! 🎉 Hoy tenemos algo especial en ${tiendaNombre}. Ven a visitarnos y suma tu sello del día. ¡Te esperamos con novedades en Patio Curauma! 👋`,
+      },
+      {
+        label: "Reactivación", emoji: "💛",
+        bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-700",
+        msg: `¡Hola! 😊 Te echamos de menos en ${tiendaNombre}. ¿Cómo has estado? Esta semana tenemos novedades que te van a gustar. ¡Te esperamos en Patio Curauma! 🙌`,
+      },
+    ];
+
     return (
       <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
         <div className="bg-white border-b border-slate-200 p-6 sticky top-0 z-10 flex items-center justify-between gap-4">
@@ -672,7 +746,7 @@ export default function VendedorPage() {
               <ArrowLeft className="w-6 h-6" />
             </Button>
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Mis Clientes</h1>
+              <h1 className="text-xl font-bold text-slate-800">CRM · Mis Clientes</h1>
               <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{mes}</p>
             </div>
           </div>
@@ -681,7 +755,7 @@ export default function VendedorPage() {
           </Button>
         </div>
 
-        <div className="max-w-lg mx-auto p-5 space-y-5">
+        <div className="max-w-lg mx-auto p-5 space-y-6">
           {allVentas.length === 0 && !crmLoading ? (
             <div className="text-center py-16 space-y-3">
               <BarChart2 className="w-12 h-12 text-slate-200 mx-auto" />
@@ -690,60 +764,64 @@ export default function VendedorPage() {
             </div>
           ) : (
             <>
-              {/* KPIs del mes */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <DollarSign className="w-4 h-4 text-green-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Ingresos mes</span>
+              {/* ── KPIs del mes ─────────────────────────────────────────────── */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Resumen del mes</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="w-4 h-4 text-green-500" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Ingresos</span>
+                    </div>
+                    <p className="text-xl font-black text-slate-800">{crm.ingresosMes > 0 ? formatCLP(crm.ingresosMes) : "—"}</p>
+                    {crm.ingresosMes === 0 && <p className="text-[9px] text-slate-300">Ingresa montos al validar</p>}
                   </div>
-                  <p className="text-xl font-black text-slate-800">
-                    {crm.ingresosMes > 0 ? formatCLP(crm.ingresosMes) : "—"}
-                  </p>
-                  {crm.ingresosMes === 0 && (
-                    <p className="text-[9px] text-slate-300">Ingresa montos en el panel de validación</p>
+                  <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Users className="w-4 h-4 text-blue-500" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Clientes</span>
+                    </div>
+                    <p className="text-xl font-black text-slate-800">{crm.clientesUnicos}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <RefreshCw className="w-4 h-4 text-purple-500" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Retorno</span>
+                    </div>
+                    <p className="text-xl font-black text-slate-800">{crm.tasaRetorno}%</p>
+                  </div>
+                  <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingUp className="w-4 h-4 text-amber-500" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Sellos totales</span>
+                    </div>
+                    <p className="text-xl font-black text-slate-800">{userData?.sellosEntregadosHistorico ?? crm.totalRegistros}</p>
+                  </div>
+                  {crm.ticketPromedio > 0 && (
+                    <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1 col-span-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <DollarSign className="w-4 h-4 text-emerald-500" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Ticket promedio</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-xl font-black text-slate-800">{formatCLP(crm.ticketPromedio)}</p>
+                        <p className="text-[10px] text-slate-300">por compra · {crm.ventasConMontoCount} ventas con monto</p>
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Users className="w-4 h-4 text-blue-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Clientes mes</span>
+                {crm.ingresosMes === 0 && allVentas.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
+                    <DollarSign className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-amber-800">Activa el ingreso de montos</p>
+                      <p className="text-xs text-amber-700 mt-1">Al confirmar un sello ingresa el valor de la boleta para ver ingresos reales aquí.</p>
+                    </div>
                   </div>
-                  <p className="text-xl font-black text-slate-800">{crm.clientesUnicos}</p>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <RefreshCw className="w-4 h-4 text-purple-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Tasa retorno</span>
-                  </div>
-                  <p className="text-xl font-black text-slate-800">{crm.tasaRetorno}%</p>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp className="w-4 h-4 text-amber-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Total sellos</span>
-                  </div>
-                  <p className="text-xl font-black text-slate-800">{userData?.sellosEntregadosHistorico ?? crm.totalRegistros}</p>
-                </div>
+                )}
               </div>
 
-              {/* Aviso si no hay montos */}
-              {crm.ingresosMes === 0 && allVentas.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
-                  <DollarSign className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-bold text-amber-800">Activa el ingreso de montos</p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      Al confirmar un sello en el Panel de Validación ingresa el valor de la boleta. Con eso verás ingresos reales aquí.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Top clientes */}
+              {/* ── Top clientes (con WhatsApp) ───────────────────────────────── */}
               {crm.topClientes.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between px-1">
@@ -765,16 +843,129 @@ export default function VendedorPage() {
                             {c.gasto > 0 ? ` · ${formatCLP(c.gasto)}` : ""}
                           </p>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-[10px] text-slate-300">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <p className="text-[10px] text-slate-300 hidden sm:block">
                             {new Date(c.ultimaVisita).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
                           </p>
+                          <button
+                            onClick={() => abrirWhatsApp(c.clienteId, c.nombre, tiendaNombre, vendorNombre, "fidelizacion")}
+                            disabled={wspLoading === c.clienteId}
+                            className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center hover:bg-green-100 transition-colors"
+                            title="Enviar WhatsApp de agradecimiento"
+                          >
+                            {wspLoading === c.clienteId
+                              ? <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                              : <MessageCircle className="w-4 h-4 text-green-500" />}
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
+                  <p className="text-[10px] text-slate-300 px-1">El botón verde abre WhatsApp con un mensaje personalizado (requiere que el cliente tenga teléfono registrado).</p>
                 </div>
               )}
+
+              {/* ── Clientes sin regresar (+30 días) ─────────────────────────── */}
+              {crm.clientesInactivos.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <Clock className="w-4 h-4 text-orange-400" />
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Sin regresar (+30 días)</p>
+                    <span className="ml-auto text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">{crm.clientesInactivos.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {crm.clientesInactivos.map((c) => {
+                      const dias = Math.floor((Date.now() - new Date(c.ultimaVisita).getTime()) / 86400000);
+                      return (
+                        <div key={c.clienteId} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+                          <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center shrink-0">
+                            <Clock className="w-4 h-4 text-orange-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-slate-800 truncate">{c.nombre}</p>
+                            <p className="text-[10px] text-orange-500 font-medium">{dias} días sin visitar</p>
+                          </div>
+                          <button
+                            onClick={() => abrirWhatsApp(c.clienteId, c.nombre, tiendaNombre, vendorNombre, "reactivacion")}
+                            disabled={wspLoading === c.clienteId}
+                            className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center hover:bg-green-100 transition-colors shrink-0"
+                            title="Enviar WhatsApp de reactivación"
+                          >
+                            {wspLoading === c.clienteId
+                              ? <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                              : <MessageCircle className="w-4 h-4 text-green-500" />}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Análisis de visitas por día ───────────────────────────────── */}
+              {allVentas.length > 3 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <CalendarDays className="w-4 h-4 text-slate-400" />
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Días más activos</p>
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 shadow-sm">
+                    <div className="flex items-end gap-2 h-20">
+                      {DIAS_SEMANA.map((dia, i) => {
+                        const visitas = crm.visitasPorDia[i];
+                        const pct = Math.round((visitas / crm.maxDia) * 100);
+                        const isMax = visitas === crm.maxDia && visitas > 0;
+                        return (
+                          <div key={dia} className="flex-1 flex flex-col items-center gap-1.5">
+                            <span className="text-[9px] font-bold text-slate-400">{visitas > 0 ? visitas : ""}</span>
+                            <div
+                              className="w-full rounded-t-lg"
+                              style={{
+                                height: `${Math.max(pct * 0.52, 4)}px`,
+                                background: isMax ? "linear-gradient(180deg,#D3B673,#C9920A)" : "#E2E8F0",
+                              }}
+                            />
+                            <span className="text-[9px] font-bold" style={{ color: isMax ? "#C9920A" : "#94A3B8" }}>{dia}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {crm.maxDia > 0 && (
+                      <p className="text-xs text-slate-500 mt-3 text-center">
+                        Mejor día: <strong style={{ color: "#C9920A" }}>{DIAS_SEMANA[crm.visitasPorDia.indexOf(crm.maxDia)]}</strong> · {crm.maxDia} visita{crm.maxDia !== 1 ? "s" : ""}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Plantillas de mensaje WhatsApp ───────────────────────────── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1">
+                  <MessageCircle className="w-4 h-4 text-slate-400" />
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Plantillas WhatsApp</p>
+                </div>
+                <div className="space-y-2">
+                  {PLANTILLAS.map(({ label, emoji, bg, border, text, msg }) => (
+                    <div key={label} className={`rounded-2xl p-4 border ${bg} ${border} space-y-2`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-black text-slate-700">{emoji} {label}</p>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg);
+                            toast({ title: `"${label}" copiada`, description: "Pégala en WhatsApp y agrega el nombre del cliente." });
+                          }}
+                          className={`flex items-center gap-1 text-[10px] font-bold ${text} hover:opacity-80 transition-opacity bg-white/60 px-2.5 py-1 rounded-full border ${border}`}
+                        >
+                          <Copy className="w-3 h-3" /> Copiar
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">{msg}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-300 px-1">Copia, pega en WhatsApp y personaliza el nombre del cliente antes de enviar.</p>
+              </div>
             </>
           )}
         </div>
