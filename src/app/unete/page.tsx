@@ -275,6 +275,7 @@ export default function UnetePage() {
       if (!nombre.trim()) { setError("Ingresa tu nombre completo."); return; }
       if (!email.trim()) { setError("Ingresa tu correo electrónico."); return; }
       if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+      if (!comunaSeleccionada) { setError("Selecciona tu comuna o ciudad."); return; }
       if (!aceptaTerminos) { setError("Debes aceptar los términos de uso para continuar."); return; }
       if (phone && !/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
         setError("Teléfono inválido. Usa formato +56 9 XXXX XXXX."); return;
@@ -484,6 +485,57 @@ export default function UnetePage() {
                   </div>
                 </div>
 
+                {/* Comuna (obligatoria, solo registro) */}
+                {!isLogin && (
+                  <div className="u-field">
+                    <Label htmlFor="u-comuna" className="u-label">
+                      <MapPin className="u-label-icon" /> Comuna <span style={{ color: "#ef4444" }}>*</span>
+                    </Label>
+                    <select id="u-comuna" className="u-select" value={comunaSeleccionada}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setComunaSeleccionada(val);
+                        if (val !== "otra") setComuna(val); else setComuna("");
+                      }}>
+                      <option value="">— Selecciona tu ciudad —</option>
+                      <optgroup label="Zona Curauma"><option value="Curauma / Placilla">Curauma / Placilla</option></optgroup>
+                      <optgroup label="Región de Valparaíso">
+                        <option value="Valparaíso">Valparaíso</option>
+                        <option value="Viña del Mar">Viña del Mar</option>
+                        <option value="Quilpué">Quilpué</option>
+                        <option value="Villa Alemana">Villa Alemana</option>
+                        <option value="Concón">Concón</option>
+                        <option value="San Antonio">San Antonio</option>
+                        <option value="Casablanca">Casablanca</option>
+                      </optgroup>
+                      <optgroup label="Región Metropolitana">
+                        <option value="Santiago">Santiago</option>
+                        <option value="Providencia">Providencia</option>
+                        <option value="Las Condes">Las Condes</option>
+                        <option value="Ñuñoa">Ñuñoa</option>
+                        <option value="La Florida">La Florida</option>
+                        <option value="Maipú">Maipú</option>
+                        <option value="Puente Alto">Puente Alto</option>
+                      </optgroup>
+                      <optgroup label="Otras ciudades">
+                        <option value="Rancagua">Rancagua</option>
+                        <option value="Concepción">Concepción</option>
+                        <option value="Temuco">Temuco</option>
+                        <option value="La Serena">La Serena</option>
+                        <option value="Antofagasta">Antofagasta</option>
+                        <option value="Iquique">Iquique</option>
+                        <option value="Arica">Arica</option>
+                        <option value="Puerto Montt">Puerto Montt</option>
+                      </optgroup>
+                      <option value="otra">Otra...</option>
+                    </select>
+                    {comunaSeleccionada === "otra" && (
+                      <Input type="text" placeholder="Escribe tu ciudad..."
+                        value={comuna} onChange={(e) => setComuna(e.target.value)} className="u-input" style={{ marginTop: 6 }} autoFocus />
+                    )}
+                  </div>
+                )}
+
                 {/* ¿Olvidaste contraseña? (solo login) */}
                 {isLogin && (
                   <div style={{ textAlign: "right", marginTop: -8 }}>
@@ -521,53 +573,6 @@ export default function UnetePage() {
                           <Input id="u-bday" type="date"
                             value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)}
                             className="u-input" max={new Date().toISOString().split("T")[0]} />
-                        </div>
-                        <div className="u-field">
-                          <Label htmlFor="u-comuna" className="u-label u-label--sm">
-                            <MapPin className="u-label-icon" /> Comuna
-                          </Label>
-                          <select id="u-comuna" className="u-select" value={comunaSeleccionada}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setComunaSeleccionada(val);
-                              if (val !== "otra") setComuna(val); else setComuna("");
-                            }}>
-                            <option value="">— Selecciona —</option>
-                            <optgroup label="Zona Curauma"><option value="Curauma / Placilla">Curauma / Placilla</option></optgroup>
-                            <optgroup label="Región de Valparaíso">
-                              <option value="Valparaíso">Valparaíso</option>
-                              <option value="Viña del Mar">Viña del Mar</option>
-                              <option value="Quilpué">Quilpué</option>
-                              <option value="Villa Alemana">Villa Alemana</option>
-                              <option value="Concón">Concón</option>
-                              <option value="San Antonio">San Antonio</option>
-                              <option value="Casablanca">Casablanca</option>
-                            </optgroup>
-                            <optgroup label="Región Metropolitana">
-                              <option value="Santiago">Santiago</option>
-                              <option value="Providencia">Providencia</option>
-                              <option value="Las Condes">Las Condes</option>
-                              <option value="Ñuñoa">Ñuñoa</option>
-                              <option value="La Florida">La Florida</option>
-                              <option value="Maipú">Maipú</option>
-                              <option value="Puente Alto">Puente Alto</option>
-                            </optgroup>
-                            <optgroup label="Otras ciudades">
-                              <option value="Rancagua">Rancagua</option>
-                              <option value="Concepción">Concepción</option>
-                              <option value="Temuco">Temuco</option>
-                              <option value="La Serena">La Serena</option>
-                              <option value="Antofagasta">Antofagasta</option>
-                              <option value="Iquique">Iquique</option>
-                              <option value="Arica">Arica</option>
-                              <option value="Puerto Montt">Puerto Montt</option>
-                            </optgroup>
-                            <option value="otra">Otra...</option>
-                          </select>
-                          {comunaSeleccionada === "otra" && (
-                            <Input type="text" placeholder="Escribe tu ciudad..."
-                              value={comuna} onChange={(e) => setComuna(e.target.value)} className="u-input" autoFocus />
-                          )}
                         </div>
                         <div className="u-field">
                           <Label htmlFor="u-ref" className="u-label u-label--sm">
