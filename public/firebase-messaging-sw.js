@@ -107,14 +107,16 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const { tipo = '', cta = '/' } = event.notification.data || {};
 
-  // Pasar el contenido de la notificación como URL params para mostrar modal inmediato
+  // Si la notificación tiene un destino específico, navegar directo; si no, pasar params para modal
   const params = new URLSearchParams({
     n_t: event.notification.title || '',
     n_b: event.notification.body  || '',
     n_tipo: tipo,
     n_cta: cta,
   });
-  const targetUrl = self.location.origin + '/?' + params.toString();
+  const targetUrl = (cta && cta !== '/')
+    ? self.location.origin + cta
+    : self.location.origin + '/?' + params.toString();
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {

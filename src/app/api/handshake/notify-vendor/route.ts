@@ -86,6 +86,7 @@ export async function POST(request: Request) {
         await messaging.send({
           token: fcmToken,
           notification: { title: titulo, body: cuerpo },
+          data: { type: "HANDSHAKE", cta: actionUrl },
           android: {
             priority: "high",
             notification: {
