@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       if (userSnap.exists) {
         tx.update(userRef, {
           comprasRealizadas: FieldValue.increment(numSellos),
+          sellosHistoricos: FieldValue.increment(numSellos),
           recompensaDisponible: nuevoTotal >= SELLOS_PARA_PREMIO,
           puntos: FieldValue.increment(50 * numSellos),
           lastPurchaseAt: timestamp,
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
       } else {
         tx.set(userRef, {
           comprasRealizadas: numSellos,
+          sellosHistoricos: numSellos,
           recompensaDisponible: nuevoTotal >= SELLOS_PARA_PREMIO,
           puntos: numSellos * 50,
           totalCanjesHistoricos: 0,

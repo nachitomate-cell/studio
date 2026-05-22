@@ -612,7 +612,8 @@ export default function VendedorPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al confirmar");
 
-      toast({ title: "✅ Sello confirmado", description: `+1 sello acreditado a ${vendorSaleTarget.clientName}.` });
+      const sellosOtorgados = data.numSellos ?? 1;
+      toast({ title: "✅ Sello confirmado", description: `+${sellosOtorgados} ${sellosOtorgados === 1 ? "sello" : "sellos"} acreditado${sellosOtorgados === 1 ? "" : "s"} a ${vendorSaleTarget.clientName}.` });
       setVendorSaleTarget(null);
       setVendorSalePendingId(null);
       setVendorSaleMonto("");
