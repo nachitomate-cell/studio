@@ -11,7 +11,7 @@ import {
   User,
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, getDoc, updateDoc, increment, collection, addDoc, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,6 @@ export default function UnetePage() {
   const [aceptaPromoLocales, setAceptaPromoLocales] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -115,21 +114,12 @@ export default function UnetePage() {
 
   // Si ya está autenticado, redirigir al dashboard
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
       if (preventAutoRedirect.current) return;
       if (u) {
-        // Verificar si está baneado
-        const userRef = doc(db, "usuarios", u.uid);
-        const snap = await getDoc(userRef);
-        if (snap.exists() && snap.data().baneado) {
-          setCheckingAuth(false);
-          return;
-        }
         const retornoAuto = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
         if (retornoAuto) localStorage.removeItem("url_retorno");
         router.replace(retornoAuto || "/");
-      } else {
-        setCheckingAuth(false);
       }
     });
     return () => unsubscribe();
@@ -158,16 +148,14 @@ export default function UnetePage() {
               bono_login_reclamado: true,
               lastUpdate: new Date().toISOString()
             });
-            try {
-              await addDoc(collection(db, "system_logs"), {
-                usuario: data.nombre || data.correo,
-                usuarioId: u.uid,
-                accion: "recibió un sello por Bono Único de Login",
-                fecha: new Date().toISOString(),
-                tipo: "FIDELIZACION",
-                metodo: "SISTEMA"
-              });
-            } catch(e) {}
+            addDoc(collection(db, "system_logs"), {
+              usuario: data.nombre || data.correo,
+              usuarioId: u.uid,
+              accion: "recibió un sello por Bono Único de Login",
+              fecha: new Date().toISOString(),
+              tipo: "FIDELIZACION",
+              metodo: "SISTEMA"
+            }).catch(() => {});
             toast({
               title: "¡Bono de Bienvenida! 🎉",
               description: "Te hemos regalado 1 sello extra por iniciar sesión.",
@@ -186,26 +174,12 @@ export default function UnetePage() {
         if (!aceptaTerminos) throw new Error("Debes aceptar los términos de uso.");
         if (!nombre.trim()) throw new Error("Ingresa tu nombre completo.");
 
-        // Capa 3: verificar unicidad del teléfono
         const normalizedPhone = phone.replace(/\s/g, "");
-        if (normalizedPhone) {
-          try {
-            const phoneSnap = await getDocs(query(collection(db, "usuarios"), where("telefono", "==", normalizedPhone)));
-            if (!phoneSnap.empty) {
-              throw new Error("Este número de teléfono ya está registrado. Si ya tienes cuenta, inicia sesión.");
-            }
-          } catch (err: any) {
-            if (err.message?.includes("ya está registrado")) throw err;
-          }
-        }
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
         createdAuthUser = newUser;
         const emailLimpio = email.toLowerCase().trim();
-
-        // Setear displayName en Firebase Auth para que aparezca en el panel del vendedor
-        await updateProfile(newUser, { displayName: nombre.trim() });
 
         let rolAsignado = "cliente";
         if (emailLimpio === EMAIL_MASTER_ADMIN) rolAsignado = "admin";
@@ -217,59 +191,61 @@ export default function UnetePage() {
           ? localStorage.getItem("referral_local_id")
           : null;
 
-        // Leer config del sello de bienvenida (igual que Auth.tsx)
-        const configSnap = await getDoc(doc(db, "configuracion", "general")).catch(() => null);
+        // Actualizar perfil Auth y leer config en paralelo
+        const [, configSnap] = await Promise.all([
+          updateProfile(newUser, { displayName: nombre.trim() }),
+          getDoc(doc(db, "configuracion", "general")).catch(() => null),
+        ]);
         const configBienvenida = configSnap?.exists() ? configSnap.data()?.selloBienvenida : null;
         const bienvenidaActivo = configBienvenida?.activo !== false;
         const bienvenidaCantidad: number = Number(configBienvenida?.cantidad ?? 1);
         const sellosIniciales = referralLocalId ? 0 : (bienvenidaActivo ? bienvenidaCantidad : 0);
         const puntosIniciales = referralLocalId ? 50 : (bienvenidaActivo ? bienvenidaCantidad * 100 : 0);
 
-        await setDoc(doc(db, "usuarios", newUser.uid), {
-          id: newUser.uid,
-          nombre: nombre.trim(),
-          correo: emailLimpio,
-          telefono: normalizedPhone,
-          fechaNacimiento: fechaNacimiento,
-          rol: rolAsignado,
-          comprasRealizadas: sellosIniciales,
-          puntos: puntosIniciales,
-          totalCanjesHistoricos: 0,
-          ticketsSorteo: 0,
-          recompensaDisponible: false,
-          avatarId: "User",
-          baneado: false,
-          aceptaTerminos: true,
-          aceptaMarketing: aceptaMarketing,
-          aceptaPromoLocales: aceptaPromoLocales,
-          fechaConsentimiento: timestamp,
-          createdAt: timestamp,
-          comuna: comuna.trim(),
-          codigoReferido: miCodigo,
-          referidosExitosos: 0,
-          bono_login_reclamado: true,
-          ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
-        });
-
-        // Registrar el código en la colección de búsqueda rápida
-        await setDoc(doc(db, "codigos_referido", miCodigo), {
-          userId: newUser.uid,
-          creadoEn: timestamp,
-        });
-
-        await setDoc(doc(db, "leads_marketing", newUser.uid), {
-          uid: newUser.uid,
-          nombre: nombre.trim(),
-          correo: emailLimpio,
-          telefono: normalizedPhone,
-          fechaNacimiento: fechaNacimiento,
-          comuna: comuna.trim(),
-          aceptaMarketing: aceptaMarketing,
-          aceptaPromoLocales: aceptaPromoLocales,
-          aceptaTerminos: true,
-          fechaRegistro: timestamp,
-          fuente: "QR Registro - Club Patio",
-        });
+        await Promise.all([
+          setDoc(doc(db, "usuarios", newUser.uid), {
+            id: newUser.uid,
+            nombre: nombre.trim(),
+            correo: emailLimpio,
+            telefono: normalizedPhone,
+            fechaNacimiento: fechaNacimiento,
+            rol: rolAsignado,
+            comprasRealizadas: sellosIniciales,
+            puntos: puntosIniciales,
+            totalCanjesHistoricos: 0,
+            ticketsSorteo: 0,
+            recompensaDisponible: false,
+            avatarId: "User",
+            baneado: false,
+            aceptaTerminos: true,
+            aceptaMarketing: aceptaMarketing,
+            aceptaPromoLocales: aceptaPromoLocales,
+            fechaConsentimiento: timestamp,
+            createdAt: timestamp,
+            comuna: comuna.trim(),
+            codigoReferido: miCodigo,
+            referidosExitosos: 0,
+            bono_login_reclamado: true,
+            ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
+          }),
+          setDoc(doc(db, "codigos_referido", miCodigo), {
+            userId: newUser.uid,
+            creadoEn: timestamp,
+          }),
+          setDoc(doc(db, "leads_marketing", newUser.uid), {
+            uid: newUser.uid,
+            nombre: nombre.trim(),
+            correo: emailLimpio,
+            telefono: normalizedPhone,
+            fechaNacimiento: fechaNacimiento,
+            comuna: comuna.trim(),
+            aceptaMarketing: aceptaMarketing,
+            aceptaPromoLocales: aceptaPromoLocales,
+            aceptaTerminos: true,
+            fechaRegistro: timestamp,
+            fuente: "QR Registro - Club Patio",
+          }),
+        ]);
 
         // Atribución del sello de bienvenida
         if (referralLocalId) {
@@ -285,20 +261,16 @@ export default function UnetePage() {
           }
         } else if (bienvenidaActivo) {
           // Registro orgánico: log del sello de bienvenida + sync de Google Wallet
-          try {
-            await addDoc(collection(db, "system_logs"), {
-              usuario: nombre.trim(),
-              usuarioId: newUser.uid,
-              accion: `recibió ${bienvenidaCantidad} Sello${bienvenidaCantidad > 1 ? "s" : ""} de Bienvenida (registro orgánico)`,
-              fecha: timestamp,
-              tipo: "FIDELIZACION",
-              metodo: "BIENVENIDA",
-              cantidad: bienvenidaCantidad,
-            });
-            syncUserStampsToWallet(newUser.uid, bienvenidaCantidad);
-          } catch {
-            // No crítico
-          }
+          addDoc(collection(db, "system_logs"), {
+            usuario: nombre.trim(),
+            usuarioId: newUser.uid,
+            accion: `recibió ${bienvenidaCantidad} Sello${bienvenidaCantidad > 1 ? "s" : ""} de Bienvenida (registro orgánico)`,
+            fecha: timestamp,
+            tipo: "FIDELIZACION",
+            metodo: "BIENVENIDA",
+            cantidad: bienvenidaCantidad,
+          }).catch(() => {});
+          syncUserStampsToWallet(newUser.uid, bienvenidaCantidad);
         }
 
         // Procesar código de referido si se ingresó uno
@@ -384,44 +356,6 @@ export default function UnetePage() {
 
     handleAuth(e);
   };
-
-  // Pantalla de carga mientras se verifica autenticación
-  if (checkingAuth) {
-    return (
-      <div className="unete-page">
-        <div className="unete-loader">
-          <Loader2 className="unete-spin-icon" />
-        </div>
-
-        <style jsx>{`
-          .unete-page {
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(160deg, #faf4e6 0%, #ffffff 40%, #f8f9fa 100%);
-          }
-          .unete-loader {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          .unete-spin-icon {
-            width: 40px;
-            height: 40px;
-            color: #D3B673;
-            animation: spin 1s linear infinite;
-          }
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
 
   return (
     <div className="unete-page">
@@ -975,49 +909,34 @@ export default function UnetePage() {
           color: #f8fafc;
         }
 
-        /* ━━━ Decorative Blobs ━━━ */
+        /* ━━━ Decorative Blobs (static — blur animado es muy costoso en GPU móvil) ━━━ */
         .unete-decor {
           position: fixed;
           border-radius: 50%;
           pointer-events: none;
-          opacity: 0.15;
-          filter: blur(80px);
+          opacity: 0.12;
+          filter: blur(40px);
         }
         .unete-decor-1 {
-          width: 350px;
-          height: 350px;
-          top: -100px;
-          right: -100px;
+          width: 300px;
+          height: 300px;
+          top: -80px;
+          right: -80px;
           background: #D3B673;
-          animation: float1 10s ease-in-out infinite alternate;
         }
         .unete-decor-2 {
-          width: 250px;
-          height: 250px;
-          bottom: 100px;
-          left: -80px;
-          background: #1e293b;
-          animation: float2 12s ease-in-out infinite alternate;
-        }
-        .unete-decor-3 {
           width: 200px;
           height: 200px;
+          bottom: 80px;
+          left: -60px;
+          background: #1e293b;
+        }
+        .unete-decor-3 {
+          width: 160px;
+          height: 160px;
           top: 50%;
-          right: -50px;
+          right: -40px;
           background: #334155;
-          animation: float3 14s ease-in-out infinite alternate;
-        }
-        @keyframes float1 {
-          from { transform: translate(0, 0) scale(1); }
-          to { transform: translate(-40px, 50px) scale(1.1); }
-        }
-        @keyframes float2 {
-          from { transform: translate(0, 0) scale(1); }
-          to { transform: translate(30px, -40px) scale(1.15); }
-        }
-        @keyframes float3 {
-          from { transform: translate(0, 0) scale(1); }
-          to { transform: translate(-30px, 30px) scale(1.08); }
         }
 
         /* ━━━ Content Container ━━━ */
