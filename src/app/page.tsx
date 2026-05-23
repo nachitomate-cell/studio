@@ -32,6 +32,7 @@ import { useLocation, LOCATIONS } from "@/context/LocationContext";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
 import VendorStampModal from "@/components/VendorStampModal";
+import QRCode from "react-qr-code";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
@@ -50,6 +51,8 @@ export default function Home() {
   const { toast } = useToast();
   const router = useRouter();
   const [premiosBadge, setPremiosBadge] = useState(false);
+  const [nextPremio, setNextPremio] = useState<{ nombre: string; sellosRequeridos: number; icono: string } | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
   
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -143,20 +146,26 @@ export default function Home() {
     }
   }, [user, userData]);
 
-  // Badge de premios — se activa cuando el usuario tiene sellos suficientes para canjear algo
+  // Badge de premios + próximo premio alcanzable
   useEffect(() => {
-    const stampsCount = userData?.comprasRealizadas || 0;
-    if (!userData || stampsCount === 0) {
+    if (!userData) {
       setPremiosBadge(false);
+      setNextPremio(null);
       return;
     }
+    const stampsCount = userData.comprasRealizadas || 0;
     getDocs(query(collection(db, "premios"), where("activo", "==", true)))
       .then((snap) => {
-        const puedeCanejear = snap.docs.some((d) => {
-          const s = d.data().sellosRequeridos;
-          return typeof s === "number" && stampsCount >= s;
-        });
+        const todos = snap.docs.map((d) => d.data() as any);
+        const puedeCanejear = todos.some(
+          (p) => !p.esSorteo && typeof p.sellosRequeridos === "number" && stampsCount >= p.sellosRequeridos
+        );
         setPremiosBadge(puedeCanejear);
+        // Próximo premio no-sorteo más cercano que aún no alcanza
+        const proximos = todos
+          .filter((p) => !p.esSorteo && typeof p.sellosRequeridos === "number" && p.sellosRequeridos > stampsCount)
+          .sort((a: any, b: any) => a.sellosRequeridos - b.sellosRequeridos);
+        setNextPremio(proximos.length > 0 ? { nombre: proximos[0].nombre || "Premio", sellosRequeridos: proximos[0].sellosRequeridos, icono: proximos[0].icono || "🎁" } : null);
       })
       .catch(() => {});
   }, [userData]);
@@ -402,32 +411,104 @@ export default function Home() {
           <div className="space-y-4 pb-6 bg-white">
             {renderHero()}
 
-            {/* Saludo personalizado */}
+            {/* Saludo + tarjeta de progreso + QR */}
             {user && userData && (
-              <div className="px-6 flex items-center justify-between" style={{ marginTop: "24px", marginBottom: "12px" }}>
-                <p className="text-sm font-medium text-slate-600">
-                  Hola,{" "}
-                  <span className="font-bold text-slate-800">{userData.nombre?.split(" ")[0] || "Club Member"}</span>
-                  {" · "}
-                  <span className="font-black" style={{ color: "#C9920A" }}>{userData.comprasRealizadas || 0}</span>
-                  {" sellos · "}
-                  <span className="font-black" style={{ color: "#C9920A" }}>{userData.ticketsSorteo || 0}</span>
-                  {" tickets"}
-                </p>
-                <button
-                  onClick={() => setShowAIModal(true)}
-                  className="flex items-center gap-1 shrink-0 ml-3 px-2.5 py-1 rounded-full transition-all active:scale-90"
-                  style={{
-                    background: "linear-gradient(135deg, #6D28D9 0%, #0EA5E9 100%)",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    color: "white",
-                  }}
-                  aria-label="Abrir Asistente IA"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  IA
-                </button>
+              <div style={{ marginTop: "20px", marginBottom: "4px" }}>
+                {/* Banner: premio disponible */}
+                {premiosBadge && (
+                  <button
+                    onClick={() => router.push("/premios")}
+                    className="mx-6 mb-3 w-[calc(100%-3rem)] flex items-center gap-3 px-4 py-3 rounded-2xl active:scale-[0.98] transition-transform text-left"
+                    style={{ background: "linear-gradient(135deg, #FEF08A 0%, #FDE047 100%)" }}
+                  >
+                    <span className="text-2xl">🎁</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-amber-900 leading-tight">¡Tienes un premio disponible!</p>
+                      <p className="text-[11px] text-amber-800 font-medium">Toca para canjearlo ahora</p>
+                    </div>
+                    <span className="text-amber-700 font-black text-xl shrink-0">›</span>
+                  </button>
+                )}
+
+                <div className="px-6 space-y-3">
+                  {/* Fila: saludo + botones */}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-slate-800">
+                      Hola, {userData.nombre?.split(" ")[0] || "Club Member"} 👋
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowQRModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-[11px] active:scale-90 transition-transform"
+                        style={{ background: "#C9920A", color: "white" }}
+                        aria-label="Mostrar mi QR"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        Mi QR
+                      </button>
+                      <button
+                        onClick={() => setShowAIModal(true)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-full transition-all active:scale-90"
+                        style={{ background: "linear-gradient(135deg, #6D28D9 0%, #0EA5E9 100%)", fontSize: "10px", fontWeight: 700, color: "white" }}
+                        aria-label="Abrir Asistente IA"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        IA
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tarjeta de progreso */}
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-black" style={{ color: "#C9920A" }}>
+                          {userData.comprasRealizadas || 0}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wide">sellos</span>
+                      </div>
+                      {(userData.ticketsSorteo || 0) > 0 && (
+                        <span className="text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-full">
+                          🎟️ {userData.ticketsSorteo} tickets
+                        </span>
+                      )}
+                    </div>
+
+                    {nextPremio && (
+                      <>
+                        <div className="w-full bg-slate-100 rounded-full overflow-hidden" style={{ height: "6px" }}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${Math.min(100, Math.round(((userData.comprasRealizadas || 0) / nextPremio.sellosRequeridos) * 100))}%`,
+                              background: "linear-gradient(90deg, #C9920A 0%, #8DC63F 100%)",
+                              transition: "width 0.8s ease-out",
+                            }}
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-medium mt-2">
+                          Te faltan{" "}
+                          <span className="font-black text-slate-700">
+                            {nextPremio.sellosRequeridos - (userData.comprasRealizadas || 0)}
+                          </span>{" "}
+                          {nextPremio.sellosRequeridos - (userData.comprasRealizadas || 0) === 1 ? "sello" : "sellos"} para {nextPremio.icono} {nextPremio.nombre}
+                        </p>
+                      </>
+                    )}
+
+                    {!nextPremio && !premiosBadge && (
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        Sigue acumulando sellos para ganar premios 🌟
+                      </p>
+                    )}
+
+                    {!nextPremio && premiosBadge && (
+                      <p className="text-[11px] font-bold" style={{ color: "#C9920A" }}>
+                        🎉 ¡Ya alcanzaste todos los premios disponibles!
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -867,6 +948,53 @@ export default function Home() {
       })()}
 
       <VendorStampModal vendorId={isVendor && user ? user.uid : null} />
+
+      {/* Modal QR del socio */}
+      {showQRModal && user && (
+        <div
+          className="fixed inset-0 z-[250] flex items-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowQRModal(false)}
+        >
+          <div
+            className="w-full max-w-lg mx-auto bg-white rounded-t-[28px] animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            </div>
+            <div className="px-6 pt-3 pb-10 space-y-5 text-center">
+              <div>
+                <p className="text-lg font-black text-slate-800">Tu código QR</p>
+                <p className="text-xs text-slate-400 font-medium mt-1">
+                  Muéstraselo al emprendedor para recibir sellos
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <div className="bg-white border-2 border-slate-100 rounded-3xl p-6 shadow-lg">
+                  <QRCode
+                    value={user.uid}
+                    size={200}
+                    fgColor="#1A1A1A"
+                    style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                  />
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded-2xl px-4 py-3 mx-4">
+                <p className="text-sm font-bold text-slate-700">{userData?.nombre || "Socio"}</p>
+                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                  {userData?.comprasRealizadas || 0} sellos acumulados
+                </p>
+              </div>
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="w-full h-12 rounded-2xl text-sm font-bold text-slate-400 hover:bg-slate-50 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Panel debug GPS — solo visible para admin */}
       {isAdmin && (

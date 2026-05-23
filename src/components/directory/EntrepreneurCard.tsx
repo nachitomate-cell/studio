@@ -95,9 +95,9 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
           {isOpen === false && (
             <span
               className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-              style={{ background: "rgba(0,0,0,0.55)", color: "#f87171", backdropFilter: "blur(4px)" }}
+              style={{ background: "rgba(0,0,0,0.55)", color: "#94a3b8", backdropFilter: "blur(4px)" }}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
               Cerrado
             </span>
           )}
