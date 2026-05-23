@@ -172,6 +172,9 @@ export default function ModeradorSellosPage() {
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Conteo preciso por vendor (sin limit, sin anulados) cuando hay filtro activo
+  const [vendorAccurateCount, setVendorAccurateCount] = useState<number | null>(null);
+
   // Modal stats por local
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [statsLocales, setStatsLocales] = useState<any[]>([]);
@@ -326,6 +329,26 @@ export default function ModeradorSellosPage() {
 
     return () => unsub();
   }, [authorized]);
+
+  // ── Conteo preciso por vendor (onSnapshot sin limit, excluye anulados) ───────
+  useEffect(() => {
+    if (!authorized || !vendorFilter) {
+      setVendorAccurateCount(null);
+      return;
+    }
+    const unsub = onSnapshot(
+      query(
+        collection(db, "system_logs"),
+        where("vendedorId", "==", vendorFilter),
+        where("tipo", "==", "FIDELIZACION")
+      ),
+      (snap) => {
+        setVendorAccurateCount(snap.docs.filter(d => !d.data().anulada).length);
+      },
+      () => { setVendorAccurateCount(null); }
+    );
+    return () => unsub();
+  }, [authorized, vendorFilter]);
 
   // ── Calcular KPIs del mes actual ───────────────────────────────────────────
   function computeKpis(data: LogEntry[]) {
@@ -672,9 +695,10 @@ export default function ModeradorSellosPage() {
             <>
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-500">
-                  {filtered.length}{" "}
-                  {filtered.length === 1 ? "registro" : "registros"}
-                  {hayFiltros ? " con filtros aplicados" : " en total"}
+                  {vendorAccurateCount !== null
+                    ? <>{vendorAccurateCount} {vendorAccurateCount === 1 ? "sello entregado" : "sellos entregados"} <span className="text-slate-300 font-medium">(sin anulados · total histórico)</span></>
+                    : <>{filtered.length}{" "}{filtered.length === 1 ? "registro" : "registros"}{hayFiltros ? " con filtros aplicados" : " en total"}</>
+                  }
                 </p>
                 <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
