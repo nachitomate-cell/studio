@@ -104,6 +104,8 @@ export default function DirectorPage() {
   const [activatingStore, setActivatingStore] = useState(false);
   const [rankingByRol, setRankingByRol] = useState<any[]>([]);
   const [rankingByRoles, setRankingByRoles] = useState<any[]>([]);
+  const [vendorMonthlyFromLogs, setVendorMonthlyFromLogs] = useState<Map<string, number>>(new Map());
+  const [vendorHistoricFromLogs, setVendorHistoricFromLogs] = useState<Map<string, number>>(new Map());
   const [showAllRanking, setShowAllRanking] = useState(false);
   const [premios, setPremios] = useState<any[]>([]);
   const [mensajeGlobal, setMensajeGlobal] = useState({
@@ -231,8 +233,33 @@ export default function DirectorPage() {
         }))
       );
 
-
+      // ── Conteo mensual por vendor desde logs (excluyendo anulados) ───
+      const monthlyCounts = new Map<string, number>();
+      handshakeLogs
+        .filter(l => !l.anulada)
+        .forEach(l => {
+          if (l.vendedorId) {
+            monthlyCounts.set(l.vendedorId, (monthlyCounts.get(l.vendedorId) || 0) + 1);
+          }
+        });
+      setVendorMonthlyFromLogs(monthlyCounts);
     });
+
+    // ── Conteo histórico total por vendor desde logs ──────────────────
+    const loadHistoricCounts = async () => {
+      const snap = await getDocs(
+        query(collection(db, "system_logs"), where("tipo", "==", "FIDELIZACION"))
+      );
+      const counts = new Map<string, number>();
+      snap.docs.forEach(d => {
+        const data = d.data();
+        if (!data.anulada && data.vendedorId) {
+          counts.set(data.vendedorId, (counts.get(data.vendedorId) || 0) + 1);
+        }
+      });
+      setVendorHistoricFromLogs(counts);
+    };
+    loadHistoricCounts();
 
     // ── Ranking por vendedor — doble query para cubrir rol (string) y roles (array) ──
     const currentMonth = new Date().toISOString().substring(0, 7);
@@ -291,8 +318,14 @@ export default function DirectorPage() {
     [...rankingByRol, ...rankingByRoles].forEach((emp) => {
       if (!map.has(emp.id)) map.set(emp.id, emp);
     });
-    return Array.from(map.values()).sort((a, b) => b.sellosEntregados - a.sellosEntregados);
-  }, [rankingByRol, rankingByRoles]);
+    return Array.from(map.values())
+      .map(emp => ({
+        ...emp,
+        sellosEntregados: vendorMonthlyFromLogs.get(emp.id) ?? emp.sellosEntregados,
+        sellosEntregadosHistorico: vendorHistoricFromLogs.get(emp.id) ?? emp.sellosEntregadosHistorico,
+      }))
+      .sort((a, b) => b.sellosEntregados - a.sellosEntregados);
+  }, [rankingByRol, rankingByRoles, vendorMonthlyFromLogs, vendorHistoricFromLogs]);
 
   // KPIs derivados del ranking
   const kpiSellosMes = ranking.reduce((s, v) => s + v.sellosEntregados, 0);
