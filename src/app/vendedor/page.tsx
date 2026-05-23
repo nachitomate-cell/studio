@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs, getDoc, addDoc, serverTimestamp } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs, getDoc, addDoc, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -200,6 +200,8 @@ export default function VendedorPage() {
   const [vendorSaleLoading, setVendorSaleLoading] = useState(false);
   const [vendorSaleMonto, setVendorSaleMonto] = useState("");
   const [wspLoading, setWspLoading] = useState<string | null>(null);
+  const [sellosHistoricoFromLogs, setSellosHistoricoFromLogs] = useState<number | null>(null);
+  const [sellosEsteMesFromLogs, setSellosEsteMesFromLogs] = useState<number | null>(null);
 
 
   useEffect(() => {
@@ -284,6 +286,26 @@ export default function VendedorPage() {
             setUserData(snap.data());
           }
         });
+
+        // Conteo preciso desde system_logs (excluye anulados)
+        const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        getDocs(query(
+          collection(db, "system_logs"),
+          where("vendedorId", "==", user.uid),
+          where("tipo", "==", "FIDELIZACION")
+        )).then(snap => {
+          let historico = 0;
+          let esteMes = 0;
+          snap.docs.forEach(d => {
+            const data = d.data();
+            if (!data.anulada) {
+              historico++;
+              if (data.fecha && new Date(data.fecha) >= inicioMes) esteMes++;
+            }
+          });
+          setSellosHistoricoFromLogs(historico);
+          setSellosEsteMesFromLogs(esteMes);
+        }).catch(() => {});
 
         const q = query(
           collection(db, "usuarios", user.uid, "ventas_registradas"),
@@ -840,7 +862,7 @@ export default function VendedorPage() {
                       <TrendingUp className="w-4 h-4 text-amber-500" />
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Sellos totales</span>
                     </div>
-                    <p className="text-xl font-black text-slate-800">{userData?.sellosEntregadosHistorico ?? crm.totalRegistros}</p>
+                    <p className="text-xl font-black text-slate-800">{sellosHistoricoFromLogs ?? userData?.sellosEntregadosHistorico ?? crm.totalRegistros}</p>
                   </div>
                   {crm.ticketPromedio > 0 && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1 col-span-2">
@@ -870,7 +892,7 @@ export default function VendedorPage() {
               {allVentas.length > 0 && (
                 <SynapTechAIPanel
                   title="Análisis de tu Local"
-                  insights={generarInsightsCRM(crm, userData?.sellosEntregadosHistorico ?? crm.totalRegistros)}
+                  insights={generarInsightsCRM(crm, sellosHistoricoFromLogs ?? userData?.sellosEntregadosHistorico ?? crm.totalRegistros)}
                 />
               )}
 
@@ -1420,8 +1442,8 @@ export default function VendedorPage() {
 
           {(() => {
             const mes = currentMonth();
-            const sellosEsteMes = userData?.sellosEntregadosMensual?.[mes] || 0;
-            const sellosHistorico = userData?.sellosEntregadosHistorico || 0;
+            const sellosEsteMes = sellosEsteMesFromLogs ?? userData?.sellosEntregadosMensual?.[mes] ?? 0;
+            const sellosHistorico = sellosHistoricoFromLogs ?? userData?.sellosEntregadosHistorico ?? 0;
             return (
               <div className="grid grid-cols-1 gap-3">
                 <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
