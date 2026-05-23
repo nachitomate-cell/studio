@@ -1327,9 +1327,16 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           <div className="space-y-1">
             <div className="flex flex-col gap-1">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{greeting}</span>
-              <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none">
-                {userData?.nombre?.split(' ')[0] || "Miembro"}
-              </h2>
+              <div className="flex items-baseline gap-2.5 flex-wrap">
+                {isEntrepreneur && userData?.nombreTienda && (
+                  <span className="text-base font-black leading-none" style={{ color: "#C9920A" }}>
+                    🏪 {userData.nombreTienda}
+                  </span>
+                )}
+                <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none">
+                  {userData?.nombre?.split(' ')[0] || "Miembro"}
+                </h2>
+              </div>
             </div>
             
             <div className="flex flex-wrap gap-2 mt-3">
