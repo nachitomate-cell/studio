@@ -34,6 +34,7 @@ interface LogEntry {
   tipo: string;
   metodo?: string;
   monto?: number;
+  numSellos?: number;
   anulada?: boolean;
   usuarioResuelto?: string;
 }
@@ -305,6 +306,7 @@ export default function ModeradorSellosPage() {
             tipo: d.data().tipo || "",
             metodo: d.data().metodo,
             monto: d.data().monto,
+            numSellos: d.data().numSellos,
             anulada: d.data().anulada === true,
           }))
           .filter((l) => l.tipo === "FIDELIZACION" || l.tipo === "SELLO_RECHAZADO");
@@ -343,7 +345,12 @@ export default function ModeradorSellosPage() {
         where("tipo", "==", "FIDELIZACION")
       ),
       (snap) => {
-        setVendorAccurateCount(snap.docs.filter(d => !d.data().anulada).length);
+        const total = snap.docs.reduce((sum, d) => {
+          const data = d.data();
+          if (data.anulada) return sum;
+          return sum + (data.numSellos ?? 1);
+        }, 0);
+        setVendorAccurateCount(total);
       },
       () => { setVendorAccurateCount(null); }
     );
@@ -359,7 +366,7 @@ export default function ModeradorSellosPage() {
       (l) => l.tipo === "FIDELIZACION" && l.fecha >= startOfMonth && !l.anulada
     );
 
-    const totalSellos = thisMonth.length;
+    const totalSellos = thisMonth.reduce((sum, l) => sum + (l.numSellos ?? 1), 0);
     const totalVentas = thisMonth.reduce((sum, l) => sum + (l.monto || 0), 0);
 
     const byVendor: Record<string, number> = {};
@@ -444,7 +451,7 @@ export default function ModeradorSellosPage() {
         "RUT/Tel": l.usuarioId,
         Local: l.metodo === "BIENVENIDA" ? "Sello de Bienvenida" : l.metodo === "SISTEMA" ? "Bono de Login" : l.metodo === "REFERIDO" ? `Registro Referido · ${vendors[l.vendedorId] || l.vendedorId || "—"}` : l.metodo === "PERFIL_COMPLETO" ? "Perfil Completado" : vendors[l.vendedorId] || l.vendedorId || "—",
         Monto: l.monto && l.monto > 0 ? l.monto : 0,
-        Sellos: "+1",
+        Sellos: `+${l.numSellos ?? 1}`,
         Estado: estado,
       };
     });
@@ -755,11 +762,11 @@ export default function ModeradorSellosPage() {
                           <td className="px-6 py-4">
                             {log.anulada ? (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-400 line-through">
-                                -1 sello
+                                -{log.numSellos ?? 1} {(log.numSellos ?? 1) === 1 ? "sello" : "sellos"}
                               </span>
                             ) : (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                                +1 sello
+                                +{log.numSellos ?? 1} {(log.numSellos ?? 1) === 1 ? "sello" : "sellos"}
                               </span>
                             )}
                           </td>

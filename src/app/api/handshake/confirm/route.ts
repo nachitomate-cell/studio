@@ -15,6 +15,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
 
+function calcularSellos(monto: number): number {
+  if (monto >= 40_000) return 4;
+  if (monto >= 25_001) return 3;
+  if (monto >= 10_001) return 2;
+  return 1;
+}
+
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
@@ -46,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     const pendingRef = adminDb.collection("pending_stamps").doc(pendingId);
-    let result: { userId: string; vendorId: string; userName: string; nuevoTotal: number };
+    let result: { userId: string; vendorId: string; userName: string; nuevoTotal: number; numSellos: number };
 
     await adminDb.runTransaction(async (tx) => {
       const pendingSnap = await tx.get(pendingRef);
@@ -80,43 +87,45 @@ export async function POST(request: Request) {
       }
 
       const timestamp = new Date().toISOString();
+      const numSellos = calcularSellos(monto);
       const currentSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
-      const nuevoTotal = currentSellos + 1;
+      const nuevoTotal = currentSellos + numSellos;
       const realUserName = (userSnap.exists ? userSnap.data()!.nombre : null) || userName || "Miembro";
 
       tx.update(pendingRef, {
         status: "confirmed",
         monto,
         nuevoTotal,
+        numSellos,
         confirmedAt: FieldValue.serverTimestamp(),
       });
 
       if (userSnap.exists) {
         tx.update(userRef, {
-          comprasRealizadas: FieldValue.increment(1),
-          sellosHistoricos: FieldValue.increment(1),
+          comprasRealizadas: FieldValue.increment(numSellos),
+          sellosHistoricos: FieldValue.increment(numSellos),
           recompensaDisponible: nuevoTotal >= 5,
-          puntos: FieldValue.increment(50),
+          puntos: FieldValue.increment(50 * numSellos),
           lastPurchaseAt: timestamp,
           lastUpdate: timestamp,
           [`lastVendorScans.${vendorId}`]: timestamp,
-          [`sellosLocales.${vendorId}`]: FieldValue.increment(1),
+          [`sellosLocales.${vendorId}`]: FieldValue.increment(numSellos),
         });
       } else {
         tx.set(userRef, {
-          comprasRealizadas: 1,
-          sellosHistoricos: 1,
-          recompensaDisponible: false,
-          puntos: 100,
+          comprasRealizadas: numSellos,
+          sellosHistoricos: numSellos,
+          recompensaDisponible: nuevoTotal >= 5,
+          puntos: 50 * numSellos,
           totalCanjesHistoricos: 0,
           baneado: false,
           createdAt: timestamp,
           lastVendorScans: { [vendorId]: timestamp },
-          sellosLocales: { [vendorId]: 1 },
+          sellosLocales: { [vendorId]: numSellos },
         });
       }
 
-      result = { userId, vendorId, userName: realUserName, nuevoTotal };
+      result = { userId, vendorId, userName: realUserName, nuevoTotal, numSellos };
     });
 
     // Operaciones no críticas fuera de la transacción (fire-and-forget)
@@ -127,11 +136,12 @@ export async function POST(request: Request) {
           usuario: result!.userName,
           usuarioId: result!.userId,
           vendedorId: result!.vendorId,
-          accion: "recibió un sello (handshake)",
+          accion: `recibió ${result!.numSellos} ${result!.numSellos === 1 ? "sello" : "sellos"} (handshake, $${monto.toLocaleString("es-CL")})`,
           fecha: timestamp,
           tipo: "FIDELIZACION",
           metodo: "HANDSHAKE",
           monto,
+          numSellos: result!.numSellos,
         });
 
         await adminDb
@@ -147,8 +157,8 @@ export async function POST(request: Request) {
 
         const currentMonth = timestamp.substring(0, 7);
         await adminDb.collection("usuarios").doc(result!.vendorId).update({
-          sellosEntregadosHistorico: FieldValue.increment(1),
-          [`sellosEntregadosMensual.${currentMonth}`]: FieldValue.increment(1),
+          sellosEntregadosHistorico: FieldValue.increment(result!.numSellos),
+          [`sellosEntregadosMensual.${currentMonth}`]: FieldValue.increment(result!.numSellos),
         });
 
         await adminDb
