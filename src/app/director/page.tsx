@@ -210,56 +210,36 @@ export default function DirectorPage() {
       { name: 'Sem 4', start: 22, end: 31 },
     ];
 
-    // Listener en tiempo real a system_logs desde el inicio del mes
+    // Un único listener sobre todos los logs FIDELIZACION — deriva mes e histórico
+    // del mismo snapshot para que siempre sean consistentes entre sí.
     const logsQ = query(
       collection(db, "system_logs"),
-      where("fecha", ">=", inicioMes.toISOString())
+      where("tipo", "==", "FIDELIZACION")
     );
 
-    const unsubLogs = onSnapshot(logsQ, async (logsSnap) => {
-      // Solo sellos confirmados por handshake
-      const handshakeLogs = logsSnap.docs
-        .map(d => d.data())
-        .filter(d => d.tipo === "FIDELIZACION");
+    const unsubLogs = onSnapshot(logsQ, (logsSnap) => {
+      const logs = logsSnap.docs.map(d => d.data());
 
-      // ── Gráfico semanal ──────────────────────────────────────────────
-      setChartData(
-        SEMANAS.map(sem => ({
-          name: sem.name,
-          sellos: handshakeLogs.filter(log => {
-            const day = new Date(log.fecha).getDate();
-            return day >= sem.start && day <= sem.end;
-          }).length
-        }))
-      );
-
-      // ── Conteo mensual por vendor desde logs (excluyendo anulados) ───
       const monthlyCounts = new Map<string, number>();
-      handshakeLogs
-        .filter(l => !l.anulada)
-        .forEach(l => {
-          if (l.vendedorId) {
-            monthlyCounts.set(l.vendedorId, (monthlyCounts.get(l.vendedorId) || 0) + 1);
-          }
-        });
-      setVendorMonthlyFromLogs(monthlyCounts);
-    });
+      const historicCounts = new Map<string, number>();
+      const weekBuckets = [0, 0, 0, 0];
 
-    // ── Conteo histórico total por vendor desde logs ──────────────────
-    const loadHistoricCounts = async () => {
-      const snap = await getDocs(
-        query(collection(db, "system_logs"), where("tipo", "==", "FIDELIZACION"))
-      );
-      const counts = new Map<string, number>();
-      snap.docs.forEach(d => {
-        const data = d.data();
-        if (!data.anulada && data.vendedorId) {
-          counts.set(data.vendedorId, (counts.get(data.vendedorId) || 0) + 1);
+      logs.forEach(log => {
+        if (log.anulada || !log.vendedorId) return;
+        historicCounts.set(log.vendedorId, (historicCounts.get(log.vendedorId) || 0) + 1);
+        const logDate = new Date(log.fecha);
+        if (logDate >= inicioMes) {
+          monthlyCounts.set(log.vendedorId, (monthlyCounts.get(log.vendedorId) || 0) + 1);
+          const day = logDate.getDate();
+          const idx = day <= 7 ? 0 : day <= 14 ? 1 : day <= 21 ? 2 : 3;
+          weekBuckets[idx]++;
         }
       });
-      setVendorHistoricFromLogs(counts);
-    };
-    loadHistoricCounts();
+
+      setVendorMonthlyFromLogs(monthlyCounts);
+      setVendorHistoricFromLogs(historicCounts);
+      setChartData(SEMANAS.map((sem, i) => ({ name: sem.name, sellos: weekBuckets[i] })));
+    });
 
     // ── Ranking por vendedor — doble query para cubrir rol (string) y roles (array) ──
     const currentMonth = new Date().toISOString().substring(0, 7);

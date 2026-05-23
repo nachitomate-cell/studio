@@ -226,6 +226,7 @@ export default function VendedorPage() {
     let unsubscribeProfile: () => void = () => {};
     let unsubscribeUser: () => void = () => {};
     let unsubscribeVentas: () => void = () => {};
+    let unsubscribeLogs: () => void = () => {};
 
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
       if (!user) {
@@ -233,6 +234,7 @@ export default function VendedorPage() {
         unsubscribeProfile();
         unsubscribeUser();
         unsubscribeVentas();
+        unsubscribeLogs();
         unsubscribeProfile = () => {};
         unsubscribeUser = () => {};
         unsubscribeVentas = () => {};
@@ -287,25 +289,29 @@ export default function VendedorPage() {
           }
         });
 
-        // Conteo preciso desde system_logs (excluye anulados)
+        // Conteo en tiempo real desde system_logs — mes e histórico del mismo snapshot
         const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-        getDocs(query(
-          collection(db, "system_logs"),
-          where("vendedorId", "==", user.uid),
-          where("tipo", "==", "FIDELIZACION")
-        )).then(snap => {
-          let historico = 0;
-          let esteMes = 0;
-          snap.docs.forEach(d => {
-            const data = d.data();
-            if (!data.anulada) {
-              historico++;
-              if (data.fecha && new Date(data.fecha) >= inicioMes) esteMes++;
-            }
-          });
-          setSellosHistoricoFromLogs(historico);
-          setSellosEsteMesFromLogs(esteMes);
-        }).catch(() => {});
+        unsubscribeLogs = onSnapshot(
+          query(
+            collection(db, "system_logs"),
+            where("vendedorId", "==", user.uid),
+            where("tipo", "==", "FIDELIZACION")
+          ),
+          (snap) => {
+            let historico = 0;
+            let esteMes = 0;
+            snap.docs.forEach(d => {
+              const data = d.data();
+              if (!data.anulada) {
+                historico++;
+                if (data.fecha && new Date(data.fecha) >= inicioMes) esteMes++;
+              }
+            });
+            setSellosHistoricoFromLogs(historico);
+            setSellosEsteMesFromLogs(esteMes);
+          },
+          () => {}
+        );
 
         const q = query(
           collection(db, "usuarios", user.uid, "ventas_registradas"),
@@ -324,6 +330,7 @@ export default function VendedorPage() {
       unsubscribeProfile();
       unsubscribeUser();
       unsubscribeVentas();
+      unsubscribeLogs();
       stopScanner();
     };
   }, []);
