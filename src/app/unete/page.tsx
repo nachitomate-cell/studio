@@ -284,10 +284,12 @@ export default function UnetePage() {
       if (!email.trim()) { setError("Ingresa tu correo electrónico."); return; }
       if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
       if (!comunaSeleccionada) { setError("Selecciona tu comuna o ciudad."); return; }
-      if (!aceptaTerminos) { setError("Debes aceptar los términos de uso para continuar."); return; }
-      if (phone && !/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
+      if (!phone.trim()) { setError("Ingresa tu número de teléfono."); return; }
+      if (!/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
         setError("Teléfono inválido. Usa formato +56 9 XXXX XXXX."); return;
       }
+      if (!fechaNacimiento) { setError("Ingresa tu fecha de nacimiento."); return; }
+      if (!aceptaTerminos) { setError("Debes aceptar los términos de uso para continuar."); return; }
     }
     handleAuth(e);
   };
@@ -544,6 +546,30 @@ export default function UnetePage() {
                   </div>
                 )}
 
+                {/* Teléfono (obligatorio, solo registro) */}
+                {!isLogin && (
+                  <div className="u-field">
+                    <Label htmlFor="u-phone" className="u-label">
+                      <Phone className="u-label-icon" /> Teléfono <span style={{ color: "#ef4444" }}>*</span>
+                    </Label>
+                    <Input id="u-phone" type="tel" placeholder="+56 9 1234 5678"
+                      value={phone} onChange={(e) => setPhone(e.target.value)}
+                      className="u-input" autoComplete="tel" />
+                  </div>
+                )}
+
+                {/* Fecha de nacimiento (obligatoria, solo registro) */}
+                {!isLogin && (
+                  <div className="u-field">
+                    <Label htmlFor="u-bday" className="u-label">
+                      <Calendar className="u-label-icon" /> Fecha de nacimiento <span style={{ color: "#ef4444" }}>*</span>
+                    </Label>
+                    <Input id="u-bday" type="date"
+                      value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)}
+                      className="u-input" max={new Date().toISOString().split("T")[0]} />
+                  </div>
+                )}
+
                 {/* ¿Olvidaste contraseña? (solo login) */}
                 {isLogin && (
                   <div style={{ textAlign: "right", marginTop: -8 }}>
@@ -567,21 +593,6 @@ export default function UnetePage() {
                     </button>
                     {showOptional && (
                       <div className="u-optional-body">
-                        <div className="u-field">
-                          <Label htmlFor="u-phone" className="u-label u-label--sm">
-                            <Phone className="u-label-icon" /> Teléfono
-                          </Label>
-                          <Input id="u-phone" type="tel" placeholder="+56 9 1234 5678"
-                            value={phone} onChange={(e) => setPhone(e.target.value)} className="u-input" />
-                        </div>
-                        <div className="u-field">
-                          <Label htmlFor="u-bday" className="u-label u-label--sm">
-                            <Calendar className="u-label-icon" /> Fecha de nacimiento
-                          </Label>
-                          <Input id="u-bday" type="date"
-                            value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)}
-                            className="u-input" max={new Date().toISOString().split("T")[0]} />
-                        </div>
                         <div className="u-field">
                           <Label htmlFor="u-ref" className="u-label u-label--sm">
                             <Gift className="u-label-icon" /> Código de referido
