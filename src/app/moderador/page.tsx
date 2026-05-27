@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, updateDoc, doc, limit, orderBy, getD
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock, MessageSquare, CheckCheck, Eye, Hourglass, X, Store, ArrowRight } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock, MessageSquare, CheckCheck, Eye, Hourglass, X, Store, ArrowRight, Star } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ interface Cliente {
   fechaNacimiento: string;
   rol?: string;
   sellos?: number;
+  nps?: { score: number; fecha: string; comentario?: string };
 }
 
 interface PendingStamp {
@@ -217,6 +218,7 @@ export default function ModeradorPage() {
           fechaNacimiento: formattedDate,
           rol: d.rol || "cliente",
           sellos: d.comprasRealizadas || 0,
+          nps: d.nps ?? undefined,
         };
       });
 
@@ -466,6 +468,21 @@ export default function ModeradorPage() {
       })
       .slice(0, 10);
   }, [recentTrans]);
+
+  const npsStats = useMemo(() => {
+    const respuestas = clientes.filter((c) => c.nps != null) as (Cliente & { nps: NonNullable<Cliente["nps"]> })[];
+    respuestas.sort((a, b) => b.nps.fecha.localeCompare(a.nps.fecha));
+    const total = respuestas.length;
+    const promotores  = respuestas.filter((c) => c.nps.score >= 9).length;
+    const detractores = respuestas.filter((c) => c.nps.score <= 6).length;
+    const promedio = total > 0
+      ? (respuestas.reduce((acc, c) => acc + c.nps.score, 0) / total).toFixed(1)
+      : null;
+    const npsScore = total > 0
+      ? Math.round(((promotores - detractores) / total) * 100)
+      : null;
+    return { respuestas, total, promotores, detractores, promedio, npsScore };
+  }, [clientes]);
 
   // --- Renderización Principal --- //
 
@@ -1056,6 +1073,98 @@ export default function ModeradorPage() {
                         {s.leida && (
                           <CheckCheck className="w-4 h-4 text-slate-300 shrink-0 mt-1" />
                         )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* NPS — CALIFICACIONES DE USUARIOS */}
+          <Card className="border-none shadow-xl shadow-amber-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-amber-100 md:col-span-2">
+            <div className="bg-amber-50/50 p-6 border-b border-amber-100/50 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-amber-600">
+                  <Star className="w-5 h-5" />
+                  <h3 className="font-bold text-lg">Calificaciones NPS</h3>
+                </div>
+                {npsStats.total > 0 && (
+                  <span className="text-[10px] font-black bg-amber-500 text-white px-2.5 py-1 rounded-full">
+                    {npsStats.total} respuesta{npsStats.total !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 font-medium">¿Recomendarías el Club a un amigo? — escala del 0 al 10.</p>
+              {npsStats.total > 0 && (
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 border border-amber-100 shadow-sm">
+                    <span className="text-xs text-slate-400 font-semibold">NPS</span>
+                    <span className={`text-lg font-black ${(npsStats.npsScore ?? 0) >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                      {npsStats.npsScore !== null ? (npsStats.npsScore >= 0 ? `+${npsStats.npsScore}` : npsStats.npsScore) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 border border-amber-100 shadow-sm">
+                    <span className="text-xs text-slate-400 font-semibold">Promedio</span>
+                    <span className="text-lg font-black text-amber-500">{npsStats.promedio ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 border border-emerald-100 shadow-sm">
+                    <span className="text-xs text-slate-400 font-semibold">Promotores</span>
+                    <span className="text-lg font-black text-emerald-500">{npsStats.promotores}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 border border-red-100 shadow-sm">
+                    <span className="text-xs text-slate-400 font-semibold">Detractores</span>
+                    <span className="text-lg font-black text-red-500">{npsStats.detractores}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <CardContent className="p-0 bg-slate-50/20 max-h-[420px] overflow-y-auto">
+              {loadingData ? (
+                <div className="flex items-center justify-center py-10 gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
+                  <p className="text-xs text-slate-400 font-bold">Cargando calificaciones...</p>
+                </div>
+              ) : npsStats.total === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                    <Star className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Sin calificaciones aún</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {npsStats.respuestas.map((c) => {
+                    const s = c.nps.score;
+                    const color = s >= 9 ? "#22c55e" : s >= 7 ? "#eab308" : "#ef4444";
+                    const label = s >= 9 ? "Promotor" : s >= 7 ? "Neutral" : "Detractor";
+                    const labelBg = s >= 9 ? "#dcfce7" : s >= 7 ? "#fef9c3" : "#fee2e2";
+                    return (
+                      <div key={c.id} className="p-5 flex gap-4">
+                        <div
+                          className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg shrink-0"
+                          style={{ background: color + "20", color }}
+                        >
+                          {s}
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black text-slate-700">{c.nombre}</span>
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                              style={{ color, backgroundColor: labelBg }}
+                            >
+                              {label}
+                            </span>
+                          </div>
+                          {c.nps.comentario && (
+                            <p className="text-sm text-slate-600 leading-relaxed">"{c.nps.comentario}"</p>
+                          )}
+                          <p className="text-[10px] text-slate-400 font-medium">
+                            {c.nps.fecha ? new Date(c.nps.fecha).toLocaleString("es-CL") : "—"}
+                            {c.email ? ` · ${c.email}` : ""}
+                          </p>
+                        </div>
                       </div>
                     );
                   })}
