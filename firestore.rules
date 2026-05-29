@@ -173,10 +173,19 @@ service cloud.firestore {
 
     // ── Logs del Sistema (inmutables) ──────────────────────────────────────────
     match /system_logs/{logId} {
-      allow read: if isStaff();
+      // Staff ve todos; cada usuario puede leer sus propios logs (para calcular streak)
+      allow read: if isStaff() || (isSignedIn() && resource.data.usuarioId == request.auth.uid);
       allow create: if isSignedIn();
       // Logs son inmutables: nadie puede modificar ni borrar
       allow update, delete: if false;
+    }
+
+    // ── Ofertas del Día (por local) ────────────────────────────────────────────
+    match /ofertas_dia/{ofertaId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.vendorId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.vendorId == request.auth.uid || isStaff());
+      allow update: if isStaff();
     }
 
     // ── Sugerencias de Usuarios ───────────────────────────────────────────────
@@ -202,6 +211,21 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    // ── Configuración Global (publicidad, etc.) ────────────────────────────────
+    // Lectura pública: el afiche se muestra a cualquier visitante, autenticado o no.
+    // Escritura restringida a directores/admins.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isDirector();
+
+      // Historial de campañas publicitarias: solo directores, inmutable (no delete)
+      match /historial/{entryId} {
+        allow read: if isDirector();
+        allow create, update: if isDirector();
+        allow delete: if false;
+      }
     }
   }
 }

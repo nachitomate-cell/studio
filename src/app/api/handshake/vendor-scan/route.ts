@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const SELLOS_PARA_PREMIO = 5;
 
@@ -29,6 +30,11 @@ function calcularSellos(monto: number): number {
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+    if (!checkRateLimit(`vendor-scan:${ip}`, 15, 60_000)) {
+      return NextResponse.json({ error: "Demasiadas solicitudes. Intenta en un momento." }, { status: 429 });
+    }
+
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });

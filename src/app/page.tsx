@@ -34,6 +34,36 @@ import { ADMIN_EMAIL } from "@/lib/constants";
 import VendorStampModal from "@/components/VendorStampModal";
 import QRCode from "react-qr-code";
 
+function getMondayKey(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+function calcularStreak(logs: { fecha?: string; anulada?: boolean }[]): number {
+  const weeks = new Set<string>();
+  for (const log of logs) {
+    if (log.anulada || !log.fecha) continue;
+    weeks.add(getMondayKey(new Date(log.fecha)));
+  }
+  if (weeks.size === 0) return 0;
+
+  let streak = 0;
+  const check = new Date();
+  check.setDate(check.getDate() - (check.getDay() === 0 ? 6 : check.getDay() - 1));
+
+  if (!weeks.has(check.toISOString().slice(0, 10))) {
+    check.setDate(check.getDate() - 7);
+    if (!weeks.has(check.toISOString().slice(0, 10))) return 0;
+  }
+  while (weeks.has(check.toISOString().slice(0, 10))) {
+    streak++;
+    check.setDate(check.getDate() - 7);
+  }
+  return streak;
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -53,6 +83,10 @@ export default function Home() {
   const [premiosBadge, setPremiosBadge] = useState(false);
   const [nextPremio, setNextPremio] = useState<{ nombre: string; sellosRequeridos: number; icono: string } | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [publicidad, setPublicidad] = useState<{ imageUrl: string; cta: string | null } | null>(null);
+  const [showPublicidad, setShowPublicidad] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [ofertasHoy, setOfertasHoy] = useState<any[]>([]);
   
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -101,6 +135,45 @@ export default function Home() {
         window.history.replaceState({}, "", "/");
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "publicidad"), (snap) => {
+      if (snap.exists() && snap.data().activa && snap.data().imageUrl) {
+        const d = snap.data();
+        setPublicidad({ imageUrl: d.imageUrl, cta: d.cta || null });
+        if (!sessionStorage.getItem("publicidad_vista")) {
+          sessionStorage.setItem("publicidad_vista", "1");
+          setShowPublicidad(true);
+        }
+      } else {
+        setPublicidad(null);
+        setShowPublicidad(false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Streak: consulta one-shot al cambiar el usuario
+  useEffect(() => {
+    if (!user) { setStreak(0); return; }
+    getDocs(query(
+      collection(db, "system_logs"),
+      where("usuarioId", "==", user.uid),
+      where("tipo", "==", "FIDELIZACION")
+    )).then(snap => {
+      setStreak(calcularStreak(snap.docs.map(d => d.data())));
+    }).catch(() => setStreak(0));
+  }, [user]);
+
+  // Ofertas del día: listener en tiempo real
+  useEffect(() => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const unsub = onSnapshot(
+      query(collection(db, "ofertas_dia"), where("fechaISO", "==", hoy), where("activa", "==", true)),
+      (snap) => setOfertasHoy(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -465,18 +538,32 @@ export default function Home() {
                         <span className="text-2xl font-black" style={{ color: "#C9920A" }}>
                           {userData.comprasRealizadas || 0}
                         </span>
-                        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wide">sellos</span>
+                        {nextPremio ? (
+                          <span className="text-[11px] text-slate-400 font-bold">
+                            de {nextPremio.sellosRequeridos} sellos
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wide">sellos</span>
+                        )}
                       </div>
-                      {(userData.ticketsSorteo || 0) > 0 && (
-                        <span className="text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-full">
-                          🎟️ {userData.ticketsSorteo} tickets
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {streak > 0 && (
+                          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full" style={{ background: "rgba(251,146,60,0.1)", border: "1px solid rgba(251,146,60,0.2)" }}>
+                            <span className="text-xs">🔥</span>
+                            <span className="text-[11px] font-black" style={{ color: "#F97316" }}>{streak} {streak === 1 ? "sem." : "sems."}</span>
+                          </div>
+                        )}
+                        {(userData.ticketsSorteo || 0) > 0 && (
+                          <span className="text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-full">
+                            🎟️ {userData.ticketsSorteo}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {nextPremio && (
                       <>
-                        <div className="w-full bg-slate-100 rounded-full overflow-hidden" style={{ height: "6px" }}>
+                        <div className="w-full bg-slate-100 rounded-full overflow-hidden" style={{ height: "8px" }}>
                           <div
                             className="h-full rounded-full"
                             style={{
@@ -486,13 +573,14 @@ export default function Home() {
                             }}
                           />
                         </div>
-                        <p className="text-[11px] text-slate-500 font-medium mt-2">
-                          Te faltan{" "}
-                          <span className="font-black text-slate-700">
-                            {nextPremio.sellosRequeridos - (userData.comprasRealizadas || 0)}
-                          </span>{" "}
-                          {nextPremio.sellosRequeridos - (userData.comprasRealizadas || 0) === 1 ? "sello" : "sellos"} para {nextPremio.icono} {nextPremio.nombre}
-                        </p>
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-[11px] text-slate-500 font-medium">
+                            {nextPremio.icono} {nextPremio.nombre}
+                          </p>
+                          <p className="text-[11px] font-black text-slate-600">
+                            {Math.min(100, Math.round(((userData.comprasRealizadas || 0) / nextPremio.sellosRequeridos) * 100))}%
+                          </p>
+                        </div>
                       </>
                     )}
 
@@ -524,6 +612,28 @@ export default function Home() {
               </p>
               <ChevronDown className="w-4 h-4 shrink-0" style={{ color: "#C9920A" }} />
             </button>
+
+            {/* OFERTAS DEL DÍA */}
+            {ofertasHoy.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 flex items-center gap-1.5">
+                  🔥 Ofertas de hoy
+                </p>
+                <div className="flex gap-3 overflow-x-auto px-6 pb-1 no-scrollbar">
+                  {ofertasHoy.map((oferta) => (
+                    <div
+                      key={oferta.id}
+                      className="flex-shrink-0 w-52 rounded-2xl p-3.5 space-y-1.5"
+                      style={{ background: "linear-gradient(135deg, #FFF7E6 0%, #FFFBF0 100%)", border: "1px solid rgba(201,146,10,0.18)" }}
+                    >
+                      <p className="text-[10px] font-black uppercase tracking-wide" style={{ color: "#C9920A" }}>{oferta.localNombre}</p>
+                      <p className="text-sm font-bold text-slate-800 leading-snug">{oferta.texto}</p>
+                      <span className="inline-block text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(201,146,10,0.1)", color: "#C9920A", border: "1px solid rgba(201,146,10,0.15)" }}>Solo hoy</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Acceso rápido a Premios */}
             <div
@@ -988,6 +1098,52 @@ export default function Home() {
               <button
                 onClick={() => setShowQRModal(false)}
                 className="w-full h-12 rounded-2xl text-sm font-bold text-slate-400 hover:bg-slate-50 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PUBLICIDAD */}
+      {showPublicidad && publicidad && (
+        <div
+          className="fixed inset-0 z-[350] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 p-4"
+          onClick={() => setShowPublicidad(false)}
+        >
+          <div
+            className="relative w-full max-w-sm animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowPublicidad(false)}
+              className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="rounded-3xl overflow-hidden shadow-2xl">
+              <img
+                src={publicidad.imageUrl}
+                alt="Publicidad"
+                className="w-full h-auto object-cover block"
+              />
+            </div>
+            <div className="flex flex-col gap-2 mt-4">
+              {publicidad.cta && (
+                <a
+                  href={publicidad.cta}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowPublicidad(false)}
+                  className="w-full h-11 rounded-2xl bg-white text-slate-800 font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-100 transition-colors shadow"
+                >
+                  <ExternalLink className="w-4 h-4" /> Ver más
+                </a>
+              )}
+              <button
+                onClick={() => setShowPublicidad(false)}
+                className="w-full h-11 rounded-2xl bg-white/20 text-white font-bold text-sm backdrop-blur-sm border border-white/30 hover:bg-white/30 transition-colors"
               >
                 Cerrar
               </button>

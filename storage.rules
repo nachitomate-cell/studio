@@ -43,6 +43,14 @@ service firebase.storage {
       allow delete: if isOwnerOrDirector(vendorId);
     }
 
+    // ── Afiches publicitarios ────────────────────────────────────────────────
+    // Ruta: publicidad/{filename}
+    match /publicidad/{fileName} {
+      allow read: if true;
+      allow write: if isDirectorOrAdmin() && isValidImage();
+      allow delete: if isDirectorOrAdmin();
+    }
+
     // ── Cualquier otro path: denegado ────────────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;

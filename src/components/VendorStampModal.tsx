@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { collection, doc, onSnapshot, query, updateDoc, where, Timestamp, and } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, runTransaction, where, Timestamp, and } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -85,12 +85,25 @@ export default function VendorStampModal({ vendorId }: { vendorId: string | null
     if (!confirmingStamp) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, "pending_stamps", confirmingStamp.id), { status: "rejected" });
+      const stampRef = doc(db, "pending_stamps", confirmingStamp.id);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(stampRef);
+        if (!snap.exists()) throw new Error("not_found");
+        const status = snap.data()?.status;
+        if (status !== "pending") throw new Error("already_processed");
+        tx.update(stampRef, { status: "rejected" });
+      });
       toast({ title: "Solicitud rechazada" });
       setConfirmingStamp(null);
       setMonto("");
-    } catch {
-      toast({ variant: "destructive", title: "Error al rechazar", description: "No se pudo rechazar la solicitud. Intenta de nuevo." });
+    } catch (err: any) {
+      if (err?.message === "already_processed") {
+        toast({ title: "Solicitud ya procesada", description: "Esta solicitud ya fue confirmada o expiró." });
+        setConfirmingStamp(null);
+        setMonto("");
+      } else {
+        toast({ variant: "destructive", title: "Error al rechazar", description: "No se pudo rechazar la solicitud. Intenta de nuevo." });
+      }
     } finally {
       setLoading(false);
     }

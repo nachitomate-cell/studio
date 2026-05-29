@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, limit, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { Bell, ArrowLeft, ExternalLink, Calendar, Tag } from "lucide-react";
+import { Bell, ArrowLeft, ExternalLink, Calendar, Tag, MapPin } from "lucide-react";
 
 interface Notificacion {
   id: string;
@@ -16,6 +16,7 @@ interface Notificacion {
   leida: boolean;
   cta?: string;
   broadcastId?: string;
+  ubicacion?: string;
 }
 
 const TIPO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -109,6 +110,9 @@ function NotificacionContent() {
   const dateStr = dateObj.toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
   const timeStr = dateObj.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
   const hasCta = notif.cta && notif.cta !== "/" && notif.cta !== "";
+  const mapsUrl = notif.ubicacion
+    ? `https://maps.google.com/?q=${encodeURIComponent(notif.ubicacion)}`
+    : null;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#0f172a", color: "#f1f5f9" }}>
@@ -173,6 +177,20 @@ function NotificacionContent() {
           >
             <ExternalLink size={15} />
             Ver más
+          </a>
+        )}
+
+        {/* Ubicación → Google Maps */}
+        {mapsUrl && (
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold"
+            style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.25)" }}
+          >
+            <MapPin size={15} />
+            Cómo llegar
           </a>
         )}
       </div>

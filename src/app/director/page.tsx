@@ -11,7 +11,7 @@ import {
   BarChart3, Users, Ticket, TrendingUp,
   ArrowLeft, Download, Send, Plus, Trash2,
   Edit3, Trophy, Megaphone, Loader2, Store, Crown, Check, X, ImagePlus, FolderOpen, Copy, QrCode,
-  Search, UserCheck,
+  Search, UserCheck, MapPin, Link, ExternalLink, Clock,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Switch } from "@/components/ui/switch";
@@ -114,6 +114,7 @@ export default function DirectorPage() {
     cta: "",
     vendedorFiltro: "",
     usuarioFiltro: "",
+    ubicacion: "",
   });
   const [userSearchQuery, setUserSearchQuery]   = useState("");
   const [userSearchResults, setUserSearchResults] = useState<{ uid: string; nombre: string; email: string }[]>([]);
@@ -147,7 +148,8 @@ export default function DirectorPage() {
     esSorteo: boolean;
     activo: boolean;
     stock: number;
-  }>({ id: null, nombre: '', descripcion: '', sellosRequeridos: 5, icono: '🎁', vendorId: '', esSorteo: false, activo: true, stock: 0 });
+    stockIlimitado: boolean;
+  }>({ id: null, nombre: '', descripcion: '', sellosRequeridos: 5, icono: '🎁', vendorId: '', esSorteo: false, activo: true, stock: 10, stockIlimitado: true });
 
   const [chartData, setChartData] = useState([
     { name: 'Sem 1', sellos: 0 },
@@ -156,6 +158,15 @@ export default function DirectorPage() {
     { name: 'Sem 4', sellos: 0 },
   ]);
   const [mesLabel, setMesLabel] = useState("");
+
+  // Publicidad
+  const [publicidadActiva, setPublicidadActiva] = useState(false);
+  const [publicidadImageUrl, setPublicidadImageUrl] = useState<string | null>(null);
+  const [uploadingPublicidad, setUploadingPublicidad] = useState(false);
+  const [publicidadCta, setPublicidadCta] = useState<string | null>(null);
+  const [publicidadCtaDraft, setPublicidadCtaDraft] = useState("");
+  const [campanaActualId, setCampanaActualId] = useState<string | null>(null);
+  const [historialPublicidad, setHistorialPublicidad] = useState<any[]>([]);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
@@ -292,6 +303,38 @@ export default function DirectorPage() {
     };
   }, [isAuthorized]);
 
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const unsub = onSnapshot(doc(db, "config", "publicidad"), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setPublicidadActiva(d.activa === true);
+        setPublicidadImageUrl(d.imageUrl || null);
+        setPublicidadCta(d.cta || null);
+        setCampanaActualId(d.campanaActualId || null);
+      } else {
+        setPublicidadActiva(false);
+        setPublicidadImageUrl(null);
+        setPublicidadCta(null);
+        setCampanaActualId(null);
+      }
+    });
+    return () => unsub();
+  }, [isAuthorized]);
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const q = query(
+      collection(db, "config", "publicidad", "historial"),
+      orderBy("inicioEn", "desc"),
+      limit(10)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setHistorialPublicidad(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [isAuthorized]);
+
   // Merged ranking: deduplica por ID, ordena por sellos del mes
   const ranking = useMemo(() => {
     const map = new Map<string, any>();
@@ -371,6 +414,7 @@ export default function DirectorPage() {
         usuarioFiltroNombre: mensajeGlobal.destino === "usuario_especifico" ? (selectedUserInfo?.nombre ?? null) : null,
         tipo: mensajeGlobal.tipo,
         cta: mensajeGlobal.cta || "/",
+        ubicacion: mensajeGlobal.ubicacion.trim() || null,
         fechaCreacion: new Date().toISOString(),
         estado: isProgramado ? "programado" : "pendiente",
         ...(isProgramado && { enviarEn: mensajeGlobal.enviarEn }),
@@ -381,7 +425,7 @@ export default function DirectorPage() {
           ? `Se enviará el ${new Date(mensajeGlobal.enviarEn).toLocaleString("es-CL")}.`
           : "El mensaje se enviará en segundo plano a la brevedad.",
       });
-      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "", vendedorFiltro: "", usuarioFiltro: "" });
+      setMensajeGlobal({ titulo: "", cuerpo: "", destino: "todos", enviarEn: "", tipo: "info", cta: "", vendedorFiltro: "", usuarioFiltro: "", ubicacion: "" });
       setSelectedUserInfo(null);
       setUserSearchQuery("");
       setUserSearchResults([]);
@@ -451,10 +495,11 @@ export default function DirectorPage() {
         vendorId: premio.vendorId || '',
         esSorteo: premio.esSorteo || false,
         activo: premio.activo !== false,
-        stock: premio.stock || 0,
+        stock: typeof premio.stock === "number" && premio.stock > 0 ? premio.stock : 10,
+        stockIlimitado: premio.stock === null || typeof premio.stock !== "number" || premio.stock <= 0,
       });
     } else {
-      setPremioForm({ id: null, nombre: '', descripcion: '', sellosRequeridos: 5, icono: '🎁', vendorId: '', esSorteo: false, activo: true, stock: 0 });
+      setPremioForm({ id: null, nombre: '', descripcion: '', sellosRequeridos: 5, icono: '🎁', vendorId: '', esSorteo: false, activo: true, stock: 10, stockIlimitado: true });
     }
     setIsPremioModalOpen(true);
   };
@@ -475,7 +520,7 @@ export default function DirectorPage() {
         vendorNombre,
         esSorteo: premioForm.esSorteo,
         activo: premioForm.activo,
-        stock: Number(premioForm.stock),
+        stock: premioForm.stockIlimitado ? null : Number(premioForm.stock),
       };
 
       if (premioForm.id) {
@@ -601,6 +646,71 @@ export default function DirectorPage() {
       toast({ variant: "destructive", title: "Error al subir imagen", description: err.message || "Intenta de nuevo." });
     } finally {
       setUploadingImageId(null);
+    }
+  };
+
+  const handlePublicidadUpload = async (file: File) => {
+    setUploadingPublicidad(true);
+    try {
+      const storageRef = ref(storage, `publicidad/afiche_${Date.now()}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      // Cerrar campaña anterior
+      if (campanaActualId) {
+        await updateDoc(doc(db, "config", "publicidad", "historial", campanaActualId), { finEn: serverTimestamp() });
+      }
+
+      // Crear registro en historial
+      const nueva = await addDoc(collection(db, "config", "publicidad", "historial"), {
+        imageUrl: url,
+        cta: publicidadCtaDraft.trim() || null,
+        subidoPor: currentUserId,
+        inicioEn: serverTimestamp(),
+        finEn: null,
+      });
+
+      await setDoc(doc(db, "config", "publicidad"), {
+        activa: true,
+        imageUrl: url,
+        cta: publicidadCtaDraft.trim() || null,
+        updatedAt: serverTimestamp(),
+        campanaActualId: nueva.id,
+      }, { merge: true });
+
+      toast({ title: "Afiche subido", description: "La publicidad se activó automáticamente." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error al subir imagen", description: err.message });
+    } finally {
+      setUploadingPublicidad(false);
+    }
+  };
+
+  const handleTogglePublicidad = async () => {
+    try {
+      const nuevaActiva = !publicidadActiva;
+      if (!nuevaActiva && campanaActualId) {
+        await updateDoc(doc(db, "config", "publicidad", "historial", campanaActualId), { finEn: serverTimestamp() });
+      } else if (nuevaActiva && publicidadImageUrl) {
+        const nueva = await addDoc(collection(db, "config", "publicidad", "historial"), {
+          imageUrl: publicidadImageUrl,
+          cta: publicidadCta || null,
+          subidoPor: currentUserId,
+          inicioEn: serverTimestamp(),
+          finEn: null,
+        });
+        await setDoc(doc(db, "config", "publicidad"), {
+          activa: true,
+          updatedAt: serverTimestamp(),
+          campanaActualId: nueva.id,
+        }, { merge: true });
+        toast({ title: "Publicidad activada" });
+        return;
+      }
+      await setDoc(doc(db, "config", "publicidad"), { activa: nuevaActiva, updatedAt: serverTimestamp() }, { merge: true });
+      toast({ title: nuevaActiva ? "Publicidad activada" : "Publicidad desactivada" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
@@ -743,6 +853,136 @@ export default function DirectorPage() {
           </button>
         </section>
 
+        {/* PUBLICIDAD DE MARCAS */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <ImagePlus className="w-4 h-4 text-primary" /> Publicidad
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-black uppercase ${publicidadActiva ? "text-emerald-500" : "text-slate-400"}`}>
+                {publicidadActiva ? "Activa" : "Inactiva"}
+              </span>
+              <Switch
+                checked={publicidadActiva}
+                onCheckedChange={handleTogglePublicidad}
+                disabled={!publicidadImageUrl}
+              />
+            </div>
+          </div>
+
+          {/* Tarjeta principal */}
+          <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+            <CardContent className="p-5 space-y-4">
+              {publicidadImageUrl ? (
+                <div className="relative rounded-2xl overflow-hidden bg-slate-50">
+                  <img src={publicidadImageUrl} alt="Afiche publicitario" className="w-full h-auto object-cover rounded-2xl" />
+                  <div className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-black ${publicidadActiva ? "bg-emerald-500 text-white" : "bg-slate-200/90 text-slate-500"}`}>
+                    {publicidadActiva ? "● Mostrando" : "○ Pausada"}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-slate-50 h-40 flex flex-col items-center justify-center gap-2 text-slate-300">
+                  <ImagePlus className="w-10 h-10" />
+                  <p className="text-xs font-bold">Sin afiche cargado</p>
+                </div>
+              )}
+
+              {/* CTA URL */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Link className="w-3 h-3" /> Link de destino (opcional)
+                </label>
+                <Input
+                  type="url"
+                  value={publicidadCtaDraft}
+                  onChange={(e) => setPublicidadCtaDraft(e.target.value)}
+                  placeholder="https://ejemplo.com/oferta"
+                  className="h-10 rounded-xl text-sm"
+                />
+                <p className="text-[10px] text-slate-400">Se muestra como botón "Ver más" en el afiche.</p>
+              </div>
+
+              <label className="cursor-pointer block">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handlePublicidadUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+                <div className={`w-full h-12 rounded-xl font-bold flex items-center justify-center gap-2 text-sm transition-colors ${uploadingPublicidad ? "bg-primary/60 text-white cursor-not-allowed" : "bg-primary text-white hover:bg-primary/90 cursor-pointer"}`}>
+                  {uploadingPublicidad ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                  {publicidadImageUrl ? "Subir nuevo afiche" : "Subir afiche"}
+                </div>
+              </label>
+              <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+                {publicidadImageUrl
+                  ? publicidadActiva
+                    ? "El afiche se muestra a los usuarios al ingresar a la app."
+                    : "Activa el interruptor para mostrar el afiche a los usuarios."
+                  : "Sube una imagen para crear tu campaña publicitaria."}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Historial de campañas */}
+          {historialPublicidad.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
+                <Clock className="w-3 h-3" /> Historial de campañas
+              </p>
+              <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+                <CardContent className="p-2 divide-y divide-slate-50">
+                  {historialPublicidad.map((c) => {
+                    const inicio = c.inicioEn?.toDate?.() ?? null;
+                    const fin = c.finEn?.toDate?.() ?? null;
+                    const esCurrent = c.id === campanaActualId && publicidadActiva;
+                    const durMs = fin ? fin.getTime() - (inicio?.getTime() ?? 0) : inicio ? Date.now() - inicio.getTime() : 0;
+                    const durDias = Math.floor(durMs / 86_400_000);
+                    const durHoras = Math.floor((durMs % 86_400_000) / 3_600_000);
+                    const durLabel = durDias > 0 ? `${durDias}d ${durHoras}h` : `${durHoras}h`;
+                    return (
+                      <div key={c.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0">
+                          <img src={c.imageUrl} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            {esCurrent && (
+                              <span className="text-[9px] font-black bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full">EN CURSO</span>
+                            )}
+                            <span className="text-[10px] font-bold text-slate-500">
+                              {inicio ? inicio.toLocaleDateString("es-CL", { day: "2-digit", month: "short" }) : "—"}
+                              {" → "}
+                              {fin ? fin.toLocaleDateString("es-CL", { day: "2-digit", month: "short" }) : esCurrent ? "hoy" : "—"}
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-medium">· {durLabel}</span>
+                          </div>
+                          {c.cta && (
+                            <a
+                              href={c.cta}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-[10px] text-primary font-bold truncate hover:underline"
+                            >
+                              <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                              {c.cta.replace(/^https?:\/\//, "")}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </section>
+
         {/* GESTOR DE PREMIOS */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-1">
@@ -770,7 +1010,7 @@ export default function DirectorPage() {
                         <p className="text-[10px] text-slate-400 font-medium truncate">{premio.vendorNombre || 'Sin local asignado'}</p>
                         <p className="text-[10px] text-primary font-black uppercase">
                           {premio.sellosRequeridos || 0} sellos
-                          {premio.stock > 0 ? ` · Stock: ${premio.stock}` : ' · Stock ilimitado'}
+                          {typeof premio.stock === "number" && premio.stock > 0 ? ` · Stock: ${premio.stock}` : ' · Stock ∞'}
                         </p>
                       </div>
                     </div>
@@ -1303,6 +1543,21 @@ export default function DirectorPage() {
                 <option value="/ruta" className="text-slate-800">Al tocar → Ver Mapa</option>
                 <option value="/perfil" className="text-slate-800">Al tocar → Mi Perfil</option>
               </select>
+              {/* Ubicación opcional → abre Google Maps */}
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-[10px] font-black text-white/60 uppercase tracking-widest">
+                  <MapPin className="w-3 h-3" /> Ubicación (opcional)
+                </label>
+                <Input
+                  placeholder="Ej: Patio Curauma, Valparaíso o -33.0234,-71.5430"
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 rounded-xl text-sm"
+                  value={mensajeGlobal.ubicacion}
+                  onChange={(e) => setMensajeGlobal({...mensajeGlobal, ubicacion: e.target.value})}
+                />
+                <p className="text-[9px] text-white/35 leading-snug">
+                  Si completas este campo, el cliente verá un botón "Cómo llegar" que abre Google Maps.
+                </p>
+              </div>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs text-white/70 font-bold">Programar envío</span>
                 <Switch
@@ -1485,17 +1740,35 @@ export default function DirectorPage() {
               </div>
 
               {/* Stock */}
-              <div className="space-y-1.5">
+              <div className="space-y-3">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Stock disponible</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={premioForm.stock}
-                  onChange={e => setPremioForm({ ...premioForm, stock: parseInt(e.target.value) || 0 })}
-                  placeholder="0 = ilimitado"
-                  className="h-12 rounded-xl"
-                />
-                <p className="text-[10px] text-slate-400">0 = ilimitado</p>
+                <div
+                  className="flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer"
+                  style={{ background: premioForm.stockIlimitado ? "rgba(141,198,63,0.08)" : "#F8FAFC", border: `1.5px solid ${premioForm.stockIlimitado ? "rgba(141,198,63,0.3)" : "#E2E8F0"}` }}
+                  onClick={() => setPremioForm({ ...premioForm, stockIlimitado: !premioForm.stockIlimitado })}
+                >
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">Stock ilimitado</p>
+                    <p className="text-[10px] text-slate-400">Sin límite de canjes para este premio</p>
+                  </div>
+                  <Switch
+                    checked={premioForm.stockIlimitado}
+                    onCheckedChange={(v) => setPremioForm({ ...premioForm, stockIlimitado: v })}
+                  />
+                </div>
+                {!premioForm.stockIlimitado && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cantidad de unidades</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={premioForm.stock}
+                      onChange={e => setPremioForm({ ...premioForm, stock: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="h-12 rounded-xl"
+                    />
+                    <p className="text-[10px] text-slate-400">El canje se bloqueará automáticamente al llegar a 0.</p>
+                  </div>
+                )}
               </div>
 
               {/* Toggles */}

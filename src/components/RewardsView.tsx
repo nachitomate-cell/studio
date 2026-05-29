@@ -267,10 +267,15 @@ function PremioDetailModal({ premio, userSellos, onClose, onCanjear }: {
             >
               Canjear Premio
             </Button>
-          ) : (
+          ) : userSellos < premio.sellosRequeridos ? (
             <div className="w-full p-4 rounded-2xl bg-slate-100 flex flex-col items-center justify-center text-center border border-slate-200">
               <p className="text-sm font-bold text-slate-500">Te faltan {premio.sellosRequeridos - userSellos} sellos</p>
               <p className="text-xs text-slate-400">Sigue comprando para acumular más sellos.</p>
+            </div>
+          ) : (
+            <div className="w-full p-4 rounded-2xl bg-red-50 flex flex-col items-center justify-center text-center border border-red-100">
+              <p className="text-sm font-bold text-red-400">Sin stock disponible</p>
+              <p className="text-xs text-red-300">Este premio se agotó por el momento.</p>
             </div>
           )}
         </div>
@@ -818,9 +823,13 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
                       >
                         ¡Canjear ahora!
                       </button>
-                    ) : (
+                    ) : sellos < premio.sellosRequeridos ? (
                       <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-gray-100 text-gray-500">
                         Faltan {premio.sellosRequeridos - sellos}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-red-50 text-red-400">
+                        Sin stock
                       </span>
                     )}
                   </CardContent>

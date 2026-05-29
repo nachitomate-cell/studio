@@ -351,7 +351,7 @@ async function executeBroadcast(
   ref: admin.firestore.DocumentReference,
   messageData: admin.firestore.DocumentData
 ): Promise<void> {
-  const { titulo, mensaje, destino, tipo = "info", cta = "/", vendedorFiltro, usuarioFiltro } = messageData;
+  const { titulo, mensaje, destino, tipo = "info", cta = "/", vendedorFiltro, usuarioFiltro, ubicacion } = messageData;
   logger.info(`Iniciando envío de comunicado: ${ref.id} → destino="${destino}" tipo="${tipo}"`);
 
   // Guarda atómica: solo una instancia de la función puede procesar este documento.
@@ -457,6 +457,7 @@ async function executeBroadcast(
         fuente: "director_panel",
         cta,
         broadcastId: ref.id,
+        ...(ubicacion ? { ubicacion } : {}),
       });
       if (userData.fcmToken) tokens.push(userData.fcmToken);
       processed++;

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs, getDoc, addDoc, serverTimestamp, where } from "firebase/firestore";
+import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs, getDoc, addDoc, deleteDoc, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -202,6 +202,10 @@ export default function VendedorPage() {
   const [wspLoading, setWspLoading] = useState<string | null>(null);
   const [sellosHistoricoFromLogs, setSellosHistoricoFromLogs] = useState<number | null>(null);
   const [sellosEsteMesFromLogs, setSellosEsteMesFromLogs] = useState<number | null>(null);
+  const [vendorUid, setVendorUid] = useState<string | null>(null);
+  const [ofertaHoy, setOfertaHoy] = useState<any>(null);
+  const [ofertaTexto, setOfertaTexto] = useState("");
+  const [savingOferta, setSavingOferta] = useState(false);
 
 
   useEffect(() => {
@@ -243,6 +247,7 @@ export default function VendedorPage() {
         return;
       }
       if (user) {
+        setVendorUid(user.uid);
         // Detectar si es admin para mostrar controles extra
         setIsAdmin((user.email || "").trim().toLowerCase() === ADMIN_EMAIL);
 
@@ -334,6 +339,25 @@ export default function VendedorPage() {
       stopScanner();
     };
   }, []);
+
+  useEffect(() => {
+    if (!vendorUid) return;
+    const hoy = new Date().toISOString().slice(0, 10);
+    const unsub = onSnapshot(
+      query(collection(db, "ofertas_dia"), where("vendorId", "==", vendorUid), where("fechaISO", "==", hoy)),
+      (snap) => {
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          setOfertaHoy({ id: d.id, ...d.data() });
+          setOfertaTexto(d.data().texto || "");
+        } else {
+          setOfertaHoy(null);
+          setOfertaTexto("");
+        }
+      }
+    );
+    return () => unsub();
+  }, [vendorUid]);
 
   // Auto-load CRM when entering the clientes view
   useEffect(() => {
@@ -684,6 +708,38 @@ export default function VendedorPage() {
     };
     
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  const handlePublicarOferta = async () => {
+    if (!ofertaTexto.trim() || !vendorUid) return;
+    setSavingOferta(true);
+    try {
+      const hoy = new Date().toISOString().slice(0, 10);
+      await addDoc(collection(db, "ofertas_dia"), {
+        vendorId: vendorUid,
+        localNombre: shopForm.nombreTienda || "Local Aliado",
+        localId: vendorUid,
+        texto: ofertaTexto.trim(),
+        fechaISO: hoy,
+        activa: true,
+        creadoEn: serverTimestamp(),
+      });
+      toast({ title: "¡Oferta publicada!", description: "Los socios la verán al abrir la app hoy." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    } finally {
+      setSavingOferta(false);
+    }
+  };
+
+  const handleEliminarOferta = async () => {
+    if (!ofertaHoy?.id) return;
+    try {
+      await deleteDoc(doc(db, "ofertas_dia", ofertaHoy.id));
+      toast({ title: "Oferta eliminada" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
   };
 
   if (!profileChecked) {
@@ -1495,6 +1551,54 @@ export default function VendedorPage() {
               </div>
             );
           })()}
+        </section>
+
+        {/* OFERTA DEL DÍA */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-base">🔥</span>
+            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Oferta del Día</h2>
+          </div>
+          <Card className="border-none shadow-sm bg-white rounded-[2rem]">
+            <CardContent className="p-5 space-y-4">
+              {ofertaHoy ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl p-4 border" style={{ background: "linear-gradient(135deg, #FFF7E6 0%, #FFFBF0 100%)", borderColor: "rgba(201,146,10,0.2)" }}>
+                    <p className="text-sm font-bold text-slate-800 leading-snug">{ofertaHoy.texto}</p>
+                    <p className="text-[10px] font-black mt-1.5" style={{ color: "#C9920A" }}>Activa hoy · visible en la app</p>
+                  </div>
+                  <button
+                    onClick={handleEliminarOferta}
+                    className="w-full h-10 rounded-xl font-bold text-red-500 border border-red-100 bg-red-50/50 hover:bg-red-50 transition-colors text-sm"
+                  >
+                    Eliminar oferta
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Textarea
+                    value={ofertaTexto}
+                    onChange={(e) => setOfertaTexto(e.target.value.slice(0, 120))}
+                    placeholder="Ej: 20% en todos los cafés hoy ☕"
+                    className="rounded-xl resize-none text-sm"
+                    rows={3}
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 font-medium">{ofertaTexto.length}/120 caracteres</span>
+                    <Button
+                      onClick={handlePublicarOferta}
+                      disabled={!ofertaTexto.trim() || savingOferta}
+                      className="h-10 px-5 rounded-xl font-bold text-sm gap-2"
+                      style={{ backgroundColor: "#C9920A", color: "white" }}
+                    >
+                      {savingOferta ? <Loader2 className="w-4 h-4 animate-spin" /> : "🔥 Publicar"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <p className="text-[10px] text-slate-400 text-center">Una oferta por día. Se limpia automáticamente a medianoche.</p>
+            </CardContent>
+          </Card>
         </section>
 
         <section className="space-y-4">
