@@ -63,6 +63,34 @@ function DetailContent() {
 
   const { coords, loading: locLoading, request: requestLocation } = useUserLocation();
 
+  // Barberos y Servicios de Citas
+  const [selectedBarber, setSelectedBarber] = useState<any>(null);
+  const [showBarberPromptModal, setShowBarberPromptModal] = useState(false);
+  const [pendingServiceToBook, setPendingServiceToBook] = useState<any>(null);
+
+  const handleBookService = (service: any) => {
+    if (entrepreneur?.barbers && entrepreneur.barbers.length > 0 && !selectedBarber) {
+      setPendingServiceToBook(service);
+      setShowBarberPromptModal(true);
+      return;
+    }
+    triggerWhatsAppBooking(service, selectedBarber);
+  };
+
+  const triggerWhatsAppBooking = (service: any, barber: any) => {
+    if (!entrepreneur) return;
+    let phone = entrepreneur.whatsapp.replace(/\D/g, "");
+    if (!phone.startsWith("56")) {
+      phone = "56" + phone;
+    }
+    const serviceName = service.name;
+    const servicePrice = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(service.price);
+    const barberName = barber ? barber.name : "Cualquier barbero disponible";
+    const message = `¡Hola! Me gustaría agendar el servicio *${serviceName}* (${servicePrice})${barber ? ` con el barbero *${barberName}*` : ""} en ${entrepreneur.nombre}.`;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  };
+
   // Auth listener + favorites persistence
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -270,15 +298,17 @@ function DetailContent() {
   const hasInstagram = !!entrepreneur.instagram;
   const hasUbicacion = !!entrepreneur.ubicacion;
 
+  const isPremiumDark = entrepreneur.theme === "premium-dark";
+
   return (
-    <main className="min-h-screen bg-[#0f172a] pb-24 font-body animate-in fade-in duration-500">
+    <main className={cn("min-h-screen pb-24 font-body animate-in fade-in duration-500", isPremiumDark ? "bg-[#050505] text-slate-100" : "bg-[#0f172a]")}>
 
       {/* ── Botones flotantes ───────────────────────────────────────────── */}
       <div className="fixed top-4 left-4 right-4 z-50 flex justify-between items-center">
         <button
           onClick={() => router.push("/")}
           className="w-10 h-10 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
-          style={{ background: "rgba(15,23,42,0.85)", border: "1px solid rgba(255,255,255,0.12)" }}
+          style={{ background: isPremiumDark ? "rgba(5,5,5,0.85)" : "rgba(15,23,42,0.85)", border: isPremiumDark ? "1px solid rgba(211,182,115,0.25)" : "1px solid rgba(255,255,255,0.12)" }}
         >
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
@@ -286,14 +316,14 @@ function DetailContent() {
           <button
             onClick={handleFavoriteToggle}
             className="w-10 h-10 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
-            style={{ background: "rgba(15,23,42,0.85)", border: "1px solid rgba(255,255,255,0.12)" }}
+            style={{ background: isPremiumDark ? "rgba(5,5,5,0.85)" : "rgba(15,23,42,0.85)", border: isPremiumDark ? "1px solid rgba(211,182,115,0.25)" : "1px solid rgba(255,255,255,0.12)" }}
           >
             <Heart className={cn("w-5 h-5 transition-colors", isFavorite ? "fill-red-500 text-red-500" : "text-slate-300")} />
           </button>
           <button
             onClick={handleShare}
             className="w-10 h-10 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
-            style={{ background: "rgba(15,23,42,0.85)", border: "1px solid rgba(255,255,255,0.12)" }}
+            style={{ background: isPremiumDark ? "rgba(5,5,5,0.85)" : "rgba(15,23,42,0.85)", border: isPremiumDark ? "1px solid rgba(211,182,115,0.25)" : "1px solid rgba(255,255,255,0.12)" }}
           >
             <Share2 className="w-5 h-5 text-slate-300" />
           </button>
@@ -301,10 +331,10 @@ function DetailContent() {
       </div>
 
       {/* ── HERO con gradiente + nombre sobre imagen ────────────────────── */}
-      <div className="relative w-full overflow-hidden" style={{ height: "300px", backgroundColor: "#1e293b" }}>
+      <div className="relative w-full overflow-hidden" style={{ height: "300px", backgroundColor: "#121212" }}>
         {/* Skeleton */}
         {!imageLoaded && (
-          <div className="absolute inset-0 bg-slate-800 animate-pulse" style={{ zIndex: 0 }} />
+          <div className="absolute inset-0 bg-slate-900 animate-pulse" style={{ zIndex: 0 }} />
         )}
         {/* Imagen con parallax */}
         <img
@@ -322,12 +352,14 @@ function DetailContent() {
           onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; setImageLoaded(true); }}
         />
         {/* Overlay oscuro uniforme para asegurar contraste del texto */}
-        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+        <div className="absolute inset-0 bg-black/45 pointer-events-none" />
         {/* Degradado inferior para fundir con el fondo */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "linear-gradient(to bottom, rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.9) 85%, rgba(15, 23, 42, 1) 100%)",
+            background: isPremiumDark 
+              ? "linear-gradient(to bottom, rgba(5, 5, 5, 0) 0%, rgba(5, 5, 5, 0.85) 80%, rgba(5, 5, 5, 1) 100%)"
+              : "linear-gradient(to bottom, rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.9) 85%, rgba(15, 23, 42, 1) 100%)",
           }}
         />
         {/* Nombre, badge y status */}
@@ -383,12 +415,12 @@ function DetailContent() {
         {/* ── Card única de información ────────────────────────────────── */}
         <div
           style={{
-            background: "rgba(30, 41, 59, 0.6)",
+            background: isPremiumDark ? "rgba(20, 20, 20, 0.75)" : "rgba(30, 41, 59, 0.6)",
             backdropFilter: "blur(24px)",
             WebkitBackdropFilter: "blur(24px)",
             borderRadius: "24px",
-            border: "1px solid rgba(211, 182, 115, 0.15)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            border: isPremiumDark ? "1px solid rgba(211, 182, 115, 0.25)" : "1px solid rgba(211, 182, 115, 0.15)",
+            boxShadow: isPremiumDark ? "0 12px 40px rgba(0,0,0,0.6)" : "0 8px 32px rgba(0,0,0,0.3)",
             margin: "-32px 16px 0 16px",
             padding: "20px",
             position: "relative",
@@ -503,6 +535,108 @@ function DetailContent() {
                   {entrepreneur.promoText}
                 </p>
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Barberos / Staff ─────────────────────────────────────────── */}
+        {entrepreneur.barbers && entrepreneur.barbers.length > 0 && (
+          <section className="px-4 space-y-3 pt-2">
+            <h3 className="text-[11px] font-black text-[#D3B673] uppercase tracking-widest flex items-center gap-1.5">
+              <span>💈</span> Barberos Disponibles
+            </h3>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+              {entrepreneur.barbers.map((barber: any) => {
+                const isSel = selectedBarber?.id === barber.id;
+                return (
+                  <button
+                    key={barber.id}
+                    onClick={() => setSelectedBarber(isSel ? null : barber)}
+                    className="flex flex-col items-center gap-2 group shrink-0 active:scale-95 transition-transform"
+                  >
+                    <div
+                      className={cn(
+                        "w-14 h-14 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 shadow-lg",
+                        isSel
+                          ? "bg-[#D3B673] text-[#050505] ring-4 ring-[#D3B673]/20 scale-105"
+                          : "bg-[#16161a] border border-[#D3B673]/30 text-[#D3B673] group-hover:border-[#D3B673]/60"
+                      )}
+                    >
+                      {barber.initials}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-[11px] font-medium transition-colors truncate max-w-[80px]",
+                        isSel ? "text-[#D3B673] font-bold" : "text-slate-400 group-hover:text-slate-200"
+                      )}
+                    >
+                      {barber.name.split(" ")[0]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedBarber && (
+              <div className="text-[11px] text-slate-400 px-1 flex items-center gap-1">
+                <span>✓</span> Reservarás con: <strong className="text-[#D3B673]">{selectedBarber.name}</strong>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Servicios ────────────────────────────────────────────────── */}
+        {entrepreneur.services && entrepreneur.services.length > 0 && (
+          <section className="px-4 space-y-3 pt-2">
+            <h3 className="text-[11px] font-black text-[#D3B673] uppercase tracking-widest flex items-center gap-1.5">
+              <span>✂️</span> Servicios & Especialidades
+            </h3>
+            <div className="space-y-3">
+              {entrepreneur.services.map((service: any) => (
+                <div
+                  key={service.id}
+                  className="rounded-2xl p-4 transition-all duration-300 border bg-gradient-to-br"
+                  style={{
+                    backgroundColor: isPremiumDark ? "rgba(20, 20, 20, 0.45)" : "rgba(30, 41, 59, 0.3)",
+                    borderColor: isPremiumDark ? "rgba(211, 182, 115, 0.15)" : "rgba(255, 255, 255, 0.05)",
+                  }}
+                >
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="space-y-1 min-w-0">
+                      <h4 className="text-sm font-bold text-white leading-snug">{service.name}</h4>
+                      <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-[#D3B673]" /> {service.duration}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-base font-black text-[#D3B673]">
+                        {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(service.price)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {service.description && (
+                    <p className="mt-2 text-xs text-slate-400 leading-relaxed font-light">
+                      {service.description}
+                    </p>
+                  )}
+                  
+                  <div className="mt-3.5 flex justify-end">
+                    <button
+                      onClick={() => handleBookService(service)}
+                      className="px-4 py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 hover:opacity-90 flex items-center gap-1.5"
+                      style={{
+                        background: "linear-gradient(135deg, #D3B673, #BFA05C)",
+                        color: "#0f172a",
+                        boxShadow: "0 4px 12px rgba(211, 182, 115, 0.15)",
+                      }}
+                    >
+                      Agendar servicio
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}
@@ -867,6 +1001,76 @@ function DetailContent() {
               </button>
             </>
           )}
+        </div>
+      )}
+      {/* Prompt selector de barbero para agendar */}
+      {showBarberPromptModal && pendingServiceToBook && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm rounded-[2.5rem] border border-[#D3B673]/30 bg-[#050505] shadow-2xl animate-in zoom-in-95 duration-300">
+            <CardContent className="p-7 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 bg-[#D3B673]/10 rounded-full flex items-center justify-center mx-auto border border-[#D3B673]/25">
+                  <span className="text-xl">💈</span>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-black text-white">¿Con quién deseas agendar?</h3>
+                  <p className="text-xs text-slate-400">
+                    Servicio: <span className="text-[#D3B673] font-bold">{pendingServiceToBook.name}</span>
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar">
+                {/* Cualquier Barbero Option */}
+                <button
+                  onClick={() => {
+                    setShowBarberPromptModal(false);
+                    triggerWhatsAppBooking(pendingServiceToBook, null);
+                  }}
+                  className="w-full p-3.5 rounded-2xl flex items-center justify-between transition-all bg-[#16161a] hover:bg-slate-900 border border-white/5 hover:border-[#D3B673]/30 text-left"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-white">Cualquier barbero</p>
+                    <p className="text-[10px] text-slate-400">El profesional disponible al momento de tu cita</p>
+                  </div>
+                  <span className="text-[#D3B673] font-black text-sm">›</span>
+                </button>
+
+                {entrepreneur.barbers.map((barber: any) => (
+                  <button
+                    key={barber.id}
+                    onClick={() => {
+                      setShowBarberPromptModal(false);
+                      // Opcionalmente persistir la selección
+                      setSelectedBarber(barber);
+                      triggerWhatsAppBooking(pendingServiceToBook, barber);
+                    }}
+                    className="w-full p-3.5 rounded-2xl flex items-center gap-3 transition-all bg-[#16161a] hover:bg-slate-900 border border-white/5 hover:border-[#D3B673]/30 text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-[#D3B673]/10 border border-[#D3B673]/20 flex items-center justify-center font-bold text-xs text-[#D3B673] shrink-0">
+                      {barber.initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-white truncate">{barber.name}</p>
+                      <p className="text-[10px] text-slate-400">Barbero Profesional</p>
+                    </div>
+                    <span className="text-[#D3B673] font-black text-sm">›</span>
+                  </button>
+                ))}
+              </div>
+              
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBarberPromptModal(false);
+                  setPendingServiceToBook(null);
+                }}
+                className="w-full h-11 rounded-xl font-bold border-white/10 bg-transparent text-slate-400 hover:text-white"
+              >
+                Cancelar
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       )}
     </main>
