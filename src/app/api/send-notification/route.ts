@@ -8,35 +8,17 @@
  */
 
 import { NextResponse } from "next/server";
-import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getMessaging } from "firebase-admin/messaging";
-
-function getAdminApp(): App {
-  if (getApps().length > 0) return getApps()[0];
-
-  const projectId   = process.env.FIREBASE_ADMIN_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const rawKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY ?? "";
-  // Soporta dos formatos:
-  // 1) Base64 (recomendado en Vercel): la variable empieza por "LS0t" (base64 de "---")
-  // 2) PEM directo con \\n literales (formato legacy)
-  const privateKey = rawKey.startsWith("LS0t")
-    ? Buffer.from(rawKey, "base64").toString("utf8")
-    : rawKey.replace(/\\n/g, "\n").replace(/^["']|["']$/g, "").trim();
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error(
-      "Faltan variables de entorno Firebase Admin: " +
-      "FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY"
-    );
-  }
-
-  return initializeApp({
-    credential: cert({ projectId, clientEmail, privateKey }),
-  });
-}
+import { adminMessaging } from "@/lib/firebaseAdmin";
 
 export async function POST(request: Request) {
+  // Solo llamadas internas del servidor (crons, route handlers) pueden usar este endpoint.
+  // Nunca debe ser llamado directamente desde el browser.
+  const secret = process.env.CRON_SECRET;
+  const callerSecret = request.headers.get("x-internal-secret");
+  if (!secret || callerSecret !== secret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { token, title, body, url } = await request.json();
 
@@ -47,10 +29,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const adminApp = getAdminApp();
-    const messaging = getMessaging(adminApp);
-
-    await messaging.send({
+    await adminMessaging.send({
       token,
       // Notificación genérica (fallback para plataformas sin config específica)
       notification: { title, body },

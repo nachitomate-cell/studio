@@ -1,6 +1,6 @@
 
 import { db } from "./firebase";
-import { collection, addDoc, query, where, getDocs, limit, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, limit } from "firebase/firestore";
 
 /**
  * Dispara una notificación nativa del sistema (Push) si el permiso está concedido.
@@ -50,26 +50,8 @@ export async function enviarNotificacionLocal(userId: string, titulo: string, me
       ...metadata
     });
 
-    // 2. Enviar push real si el usuario tiene FCM token registrado
-    try {
-      const userSnap = await getDoc(doc(db, "usuarios", userId));
-      const fcmToken = userSnap.exists() ? userSnap.data().fcmToken : null;
-
-      if (fcmToken) {
-        const baseUrl = typeof window !== "undefined"
-          ? window.location.origin
-          : process.env.NEXT_PUBLIC_BASE_URL || "https://clubpatiocurauma.synaptechspa.cl";
-
-        await fetch(`${baseUrl}/api/send-notification`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: fcmToken, title: titulo, body: mensaje }),
-        });
-      }
-    } catch (pushError) {
-      // El push es best-effort: si falla no interrumpe el flujo principal
-      console.warn("[Push] No se pudo enviar notificación push:", pushError);
-    }
+    // El push FCM se envía desde el servidor (handshake/confirm, crons).
+    // El cliente solo escribe el documento en Firestore.
   } catch (error) {
     console.error("Error al registrar notificación en Firestore:", error);
   }

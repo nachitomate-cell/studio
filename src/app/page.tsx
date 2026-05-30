@@ -309,10 +309,11 @@ export default function Home() {
     lastGeoApiCallRef.current = Date.now();
 
     try {
+      const idToken = await currentUser.getIdToken();
       const res = await fetch("/api/check-geofence", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUser.uid, latitude, longitude }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ latitude, longitude }),
       });
       const data = await res.json();
 

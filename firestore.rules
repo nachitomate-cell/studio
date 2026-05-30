@@ -42,11 +42,9 @@ service cloud.firestore {
 
     // ── Usuarios ──────────────────────────────────────────────────────────────
     match /usuarios/{userId} {
-      // Lectura individual: cualquier usuario autenticado puede leer un perfil específico.
-      // Necesario para que el handshake (confirmarHandshake) pueda hacer get()
-      // sobre el documento del cliente dentro de la transacción.
-      // La operación list (enumerar todos) sigue siendo solo staff.
-      allow get: if isSignedIn();
+      // Lectura individual: solo el propio usuario o staff.
+      // El handshake ya corre vía Admin SDK (server-side) y no necesita esta apertura.
+      allow get: if isOwner(userId) || isStaff();
       // Lista: solo staff (moderador ve todos los usuarios)
       allow list: if isStaff();
       // Creación: solo el propio usuario, y NUNCA con rol privilegiado (CRÍTICO-03)
@@ -60,10 +58,15 @@ service cloud.firestore {
         && !(request.resource.data.rol in ["admin", "moderador", "director", "director_patio"])
         && request.resource.data.comprasRealizadas in [0, 1]
         && request.resource.data.puntos in [50, 100];
-      // Actualización: el dueño o staff.
-      // La confirmación de handshake fue movida a /api/handshake/confirm (Admin SDK)
-      // para eliminar la necesidad de que emprendedores escriban en documentos ajenos.
-      allow update: if isOwner(userId) || isStaff();
+      // Actualización: staff puede modificar cualquier campo.
+      // El propietario puede actualizar su propio documento pero NO puede modificar
+      // campos de privilegio para evitar auto-escalada de rol (CRÍTICO-06).
+      allow update: if isStaff()
+        || (isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'rol', 'roles', 'baneado', 'puntos',
+            'comprasRealizadas', 'sellosHistoricos', 'ticketsSorteo'
+          ]));
       // Borrado: solo staff
       allow delete: if isStaff();
 

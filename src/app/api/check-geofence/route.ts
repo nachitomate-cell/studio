@@ -10,9 +10,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getMessaging } from "firebase-admin/messaging";
-import { getFirestore } from "firebase-admin/firestore";
+import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 // ── Zonas geofence ─────────────────────────────────────────────────────────────
@@ -46,22 +44,6 @@ const GEOFENCE_ZONES = [
   },
 ];
 
-// ── Firebase Admin ─────────────────────────────────────────────────────────────
-function getAdminApp(): App {
-  if (getApps().length > 0) return getApps()[0];
-  const rawKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY ?? "";
-  const privateKey = rawKey.startsWith("LS0t")
-    ? Buffer.from(rawKey, "base64").toString("utf8")
-    : rawKey.replace(/\\n/g, "\n").replace(/^["']|["']$/g, "").trim();
-  return initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID!,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL!,
-      privateKey,
-    }),
-  });
-}
-
 // ── Haversine ──────────────────────────────────────────────────────────────────
 function calcDistance(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371e3;
@@ -78,11 +60,25 @@ function calcDistance(lat1: number, lng1: number, lat2: number, lng2: number) {
 // ── Handler ────────────────────────────────────────────────────────────────────
 export async function POST(request: Request) {
   try {
-    const { userId, latitude, longitude } = await request.json();
+    // Verificar Firebase ID token — el userId se extrae del token, no del body
+    const authHeader = request.headers.get("authorization");
+    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!idToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    let userId: string;
+    try {
+      const decoded = await adminAuth.verifyIdToken(idToken);
+      userId = decoded.uid;
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    if (!userId || latitude == null || longitude == null) {
+    const { latitude, longitude } = await request.json();
+
+    if (latitude == null || longitude == null) {
       return NextResponse.json(
-        { success: false, error: "Faltan parámetros: userId, latitude, longitude" },
+        { success: false, error: "Faltan parámetros: latitude, longitude" },
         { status: 400 }
       );
     }
@@ -111,8 +107,6 @@ export async function POST(request: Request) {
       });
     }
 
-    const adminApp = getAdminApp();
-    const adminDb  = getFirestore(adminApp);
     const notifRef = adminDb.collection("usuarios").doc(userId).collection("notificaciones");
 
     // Dedup: ¿ya recibió una notificación geofence dentro del cooldown?
@@ -154,8 +148,7 @@ export async function POST(request: Request) {
     let pushSent = false;
 
     if (fcmToken) {
-      const messaging = getMessaging(adminApp);
-      await messaging.send({
+      await adminMessaging.send({
         token: fcmToken,
         notification: { title: matched.titulo, body: matched.mensaje },
         android: {
