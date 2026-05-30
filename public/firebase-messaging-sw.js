@@ -5,7 +5,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-const CACHE_VERSION = '12';
+const CACHE_VERSION = '13';
 const CACHE_NAME = `club-patio-shell-v${CACHE_VERSION}`;
 const SHELL_ASSETS = ['/Logo.png', '/Logo2.png', '/manifest.json'];
 
@@ -45,16 +45,10 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
+    // No cachear HTML de páginas — siempre desde la red para evitar servir
+    // versiones rotas en deploys futuros. Fallback al root solo si offline.
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response.ok) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then(c => c.put(request, responseToCache));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request).then(cached => cached || caches.match('/')))
+      fetch(request).catch(() => caches.match('/') || fetch('/'))
     );
     return;
   }
