@@ -5,7 +5,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-const CACHE_VERSION = '11';
+const CACHE_VERSION = '12';
 const CACHE_NAME = `club-patio-shell-v${CACHE_VERSION}`;
 const SHELL_ASSETS = ['/Logo.png', '/Logo2.png', '/manifest.json'];
 
@@ -34,10 +34,24 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/_next/')) return;
 
   if (request.mode === 'navigate') {
+    // iOS PWA restaura la última URL al reabrir la app desde el home screen.
+    // Si esa URL era /emprendedor/[id] y no viene de una navegación interna
+    // (referrer vacío = entrada directa o restauración), redirigimos al home.
+    // Navegación interna (SPA) no pasa por el SW, por lo que no se ve afectada.
+    const isEmprendedorPath = url.pathname.startsWith('/emprendedor/');
+    const isDirectEntry = !request.referrer || request.referrer === '';
+    if (isEmprendedorPath && isDirectEntry) {
+      event.respondWith(Response.redirect(self.location.origin + '/', 302));
+      return;
+    }
+
     event.respondWith(
       fetch(request)
         .then(response => {
-          if (response.ok) caches.open(CACHE_NAME).then(c => c.put(request, response.clone()));
+          if (response.ok) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, responseToCache));
+          }
           return response;
         })
         .catch(() => caches.match(request).then(cached => cached || caches.match('/')))
@@ -50,7 +64,10 @@ self.addEventListener('fetch', (event) => {
       caches.match(request).then(cached => {
         if (cached) return cached;
         return fetch(request).then(response => {
-          if (response.ok) caches.open(CACHE_NAME).then(c => c.put(request, response.clone()));
+          if (response.ok) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, responseToCache));
+          }
           return response;
         });
       })
