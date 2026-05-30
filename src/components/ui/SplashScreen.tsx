@@ -28,9 +28,9 @@ export function SplashScreen() {
   if (!mounted) return null;
 
   return (
-    <div 
+    <div
       className={cn(
-        "fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-all duration-700 ease-in-out",
+        "splash-failsafe fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-all duration-700 ease-in-out",
         fade ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
       )}
     >
