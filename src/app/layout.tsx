@@ -49,9 +49,6 @@ export default function RootLayout({
   return (
     <html lang="es" className={`h-full ${montserrat.variable}`}>
       <head>
-        {/* Redirige /emprendedor/* al home cuando la PWA restaura esa URL (iOS).
-            dangerouslySetInnerHTML es seguro aquí: el contenido es estático. */}
-        <script dangerouslySetInnerHTML={{__html:`(function(){if(window.location.pathname.startsWith('/emprendedor/')&&!document.referrer){window.location.replace('/');}})();`}} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />

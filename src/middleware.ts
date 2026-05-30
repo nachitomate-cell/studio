@@ -33,6 +33,22 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ── Prevenir restauración de URL de iOS PWA en /emprendedor/* ─────────────────
+  // Cuando iOS restaura la última URL de la PWA, la petición llega sin Referer.
+  // La navegación interna (SPA) no genera peticiones al servidor, así que no
+  // se ve afectada. Solo bloqueamos entradas directas sin Referer de nuestro dominio.
+  if (pathname.startsWith("/emprendedor/")) {
+    const referer = request.headers.get("referer") || "";
+    const fromOurApp =
+      referer.includes("club-patio-curauma.vercel.app") ||
+      referer.includes("localhost");
+    if (!fromOurApp) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Extraer el host sin puerto (ej: omegastudio.synaptechspa.cl o omegastudio.localhost)
   const hostname = host.split(":")[0];
   const parts = hostname.split(".");
