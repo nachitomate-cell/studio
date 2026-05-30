@@ -9,6 +9,7 @@ import { NotificationSystem } from "@/components/NotificationSystem";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { Providers } from "@/components/Providers";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { SwUpdateReloader } from "@/components/SwUpdateReloader";
 
 const montserrat = Montserrat({
   subsets: ['latin'],
@@ -79,6 +80,9 @@ export default function RootLayout({
         {/* Sistema Global de Notificaciones de Sistema */}
         <NotificationSystem />
         
+        {/* Recarga automática cuando el SW se actualiza en background */}
+        <SwUpdateReloader />
+
         {/* Oyente global de errores de Firebase */}
         <FirebaseErrorListener />
 
