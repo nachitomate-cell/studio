@@ -38,6 +38,26 @@ const PAYMENT_PILL_STYLE = {
   border: "rgba(255, 255, 255, 0.20)",
 };
 
+function NotFoundRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    const t = setTimeout(() => router.replace("/"), 2000);
+    return () => clearTimeout(t);
+  }, [router]);
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-[#0f172a]">
+      <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center shadow-sm border border-slate-700">
+        <MapPin className="w-10 h-10 text-slate-400" />
+      </div>
+      <h1 className="text-xl font-bold text-slate-200">Local no encontrado</h1>
+      <p className="text-slate-500 text-sm">Volviendo al inicio...</p>
+      <Button onClick={() => router.replace("/")} className="rounded-xl bg-[#D3B673] text-slate-900 hover:bg-[#BFA05C]">
+        Volver a Descubre
+      </Button>
+    </div>
+  );
+}
+
 function DetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -269,17 +289,7 @@ function DetailContent() {
   }
 
   if (!entrepreneur) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-[#0f172a]">
-        <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center shadow-sm border border-slate-700">
-          <MapPin className="w-10 h-10 text-slate-400" />
-        </div>
-        <h1 className="text-xl font-bold text-slate-200">Local no encontrado</h1>
-        <Button onClick={() => router.push("/")} className="rounded-xl bg-[#D3B673] text-slate-900 hover:bg-[#BFA05C]">
-          Volver a Descubre
-        </Button>
-      </div>
-    );
+    return <NotFoundRedirect />;
   }
 
   const esPremium = entrepreneur.isPremium === true;
