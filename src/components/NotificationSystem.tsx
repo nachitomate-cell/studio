@@ -64,7 +64,13 @@ export function NotificationSystem() {
     // Es el único SW para el scope raíz — evita conflicto con sw.js en iOS.
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })
-        .then(reg => console.log("[SW] Firebase Messaging SW registrado:", reg.scope))
+        .then(reg => {
+          console.log("[SW] Firebase Messaging SW registrado:", reg.scope);
+          // Fuerza la comprobación de una versión nueva del SW en cada apertura.
+          // Si hay una versión nueva, su handler `activate` purga las cachés
+          // viejas y migra la PWA vieja al home (ver firebase-messaging-sw.js).
+          reg.update().catch(() => {});
+        })
         .catch(err => console.warn("[SW] Fallo al registrar SW:", err));
     }
 
