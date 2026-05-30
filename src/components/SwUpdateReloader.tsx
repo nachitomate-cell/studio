@@ -2,20 +2,29 @@
 
 import { useEffect } from "react";
 
-// Cuando el SW se actualiza mientras la app está en background (iOS resume),
-// controllerchange se dispara al volver al foco. Recargamos para servir
-// HTML fresco con el nuevo SW en control.
+// Recarga la página cuando el SW cambia de controlador DESPUÉS de los primeros
+// 5 segundos de vida de la página. El delay evita la carrera con client.navigate()
+// del activate del SW: si el SW ya navegó, este listener no existía todavía y
+// no duplica el reload. Solo captura actualizaciones que ocurren mientras la app
+// está abierta y en uso (p.ej. el usuario lleva 10+ minutos en la app y se
+// despliega una nueva versión).
 export function SwUpdateReloader() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    const onControllerChange = () => {
-      window.location.reload();
-    };
+    let cleanup: (() => void) | null = null;
 
-    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+    const timer = setTimeout(() => {
+      const onControllerChange = () => {
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+      cleanup = () => navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    }, 5000);
+
     return () => {
-      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      clearTimeout(timer);
+      cleanup?.();
     };
   }, []);
 

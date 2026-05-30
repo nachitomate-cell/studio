@@ -96,12 +96,6 @@
   }
 }
 
-/* Fallback garantizado: oculta el SplashScreen aunque React no hidrate */
-@keyframes splash-auto-hide {
-  from { opacity: 1; }
-  to   { opacity: 0; pointer-events: none; }
-}
-
 @keyframes bounce-short {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
@@ -110,23 +104,15 @@
   animation: bounce-short 1s ease-in-out infinite;
 }
 
-/*
- * Red de seguridad del Splash — solo CSS, no depende de JS.
- * Si la app carga desde el servidor remoto (Capacitor WebView) y el bundle de
- * JavaScript nunca llega a hidratar, los timers en SplashScreen.tsx no se
- * ejecutan y la pantalla de carga quedaría congelada para siempre.
- * Esta animación se dispara sin JavaScript: tras 8s desvanece el overlay y lo
- * deja inerte, revelando el contenido que haya bajo él en vez de un logo
- * estático eterno. En el camino normal, React desmonta el splash a los 2.2s
- * (mucho antes), por lo que esta animación nunca llega a completarse.
- */
+/* Garantía CSS: el splash se oculta sí o sí a los 3.5s aunque React no hidrate.
+   En el flujo normal React lo desmonta a los 2.2s (mucho antes de que llegue aquí).
+   Nota: NO usar animation en el style="" inline del componente — sobreescribiría
+   esta declaración de clase y dejaría el keyframe sin referencia, pudiendo
+   ser eliminado por el optimizador CSS. */
 @keyframes splash-failsafe-hide {
-  to {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
+  0%, 75% { opacity: 1; }
+  100%    { opacity: 0; visibility: hidden; pointer-events: none; }
 }
 .splash-failsafe {
-  animation: splash-failsafe-hide 0.6s ease-in-out 8s forwards;
+  animation: splash-failsafe-hide 3.5s linear forwards;
 }

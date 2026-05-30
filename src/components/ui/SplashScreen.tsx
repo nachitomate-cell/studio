@@ -33,7 +33,6 @@ export function SplashScreen() {
         "splash-failsafe fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-all duration-700 ease-in-out",
         fade ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
       )}
-      style={!fade ? { animation: 'splash-auto-hide 0.7s ease-in-out 2s forwards' } : undefined}
     >
       <div className="flex flex-col items-center animate-in zoom-in-95 duration-1000 ease-out">
         <Image
