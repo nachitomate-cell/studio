@@ -5,7 +5,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-const CACHE_VERSION = '16';
+const CACHE_VERSION = '17';
 const CACHE_NAME = `club-patio-shell-v${CACHE_VERSION}`;
 const SHELL_ASSETS = ['/Logo.png', '/Logo2.png', '/manifest.json'];
 
@@ -19,27 +19,11 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activo v' + CACHE_VERSION);
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    const oldCaches = keys.filter(k => k !== CACHE_NAME);
-    await Promise.all(oldCaches.map(k => caches.delete(k)));
-    await self.clients.claim();
-
-    // Solo cuando hay cachés viejos (actualización desde versión anterior),
-    // redirigimos todas las ventanas al home para que carguen HTML fresco.
-    // En instalaciones nuevas (sin cachés viejos) no tocamos nada para no
-    // romper deep-links de primera visita.
-    if (oldCaches.length > 0) {
-      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      await Promise.all(
-        windows.map(client =>
-          'navigate' in client
-            ? client.navigate(self.location.origin + '/').catch(() => {})
-            : Promise.resolve()
-        )
-      );
-    }
-  })());
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
