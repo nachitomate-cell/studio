@@ -103,3 +103,24 @@
 .animate-bounce-short {
   animation: bounce-short 1s ease-in-out infinite;
 }
+
+/*
+ * Red de seguridad del Splash — solo CSS, no depende de JS.
+ * Si la app carga desde el servidor remoto (Capacitor WebView) y el bundle de
+ * JavaScript nunca llega a hidratar, los timers en SplashScreen.tsx no se
+ * ejecutan y la pantalla de carga quedaría congelada para siempre.
+ * Esta animación se dispara sin JavaScript: tras 8s desvanece el overlay y lo
+ * deja inerte, revelando el contenido que haya bajo él en vez de un logo
+ * estático eterno. En el camino normal, React desmonta el splash a los 2.2s
+ * (mucho antes), por lo que esta animación nunca llega a completarse.
+ */
+@keyframes splash-failsafe-hide {
+  to {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+.splash-failsafe {
+  animation: splash-failsafe-hide 0.6s ease-in-out 8s forwards;
+}
