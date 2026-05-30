@@ -98,6 +98,13 @@ function DetailContent() {
     window.open(url, "_blank");
   };
 
+  // iOS PWA restoration guard: if the app opens directly to this route (no home session), redirect home
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !sessionStorage.getItem('home_visited')) {
+      window.location.replace('/');
+    }
+  }, []);
+
   // Auth listener + favorites persistence
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {

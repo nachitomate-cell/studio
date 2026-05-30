@@ -100,6 +100,10 @@ export default function Home() {
   const lastGeoApiCallRef = useRef<number>(0);
 
   useEffect(() => {
+    sessionStorage.setItem('home_visited', '1');
+  }, []);
+
+  useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser && redirectAfterLoginRef.current) {
