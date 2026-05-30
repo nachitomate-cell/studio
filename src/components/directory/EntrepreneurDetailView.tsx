@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, onSnapshot, query, collection, documentId, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -98,9 +98,9 @@ function DetailContent() {
     window.open(url, "_blank");
   };
 
-  // iOS PWA restoration guard: if the app opens directly to this route (no home session), redirect home
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !sessionStorage.getItem('home_visited')) {
+  // iOS PWA restoration guard: fires before paint so no blank flash
+  useLayoutEffect(() => {
+    if (!sessionStorage.getItem('home_visited')) {
       window.location.replace('/');
     }
   }, []);

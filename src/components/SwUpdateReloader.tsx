@@ -16,11 +16,13 @@ export function SwUpdateReloader() {
 
     const timer = setTimeout(() => {
       const onControllerChange = () => {
+        // Clear the home_visited guard so the vendor-page redirect fires on the reloaded page
+        sessionStorage.removeItem('home_visited');
         window.location.reload();
       };
       navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
       cleanup = () => navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-    }, 5000);
+    }, 500);
 
     return () => {
       clearTimeout(timer);
