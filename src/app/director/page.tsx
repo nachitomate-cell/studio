@@ -687,6 +687,17 @@ export default function DirectorPage() {
     }
   };
 
+  const handleSaveCta = async () => {
+    try {
+      const value = publicidadCtaDraft.trim() || null;
+      await setDoc(doc(db, "config", "publicidad"), { cta: value }, { merge: true });
+      setPublicidadCta(value);
+      toast({ title: "Link guardado", description: "El link de destino se actualizó correctamente." });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el link." });
+    }
+  };
+
   const handleTogglePublicidad = async () => {
     try {
       const nuevaActiva = !publicidadActiva;
@@ -894,13 +905,23 @@ export default function DirectorPage() {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                   <Link className="w-3 h-3" /> Link de destino (opcional)
                 </label>
-                <Input
-                  type="url"
-                  value={publicidadCtaDraft}
-                  onChange={(e) => setPublicidadCtaDraft(e.target.value)}
-                  placeholder="https://ejemplo.com/oferta"
-                  className="h-10 rounded-xl text-sm"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    type="url"
+                    value={publicidadCtaDraft}
+                    onChange={(e) => setPublicidadCtaDraft(e.target.value)}
+                    placeholder="https://ejemplo.com/oferta"
+                    className="h-10 rounded-xl text-sm flex-1"
+                  />
+                  <button
+                    onClick={handleSaveCta}
+                    disabled={publicidadCtaDraft.trim() === (publicidadCta ?? "")}
+                    className="h-10 px-3.5 rounded-xl bg-primary text-white text-xs font-black shrink-0 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95 transition-all flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Guardar
+                  </button>
+                </div>
                 <p className="text-[10px] text-slate-400">Se muestra como botón "Ver más" en el afiche.</p>
               </div>
 
