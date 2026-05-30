@@ -61,12 +61,18 @@ service cloud.firestore {
       // Actualización: staff puede modificar cualquier campo.
       // El propietario puede actualizar su propio documento pero NO puede modificar
       // campos de privilegio para evitar auto-escalada de rol (CRÍTICO-06).
+      // Excepción: canje de premio — el owner puede decrementar comprasRealizadas
+      // (solo reducir, jamás aumentar) junto con recompensaDisponible.
       allow update: if isStaff()
         || (isOwner(userId)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'rol', 'roles', 'baneado', 'puntos',
             'comprasRealizadas', 'sellosHistoricos', 'ticketsSorteo'
-          ]));
+          ]))
+        || (isOwner(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comprasRealizadas', 'recompensaDisponible'])
+          && request.resource.data.comprasRealizadas < resource.data.comprasRealizadas
+        );
       // Borrado: solo staff
       allow delete: if isStaff();
 
