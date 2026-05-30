@@ -746,13 +746,7 @@ export default function Home() {
                 </Badge>
               </div>
 
-              {loading ? (
-                <div className="grid grid-cols-2 gap-4 px-6">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="aspect-square bg-slate-100 animate-pulse rounded-2xl" />
-                  ))}
-                </div>
-              ) : filteredEntrepreneurs.length === 0 ? (
+              {filteredEntrepreneurs.length === 0 && !loading ? (
                 <div className="py-12 text-center text-muted-foreground text-xs italic px-6">
                   No se encontraron resultados en el directorio.
                 </div>

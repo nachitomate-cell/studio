@@ -42,14 +42,7 @@ function NotFoundRedirect() {
   useEffect(() => {
     window.location.replace("/");
   }, []);
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-[#0f172a]">
-      <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center shadow-sm border border-slate-700">
-        <MapPin className="w-10 h-10 text-slate-400" />
-      </div>
-      <p className="text-slate-400 text-sm">Volviendo al inicio...</p>
-    </div>
-  );
+  return null;
 }
 
 function DetailContent() {
