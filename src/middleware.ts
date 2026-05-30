@@ -51,6 +51,12 @@ export function middleware(request: NextRequest) {
 
   // Extraer el host sin puerto (ej: omegastudio.synaptechspa.cl o omegastudio.localhost)
   const hostname = host.split(":")[0];
+
+  // Ignorar dominios de Vercel (producción y previews) — no son subdominos de tenant
+  if (hostname.endsWith(".vercel.app") || hostname === "vercel.app") {
+    return NextResponse.next();
+  }
+
   const parts = hostname.split(".");
 
   // Detectar si hay un subdominio válido

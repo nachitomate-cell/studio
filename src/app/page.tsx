@@ -438,40 +438,124 @@ export default function Home() {
   ];
 
   const renderHero = () => (
-    <section style={{
-      background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 50%, #5BB8D4 100%)",
-      padding: "40px 20px 32px",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      textAlign: "center",
-      position: "relative",
-    }}>
-      <div style={{ position: "relative", width: 110, marginBottom: 16 }}>
-        <img
-          src="/Logo3.webp"
-          alt="Patio Curauma"
-          style={{ width: 110, height: "auto", display: "block", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
-        />
+    <>
+      <style>{`
+        @keyframes heroBalloonFloat {
+          0%   { transform: translateY(0px) rotate(-5deg); }
+          50%  { transform: translateY(-16px) rotate(5deg); }
+          100% { transform: translateY(0px) rotate(-5deg); }
+        }
+        @keyframes heroSparkle {
+          0%, 100% { opacity: 0.5; transform: scale(0.85) rotate(-10deg); }
+          50%       { opacity: 1;   transform: scale(1.2)  rotate(10deg); }
+        }
+        @keyframes heroAnivPulse {
+          0%, 100% { opacity: 0.9; transform: scale(1); }
+          50%       { opacity: 1;   transform: scale(1.04); }
+        }
+      `}</style>
+      <section style={{
+        background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 50%, #5BB8D4 100%)",
+        padding: "40px 20px 32px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        {/* Globos izquierda */}
+        {([
+          { left: "2%",  bottom: "8%",  size: 38, delay: "0s",   dur: "4.1s" },
+          { left: "11%", bottom: "28%", size: 28, delay: "0.9s", dur: "3.6s" },
+          { left: "3%",  bottom: "62%", size: 22, delay: "1.8s", dur: "4.5s" },
+        ] as const).map((b, i) => (
+          <span key={`bl-${i}`} aria-hidden style={{
+            position: "absolute", left: b.left, bottom: b.bottom,
+            fontSize: b.size, lineHeight: 1,
+            animation: `heroBalloonFloat ${b.dur} ease-in-out infinite`,
+            animationDelay: b.delay, pointerEvents: "none", userSelect: "none", zIndex: 0,
+          }}>🎈</span>
+        ))}
+        {/* Globos derecha */}
+        {([
+          { right: "2%",  bottom: "8%",  size: 36, delay: "0.5s", dur: "3.8s" },
+          { right: "12%", bottom: "32%", size: 26, delay: "1.4s", dur: "4.3s" },
+          { right: "3%",  bottom: "64%", size: 20, delay: "2.2s", dur: "3.5s" },
+        ] as const).map((b, i) => (
+          <span key={`br-${i}`} aria-hidden style={{
+            position: "absolute", right: b.right, bottom: b.bottom,
+            fontSize: b.size, lineHeight: 1,
+            animation: `heroBalloonFloat ${b.dur} ease-in-out infinite`,
+            animationDelay: b.delay, pointerEvents: "none", userSelect: "none", zIndex: 0,
+          }}>🎈</span>
+        ))}
+        {/* Destellos / confetti */}
+        {([
+          { left: "18%", top: "6%",  emoji: "✨", size: 18, delay: "0s",   dur: "2.6s" },
+          { left: "75%", top: "10%", emoji: "🎊", size: 16, delay: "1.1s", dur: "3.1s" },
+          { left: "47%", top: "3%",  emoji: "⭐", size: 14, delay: "0.6s", dur: "2.3s" },
+          { left: "87%", top: "38%", emoji: "✨", size: 13, delay: "1.7s", dur: "2.9s" },
+          { left: "7%",  top: "38%", emoji: "🎉", size: 17, delay: "0.3s", dur: "2.7s" },
+          { left: "62%", top: "5%",  emoji: "🌟", size: 13, delay: "2.0s", dur: "3.3s" },
+        ] as const).map((c, i) => (
+          <span key={`sp-${i}`} aria-hidden style={{
+            position: "absolute", left: c.left, top: c.top,
+            fontSize: c.size, lineHeight: 1,
+            animation: `heroSparkle ${c.dur} ease-in-out infinite`,
+            animationDelay: c.delay, pointerEvents: "none", userSelect: "none", zIndex: 0,
+          }}>{c.emoji}</span>
+        ))}
+
+        {/* Contenido principal */}
+        <div style={{ position: "relative", zIndex: 1, width: 110, marginBottom: 16 }}>
+          <img
+            src="/Logo3.webp"
+            alt="Patio Curauma"
+            style={{ width: 110, height: "auto", display: "block", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
+          />
+          <div style={{
+            position: "absolute",
+            bottom: -6,
+            left: "10%",
+            right: "10%",
+            height: 14,
+            background: "radial-gradient(ellipse at center, rgba(0,0,0,0.28) 0%, transparent 70%)",
+            filter: "blur(4px)",
+          }} />
+        </div>
+        <h1 style={{ position: "relative", zIndex: 1, fontFamily: "Montserrat, sans-serif", fontSize: 24, fontWeight: 900, color: "white", margin: "0 0 8px 0", lineHeight: 1.1, letterSpacing: "1px" }}>
+          CLUB<br/>
+          <span style={{ color: "#FFD700", fontSize: 32, fontWeight: 900, textShadow: "0 2px 6px rgba(0,0,0,0.35)" }}>PATIO CURAUMA</span>
+        </h1>
+        <p style={{ position: "relative", zIndex: 1, color: "rgba(255,255,255,0.9)", fontSize: 14, margin: 0, letterSpacing: "0.5px" }}>
+          Fidelización · Premios · Comunidad
+        </p>
+
+        {/* Badge aniversario */}
         <div style={{
-          position: "absolute",
-          bottom: -6,
-          left: "10%",
-          right: "10%",
-          height: 14,
-          background: "radial-gradient(ellipse at center, rgba(0,0,0,0.28) 0%, transparent 70%)",
-          filter: "blur(4px)",
-        }} />
-      </div>
-      <h1 style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, fontWeight: 900, color: "white", margin: "0 0 8px 0", lineHeight: 1.1, letterSpacing: "1px" }}>
-        CLUB<br/>
-        <span style={{ color: "#FFD700", fontSize: 32, fontWeight: 900, textShadow: "0 2px 6px rgba(0,0,0,0.35)" }}>PATIO CURAUMA</span>
-      </h1>
-      <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, margin: 0, letterSpacing: "0.5px" }}>
-        Fidelización · Premios · Comunidad
-      </p>
-    </section>
+          position: "relative", zIndex: 1,
+          marginTop: 14,
+          background: "rgba(255,255,255,0.2)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1.5px solid rgba(255,255,255,0.45)",
+          borderRadius: 999,
+          padding: "7px 20px",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          animation: "heroAnivPulse 2.8s ease-in-out infinite",
+        }}>
+          <span style={{ fontSize: 18 }}>🎂</span>
+          <span style={{ color: "white", fontWeight: 900, fontSize: 13, letterSpacing: "0.4px", textShadow: "0 1px 4px rgba(0,0,0,0.35)" }}>
+            ¡4 Años de Patio Design Curauma!
+          </span>
+          <span style={{ fontSize: 18 }}>🎂</span>
+        </div>
+      </section>
+    </>
   );
 
   const renderContent = () => {

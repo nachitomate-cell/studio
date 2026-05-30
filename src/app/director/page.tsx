@@ -311,6 +311,7 @@ export default function DirectorPage() {
         setPublicidadActiva(d.activa === true);
         setPublicidadImageUrl(d.imageUrl || null);
         setPublicidadCta(d.cta || null);
+        setPublicidadCtaDraft(d.cta || "");
         setCampanaActualId(d.campanaActualId || null);
       } else {
         setPublicidadActiva(false);
