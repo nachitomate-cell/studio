@@ -265,14 +265,7 @@ function DetailContent() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#0f172a]">
-        <Loader2 className="w-10 h-10 text-[#D3B673] animate-spin" />
-        <p className="text-[#D3B673]/60 font-bold uppercase text-[10px] tracking-widest">
-          Cargando experiencia...
-        </p>
-      </div>
-    );
+    return null;
   }
 
   if (!entrepreneur) {
