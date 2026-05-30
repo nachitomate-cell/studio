@@ -5,7 +5,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-const CACHE_VERSION = '13';
+const CACHE_VERSION = '14';
 const CACHE_NAME = `club-patio-shell-v${CACHE_VERSION}`;
 const SHELL_ASSETS = ['/Logo.png', '/Logo2.png', '/manifest.json'];
 
@@ -23,6 +23,10 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then(clients => Promise.all(
+        clients.map(client => client.navigate(client.url).catch(() => {}))
+      ))
   );
 });
 
