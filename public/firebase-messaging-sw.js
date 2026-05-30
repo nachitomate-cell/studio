@@ -19,38 +19,11 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activo v' + CACHE_VERSION);
-  event.waitUntil((async () => {
-    // Purga las cachés de versiones anteriores del shell.
-    const keys = await caches.keys();
-    const oldShellCaches = keys.filter(
-      (k) => k.startsWith('club-patio-shell') && k !== CACHE_NAME
-    );
-    await Promise.all(oldShellCaches.map((k) => caches.delete(k)));
-    await self.clients.claim();
-
-    // ── Migración de la PWA vieja → home ────────────────────────────────────
-    // Si esta activación REEMPLAZA una instalación anterior (existían cachés de
-    // versiones previas), las ventanas abiertas pueden estar mostrando HTML o
-    // chunks obsoletos (causa del splash congelado) o una URL que iOS restauró.
-    // Las llevamos al home con HTML fresco de red. Solo ocurre una vez por
-    // versión: en operación normal posterior los deep links (QR /canje,
-    // /validar, notificaciones) no se ven afectados. En una instalación nueva
-    // (sin cachés viejas) NO redirigimos, para no romper deep links de primera
-    // visita.
-    if (oldShellCaches.length > 0) {
-      const windows = await self.clients.matchAll({
-        type: 'window',
-        includeUncontrolled: true,
-      });
-      await Promise.all(
-        windows.map((client) =>
-          'navigate' in client
-            ? client.navigate(self.location.origin + '/').catch(() => {})
-            : Promise.resolve()
-        )
-      );
-    }
-  })());
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
