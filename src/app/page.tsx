@@ -85,6 +85,9 @@ export default function Home() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [publicidad, setPublicidad] = useState<{ imageUrl: string; cta: string | null } | null>(null);
   const [showPublicidad, setShowPublicidad] = useState(false);
+  const [publicidadLoading, setPublicidadLoading] = useState(() =>
+    typeof window !== "undefined" ? !sessionStorage.getItem("publicidad_vista") : false
+  );
   const [streak, setStreak] = useState(0);
   const [ofertasHoy, setOfertasHoy] = useState<any[]>([]);
   
@@ -154,6 +157,7 @@ export default function Home() {
         setPublicidad(null);
         setShowPublicidad(false);
       }
+      setPublicidadLoading(false);
     });
     return () => unsub();
   }, []);
@@ -1186,6 +1190,29 @@ export default function Home() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* LOADING PUBLICIDAD */}
+      {publicidadLoading && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white">
+          <img src="/Logo3.webp" alt="Patio Curauma" style={{ width: 90, height: "auto", marginBottom: 24 }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: "linear-gradient(135deg, #C9920A, #8DC63F)",
+                animation: "pubDot 1.2s ease-in-out infinite",
+                animationDelay: `${i * 0.2}s`,
+              }} />
+            ))}
+          </div>
+          <style>{`
+            @keyframes pubDot {
+              0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+              40%            { transform: scale(1);   opacity: 1;   }
+            }
+          `}</style>
         </div>
       )}
 
