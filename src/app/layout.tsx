@@ -9,7 +9,6 @@ import { NotificationSystem } from "@/components/NotificationSystem";
 import { Providers } from "@/components/Providers";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { SwUpdateReloader } from "@/components/SwUpdateReloader";
-import { SplashScreen } from "@/components/SplashScreen";
 
 const montserrat = Montserrat({
   subsets: ['latin'],
@@ -69,7 +68,6 @@ export default function RootLayout({
           </Link>
         </header>
 
-        <SplashScreen />
         <Providers>
           <div className="flex-1 overflow-x-hidden">
             {children}
