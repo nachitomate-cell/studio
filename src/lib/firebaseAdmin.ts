@@ -49,8 +49,22 @@ function createAdminApp(): App {
   });
 }
 
-const app: App = createAdminApp();
+function getAdminApp(): App {
+  return createAdminApp();
+}
 
-export const adminAuth:      Auth      = getAuth(app);
-export const adminDb:        Firestore = getFirestore(app);
-export const adminMessaging: Messaging = getMessaging(app);
+// Lazy proxies: createAdminApp() is never called at module load time (build-safe).
+// Methods are bound to the real instance so `this` is correct in all call sites.
+function lazyProxy<T extends object>(factory: () => T): T {
+  return new Proxy({} as T, {
+    get(_, prop) {
+      const instance = factory();
+      const value = (instance as any)[prop];
+      return typeof value === "function" ? value.bind(instance) : value;
+    },
+  });
+}
+
+export const adminAuth:      Auth      = lazyProxy(() => getAuth(getAdminApp()));
+export const adminDb:        Firestore = lazyProxy(() => getFirestore(getAdminApp()));
+export const adminMessaging: Messaging = lazyProxy(() => getMessaging(getAdminApp()));

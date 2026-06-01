@@ -641,6 +641,14 @@ export default function ModeradorPage() {
               color: "#10b981",
               bg: "#10b98112",
             },
+            {
+              href: "/moderador/trafico",
+              emoji: "📣",
+              titulo: "Tráfico y Publicidad",
+              desc: "Visitas por campaña · UTM · Fuentes",
+              color: "#C9920A",
+              bg: "#C9920A12",
+            },
           ].map(({ href, emoji, titulo, desc, color, bg }) => (
             <Link key={href} href={href}>
               <div

@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation, LOCATIONS } from "@/context/LocationContext";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
+import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import VendorStampModal from "@/components/VendorStampModal";
 import QRCode from "react-qr-code";
 
@@ -122,6 +123,8 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get("ref");
       if (ref) localStorage.setItem("referral_local_id", ref);
+      const utm = captureUTMParams();
+      if (utm) registrarVisitaUTM(utm, auth.currentUser?.uid);
       if (params.get("login") === "true" || params.get("register") === "true") {
         setShowAuth(true);
       }
