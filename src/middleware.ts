@@ -39,8 +39,15 @@ export function middleware(request: NextRequest) {
   // se ve afectada. Solo bloqueamos entradas directas sin Referer de nuestro dominio.
   if (pathname.startsWith("/emprendedor/")) {
     const referer = request.headers.get("referer") || "";
+    // Aceptar cualquier navegación cuyo Referer provenga de nuestro propio host
+    // (mismo origen), además de los dominios conocidos. Así evitamos redirigir
+    // al inicio cuando la app se sirve desde el dominio de producción real
+    // (p. ej. clubpatiocurauma.synaptechspa.cl) o desde subdominios de tenant.
+    const currentHost = (request.headers.get("host") || "").split(":")[0];
     const fromOurApp =
+      (currentHost && referer.includes(currentHost)) ||
       referer.includes("club-patio-curauma.vercel.app") ||
+      referer.includes("synaptechspa.cl") ||
       referer.includes("localhost");
     if (!fromOurApp) {
       const url = request.nextUrl.clone();
