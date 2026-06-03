@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useLayoutEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, onSnapshot, query, collection, documentId, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -97,13 +97,6 @@ function DetailContent() {
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
-
-  // iOS PWA restoration guard: fires before paint so no blank flash
-  useLayoutEffect(() => {
-    if (!sessionStorage.getItem('home_visited')) {
-      window.location.replace('/');
-    }
-  }, []);
 
   // Auth listener + favorites persistence
   useEffect(() => {
