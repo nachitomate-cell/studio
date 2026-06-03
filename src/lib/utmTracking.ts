@@ -12,12 +12,16 @@ export function captureUTMParams(): UTMParams | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const source = params.get("utm_source") || "";
-  if (!source) return null;
+  const fbclid = params.get("fbclid") || "";
+
+  // Instagram stripea los UTM pero siempre agrega fbclid
+  if (!source && !fbclid) return null;
+
   return {
-    utm_source: source,
-    utm_medium: params.get("utm_medium") || "",
-    utm_campaign: params.get("utm_campaign") || "",
-    utm_content: params.get("utm_content") || "",
+    utm_source: source || "instagram",
+    utm_medium: params.get("utm_medium") || (fbclid && !source ? "social" : ""),
+    utm_campaign: params.get("utm_campaign") || (fbclid && !source ? "ig_link_in_bio" : ""),
+    utm_content: params.get("utm_content") || (fbclid && !source ? fbclid.slice(0, 20) : ""),
   };
 }
 
