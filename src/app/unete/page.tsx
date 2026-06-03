@@ -74,8 +74,13 @@ export default function UnetePage() {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get("ref");
       if (ref) localStorage.setItem("referral_local_id", ref);
-      const utm = captureUTMParams();
-      if (utm) registrarVisitaUTM(utm, null);
+      const utm = captureUTMParams() ?? {
+        utm_source: "qr",
+        utm_medium: "qr",
+        utm_campaign: "entrada_local",
+        utm_content: "",
+      };
+      registrarVisitaUTM(utm, null);
     }
   }, []);
 
