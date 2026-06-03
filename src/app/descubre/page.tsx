@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Sparkles, MapPin } from "lucide-react";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { PREMIOS as PREMIOS_FALLBACK } from "@/lib/data";
+import UTMTracker from "@/components/UTMTracker";
 
 const GOLD = "#D3B673";
 const GREEN = "#9DCC65";
@@ -55,6 +56,7 @@ export default async function DescubrePage() {
       <div style={{ position: "fixed", borderRadius: "50%", pointerEvents: "none", opacity: 0.10, filter: "blur(40px)", width: 280, height: 280, top: -80, right: -60, background: GOLD }} />
       <div style={{ position: "fixed", borderRadius: "50%", pointerEvents: "none", opacity: 0.10, filter: "blur(40px)", width: 180, height: 180, bottom: 60, left: -50, background: GREEN }} />
 
+      <UTMTracker />
       <div style={{ position: "relative", zIndex: 1, maxWidth: 440, margin: "0 auto", paddingBottom: 100 }}>
 
         {/* ── HERO ── */}

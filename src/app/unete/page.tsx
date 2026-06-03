@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import TermsModal from "@/components/TermsModal";
 import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
+import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 
 import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
@@ -67,11 +68,14 @@ export default function UnetePage() {
 
   const preventAutoRedirect = useRef(false);
 
-  // Capturar ?ref= del QR del locatario
+  // Capturar ?ref= del QR del locatario y parámetros UTM
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const ref = new URLSearchParams(window.location.search).get("ref");
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
       if (ref) localStorage.setItem("referral_local_id", ref);
+      const utm = captureUTMParams();
+      if (utm) registrarVisitaUTM(utm, null);
     }
   }, []);
 
