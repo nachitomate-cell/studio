@@ -47,7 +47,12 @@ export default function UnetePage() {
   const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("+569");
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (!val.startsWith("+569")) { setPhone("+569"); return; }
+    setPhone(val);
+  };
   const [nombre, setNombre] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [comuna, setComuna] = useState("");
@@ -561,8 +566,8 @@ export default function UnetePage() {
                     <Label htmlFor="u-phone" className="u-label">
                       <Phone className="u-label-icon" /> Teléfono <span style={{ color: "#ef4444" }}>*</span>
                     </Label>
-                    <Input id="u-phone" type="tel" placeholder="+56 9 1234 5678"
-                      value={phone} onChange={(e) => setPhone(e.target.value)}
+                    <Input id="u-phone" type="tel" placeholder="+569 1234 5678"
+                      value={phone} onChange={handlePhoneChange}
                       className="u-input" autoComplete="tel" />
                   </div>
                 )}
