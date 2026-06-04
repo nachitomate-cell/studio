@@ -222,6 +222,28 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Reviews de Locales ────────────────────────────────────────────────────
+    // Lectura pública: cualquiera puede ver valoraciones.
+    // Cada usuario autenticado puede crear/editar/eliminar solo su propia review.
+    // Un usuario solo puede tener una review por vendor (validado client-side; la regla
+    // solo impide que se escriba con un userId diferente al caller).
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isStaff());
+    }
+
+    // ── Tracking UTM (visitas por campaña publicitaria) ───────────────────────
+    match /utm_visitas/{visitaId} {
+      allow create: if true; // visitante anónimo o autenticado puede registrar su visita
+      allow read, list: if isStaff();
+      allow update, delete: if false;
+    }
+
     // ── Configuración Global (publicidad, etc.) ────────────────────────────────
     // Lectura pública: el afiche se muestra a cualquier visitante, autenticado o no.
     // Escritura restringida a directores/admins.

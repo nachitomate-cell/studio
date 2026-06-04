@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
-import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc, addDoc, serverTimestamp, increment } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc, addDoc, serverTimestamp, increment, getDocs, where } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -818,6 +818,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [sugerenciaCategoria, setSugerenciaCategoria] = useState<"mejora" | "problema" | "otro">("mejora");
   const [sugerenciaLoading, setSugerenciaLoading] = useState(false);
   const [sugerenciaEnviada, setSugerenciaEnviada] = useState(false);
+  const [referidosPendientes, setReferidosPendientes] = useState(0);
   // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
   // pero NO instaló la app en su pantalla de inicio (modo standalone).
   const [showIosHint, setShowIosHint] = useState(false);
@@ -984,6 +985,16 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         : rangoActual,
     }).catch(() => {});
   }, [user, userData]);
+
+  // Cargar referidos pendientes del usuario
+  useEffect(() => {
+    if (!user) return;
+    getDocs(
+      query(collection(db, "referidos_pendientes"), where("referidorId", "==", user.uid), where("status", "==", "pendiente"))
+    )
+      .then((snap) => setReferidosPendientes(snap.size))
+      .catch(() => {});
+  }, [user]);
 
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -2114,9 +2125,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
           }}
         >
-          {/* Luz de fondo sutil */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#D3B673] opacity-10 blur-[60px] pointer-events-none" />
-          
+
+          {/* Header */}
           <div className="px-7 pt-7 pb-4 flex items-center gap-4 relative z-10">
             <div
               className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg"
@@ -2125,16 +2136,16 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               <Users className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-base font-black text-white leading-tight">Programa de Referidos</p>
+              <p className="text-base font-black text-white leading-tight">Invita y Gana</p>
               <p className="text-[12px] text-white/50 leading-tight mt-1">
-                Gana <span className="text-[#D3B673] font-bold">1 sello gratis</span> por cada amigo
+                <span className="text-[#D3B673] font-bold">+1 sello gratis</span> por cada amigo que se registre
               </p>
             </div>
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => setShowReferralInfo(true)}
-              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors"
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
               style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
               title="¿Cómo funciona?"
             >
@@ -2143,65 +2154,84 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
           </div>
 
           <div className="px-7 pb-7 space-y-4 relative z-10">
+            {/* Código + copy */}
             <div
               className="flex items-center justify-between rounded-2xl px-5 py-4"
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
-              <span
-                className="text-2xl font-black tracking-[0.2em]"
-                style={{ color: "#D3B673", fontFamily: "monospace" }}
-              >
-                {userData.codigoReferido}
-              </span>
+              <div>
+                <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Tu código</p>
+                <span
+                  className="text-2xl font-black tracking-[0.2em]"
+                  style={{ color: "#D3B673", fontFamily: "monospace" }}
+                >
+                  {userData.codigoReferido}
+                </span>
+              </div>
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => {
                   navigator.clipboard.writeText(userData.codigoReferido).then(() => {
-                    toast({ title: "¡Copiado!", description: "Código copiado al portapapeles." });
+                    toast({ title: "¡Código copiado!" });
                   });
                 }}
-                className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm"
+                className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
                 style={{ background: "rgba(211,182,115,0.2)", color: "#D3B673" }}
+                title="Copiar código"
               >
                 <Copy className="w-5 h-5" />
               </motion.button>
             </div>
 
-            <div className="flex items-center justify-center gap-6 py-2">
-               <div className="text-center">
-                  <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">Referidos</p>
-                  <p className="text-xl font-black text-[#D3B673]">{userData.referidosExitosos || 0}</p>
-               </div>
-               <div className="w-px h-8 bg-white/10" />
-               <div className="text-center">
-                  <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">Bonus</p>
-                  <p className="text-xl font-black text-primary">{(userData.referidosExitosos || 0)} <span className="text-[10px]">🎟️</span></p>
-               </div>
+            {/* Stats: completados + pendientes */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center rounded-2xl py-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-[9px] text-white/30 uppercase font-black tracking-widest mb-1">Completados</p>
+                <p className="text-xl font-black text-[#D3B673]">{userData.referidosExitosos || 0}</p>
+              </div>
+              <div className="text-center rounded-2xl py-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-[9px] text-white/30 uppercase font-black tracking-widest mb-1">Pendientes</p>
+                <p className="text-xl font-black text-white/70">{referidosPendientes}</p>
+              </div>
+              <div className="text-center rounded-2xl py-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-[9px] text-white/30 uppercase font-black tracking-widest mb-1">Sellos ganados</p>
+                <p className="text-xl font-black text-primary">{userData.referidosExitosos || 0} 🎟️</p>
+              </div>
             </div>
 
+            {/* Botón WhatsApp */}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
-                const msg = `¡Únete al Club Patio Curauma y gana sellos y premios! Usa mi código de referido *${userData.codigoReferido}* al registrarte y ambos ganamos 1 sello extra: https://clubpatiocurauma.synaptechspa.cl/unete`;
-                if (typeof navigator.share === "function") {
-                  navigator.share({ title: "Club Patio Curauma", text: msg }).catch(() => {});
-                } else {
-                  navigator.clipboard.writeText(msg).then(() => {
-                    toast({ title: "¡Mensaje copiado!", description: "Pégalo donde quieras compartirlo." });
-                  });
-                }
+                const link = `https://clubpatiocurauma.synaptechspa.cl/unete?ref=${userData.codigoReferido}`;
+                const msg = `¡Únete al Club Patio Curauma! 🛍️ Acumula sellos, gana premios y descuentos en los mejores locales del mall.\n\nRegístrate con mi código *${userData.codigoReferido}* y ambos ganamos +1 sello extra: ${link}`;
+                const phone = "";
+                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
               }}
-              className="w-full h-14 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all shadow-xl"
-              style={{
-                background: "linear-gradient(135deg, #D3B673, #C9920A)",
-                color: "white",
-                boxShadow: "0 10px 25px rgba(201,146,10,0.4)",
-              }}
+              className="w-full h-13 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all shadow-xl"
+              style={{ background: "linear-gradient(135deg, #25D366, #128C7E)", color: "white", boxShadow: "0 8px 20px rgba(37,211,102,0.3)" }}
             >
-              <Share2 className="w-5 h-5" />
-              Compartir Invitación
+              <MessageCircle className="w-5 h-5 fill-current" />
+              Compartir por WhatsApp
+            </motion.button>
+
+            {/* Copiar link completo */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                const link = `https://clubpatiocurauma.synaptechspa.cl/unete?ref=${userData.codigoReferido}`;
+                navigator.clipboard.writeText(link).then(() => {
+                  toast({ title: "¡Enlace copiado!", description: "Compártelo donde quieras." });
+                });
+              }}
+              className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <Copy className="w-4 h-4" />
+              Copiar enlace de registro
             </motion.button>
           </div>
         </motion.div>

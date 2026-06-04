@@ -15,7 +15,7 @@ import {
   Gift, Clock, ChevronRight, LayoutDashboard,
   X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
   DollarSign, BarChart2, RefreshCw, FileDown, HelpCircle,
-  CheckCircle2, User, MessageCircle, CalendarDays,
+  CheckCircle2, User, MessageCircle, CalendarDays, Star,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -206,6 +206,8 @@ export default function VendedorPage() {
   const [ofertaHoy, setOfertaHoy] = useState<any>(null);
   const [ofertaTexto, setOfertaTexto] = useState("");
   const [savingOferta, setSavingOferta] = useState(false);
+  const [vendorAvgRating, setVendorAvgRating] = useState<number | null>(null);
+  const [vendorReviewCount, setVendorReviewCount] = useState(0);
 
 
   useEffect(() => {
@@ -250,6 +252,17 @@ export default function VendedorPage() {
         setVendorUid(user.uid);
         // Detectar si es admin para mostrar controles extra
         setIsAdmin((user.email || "").trim().toLowerCase() === ADMIN_EMAIL);
+
+        // Cargar estadísticas de reviews del vendor
+        getDocs(query(collection(db, "reviews"), where("vendorId", "==", user.uid)))
+          .then((snap) => {
+            if (snap.empty) return;
+            const count = snap.docs.length;
+            const avg = snap.docs.reduce((s, d) => s + (d.data().rating || 0), 0) / count;
+            setVendorAvgRating(avg);
+            setVendorReviewCount(count);
+          })
+          .catch(() => {});
 
         const profileRef = doc(db, "entrepreneur_profiles", user.uid);
         unsubscribeProfile = onSnapshot(profileRef, (snap) => {
@@ -936,6 +949,23 @@ export default function VendedorPage() {
                       <div className="flex items-baseline gap-2">
                         <p className="text-xl font-black text-slate-800">{formatCLP(crm.ticketPromedio)}</p>
                         <p className="text-[10px] text-slate-300">por compra · {crm.ventasConMontoCount} ventas con monto</p>
+                      </div>
+                    </div>
+                  )}
+                  {vendorReviewCount > 0 && vendorAvgRating !== null && (
+                    <div className="bg-white rounded-2xl p-4 shadow-sm space-y-1 col-span-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Valoración socios</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-xl font-black text-slate-800">{vendorAvgRating.toFixed(1)}</p>
+                        <div className="flex items-center gap-0.5">
+                          {[1,2,3,4,5].map((s) => (
+                            <Star key={s} className={`w-4 h-4 ${s <= Math.round(vendorAvgRating) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"}`} />
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-slate-400">{vendorReviewCount} valoracion{vendorReviewCount !== 1 ? "es" : ""}</p>
                       </div>
                     </div>
                   )}

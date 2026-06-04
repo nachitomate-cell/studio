@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { doc, onSnapshot, query, collection, documentId, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { doc, onSnapshot, query, collection, documentId, where, getDocs, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AssociatedShopsCarousel } from "./AssociatedShopsCarousel";
@@ -24,6 +24,9 @@ import {
   Heart,
   Gift,
   X,
+  Star,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -67,6 +70,15 @@ function DetailContent() {
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [associatedShopsData, setAssociatedShopsData] = useState<any[]>([]);
   const [loadingShops, setLoadingShops] = useState(false);
+
+  // Reviews
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [myReview, setMyReview] = useState<any | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewHover, setReviewHover] = useState(0);
+  const [savingReview, setSavingReview] = useState(false);
 
   const { coords, loading: locLoading, request: requestLocation } = useUserLocation();
 
@@ -185,6 +197,23 @@ function DetailContent() {
     }
   }, [entrepreneur?.associatedShops]);
 
+  // Cargar reviews del local
+  useEffect(() => {
+    if (!id) return;
+    const q = query(collection(db, "reviews"), where("vendorId", "==", id as string));
+    const unsub = onSnapshot(q, (snap) => {
+      const list: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      setReviews(list);
+      if (currentUser) {
+        const mine = list.find((r) => r.userId === currentUser.uid) || null;
+        setMyReview(mine);
+        if (mine) { setReviewRating(mine.rating); setReviewComment(mine.comment || ""); }
+      }
+    });
+    return () => unsub();
+  }, [id, currentUser]);
+
   useEffect(() => {
     if (!id) return;
 
@@ -261,6 +290,46 @@ function DetailContent() {
     } else {
       navigator.clipboard.writeText(shareUrl);
       toast({ description: "Enlace copiado al portapapeles" });
+    }
+  };
+
+  const handleSaveReview = async () => {
+    if (!currentUser || !id) return;
+    setSavingReview(true);
+    try {
+      if (myReview) {
+        await updateDoc(doc(db, "reviews", myReview.id), {
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await addDoc(collection(db, "reviews"), {
+          vendorId: id as string,
+          userId: currentUser.uid,
+          userName: currentUser.displayName || "Miembro del Club",
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+          createdAt: new Date().toISOString(),
+        });
+      }
+      setShowReviewModal(false);
+    } catch (e) {
+      console.error("Error guardando review:", e);
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async () => {
+    if (!myReview) return;
+    try {
+      await deleteDoc(doc(db, "reviews", myReview.id));
+      setMyReview(null);
+      setReviewRating(5);
+      setReviewComment("");
+    } catch (e) {
+      console.error("Error eliminando review:", e);
     }
   };
 
@@ -911,6 +980,112 @@ function DetailContent() {
           </div>
         )}
 
+        {/* ── Reviews ──────────────────────────────────────────────────── */}
+        {(() => {
+          const avgRating = reviews.length > 0
+            ? reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length
+            : 0;
+          const fullStars = Math.round(avgRating);
+
+          return (
+            <section className="px-4 space-y-4 pt-2">
+              {/* Header con promedio */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-[11px] font-black text-[#D3B673] uppercase tracking-widest">Valoraciones</h3>
+                  {reviews.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {[1,2,3,4,5].map((s) => (
+                        <Star key={s} className={`w-3 h-3 ${s <= fullStars ? "fill-yellow-400 text-yellow-400" : "text-white/20"}`} />
+                      ))}
+                      <span className="text-[11px] font-bold text-white/50 ml-1">
+                        {avgRating.toFixed(1)} ({reviews.length})
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {currentUser && (
+                  <button
+                    onClick={() => {
+                      if (myReview) { setReviewRating(myReview.rating); setReviewComment(myReview.comment || ""); }
+                      else { setReviewRating(5); setReviewComment(""); }
+                      setShowReviewModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition-all active:scale-95"
+                    style={{
+                      background: myReview ? "rgba(211,182,115,0.15)" : "rgba(211,182,115,0.2)",
+                      color: "#D3B673",
+                      border: "1px solid rgba(211,182,115,0.35)",
+                    }}
+                  >
+                    {myReview ? <Pencil className="w-3 h-3" /> : <Star className="w-3 h-3" />}
+                    {myReview ? "Editar" : "Valorar"}
+                  </button>
+                )}
+              </div>
+
+              {reviews.length === 0 ? (
+                <div
+                  className="rounded-2xl p-5 text-center"
+                  style={{ background: "rgba(30,41,59,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}
+                >
+                  <Star className="w-6 h-6 text-white/20 mx-auto mb-2" />
+                  <p className="text-[12px] text-white/40 font-medium">Sé el primero en valorar este local</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {reviews.slice(0, 5).map((review: any) => (
+                    <div
+                      key={review.id}
+                      className="rounded-2xl p-4 space-y-2"
+                      style={{
+                        background: review.userId === currentUser?.uid
+                          ? "rgba(211,182,115,0.08)"
+                          : "rgba(30,41,59,0.5)",
+                        border: review.userId === currentUser?.uid
+                          ? "1px solid rgba(211,182,115,0.25)"
+                          : "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black text-white"
+                            style={{ background: "linear-gradient(135deg, #D3B673, #C9920A)" }}
+                          >
+                            {(review.userName || "M").charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black text-white truncate">{review.userName}</p>
+                            <p className="text-[10px] text-white/30">{new Date(review.createdAt).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {[1,2,3,4,5].map((s) => (
+                            <Star key={s} className={`w-3 h-3 ${s <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-white/20"}`} />
+                          ))}
+                          {review.userId === currentUser?.uid && (
+                            <button
+                              onClick={handleDeleteReview}
+                              className="ml-1 w-6 h-6 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+                              style={{ color: "#f87171" }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {review.comment && (
+                        <p className="text-[12px] text-white/60 leading-relaxed pl-9">{review.comment}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })()}
+
         <footer className="text-center pt-8 pb-10">
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
             Toda la información ha sido proporcionada
@@ -993,6 +1168,92 @@ function DetailContent() {
           )}
         </div>
       )}
+      {/* ── Modal de valoración ─────────────────────────────────────────── */}
+      {showReviewModal && (
+        <div
+          className="fixed inset-0 z-[150] flex items-end justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowReviewModal(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col"
+            style={{ background: "#0f172a", border: "1px solid rgba(211,182,115,0.2)", maxHeight: "85vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 rounded-full mx-auto mt-4 shrink-0" style={{ background: "rgba(255,255,255,0.15)" }} />
+
+            <div className="px-7 pt-5 pb-4 flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-lg font-black text-white">{myReview ? "Editar valoración" : "Valorar local"}</h2>
+                <p className="text-[11px] text-white/40 mt-0.5">{entrepreneur.nombre}</p>
+              </div>
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(255,255,255,0.08)" }}
+              >
+                <X className="w-4 h-4 text-white/60" />
+              </button>
+            </div>
+
+            <div className="px-7 pb-7 space-y-5 overflow-y-auto">
+              {/* Selector de estrellas */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Tu puntuación</p>
+                <div className="flex items-center gap-2">
+                  {[1,2,3,4,5].map((s) => (
+                    <button
+                      key={s}
+                      onMouseEnter={() => setReviewHover(s)}
+                      onMouseLeave={() => setReviewHover(0)}
+                      onClick={() => setReviewRating(s)}
+                      className="transition-transform active:scale-90"
+                    >
+                      <Star
+                        className={`w-9 h-9 transition-colors ${s <= (reviewHover || reviewRating) ? "fill-yellow-400 text-yellow-400" : "text-white/20"}`}
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-2 text-sm font-black text-white/60">
+                    {["", "Malo", "Regular", "Bueno", "Muy bueno", "Excelente"][reviewHover || reviewRating]}
+                  </span>
+                </div>
+              </div>
+
+              {/* Comentario */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Comentario <span className="normal-case font-medium">(opcional)</span></p>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value.slice(0, 200))}
+                  placeholder="Cuéntanos tu experiencia en este local…"
+                  rows={3}
+                  className="w-full resize-none rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition-all"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                />
+                <p className="text-[10px] text-white/30 text-right">{reviewComment.length}/200</p>
+              </div>
+
+              <button
+                onClick={handleSaveReview}
+                disabled={savingReview || reviewRating === 0}
+                className="w-full h-13 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(135deg, #D3B673, #C9920A)",
+                  color: "#0f172a",
+                  boxShadow: "0 8px 20px rgba(201,146,10,0.3)",
+                }}
+              >
+                {savingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4 fill-current" />}
+                {myReview ? "Actualizar valoración" : "Publicar valoración"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Prompt selector de barbero para agendar */}
       {showBarberPromptModal && pendingServiceToBook && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">

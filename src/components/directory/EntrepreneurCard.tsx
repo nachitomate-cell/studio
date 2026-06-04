@@ -16,10 +16,12 @@ interface EntrepreneurCardProps {
   isOpen?: boolean | null;
   distanceKm?: number;
   priority?: boolean;
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 
-export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, distanceKm, priority = false }: EntrepreneurCardProps) {
+export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, distanceKm, priority = false, averageRating, reviewCount }: EntrepreneurCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imgSrc, setImgSrc] = useState(getSafeImageUrl(entrepreneur.imagenTarjeta || entrepreneur.imageUrl));
 
@@ -106,11 +108,17 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
           <h3 className="text-xs font-bold text-[#4A4A4A] line-clamp-1 group-hover:text-[#C9920A] transition-colors">
             {entrepreneur.name}
           </h3>
-          {distanceKm !== undefined && (
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              📍 {formatDistance(distanceKm)}
-            </p>
-          )}
+          <div className="flex items-center justify-center gap-2 mt-0.5 flex-wrap">
+            {distanceKm !== undefined && (
+              <p className="text-[10px] text-slate-400">📍 {formatDistance(distanceKm)}</p>
+            )}
+            {averageRating !== undefined && reviewCount !== undefined && reviewCount > 0 && (
+              <div className="flex items-center gap-0.5">
+                <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
+                <span className="text-[10px] font-bold text-slate-500">{averageRating.toFixed(1)}</span>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </Link>
