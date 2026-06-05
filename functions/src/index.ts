@@ -483,7 +483,10 @@ async function executeBroadcast(
           notification: { channelId: "club_patio_marketing", icon: "ic_notification", color: "#4EAD1F" },
         },
         apns: { payload: { aps: { badge: 1, sound: tipo === "urgente" ? "alert" : "default" } } },
-        webpush: { fcmOptions: { link: notifUrl } },
+        webpush: {
+          notification: { tag: 'club-patio-push', icon: '/Logo2.png', badge: '/Logo2.png' },
+          fcmOptions: { link: notifUrl },
+        },
       });
       pushSent += response.successCount;
       errors += response.failureCount;

@@ -89,20 +89,20 @@ const messaging = firebase.messaging();
 // que su notificationclick handler llame stopImmediatePropagation() bloqueando el nuestro.
 //
 // Solución: cerramos la notificación de Firebase y mostramos la nuestra con data: { url }.
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
   const title = payload.notification?.title || payload.data?.title || 'Club Patio Curauma';
   const body  = payload.notification?.body  || payload.data?.body  || '';
 
-  // Guardamos solo el path ("/notificacion?id=ABC") para que notificationclick
-  // siempre construya una URL same-origin y abra dentro de la PWA.
   let path = '/';
   try {
     const raw = payload.data?.url || '';
     if (raw) path = raw.startsWith('http') ? new URL(raw).pathname + new URL(raw).search : raw;
   } catch {}
 
-  // Cerramos todas las notificaciones previas (incluida la auto de Firebase)
-  self.registration.getNotifications().then(notifs => notifs.forEach(n => n.close()));
+  // Cerramos PRIMERO todas las notificaciones existentes (await evita la race condition
+  // donde mostrábamos la nueva antes de cerrar la auto de Firebase, causando duplicados).
+  const existing = await self.registration.getNotifications();
+  existing.forEach(n => n.close());
 
   return self.registration.showNotification(title, {
     body,
@@ -110,6 +110,7 @@ messaging.onBackgroundMessage((payload) => {
     badge: '/Logo2.png',
     vibrate: [200, 100, 200],
     tag: 'club-patio-push',
+    renotify: true,
     data: { path },
   });
 });
@@ -120,16 +121,14 @@ self.addEventListener('notificationclick', (event) => {
   const path = event.notification.data?.path || '/';
   const targetUrl = self.location.origin + path;
 
-  // Async IIFE para poder usar await dentro de event.waitUntil
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = all.find(c => c.url.startsWith(self.location.origin));
     if (existing) {
-      const focused = await existing.focus();
-      if (focused && 'navigate' in focused) {
-        await focused.navigate(targetUrl);
-        return;
-      }
+      await existing.focus();
+      // postMessage es más fiable que navigate() en iOS PWA
+      existing.postMessage({ type: 'PUSH_NAV', path });
+      return;
     }
     await self.clients.openWindow(targetUrl);
   })());

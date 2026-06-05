@@ -147,6 +147,17 @@ export default function Home() {
     }
   }, []);
 
+  // Handler para navegación desde service worker (background tap en iOS)
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_NAV' && event.data?.path) {
+        router.push(event.data.path);
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handler);
+    return () => navigator.serviceWorker?.removeEventListener('message', handler);
+  }, [router]);
+
   // Handler foreground FCM: muestra el modal cuando la app está abierta
   useEffect(() => {
     if (typeof window === "undefined") return;
