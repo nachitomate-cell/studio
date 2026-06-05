@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { doc, onSnapshot, collection, query, getDocs, where } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { app, auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -145,6 +145,25 @@ export default function Home() {
         window.history.replaceState({}, "", "/");
       }
     }
+  }, []);
+
+  // Handler foreground FCM: muestra el modal cuando la app está abierta
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let unsubscribe: (() => void) | undefined;
+    import("firebase/messaging").then(({ getMessaging, onMessage }) => {
+      try {
+        const messaging = getMessaging(app);
+        unsubscribe = onMessage(messaging, (payload) => {
+          const titulo = payload.notification?.title ?? payload.data?.title ?? "";
+          const body   = payload.notification?.body  ?? payload.data?.body  ?? "";
+          const tipo   = payload.data?.type ?? "";
+          const cta    = payload.data?.cta  ?? "/";
+          if (titulo) setPushNotif({ titulo, body, tipo, cta });
+        });
+      } catch {}
+    }).catch(() => {});
+    return () => unsubscribe?.();
   }, []);
 
   useEffect(() => {
