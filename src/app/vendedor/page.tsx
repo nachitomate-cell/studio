@@ -796,7 +796,7 @@ export default function VendedorPage() {
               style={{ borderColor: "#C9920A33" }}>
               <QRCode
                 value={auth.currentUser?.uid
-                  ? `${typeof window !== "undefined" ? window.location.origin : "https://clubpatiocurauma.synaptechspa.cl"}/scan?ref=${auth.currentUser.uid}`
+                  ? `https://clubpatiocurauma.synaptechspa.cl/scan?ref=${auth.currentUser.uid}`
                   : "cargando"}
                 size={260}
                 fgColor="#1a1a1a"

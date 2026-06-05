@@ -1780,7 +1780,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               >
                 <QRCode
                   value={user.uid
-                    ? `${typeof window !== "undefined" ? window.location.origin : "https://clubpatiocurauma.synaptechspa.cl"}/scan?ref=${user.uid}`
+                    ? `https://clubpatiocurauma.synaptechspa.cl/scan?ref=${user.uid}`
                     : "invalid"}
                   size={210}
                   fgColor="#1A1A1A"
