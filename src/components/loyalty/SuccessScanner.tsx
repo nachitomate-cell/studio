@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { CheckCircle2, Store, Clock, ShieldCheck, Star } from "lucide-react";
+import { CheckCircle2, Store, Clock, ShieldCheck, Star, Bell, X } from "lucide-react";
 
 interface SuccessScannerProps {
   vendorName: string;
@@ -21,9 +21,21 @@ export function SuccessScanner({ vendorName, userDisplayName, newTotalSellos, on
   onTimerEndRef.current = onTimerEnd;
 
   const progress = (timeLeft / TIMER_DURATION) * 100;
-  // Circumferencia de un círculo r=44: 2 * PI * 44 ≈ 276.46
   const circumference = 2 * Math.PI * 44;
   const strokeDashoffset = circumference - (circumference * progress) / 100;
+
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  // Mostrar prompt de push 4 segundos después del sello
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "default") return;
+    const snooze = localStorage.getItem("push_sello_snooze");
+    if (snooze && Date.now() < Number(snooze)) return;
+    const t = setTimeout(() => setShowPushPrompt(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const timerId = setInterval(() => {
@@ -184,6 +196,46 @@ export function SuccessScanner({ vendorName, userDisplayName, newTotalSellos, on
           Muestra esta pantalla al vendedor. Caduca en {timeLeft}s.
         </p>
       </div>
+
+      {/* Prompt de activación de push notifications */}
+      {showPushPrompt && (
+        <div className="absolute bottom-4 left-4 right-4 animate-in slide-in-from-bottom-3 duration-300">
+          <div className="bg-white/15 backdrop-blur-xl border border-white/25 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <Bell className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-white leading-tight">¿Te avisamos del próximo premio?</p>
+              <p className="text-[10px] text-white/70 leading-tight mt-0.5">Activa las notificaciones y no pierdas ningún sello.</p>
+            </div>
+            <button
+              disabled={pushLoading}
+              onClick={async () => {
+                setPushLoading(true);
+                try {
+                  const { registerFcmToken } = await import("@/lib/fcmTokenManager");
+                  await registerFcmToken();
+                } finally {
+                  setPushLoading(false);
+                  setShowPushPrompt(false);
+                }
+              }}
+              className="shrink-0 bg-white text-emerald-700 text-[11px] font-black px-3 py-1.5 rounded-xl disabled:opacity-60 active:scale-95 transition-transform"
+            >
+              {pushLoading ? "…" : "Activar"}
+            </button>
+            <button
+              onClick={() => {
+                setShowPushPrompt(false);
+                localStorage.setItem("push_sello_snooze", String(Date.now() + 14 * 24 * 60 * 60 * 1000));
+              }}
+              className="shrink-0 text-white/50 hover:text-white/80 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Barra de progreso inferior */}
       <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-white/10">
