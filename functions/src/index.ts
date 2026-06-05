@@ -163,7 +163,7 @@ async function sendPushNotification(user: UserDoc, promo: PromoMessage): Promise
       data: {
         type: "AI_CAMPAIGN",
         context: promo.context,
-        cta: promo.callToAction,
+        cta: "/",
         uid: user.uid,
       },
       android: {
