@@ -122,7 +122,10 @@ function NotificacionContent() {
         style={{ background: "rgba(15,23,42,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}
       >
         <button
-          onClick={() => router.back()}
+          onClick={() => {
+            if (window.history.length > 1) router.back();
+            else router.replace('/');
+          }}
           className="p-1.5 rounded-lg"
           style={{ background: "rgba(255,255,255,0.06)" }}
         >
@@ -132,7 +135,7 @@ function NotificacionContent() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex flex-col gap-4 px-4 py-5 max-w-xl mx-auto w-full">
+      <div className="flex-1 flex flex-col gap-4 px-4 py-5 pb-24 max-w-xl mx-auto w-full">
         {/* Type badge */}
         <div className="flex items-center gap-2">
           <span

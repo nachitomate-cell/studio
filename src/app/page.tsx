@@ -147,6 +147,13 @@ export default function Home() {
     }
   }, []);
 
+  // Resetear scroll al llegar al home (evita que el BottomNav quede bugueado
+  // tras volver desde páginas dark como /notificacion)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.body.style.overflow = '';
+  }, []);
+
   // Handler para navegación desde service worker (background tap en iOS)
   useEffect(() => {
     const handler = (event: MessageEvent) => {
