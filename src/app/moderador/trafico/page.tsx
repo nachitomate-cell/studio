@@ -38,6 +38,8 @@ export default function TraficoPage() {
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
   const [visitas, setVisitas] = useState<Visita[]>([]);
+  const [paginaVisitas, setPaginaVisitas] = useState(0);
+  const PAGE_SIZE = 5;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -168,9 +170,14 @@ export default function TraficoPage() {
             </div>
           </div>
 
-          {/* Tabla completa — últimas 100 */}
+          {/* Tabla completa con paginación */}
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-            <h2 className="font-black text-slate-800 mb-4">Últimas visitas</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-black text-slate-800">Últimas visitas</h2>
+              <span className="text-xs text-slate-400 font-medium">
+                {paginaVisitas * PAGE_SIZE + 1}–{Math.min((paginaVisitas + 1) * PAGE_SIZE, visitas.length)} de {visitas.length}
+              </span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -182,7 +189,7 @@ export default function TraficoPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {visitas.slice(0, 100).map((v) => (
+                  {visitas.slice(paginaVisitas * PAGE_SIZE, (paginaVisitas + 1) * PAGE_SIZE).map((v) => (
                     <tr key={v.id}>
                       <td className="py-2 pr-4 font-bold text-slate-700">{v.utm_source || "—"}</td>
                       <td className="py-2 pr-4 text-slate-500">{v.utm_medium || "—"}</td>
@@ -196,6 +203,26 @@ export default function TraficoPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            {/* Controles de paginación */}
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setPaginaVisitas(p => Math.max(0, p - 1))}
+                disabled={paginaVisitas === 0}
+                className="px-4 py-1.5 text-xs font-bold rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+              >
+                ← Anterior
+              </button>
+              <span className="text-xs font-bold text-slate-400">
+                Página {paginaVisitas + 1} de {Math.ceil(visitas.length / PAGE_SIZE)}
+              </span>
+              <button
+                onClick={() => setPaginaVisitas(p => Math.min(Math.ceil(visitas.length / PAGE_SIZE) - 1, p + 1))}
+                disabled={(paginaVisitas + 1) * PAGE_SIZE >= visitas.length}
+                className="px-4 py-1.5 text-xs font-bold rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+              >
+                Siguiente →
+              </button>
             </div>
           </div>
         </>
