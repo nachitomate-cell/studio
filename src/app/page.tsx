@@ -84,6 +84,8 @@ export default function Home() {
   const [premiosBadge, setPremiosBadge] = useState(false);
   const [nextPremio, setNextPremio] = useState<{ nombre: string; sellosRequeridos: number; icono: string } | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showPushBanner, setShowPushBanner] = useState(false);
+  const [pushBannerLoading, setPushBannerLoading] = useState(false);
   const [publicidad, setPublicidad] = useState<{ imageUrl: string; cta: string | null } | null>(null);
   const [showPublicidad, setShowPublicidad] = useState(false);
   const [publicidadLoading, setPublicidadLoading] = useState(() =>
@@ -254,6 +256,20 @@ export default function Home() {
       setShowOnboarding(true);
     }
   }, [user, userData]);
+
+  // Banner de activación de push notifications
+  useEffect(() => {
+    if (!user || showOnboarding) return;
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "default") return; // ya concedido o denegado
+
+    // Snooze de 7 días: no molestar si ya lo cerró recientemente
+    const snoozeUntil = localStorage.getItem("push_banner_snooze");
+    if (snoozeUntil && Date.now() < Number(snoozeUntil)) return;
+
+    const timer = setTimeout(() => setShowPushBanner(true), 2000);
+    return () => clearTimeout(timer);
+  }, [user, showOnboarding]);
 
   // Show NPS survey 30 days after registration if not yet answered
   useEffect(() => {
@@ -1040,6 +1056,50 @@ export default function Home() {
         {renderContent()}
       </div>
       <PWAInstallBanner userId={user?.uid ?? null} />
+
+      {/* Banner de activación de push notifications */}
+      {showPushBanner && (
+        <div className="fixed bottom-20 left-0 right-0 z-[200] flex justify-center px-4 animate-in slide-in-from-bottom-3 duration-300">
+          <div className="w-full max-w-lg bg-slate-900 rounded-2xl shadow-2xl px-4 py-3.5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+              <span className="text-lg">🔔</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-white leading-tight">Activa las notificaciones</p>
+              <p className="text-[11px] text-slate-400 leading-tight mt-0.5">Recibe alertas de sellos, premios y promociones exclusivas.</p>
+            </div>
+            <button
+              disabled={pushBannerLoading}
+              onClick={async () => {
+                setPushBannerLoading(true);
+                try {
+                  const { registerFcmToken } = await import("@/lib/fcmTokenManager");
+                  const result = await registerFcmToken();
+                  if (result.ok) {
+                    toast({ title: "¡Notificaciones activadas! 🎉", description: "Ya recibirás todas las alertas del Club." });
+                  }
+                } finally {
+                  setPushBannerLoading(false);
+                  setShowPushBanner(false);
+                }
+              }}
+              className="shrink-0 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded-xl disabled:opacity-60 active:scale-95 transition-transform"
+            >
+              {pushBannerLoading ? "…" : "Activar"}
+            </button>
+            <button
+              onClick={() => {
+                setShowPushBanner(false);
+                localStorage.setItem("push_banner_snooze", String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+              }}
+              className="shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <BottomNav activeTab={activeTab} premiosBadge={premiosBadge} onTabChange={(tab) => {
         setActiveTab(tab);
         setShowAuth(false);
