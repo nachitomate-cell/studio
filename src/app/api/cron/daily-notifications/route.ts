@@ -29,6 +29,10 @@ const MENSAJES_REGALO = [
     titulo: "✨ Tu regalo exclusivo está esperándote",
     cuerpo: "Gracias por preferir Patio Curauma y apoyar a nuestros emprendedores locales 💛 Pasa por Tienda Patio Curauma a canjearlo.",
   },
+  {
+    titulo: "🎁 ¡Ven a buscar tu premio a Patio Curauma Tienda!",
+    cuerpo: "Encuéntranos en Avenida Universidad #134 local 1. De miércoles a domingo de 12:00 a 20:00 hrs. ¡Tu regalo te espera! 💛",
+  },
 ];
 
 const MENSAJES_CAFE = [
@@ -39,6 +43,10 @@ const MENSAJES_CAFE = [
   {
     titulo: "🎉 ¡Felicitaciones! Tu café gratis te espera",
     cuerpo: "Tu fidelidad tiene premio 💛 Pasa por el bazar Patio Curauma Outlet, disfruta tu café gratis y sigue sumando sellos.",
+  },
+  {
+    titulo: "⭐ Recuerda: con 5 sellos ya puedes canjear tus premios",
+    cuerpo: "¿Cuántos te faltan? Ven a Patio Curauma Tienda en Avenida Universidad 134 local 1 y busca tu sello. 💛",
   },
 ];
 
@@ -54,6 +62,10 @@ const MENSAJES_GENERAL = [
   {
     titulo: "✨ Esta semana es perfecta para visitar el Patio",
     cuerpo: "Recorre el bazar, conoce nuevos emprendimientos y acumula sellos. Moda, cafetería, accesorios, decoración y más te esperan 💛",
+  },
+  {
+    titulo: "⭐ Con 5 sellos ya puedes canjear tus premios",
+    cuerpo: "¿Cuántos te faltan? Ven a Patio Curauma Tienda en Avenida Universidad 134 local 1 y busca tu sello. 💛",
   },
 ];
 

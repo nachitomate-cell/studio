@@ -1127,6 +1127,22 @@ export default function Home() {
                 </div>
                 <h2 className="text-xl font-black text-slate-800 leading-snug">{pushNotif.titulo}</h2>
                 <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{pushNotif.body}</p>
+                <a
+                  href="https://maps.google.com/?q=Avenida+Universidad+134,+local+1,+Curauma,+Valparaíso"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-2xl overflow-hidden border border-slate-100 active:opacity-80 transition-opacity"
+                >
+                  <img src="/tienda.jpeg" alt="Patio Curauma Tienda" className="w-full object-cover" style={{ maxHeight: 160 }} />
+                  <div className="px-4 py-3 bg-slate-50 flex items-center gap-3">
+                    <span className="text-lg">🏪</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800">Visítanos en Patio Curauma Tienda</p>
+                      <p className="text-[11px] text-slate-500 truncate">Av. Universidad #134, local 1 · Curauma</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 shrink-0">Ver mapa →</span>
+                  </div>
+                </a>
                 {hasCta && (
                   <Button
                     className="w-full h-12 rounded-2xl font-bold gap-2 bg-primary text-white hover:bg-primary/90"

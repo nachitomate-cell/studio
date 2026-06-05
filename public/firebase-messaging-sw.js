@@ -5,7 +5,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-const CACHE_VERSION = '18';
+const CACHE_VERSION = '20';
 const CACHE_NAME = `club-patio-shell-v${CACHE_VERSION}`;
 const SHELL_ASSETS = ['/Logo.png', '/Logo2.png', '/manifest.json'];
 
@@ -89,57 +89,48 @@ const messaging = firebase.messaging();
 // que su notificationclick handler llame stopImmediatePropagation() bloqueando el nuestro.
 //
 // Solución: cerramos la notificación de Firebase y mostramos la nuestra con data: { url }.
-// Firebase's notificationclick ve que no hay FCM_MSG → retorna early SIN bloquear el nuestro.
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || payload.data?.title || 'Club Patio';
+  const title = payload.notification?.title || payload.data?.title || 'Club Patio Curauma';
   const body  = payload.notification?.body  || payload.data?.body  || '';
-  const tipo  = payload.data?.type || '';
-  const cta   = payload.data?.cta  || '/';
 
-  // Cerrar la notificación automática de Firebase (tiene FCM_MSG, bloquearía el click handler)
-  self.registration.getNotifications().then(notifs => {
-    notifs.forEach(n => { if (n.data?.FCM_MSG) n.close(); });
-  });
+  // Guardamos solo el path ("/notificacion?id=ABC") para que notificationclick
+  // siempre construya una URL same-origin y abra dentro de la PWA.
+  let path = '/';
+  try {
+    const raw = payload.data?.url || '';
+    if (raw) path = raw.startsWith('http') ? new URL(raw).pathname + new URL(raw).search : raw;
+  } catch {}
 
-  // Mostrar nuestra notificación con data limpia (sin FCM_MSG)
-  self.registration.showNotification(title, {
+  // Cerramos todas las notificaciones previas (incluida la auto de Firebase)
+  self.registration.getNotifications().then(notifs => notifs.forEach(n => n.close()));
+
+  return self.registration.showNotification(title, {
     body,
-    icon: '/Logo.png',
-    badge: '/Logo.png',
+    icon: '/Logo2.png',
+    badge: '/Logo2.png',
     vibrate: [200, 100, 200],
-    tag: 'club-patio-broadcast',
-    renotify: true,
-    data: { tipo, cta },
+    tag: 'club-patio-push',
+    data: { path },
   });
 });
 
-// Firebase retorna early de su notificationclick cuando no encuentra FCM_MSG → este corre sin interferencia
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const { tipo = '', cta = '/' } = event.notification.data || {};
 
-  // Si la notificación tiene un destino específico, navegar directo; si no, pasar params para modal
-  const params = new URLSearchParams({
-    n_t: event.notification.title || '',
-    n_b: event.notification.body  || '',
-    n_tipo: tipo,
-    n_cta: cta,
-  });
-  const targetUrl = (cta && cta !== '/')
-    ? self.location.origin + cta
-    : self.location.origin + '/?' + params.toString();
+  const path = event.notification.data?.path || '/';
+  const targetUrl = self.location.origin + path;
 
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-      // Navegar en la ventana PWA ya abierta si existe
-      for (const client of clients) {
-        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          client.focus();
-          if ('navigate' in client) return client.navigate(targetUrl);
-        }
+  // Async IIFE para poder usar await dentro de event.waitUntil
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existing = all.find(c => c.url.startsWith(self.location.origin));
+    if (existing) {
+      const focused = await existing.focus();
+      if (focused && 'navigate' in focused) {
+        await focused.navigate(targetUrl);
+        return;
       }
-      // Si la app no estaba abierta, abrir nueva ventana
-      return self.clients.openWindow(targetUrl);
-    })
-  );
+    }
+    await self.clients.openWindow(targetUrl);
+  })());
 });

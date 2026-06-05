@@ -181,7 +181,6 @@ export default function MensajesPage() {
   };
 
   const handleOpenNotif = async (notif: any) => {
-    // Marcar como leída
     if (!notif.leida && user) {
       try {
         await updateDoc(doc(db, "usuarios", user.uid, "notificaciones", notif.id), { leida: true });
@@ -189,9 +188,10 @@ export default function MensajesPage() {
         console.error("Error marking notif as read", e);
       }
     }
-    // Si tiene actionUrl, navegar directamente
     if (notif.actionUrl) {
       router.push(notif.actionUrl);
+    } else if (notif.broadcastId) {
+      router.push(`/notificacion?id=${notif.broadcastId}`);
     } else {
       setSelectedNotif(notif);
     }

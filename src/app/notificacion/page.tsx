@@ -193,6 +193,38 @@ function NotificacionContent() {
             Cómo llegar
           </a>
         )}
+
+        {/* Tienda Patio Curauma — banner de invitación */}
+        <div
+          className="mt-4 rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <img
+            src="/tienda.jpeg"
+            alt="Patio Curauma Tienda"
+            className="w-full object-cover"
+            style={{ maxHeight: 220 }}
+          />
+          <div className="p-4" style={{ background: "rgba(255,255,255,0.04)" }}>
+            <p className="text-sm font-semibold mb-1" style={{ color: "#f1f5f9" }}>
+              🏪 Visítanos en Patio Curauma Tienda
+            </p>
+            <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(255,255,255,0.6)" }}>
+              Encuéntranos en Avenida Universidad #134 local 1.{"\n"}
+              Miércoles a domingo · 12:00 a 20:00 hrs.
+            </p>
+            <a
+              href="https://maps.google.com/?q=Avenida+Universidad+134,+Curauma,+Valparaíso"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold"
+              style={{ background: "rgba(78,173,31,0.15)", color: "#4ead1f", border: "1px solid rgba(78,173,31,0.3)" }}
+            >
+              <MapPin size={13} />
+              Cómo llegar
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );

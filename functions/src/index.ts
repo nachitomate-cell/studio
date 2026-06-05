@@ -466,7 +466,7 @@ async function executeBroadcast(
     await batch.commit();
   }
 
-  const BASE_URL = process.env.BASE_URL ?? "https://club-patio-curauma.vercel.app";
+  const BASE_URL = process.env.BASE_URL ?? "https://clubpatiocurauma.synaptechspa.cl";
 
   for (let i = 0; i < tokens.length; i += 500) {
     const tokenBatch = tokens.slice(i, i + 500);
