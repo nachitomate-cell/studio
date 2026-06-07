@@ -141,6 +141,10 @@ export async function GET(request: Request) {
             body: msg.cuerpo,
             icon: "/Logo2.png",
             badge: "/Logo2.png",
+            // tag deduplicates on the browser: si el cron reintenta, reemplaza
+            // la notificación anterior en vez de apilarse encima de ella.
+            tag: "club-patio-cron-tarde",
+            renotify: false,
           },
           fcmOptions: { link: "/" },
         },
