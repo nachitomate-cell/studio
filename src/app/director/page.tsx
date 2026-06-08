@@ -339,8 +339,22 @@ export default function DirectorPage() {
   // Merged ranking: deduplica por ID, ordena por sellos del mes
   const ranking = useMemo(() => {
     const map = new Map<string, any>();
+    // Fuente primaria: usuarios con rol emprendedor
     [...rankingByRol, ...rankingByRoles].forEach((emp) => {
       if (!map.has(emp.id)) map.set(emp.id, emp);
+    });
+    // Fallback: entrepreneur_profiles cubre locales sin documento en usuarios
+    allProfiles.forEach((p: any) => {
+      if (!map.has(p.id)) {
+        map.set(p.id, {
+          id: p.id,
+          nombreTienda: p.businessName || p.nombre || p.id.substring(0, 8),
+          rubro: p.rubro || p.category || "General",
+          sellosEntregados: 0,
+          sellosEntregadosHistorico: 0,
+          ultimaActividad: p.ultimaVenta || p.ultimaVisita || null,
+        });
+      }
     });
     return Array.from(map.values())
       .map(emp => ({
@@ -349,7 +363,7 @@ export default function DirectorPage() {
         sellosEntregadosHistorico: vendorHistoricFromLogs.get(emp.id) ?? emp.sellosEntregadosHistorico,
       }))
       .sort((a, b) => b.sellosEntregados - a.sellosEntregados);
-  }, [rankingByRol, rankingByRoles, vendorMonthlyFromLogs, vendorHistoricFromLogs]);
+  }, [rankingByRol, rankingByRoles, vendorMonthlyFromLogs, vendorHistoricFromLogs, allProfiles]);
 
   // KPIs derivados del ranking
   const kpiSellosMes = ranking.reduce((s, v) => s + v.sellosEntregados, 0);
