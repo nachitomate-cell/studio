@@ -748,6 +748,13 @@ export default function DirectorPage() {
           <div className="flex gap-2">
             <Button
               size="sm" variant="outline"
+              onClick={() => router.push("/moderador/plantillas")}
+              className="rounded-xl gap-1.5 font-bold text-[10px] uppercase"
+            >
+              <Megaphone className="w-3 h-3" /> Plantillas
+            </Button>
+            <Button
+              size="sm" variant="outline"
               onClick={() => router.push("/directorio")}
               className="rounded-xl gap-1.5 font-bold text-[10px] uppercase"
             >
