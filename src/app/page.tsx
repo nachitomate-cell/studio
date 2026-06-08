@@ -135,17 +135,6 @@ export default function Home() {
         redirectAfterLoginRef.current = redirectParam;
         setShowAuth(true);
       }
-      const nt = params.get("n_t");
-      const nb = params.get("n_b");
-      if (nt && nb) {
-        setPushNotif({
-          titulo: nt,
-          body: nb,
-          tipo: params.get("n_tipo") || "",
-          cta: params.get("n_cta") || "/",
-        });
-        window.history.replaceState({}, "", "/");
-      }
     }
   }, []);
 
@@ -175,10 +164,18 @@ export default function Home() {
       try {
         const messaging = getMessaging(app);
         unsubscribe = onMessage(messaging, (payload) => {
-          const titulo = payload.notification?.title ?? payload.data?.title ?? "";
-          const body   = payload.notification?.body  ?? payload.data?.body  ?? "";
-          const tipo   = payload.data?.type ?? "";
-          const cta    = payload.data?.cta  ?? "/";
+          const titulo  = payload.notification?.title ?? payload.data?.title ?? "";
+          const body    = payload.notification?.body  ?? payload.data?.body  ?? "";
+          const tipo    = payload.data?.type ?? "";
+          const rawUrl  = payload.data?.url ?? "";
+          let cta = payload.data?.cta ?? "/";
+          if (rawUrl) {
+            try {
+              cta = rawUrl.startsWith("http")
+                ? new URL(rawUrl).pathname + new URL(rawUrl).search
+                : rawUrl;
+            } catch {}
+          }
           if (titulo) setPushNotif({ titulo, body, tipo, cta });
         });
       } catch {}

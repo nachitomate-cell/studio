@@ -122,6 +122,10 @@ function buildMulticast(
         body: cuerpo,
         icon: "/Logo2.png",
         badge: "/Logo2.png",
+        // tag deduplicates on the browser: si el cron reintenta, reemplaza
+        // la notificación anterior en vez de apilarse encima de ella.
+        tag: "club-patio-cron-diaria",
+        renotify: false,
       },
       fcmOptions: { link },
     },
