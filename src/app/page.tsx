@@ -33,6 +33,7 @@ import { useLocation, LOCATIONS } from "@/context/LocationContext";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import VendorStampModal from "@/components/VendorStampModal";
+import PushNotifModal, { type PushNotifData } from "@/components/PushNotifModal";
 import QRCode from "react-qr-code";
 
 function getMondayKey(date: Date): string {
@@ -71,7 +72,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const redirectAfterLoginRef = useRef<string | null>(null);
-  const [pushNotif, setPushNotif] = useState<{ titulo: string; body: string; tipo: string; cta: string } | null>(null);
+  const [pushNotif, setPushNotif] = useState<PushNotifData | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -1181,81 +1182,12 @@ export default function Home() {
         locals={entrepreneurs}
       />
 
-      {/* Modal de notificación push */}
-      {pushNotif && (() => {
-        const TIPO_MAP: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
-          BROADCAST_INFO:    { label: "Información", color: "#3b82f6", bg: "rgba(59,130,246,0.12)",  emoji: "📢" },
-          BROADCAST_URGENTE: { label: "Urgente",     color: "#ef4444", bg: "rgba(239,68,68,0.12)",   emoji: "🚨" },
-          BROADCAST_PROMO:   { label: "Promoción",   color: "#10b981", bg: "rgba(16,185,129,0.12)",  emoji: "🎉" },
-          BROADCAST_SORTEO:  { label: "Sorteo",      color: "#8b5cf6", bg: "rgba(139,92,246,0.12)",  emoji: "🎟️" },
-        };
-        const cfg = TIPO_MAP[pushNotif.tipo];
-        const hasCta = pushNotif.cta && pushNotif.cta !== "/";
-        return (
-          <div
-            className="fixed inset-0 z-[300] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={() => setPushNotif(null)}
-          >
-            <div
-              className="w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-slate-200" />
-              </div>
-              <div className="px-6 pt-3 pb-8 space-y-4">
-                <div className="flex items-center justify-between">
-                  {cfg ? (
-                    <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: cfg.bg, color: cfg.color }}>
-                      {cfg.emoji} {cfg.label}
-                    </span>
-                  ) : (
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Club Patio Curauma</span>
-                  )}
-                  <button
-                    onClick={() => setPushNotif(null)}
-                    className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <h2 className="text-xl font-black text-slate-800 leading-snug">{pushNotif.titulo}</h2>
-                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{pushNotif.body}</p>
-                <a
-                  href="https://maps.google.com/?q=Avenida+Universidad+134,+local+1,+Curauma,+Valparaíso"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-2xl overflow-hidden border border-slate-100 active:opacity-80 transition-opacity"
-                >
-                  <img src="/tienda.jpeg" alt="Patio Curauma Tienda" className="w-full object-cover" style={{ maxHeight: 160 }} />
-                  <div className="px-4 py-3 bg-slate-50 flex items-center gap-3">
-                    <span className="text-lg">🏪</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-800">Visítanos en Patio Curauma Tienda</p>
-                      <p className="text-[11px] text-slate-500 truncate">Av. Universidad #134, local 1 · Curauma</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-600 shrink-0">Ver mapa →</span>
-                  </div>
-                </a>
-                {hasCta && (
-                  <Button
-                    className="w-full h-12 rounded-2xl font-bold gap-2 bg-primary text-white hover:bg-primary/90"
-                    onClick={() => { router.push(pushNotif.cta); setPushNotif(null); }}
-                  >
-                    <ExternalLink className="w-4 h-4" /> Ver más
-                  </Button>
-                )}
-                <button
-                  onClick={() => setPushNotif(null)}
-                  className="w-full h-10 rounded-2xl text-sm font-bold text-slate-400 hover:bg-slate-50 transition-colors"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Modal de notificación push — adaptativo por tipo */}
+      <PushNotifModal
+        notif={pushNotif}
+        onClose={() => setPushNotif(null)}
+        onNavigate={(p) => router.push(p)}
+      />
 
       <VendorStampModal vendorId={isVendor && user ? user.uid : null} />
 

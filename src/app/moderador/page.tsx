@@ -649,6 +649,14 @@ export default function ModeradorPage() {
               color: "#C9920A",
               bg: "#C9920A12",
             },
+            {
+              href: "/moderador/plantillas",
+              emoji: "🔔",
+              titulo: "Plantillas de Notificación",
+              desc: "Repositorio · Filtros · Copiar al portapapeles",
+              color: "#8b5cf6",
+              bg: "#8b5cf612",
+            },
           ].map(({ href, emoji, titulo, desc, color, bg }) => (
             <Link key={href} href={href}>
               <div
