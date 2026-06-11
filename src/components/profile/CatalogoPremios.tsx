@@ -179,85 +179,113 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
           <h3 className="font-headline font-semibold text-lg">Catálogo de Beneficios</h3>
         </div>
 
-        <div className="grid grid-cols-1 gap-3">
+        <div className="space-y-5">
           {isFetching ? (
             <div className="py-6 flex justify-center">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
           ) : premios.length > 0 ? (
-            premios.map((premio) => {
-              const costo = premio.sellosRequeridos || 0;
-              const sinStock = !premio.esSorteo && typeof premio.stock === "number" && premio.stock <= 0;
-              const puedeCanjear = comprasActuales >= costo && !sinStock;
-              const vendorName = premio.vendorNombre
-                || (premio.vendorId ? (vendorNames[premio.vendorId] || "Patio Curauma") : "Patio Curauma");
+            (() => {
+              // Agrupar premios por vendor
+              const grupos: Record<string, { vendorName: string; items: any[] }> = {};
+              premios.forEach((premio) => {
+                const key = premio.vendorId || "__general__";
+                const vendorName = premio.vendorNombre
+                  || (premio.vendorId ? (vendorNames[premio.vendorId] || "Patio Curauma") : "Patio Curauma");
+                if (!grupos[key]) grupos[key] = { vendorName, items: [] };
+                grupos[key].items.push({ ...premio, vendorNombre: vendorName });
+              });
 
-              return (
-                <Card
-                  key={premio.id}
-                  onClick={() => setSelectedPremio({ ...premio, vendorNombre: vendorName })}
-                  className={`overflow-hidden border transition-all duration-300 cursor-pointer active:scale-[0.98] ${premio.esSorteo ? 'border-yellow-300 bg-yellow-50/20' : 'border-slate-100'} ${sinStock ? 'opacity-50 grayscale' : puedeCanjear ? 'shadow-md hover:shadow-lg' : 'opacity-75'}`}
-                >
-                  <CardContent className="p-4 flex items-center gap-3">
-                    {/* Ícono */}
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${premio.esSorteo ? 'bg-yellow-400 text-white' : 'bg-primary/10 text-primary'}`}>
-                      {renderIcon(premio.icono, premio.esSorteo)}
+              return Object.entries(grupos).map(([vendorKey, grupo]) => (
+                <div key={vendorKey} className="space-y-2">
+                  {/* Encabezado del local */}
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                      <Store className="w-3.5 h-3.5 text-primary" />
                     </div>
+                    <p className="text-xs font-black uppercase tracking-widest text-primary truncate">
+                      {grupo.vendorName}
+                    </p>
+                    <div className="flex-1 h-px bg-primary/15" />
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                      {grupo.items.length} {grupo.items.length === 1 ? "premio" : "premios"}
+                    </span>
+                  </div>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-bold text-sm leading-tight ${premio.esSorteo ? 'text-yellow-700' : 'text-slate-800'}`}>
-                        {premio.nombre}
-                      </p>
-                      <p style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "2px" }} className="truncate">
-                        {vendorName}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p style={{ fontSize: "11px", color: "#9B9B9B" }}>
-                          {costo} sellos
-                        </p>
-                        {!premio.esSorteo && typeof premio.stock === "number" && (
-                          <p style={{ fontSize: "11px", fontWeight: 700, color: premio.stock <= 3 ? "#ef4444" : "#9B9B9B" }}>
-                            · {premio.stock === 0 ? "Sin stock" : `${premio.stock} disponibles`}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                  {/* Premios del local */}
+                  <div className="grid grid-cols-1 gap-2">
+                    {grupo.items.map((premio) => {
+                      const costo = premio.sellosRequeridos || 0;
+                      const sinStock = !premio.esSorteo && typeof premio.stock === "number" && premio.stock <= 0;
+                      const puedeCanjear = comprasActuales >= costo && !sinStock;
 
-                    {/* Badge */}
-                    {puedeCanjear ? (
-                      <span
-                        style={{
-                          backgroundColor: premio.esSorteo ? "#EAB308" : "#8DC63F",
-                          color: "white",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          borderRadius: "20px",
-                          padding: "6px 14px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {premio.esSorteo ? "Ver" : "Ver premio"}
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          backgroundColor: "rgba(201,146,10,0.12)",
-                          color: "#C9920A",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          borderRadius: "20px",
-                          padding: "6px 14px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Faltan {costo - comprasActuales}
-                      </span>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
+                      return (
+                        <Card
+                          key={premio.id}
+                          onClick={() => setSelectedPremio(premio)}
+                          className={`overflow-hidden border transition-all duration-300 cursor-pointer active:scale-[0.98] ${premio.esSorteo ? 'border-yellow-300 bg-yellow-50/20' : 'border-slate-100'} ${sinStock ? 'opacity-50 grayscale' : puedeCanjear ? 'shadow-md hover:shadow-lg' : 'opacity-75'}`}
+                        >
+                          <CardContent className="p-4 flex items-center gap-3">
+                            {/* Ícono */}
+                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${premio.esSorteo ? 'bg-yellow-400 text-white' : 'bg-primary/10 text-primary'}`}>
+                              {renderIcon(premio.icono, premio.esSorteo)}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-bold text-sm leading-tight ${premio.esSorteo ? 'text-yellow-700' : 'text-slate-800'}`}>
+                                {premio.nombre}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p style={{ fontSize: "11px", color: "#9B9B9B" }}>
+                                  {costo} sellos
+                                </p>
+                                {!premio.esSorteo && typeof premio.stock === "number" && (
+                                  <p style={{ fontSize: "11px", fontWeight: 700, color: premio.stock <= 3 ? "#ef4444" : "#9B9B9B" }}>
+                                    · {premio.stock === 0 ? "Sin stock" : `${premio.stock} disponibles`}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Badge */}
+                            {puedeCanjear ? (
+                              <span
+                                style={{
+                                  backgroundColor: premio.esSorteo ? "#EAB308" : "#8DC63F",
+                                  color: "white",
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  borderRadius: "20px",
+                                  padding: "6px 14px",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {premio.esSorteo ? "Ver" : "Ver premio"}
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  backgroundColor: "rgba(201,146,10,0.12)",
+                                  color: "#C9920A",
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  borderRadius: "20px",
+                                  padding: "6px 14px",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                Faltan {costo - comprasActuales}
+                              </span>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ));
+            })()
           ) : (
             <div className="flex flex-col items-center text-center py-10 px-4 space-y-3">
               <div

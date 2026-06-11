@@ -614,56 +614,6 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
         )}
       </AnimatePresence>
 
-      {/* ── QR Code Central ──────────────────────────────────────────────────── */}
-      <Card
-        className="border-none shadow-xl rounded-[2rem] overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #F7F9F0 0%, #EEF5E8 100%)", borderLeft: "3px solid var(--color-secondary)" }}
-      >
-        <CardContent className="flex flex-col items-center py-7 px-6">
-          <div className="flex items-center justify-between w-full mb-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tu código QR</p>
-              <p className="text-sm font-bold text-slate-700">{userName}</p>
-            </div>
-            <button
-              onClick={() => setShowHelpModal(true)}
-              className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
-              aria-label="¿Cómo funciona?"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
-            <QRCode
-              value={user.uid}
-              size={180}
-              fgColor="#000000"
-              style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-            />
-          </div>
-          <p className="text-xs text-slate-400 font-medium mt-3">Muestra este código en caja para sumar sellos</p>
-          <GoogleWalletMiniButton userId={user.uid} userName={userName} stampsCount={sellos} />
-        </CardContent>
-      </Card>
-
-      {/* ── Mi Ruta (fondo azul marino sólido, sin degradado celeste) ─────────── */}
-      <Card
-        onClick={() => router.push("/ruta")}
-        className="cursor-pointer border-none shadow-md rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
-        style={{ background: "#0F172A" }}
-      >
-        <CardContent className="p-5 flex items-center justify-between">
-          <div className="space-y-0.5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Explora el patio</p>
-            <h3 className="text-xl font-black text-white flex items-center gap-2">🗺️ Mi Ruta</h3>
-            <p className="text-xs text-white/70 mt-1">
-              Colecciona estampillas visitando todos los locales aliados.
-            </p>
-          </div>
-          <span className="text-2xl font-light text-white/40">›</span>
-        </CardContent>
-      </Card>
-
       {/* ── Mi Tarjeta de Sellos ──────────────────────────────────────────────── */}
       <section className="space-y-2">
         <h3 className="font-headline font-semibold text-base text-primary flex items-center gap-2 px-1">
@@ -772,6 +722,24 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
         </Card>
       </section>
 
+      {/* ── Mi Ruta ─────────────────────────────────────────────────────────── */}
+      <Card
+        onClick={() => router.push("/ruta")}
+        className="cursor-pointer border-none shadow-md rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
+        style={{ background: "#0F172A" }}
+      >
+        <CardContent className="p-5 flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Explora el patio</p>
+            <h3 className="text-xl font-black text-white flex items-center gap-2">🗺️ Mi Ruta</h3>
+            <p className="text-xs text-white/70 mt-1">
+              Colecciona estampillas visitando todos los locales aliados.
+            </p>
+          </div>
+          <span className="text-2xl font-light text-white/40">›</span>
+        </CardContent>
+      </Card>
+
       {/* ── Catálogo de Beneficios ────────────────────────────────────────────── */}
       <section className="space-y-3">
         <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
@@ -787,55 +755,81 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
             No hay premios disponibles por ahora.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3">
-            {premios.map((premio) => {
-              const stockDisponible = typeof premio.stock !== "number" || premio.stock > 0;
-              const puedeCanjear = sellos >= premio.sellosRequeridos && stockDisponible;
-              return (
-                <Card
-                  key={premio.id}
-                  onClick={() => setSelectedPremio(premio)}
-                  className={`border overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 ${
-                    premio.esSorteo
-                      ? "border-yellow-200 bg-yellow-50/30"
-                      : puedeCanjear
-                      ? "border-primary/20 shadow-sm hover:shadow-md hover:border-primary/40"
-                      : "border-slate-100 opacity-80 hover:opacity-100"
-                  }`}
-                >
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 text-2xl ${premio.esSorteo ? "bg-yellow-400" : "bg-primary/10"}`}>
-                      {premio.icono || "🎁"}
+          <div className="space-y-5">
+            {(() => {
+              const grupos: Record<string, { vendorName: string; items: Premio[] }> = {};
+              premios.forEach((premio) => {
+                const key = premio.vendorId || "__general__";
+                const vendorName = premio.vendorNombre || "Patio Curauma";
+                if (!grupos[key]) grupos[key] = { vendorName, items: [] };
+                grupos[key].items.push(premio);
+              });
+
+              return Object.entries(grupos).map(([vendorKey, grupo]) => (
+                <div key={vendorKey} className="space-y-2">
+                  {/* Encabezado del local */}
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                      <Store className="w-3.5 h-3.5 text-primary" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-slate-800 leading-tight">{premio.nombre}</p>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
-                        {premio.vendorNombre || "Patio Curauma"}
-                      </p>
-                      <p className="text-[11px] font-black text-primary mt-0.5">{premio.sellosRequeridos} sellos</p>
-                    </div>
-                    {/* Contraste de estados: mostaza sólido vs gris neutro */}
-                    {puedeCanjear ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedPremio(premio); }}
-                        className="shrink-0 px-4 py-2 rounded-2xl font-black text-xs text-white shadow-md active:scale-95 transition-transform"
-                        style={{ backgroundColor: premio.esSorteo ? "#EAB308" : "#C9920A" }}
-                      >
-                        ¡Canjear ahora!
-                      </button>
-                    ) : sellos < premio.sellosRequeridos ? (
-                      <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-gray-100 text-gray-500">
-                        Faltan {premio.sellosRequeridos - sellos}
-                      </span>
-                    ) : (
-                      <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-red-50 text-red-400">
-                        Sin stock
-                      </span>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    <p className="text-xs font-black uppercase tracking-widest text-primary truncate">
+                      {grupo.vendorName}
+                    </p>
+                    <div className="flex-1 h-px bg-primary/15" />
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                      {grupo.items.length} {grupo.items.length === 1 ? "premio" : "premios"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2">
+                    {grupo.items.map((premio) => {
+                      const stockDisponible = typeof premio.stock !== "number" || premio.stock > 0;
+                      const puedeCanjear = sellos >= premio.sellosRequeridos && stockDisponible;
+                      return (
+                        <Card
+                          key={premio.id}
+                          onClick={() => setSelectedPremio(premio)}
+                          className={`border overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 ${
+                            premio.esSorteo
+                              ? "border-yellow-200 bg-yellow-50/30"
+                              : puedeCanjear
+                              ? "border-primary/20 shadow-sm hover:shadow-md hover:border-primary/40"
+                              : "border-slate-100 opacity-80 hover:opacity-100"
+                          }`}
+                        >
+                          <CardContent className="p-4 flex items-center gap-3">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 text-2xl ${premio.esSorteo ? "bg-yellow-400" : "bg-primary/10"}`}>
+                              {premio.icono || "🎁"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm text-slate-800 leading-tight">{premio.nombre}</p>
+                              <p className="text-[11px] font-black text-primary mt-0.5">{premio.sellosRequeridos} sellos</p>
+                            </div>
+                            {puedeCanjear ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedPremio(premio); }}
+                                className="shrink-0 px-4 py-2 rounded-2xl font-black text-xs text-white shadow-md active:scale-95 transition-transform"
+                                style={{ backgroundColor: premio.esSorteo ? "#EAB308" : "#C9920A" }}
+                              >
+                                ¡Canjear ahora!
+                              </button>
+                            ) : sellos < premio.sellosRequeridos ? (
+                              <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-gray-100 text-gray-500">
+                                Faltan {premio.sellosRequeridos - sellos}
+                              </span>
+                            ) : (
+                              <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-red-50 text-red-400">
+                                Sin stock
+                              </span>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
       </section>
@@ -912,6 +906,38 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
           </div>
         )}
       </section>
+
+      {/* ── QR Code Central ──────────────────────────────────────────────────── */}
+      <Card
+        className="border-none shadow-xl rounded-[2rem] overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #F7F9F0 0%, #EEF5E8 100%)", borderLeft: "3px solid var(--color-secondary)" }}
+      >
+        <CardContent className="flex flex-col items-center py-7 px-6">
+          <div className="flex items-center justify-between w-full mb-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tu código QR</p>
+              <p className="text-sm font-bold text-slate-700">{userName}</p>
+            </div>
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+              aria-label="¿Cómo funciona?"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-4 bg-white border-2 border-primary/5 rounded-3xl shadow-inner flex items-center justify-center">
+            <QRCode
+              value={user.uid}
+              size={180}
+              fgColor="#000000"
+              style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+            />
+          </div>
+          <p className="text-xs text-slate-400 font-medium mt-3">Muestra este código en caja para sumar sellos</p>
+          <GoogleWalletMiniButton userId={user.uid} userName={userName} stampsCount={sellos} />
+        </CardContent>
+      </Card>
 
       {/* Modales */}
       {selectedPremio && !confirmPremio && (

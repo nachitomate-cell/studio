@@ -70,6 +70,7 @@ function DetailContent() {
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [associatedShopsData, setAssociatedShopsData] = useState<any[]>([]);
   const [loadingShops, setLoadingShops] = useState(false);
+  const [premiosLocal, setPremiosLocal] = useState<any[]>([]);
 
   // Reviews
   const [reviews, setReviews] = useState<any[]>([]);
@@ -196,6 +197,23 @@ function DetailContent() {
       fetchShops();
     }
   }, [entrepreneur?.associatedShops]);
+
+  // Cargar premios de este local
+  useEffect(() => {
+    if (!id) return;
+    const q = query(
+      collection(db, "premios"),
+      where("vendorId", "==", id as string),
+      where("activo", "==", true)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a: any, b: any) => (a.sellosRequeridos || 0) - (b.sellosRequeridos || 0));
+      setPremiosLocal(list);
+    });
+    return () => unsub();
+  }, [id]);
 
   // Cargar reviews del local
   useEffect(() => {
@@ -831,6 +849,73 @@ function DetailContent() {
               <span style={{ color: "#C9920A", fontSize: 18, lineHeight: 1, flexShrink: 0 }}>›</span>
             </div>
           </div>
+        )}
+
+        {/* ── Premios de este local ────────────────────────────────────────── */}
+        {premiosLocal.length > 0 && !esPremium && (
+          <section className="px-4 space-y-3">
+            <h3 className="text-[11px] font-black text-[#D3B673] uppercase tracking-widest flex items-center gap-1.5">
+              <Gift className="w-3.5 h-3.5" /> Premios en este local
+            </h3>
+            <div className="space-y-2">
+              {premiosLocal.map((premio: any) => {
+                const costo = premio.sellosRequeridos || 0;
+                const sinStock = typeof premio.stock === "number" && premio.stock <= 0;
+                const puedeCanjear = userStamps && userStamps.total >= costo && !sinStock;
+                return (
+                  <div
+                    key={premio.id}
+                    className="flex items-center gap-3 rounded-2xl p-3.5 transition-all"
+                    style={{
+                      background: puedeCanjear
+                        ? "rgba(157,204,101,0.08)"
+                        : "rgba(30, 41, 59, 0.55)",
+                      border: `1px solid ${puedeCanjear ? "rgba(157,204,101,0.30)" : "rgba(255,255,255,0.07)"}`,
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl"
+                      style={{ background: "rgba(201,146,10,0.12)" }}
+                    >
+                      {premio.icono || "🎁"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white leading-tight">{premio.nombre}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[11px] font-black" style={{ color: "#C9920A" }}>
+                          {costo} sellos
+                        </p>
+                        {typeof premio.stock === "number" && (
+                          <p className="text-[10px] font-bold" style={{ color: sinStock ? "#f87171" : "#64748b" }}>
+                            · {sinStock ? "Sin stock" : `${premio.stock} disponibles`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {sinStock ? (
+                      <span className="text-[10px] font-bold text-red-400 shrink-0">Agotado</span>
+                    ) : puedeCanjear ? (
+                      <button
+                        onClick={() => router.push("/premios")}
+                        className="shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-black active:scale-95 transition-transform"
+                        style={{
+                          background: "rgba(157,204,101,0.18)",
+                          color: "#9DCC65",
+                          border: "1px solid rgba(157,204,101,0.35)",
+                        }}
+                      >
+                        ¡Canjear!
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-500 shrink-0">
+                        {userStamps ? `Faltan ${costo - userStamps.total}` : `${costo} sellos`}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {/* ── Botones de acción ────────────────────────────────────────────── */}
