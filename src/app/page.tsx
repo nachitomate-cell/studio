@@ -242,10 +242,15 @@ export default function Home() {
     const unsub = onSnapshot(doc(db, "config", "publicidad"), (snap) => {
       if (snap.exists() && snap.data().activa && snap.data().imageUrl) {
         const d = snap.data();
-        setPublicidad({ imageUrl: d.imageUrl, cta: d.cta || null });
+        const newPub = { imageUrl: d.imageUrl, cta: d.cta || null };
+        setPublicidad(newPub);
         if (!sessionStorage.getItem("publicidad_vista")) {
           sessionStorage.setItem("publicidad_vista", "1");
-          setShowPublicidad(true);
+          // Precargar imagen antes de abrir el modal para evitar flash de carga
+          const preload = new window.Image();
+          preload.onload = () => setShowPublicidad(true);
+          preload.onerror = () => setShowPublicidad(true);
+          preload.src = newPub.imageUrl;
         }
       } else {
         setPublicidad(null);

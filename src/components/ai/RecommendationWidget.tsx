@@ -17,9 +17,12 @@ interface PremiumLocal {
   promoText?: string;
 }
 
+// Cache de módulo — persiste entre navegaciones sin re-fetches
+let _premiumCache: PremiumLocal[] | null = null;
+
 export function RecommendationWidget() {
-  const [premiumLocales, setPremiumLocales] = useState<PremiumLocal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [premiumLocales, setPremiumLocales] = useState<PremiumLocal[]>(_premiumCache ?? []);
+  const [loading, setLoading] = useState(_premiumCache === null);
 
   useEffect(() => {
     const q = query(
@@ -42,6 +45,7 @@ export function RecommendationWidget() {
             promoText: doc.promoText || undefined,
           };
         });
+        _premiumCache = data;
         setPremiumLocales(data);
         setLoading(false);
       },
