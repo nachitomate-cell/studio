@@ -75,9 +75,9 @@ export default function ClientScannerPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // "redirecting" → llegó con ?ref= o sin sesión, mostrando spinner mientras redirige
-  // "scanner"    → modo normal, mostrar cámara directamente
-  const [mode, setMode] = useState<"redirecting" | "scanner">("scanner");
+  // "redirecting" → verificando rol/sesión antes de saber qué mostrar
+  // "scanner"    → usuario es socio, mostrar cámara
+  const [mode, setMode] = useState<"redirecting" | "scanner">("redirecting");
 
   const [scanState, setScanState] = useState<"idle" | "loading" | "error">("idle");
   const [scanError, setScanError] = useState<ScanError | null>(null);
@@ -87,8 +87,9 @@ export default function ClientScannerPage() {
   const isScanningRef = useRef(false);
 
   const startScannerForUser = useCallback((user: import("firebase/auth").User) => {
-    getDoc(doc(db, "entrepreneur_profiles", user.uid)).then((snap) => {
+    getDoc(doc(db, "entrepreneur_profiles", user.uid)).then(async (snap) => {
       if (snap.exists()) {
+        await stopScanner(); // asegurar que no hay cámara activa antes de redirigir
         router.replace("/vendedor?action=scan");
       } else {
         setMode("scanner");
@@ -294,24 +295,11 @@ export default function ClientScannerPage() {
     startScanner();
   }, [startScanner]);
 
-  // ── Pantalla de espera solo cuando se necesita redirigir ──────────────────
+  // ── Cargando (verificando rol / iniciando cámara) ─────────────────────────
   if (mode === "redirecting") {
     return (
-      <main className="fixed inset-0 bg-slate-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-5">
-          <div className="relative w-20 h-20">
-            <div className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
-            </div>
-          </div>
-          <div className="text-center space-y-1">
-            <p className="text-white font-bold text-sm tracking-widest uppercase">
-              Verificando acceso...
-            </p>
-            <p className="text-slate-500 text-xs">Club Patio · Fidelización</p>
-          </div>
-        </div>
+      <main className="fixed inset-0 bg-black flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </main>
     );
   }
