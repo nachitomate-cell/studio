@@ -110,8 +110,13 @@ export async function registerFcmToken(): Promise<FcmResult> {
       return { ok: false, reason: "token_error" };
     }
     token = result;
-  } catch (err) {
-    console.error("[FCM] Error al obtener token FCM:", err);
+  } catch (err: any) {
+    const msg: string = err?.message ?? String(err);
+    if (msg.includes("push service") || msg.includes("Registration failed") || msg.includes("not available")) {
+      console.warn("[FCM] Push service no disponible en este entorno (normal en desktop/desarrollo).");
+    } else {
+      console.error("[FCM] Error al obtener token FCM:", err);
+    }
     return { ok: false, reason: "token_error" };
   }
 

@@ -107,7 +107,7 @@ service cloud.firestore {
 
     // ── Premios (catálogo oficial) ─────────────────────────────────────────────
     match /premios/{premioId} {
-      allow read: if isSignedIn();
+      allow read: if true; // catálogo público — incentiva registro
       allow create, delete: if isDirector();
       // Directores pueden modificar cualquier campo.
       // Clientes autenticados solo pueden decrementar stock en 1 (durante canje).
@@ -235,6 +235,12 @@ service cloud.firestore {
         && request.resource.data.rating <= 5;
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isStaff());
+    }
+
+    // ── Solicitudes de membresía al club ──────────────────────────────────────
+    match /solicitudes_club/{solicitudId} {
+      allow create: if true; // formulario público sin login
+      allow read, update, delete: if isStaff();
     }
 
     // ── Tracking UTM (visitas por campaña publicitaria) ───────────────────────

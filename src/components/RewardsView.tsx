@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Gift, Loader2, CheckCircle2, XCircle, AlertCircle, Store,
-  Clock, HelpCircle, Stamp, WifiOff, X,
+  Clock, HelpCircle, Stamp, WifiOff, X, Star, Check, ScanLine,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { motion, AnimatePresence } from "framer-motion";
@@ -526,6 +526,8 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
   const proximoPremioReq = premiosReqs.find((r) => r > sellos) ?? null;
   const tienePremioDisponible = premiosReqs.some((r) => r <= sellos);
   const sellosRestantesParaPremio = proximoPremioReq !== null ? proximoPremioReq - sellos : null;
+  // Si hay premio disponible, mostrar la tarjeta completa (10/10) para que quede obvio
+  const sellosDisplay = tienePremioDisponible ? 10 : sellosEnTarjeta;
 
   const pendingCanjes = myCanjes.filter((c) => c.status === "pending");
   const pastCanjes = myCanjes.filter((c) => c.status !== "pending");
@@ -617,21 +619,34 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
       {/* ── Mi Tarjeta de Sellos ──────────────────────────────────────────────── */}
       <section className="space-y-2">
         <h3 className="font-headline font-semibold text-base text-primary flex items-center gap-2 px-1">
-          <span>⭐</span> Mi Tarjeta de Sellos
+          <Star className="w-4 h-4 fill-[#C9920A] text-[#C9920A]" /> Mi Tarjeta de Sellos
         </h3>
-        <Card
-          className="border-none shadow-xl rounded-[2rem] overflow-hidden relative"
-          style={{ background: "linear-gradient(135deg, #F7F9F0 0%, #EEF5E8 100%)", borderLeft: "3px solid var(--color-secondary)" }}
+        <div
+          className="rounded-[2rem] overflow-hidden relative shadow-2xl"
+          style={{ background: "linear-gradient(145deg, #1C1408 0%, #2E1D08 55%, #1A1206 100%)" }}
         >
+          {/* Patrón diagonal sutil */}
+          <div aria-hidden style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "repeating-linear-gradient(45deg, rgba(201,146,10,0.035) 0px, rgba(201,146,10,0.035) 1px, transparent 1px, transparent 22px)",
+          }} />
+          {/* Logo marca de agua */}
+          <div aria-hidden style={{
+            position: "absolute", bottom: -10, right: -10,
+            width: 140, height: 140, opacity: 0.055, pointerEvents: "none",
+          }}>
+            <Image src="/Logo3.webp" alt="" fill className="object-contain" />
+          </div>
+
           {/* Stamp animation overlay */}
           <AnimatePresence>
             {showStampAnim && (
               <>
                 <motion.div
-                  initial={{ opacity: 0 }} animate={{ opacity: [0, 0.45, 0] }}
+                  initial={{ opacity: 0 }} animate={{ opacity: [0, 0.35, 0] }}
                   transition={{ duration: 1.2, times: [0, 0.25, 1] }}
                   className="absolute inset-0 z-10 pointer-events-none rounded-[2rem]"
-                  style={{ backgroundColor: "#9DCC65" }}
+                  style={{ backgroundColor: "#C9920A" }}
                 />
                 <motion.div
                   initial={{ scale: 3, rotate: -40, opacity: 0, y: -60 }}
@@ -640,7 +655,7 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
                   transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
                   className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
                 >
-                  <div className="rounded-full p-5 shadow-2xl" style={{ backgroundColor: "#9DCC65" }}>
+                  <div className="rounded-full p-5 shadow-2xl" style={{ background: "linear-gradient(135deg, #C9920A, #E8C547)" }}>
                     <Stamp className="w-14 h-14 text-white" />
                   </div>
                 </motion.div>
@@ -648,78 +663,130 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
             )}
           </AnimatePresence>
 
-          <CardContent className="p-7">
-            {/* Progress bar */}
-            <div className="mb-5 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#C9A84C] uppercase tracking-widest">Progreso</span>
-                <span className="text-[11px] font-bold text-slate-500">
-                  <span className="text-[#C9A84C] text-sm font-black">{sellosEnTarjeta}</span> de 10 sellos
+          <div className="p-6 relative z-10">
+            {/* Header de la tarjeta */}
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <p style={{ fontSize: 9, letterSpacing: "3.5px", color: "#C9920A", fontWeight: 700, textTransform: "uppercase", marginBottom: 3 }}>
+                  Club Patio Curauma
+                </p>
+                <p style={{ fontSize: 17, fontWeight: 900, color: "#FFFFFF", letterSpacing: "-0.3px", lineHeight: 1 }}>
+                  Tarjeta de Fidelidad
+                </p>
+              </div>
+              <div style={{
+                width: 38, height: 38, borderRadius: "50%",
+                background: "linear-gradient(135deg, #C9920A 0%, #E8C547 100%)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 4px 14px rgba(201,146,10,0.5)",
+                flexShrink: 0,
+              }}>
+                <Star className="w-5 h-5 text-white fill-white" />
+              </div>
+            </div>
+
+            {/* Grid de sellos */}
+            <div className="grid grid-cols-5 gap-2.5 mb-5">
+              {Array.from({ length: 10 }).map((_, i) => {
+                const filled = i < sellosDisplay;
+                return (
+                  <div
+                    key={i}
+                    className="relative"
+                    style={{ aspectRatio: "1" }}
+                  >
+                    {filled ? (
+                      <motion.div
+                        initial={false}
+                        animate={{ scale: [1, 1.12, 1] }}
+                        style={{
+                          width: "100%", height: "100%", borderRadius: "50%",
+                          background: "linear-gradient(135deg, #FFF8E8 0%, #FFFDF5 100%)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: "0 3px 10px rgba(201,146,10,0.55)",
+                          border: "2px solid #C9920A",
+                          position: "relative", overflow: "hidden",
+                          padding: 4,
+                        }}
+                      >
+                        <Image src="/Logo2.png" alt="Sello" fill sizes="10vw" className="object-contain" style={{ padding: 4 }} />
+                      </motion.div>
+                    ) : (
+                      <div style={{
+                        width: "100%", height: "100%", borderRadius: "50%",
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1.5px solid rgba(201,146,10,0.22)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(255,255,255,0.12)" }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Contador + barra */}
+            <div className="mb-5">
+              <div className="flex items-baseline justify-between mb-2">
+                <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase" }}>
+                  Progreso
+                </span>
+                <span>
+                  <span style={{ color: "#E8C547", fontSize: 22, fontWeight: 900, lineHeight: 1 }}>{sellosDisplay}</span>
+                  <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, fontWeight: 600 }}> / 10</span>
+                  {sellos > 10 && (
+                    <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginLeft: 4 }}>({sellos} total)</span>
+                  )}
                 </span>
               </div>
-              <div style={{ height: "10px", width: "100%", background: "#E8E8E8", borderRadius: "10px", overflow: "hidden" }}>
-                <div style={{
-                  height: "100%",
-                  width: `${(sellosEnTarjeta / 10) * 100}%`,
-                  background: "linear-gradient(90deg, #C9920A, #8DC63F)",
-                  borderRadius: "10px",
-                  transition: "width 0.7s ease",
-                }} />
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[10px] text-slate-400 font-medium">0</span>
-                <span className="text-[10px] text-slate-400 font-medium">10 sellos</span>
+              <div style={{ height: 5, background: "rgba(255,255,255,0.08)", borderRadius: 10, overflow: "hidden" }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(sellosDisplay / 10) * 100}%` }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  style={{
+                    height: "100%",
+                    background: "linear-gradient(90deg, #C9920A, #E8C547)",
+                    borderRadius: 10,
+                  }}
+                />
               </div>
             </div>
 
-            {/* Stamps grid */}
-            <div className="grid grid-cols-5 gap-3 mb-6">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="aspect-square relative">
-                  <Image
-                    src="/Logo2.png"
-                    alt={i < sellosEnTarjeta ? "Sello completado" : "Sello pendiente"}
-                    fill
-                    sizes="10vw"
-                    quality={75}
-                    priority={i < 5}
-                    className="object-contain"
-                    style={i < sellosEnTarjeta
-                      ? { mixBlendMode: "multiply" }
-                      : { filter: "grayscale(100%) opacity(30%)", mixBlendMode: "multiply" }}
-                  />
-                </div>
-              ))}
-            </div>
+            {/* Mensaje de estado */}
+            <div className="space-y-3">
+              <div className="rounded-2xl px-4 py-3 text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                {sellos === 0 ? (
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600 }}>
+                    Escanea tu primer QR para comenzar
+                  </p>
+                ) : tienePremioDisponible ? (
+                  <p style={{ color: "#E8C547", fontSize: 13, fontWeight: 800 }}>
+                    🎁 ¡Tienes un premio listo para canjear!
+                  </p>
+                ) : sellosRestantesParaPremio !== null ? (
+                  <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: 600 }}>
+                    Te faltan <span style={{ color: "#E8C547", fontWeight: 900 }}>{sellosRestantesParaPremio} sellos</span> para tu próximo premio
+                  </p>
+                ) : (
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600 }}>
+                    ¡Sigue acumulando sellos!
+                  </p>
+                )}
+              </div>
 
-            {/* Status text — verde oliva (#8DC63F) para armonía con la barra */}
-            <div className="text-center space-y-3">
-              {sellos === 0 ? (
-                <p className="text-sm font-semibold text-slate-600">¡Escanea tu primer QR para comenzar!</p>
-              ) : tienePremioDisponible ? (
-                <p className="font-bold text-base leading-tight px-4" style={{ color: "#C9920A" }}>
-                  ¡Tienes un premio listo para canjear!
-                </p>
-              ) : sellosRestantesParaPremio !== null ? (
-                <p className="font-bold text-base leading-tight px-4" style={{ color: "#8DC63F" }}>
-                  ¡Te faltan {sellosRestantesParaPremio} sellos para tu próximo premio!
-                </p>
-              ) : (
-                <p className="font-bold text-base leading-tight px-4" style={{ color: "#8DC63F" }}>
-                  ¡Sigue acumulando sellos!
-                </p>
-              )}
-              <Button
-                variant="outline"
-                className="w-full h-11 rounded-2xl font-bold"
-                style={{ borderColor: "var(--color-primary)", color: "var(--color-primary)", backgroundColor: "white" }}
+              <button
+                className="w-full h-11 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                style={{ background: "linear-gradient(135deg, #C9920A 0%, #E8C547 100%)", color: "#1C1408", fontSize: 13, fontWeight: 800, boxShadow: "0 4px 16px rgba(201,146,10,0.45)" }}
                 onClick={() => router.push("/scan")}
               >
-                📷 Ir a Escanear
-              </Button>
+                <ScanLine className="w-4 h-4" />
+                Escanear QR
+              </button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </section>
 
       {/* ── Mi Ruta ─────────────────────────────────────────────────────────── */}

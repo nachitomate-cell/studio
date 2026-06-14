@@ -34,6 +34,7 @@ import { ADMIN_EMAIL } from "@/lib/constants";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import VendorStampModal from "@/components/VendorStampModal";
 import PushNotifModal, { type PushNotifData } from "@/components/PushNotifModal";
+import { SolicitudClubModal } from "@/components/SolicitudClubModal";
 import QRCode from "react-qr-code";
 
 function getMondayKey(date: Date): string {
@@ -66,6 +67,58 @@ function calcularStreak(logs: { fecha?: string; anulada?: boolean }[]): number {
   return streak;
 }
 
+// Cache de módulo: persiste mientras la pestaña esté abierta, sobrevive navegaciones entre rutas
+let _entrepreneursCache: Entrepreneur[] | null = null;
+
+const GROUP_META: Record<string, { emoji: string; color: string; light: string }> = {
+  deco:      { emoji: "🏠", color: "#C2714F", light: "#FDF3EF" },
+  gourmet:   { emoji: "🍷", color: "#4A7C59", light: "#EEF6F1" },
+  joyeria:   { emoji: "💎", color: "#7C3AED", light: "#F3EFFE" },
+  belleza:   { emoji: "✨", color: "#C2185B", light: "#FDE9F2" },
+  artesania: { emoji: "🎨", color: "#B45309", light: "#FEF3E2" },
+  papeleria: { emoji: "📚", color: "#1D6FAB", light: "#E8F3FB" },
+  infantil:  { emoji: "🧸", color: "#0891B2", light: "#E5F7FB" },
+  vestuario: { emoji: "👗", color: "#4338CA", light: "#EDEFFE" },
+  otros:     { emoji: "🏪", color: "#C9920A", light: "#FFF8E8" },
+};
+
+function GroupSection({ group, userCoords, filterCercano }: {
+  group: { id: string; name: string; locals: Entrepreneur[] };
+  userCoords: { lat: number; lng: number } | null;
+  filterCercano: boolean;
+}) {
+  const meta = GROUP_META[group.id] ?? { emoji: "🏪", color: "#C9920A", light: "#FFF8E8" };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-6">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="text-base leading-none flex items-center justify-center rounded-xl"
+            style={{ width: 32, height: 32, background: meta.light, fontSize: 16 }}
+          >
+            {meta.emoji}
+          </span>
+          <h3 className="text-sm font-black" style={{ color: meta.color }}>{group.name}</h3>
+        </div>
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: meta.light, color: meta.color, border: `1px solid ${meta.color}25` }}>
+          {group.locals.length} {group.locals.length !== 1 ? "locales" : "local"}
+        </span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 px-6 no-scrollbar snap-x snap-mandatory">
+        {group.locals.map((entrepreneur, idx) => {
+          const isOpen = isOpenNow((entrepreneur as any).horariosEstructurados);
+          const distKm = userCoords ? haversineKm(userCoords.lat, userCoords.lng, (entrepreneur as any).lat ?? PATIO_INFO.coordinates.lat, (entrepreneur as any).lng ?? PATIO_INFO.coordinates.lng) : undefined;
+          return (
+            <div key={entrepreneur.id} className="min-w-[150px] max-w-[150px] shrink-0 snap-start">
+              <EntrepreneurCard entrepreneur={entrepreneur} isOpen={isOpen} distanceKm={filterCercano && distKm !== undefined ? distKm : undefined} priority={idx < 3} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState("directory");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -77,6 +130,7 @@ export default function Home() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showNpsSurvey, setShowNpsSurvey] = useState(false);
+  const [showSolicitudModal, setShowSolicitudModal] = useState(false);
   const onboardingCheckedRef = useRef(false);
   const npsCheckedRef = useRef(false);
   const { selectedLocation, setSelectedLocation } = useLocation();
@@ -97,8 +151,8 @@ export default function Home() {
   
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
-  const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>(_entrepreneursCache ?? []);
+  const [loading, setLoading] = useState(_entrepreneursCache === null);
   const [filterAbierto, setFilterAbierto] = useState(false);
   const [filterCercano, setFilterCercano] = useState(false);
   const [filterFavoritos, setFilterFavoritos] = useState(false);
@@ -305,9 +359,9 @@ export default function Home() {
       .catch(() => {});
   }, [userData]);
 
-  // Carga one-shot del directorio — los perfiles de locales cambian raramente,
-  // no justifican un listener persistente que mantiene conexión por cada usuario activo.
+  // Carga one-shot del directorio — usa cache de módulo para evitar re-fetch al navegar entre rutas
   useEffect(() => {
+    if (_entrepreneursCache !== null) return; // ya cargado en esta sesión
     getDocs(query(collection(db, "entrepreneur_profiles")))
       .then((snapshot) => {
         const docs = snapshot.docs.map(doc => {
@@ -331,6 +385,7 @@ export default function Home() {
             lng: data.lng || null,
           } as Entrepreneur & { isHiddenFromFeed?: boolean };
         });
+        _entrepreneursCache = docs;
         setEntrepreneurs(docs);
         setLoading(false);
       })
@@ -496,124 +551,86 @@ export default function Home() {
   ];
 
   const renderHero = () => (
-    <>
-      <style>{`
-        @keyframes heroBalloonFloat {
-          0%   { transform: translateY(0px) rotate(-5deg); }
-          50%  { transform: translateY(-16px) rotate(5deg); }
-          100% { transform: translateY(0px) rotate(-5deg); }
-        }
-        @keyframes heroSparkle {
-          0%, 100% { opacity: 0.5; transform: scale(0.85) rotate(-10deg); }
-          50%       { opacity: 1;   transform: scale(1.2)  rotate(10deg); }
-        }
-        @keyframes heroAnivPulse {
-          0%, 100% { opacity: 0.9; transform: scale(1); }
-          50%       { opacity: 1;   transform: scale(1.04); }
-        }
-      `}</style>
-      <section style={{
-        background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 50%, #5BB8D4 100%)",
-        padding: "40px 20px 32px",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center",
-        position: "relative",
-        overflow: "hidden",
-      }}>
-        {/* Globos izquierda */}
-        {([
-          { left: "2%",  bottom: "8%",  size: 38, delay: "0s",   dur: "4.1s" },
-          { left: "11%", bottom: "28%", size: 28, delay: "0.9s", dur: "3.6s" },
-          { left: "3%",  bottom: "62%", size: 22, delay: "1.8s", dur: "4.5s" },
-        ] as const).map((b, i) => (
-          <span key={`bl-${i}`} aria-hidden style={{
-            position: "absolute", left: b.left, bottom: b.bottom,
-            fontSize: b.size, lineHeight: 1,
-            animation: `heroBalloonFloat ${b.dur} ease-in-out infinite`,
-            animationDelay: b.delay, pointerEvents: "none", userSelect: "none", zIndex: 0,
-          }}>🎈</span>
-        ))}
-        {/* Globos derecha */}
-        {([
-          { right: "2%",  bottom: "8%",  size: 36, delay: "0.5s", dur: "3.8s" },
-          { right: "12%", bottom: "32%", size: 26, delay: "1.4s", dur: "4.3s" },
-          { right: "3%",  bottom: "64%", size: 20, delay: "2.2s", dur: "3.5s" },
-        ] as const).map((b, i) => (
-          <span key={`br-${i}`} aria-hidden style={{
-            position: "absolute", right: b.right, bottom: b.bottom,
-            fontSize: b.size, lineHeight: 1,
-            animation: `heroBalloonFloat ${b.dur} ease-in-out infinite`,
-            animationDelay: b.delay, pointerEvents: "none", userSelect: "none", zIndex: 0,
-          }}>🎈</span>
-        ))}
-        {/* Destellos / confetti */}
-        {([
-          { left: "18%", top: "6%",  emoji: "✨", size: 18, delay: "0s",   dur: "2.6s" },
-          { left: "75%", top: "10%", emoji: "🎊", size: 16, delay: "1.1s", dur: "3.1s" },
-          { left: "47%", top: "3%",  emoji: "⭐", size: 14, delay: "0.6s", dur: "2.3s" },
-          { left: "87%", top: "38%", emoji: "✨", size: 13, delay: "1.7s", dur: "2.9s" },
-          { left: "7%",  top: "38%", emoji: "🎉", size: 17, delay: "0.3s", dur: "2.7s" },
-          { left: "62%", top: "5%",  emoji: "🌟", size: 13, delay: "2.0s", dur: "3.3s" },
-        ] as const).map((c, i) => (
-          <span key={`sp-${i}`} aria-hidden style={{
-            position: "absolute", left: c.left, top: c.top,
-            fontSize: c.size, lineHeight: 1,
-            animation: `heroSparkle ${c.dur} ease-in-out infinite`,
-            animationDelay: c.delay, pointerEvents: "none", userSelect: "none", zIndex: 0,
-          }}>{c.emoji}</span>
-        ))}
+    <section style={{
+      borderBottom: "1px solid #F0EDE8",
+      padding: "20px 24px 18px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      textAlign: "center",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* Imagen de fondo */}
+      <div aria-hidden style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        backgroundImage: "url('/header.webp')",
+        backgroundSize: "cover",
+        backgroundPosition: "center top",
+        zIndex: 0,
+      }} />
+      {/* Overlay blanco degradado para legibilidad del contenido */}
+      <div aria-hidden style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        background: "linear-gradient(to bottom, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.72) 50%, rgba(255,255,255,0.93) 100%)",
+        zIndex: 1,
+      }} />
 
-        {/* Contenido principal */}
-        <div style={{ position: "relative", zIndex: 1, width: 110, marginBottom: 16 }}>
-          <img
-            src="/Logo3.webp"
-            alt="Patio Curauma"
-            style={{ width: 110, height: "auto", display: "block", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}
-          />
-          <div style={{
-            position: "absolute",
-            bottom: -6,
-            left: "10%",
-            right: "10%",
-            height: 14,
-            background: "radial-gradient(ellipse at center, rgba(0,0,0,0.28) 0%, transparent 70%)",
-            filter: "blur(4px)",
-          }} />
-        </div>
-        <h1 style={{ position: "relative", zIndex: 1, fontFamily: "Montserrat, sans-serif", fontSize: 24, fontWeight: 900, color: "white", margin: "0 0 8px 0", lineHeight: 1.1, letterSpacing: "1px" }}>
-          CLUB<br/>
-          <span style={{ color: "#FFD700", fontSize: 32, fontWeight: 900, textShadow: "0 2px 6px rgba(0,0,0,0.35)" }}>PATIO CURAUMA</span>
+      {/* Logo */}
+      <div style={{ position: "relative", zIndex: 2, marginBottom: 12 }}>
+        <img
+          src="/Logo3.webp"
+          alt="Club Patio Curauma"
+          style={{ width: 64, height: "auto", display: "block" }}
+        />
+      </div>
+
+      {/* Título */}
+      <div style={{ position: "relative", zIndex: 2 }}>
+        <p style={{
+          fontFamily: "Montserrat, sans-serif",
+          fontSize: 9,
+          fontWeight: 700,
+          color: "#C9920A",
+          letterSpacing: "3.5px",
+          textTransform: "uppercase",
+          margin: "0 0 4px 0",
+        }}>
+          Bienvenido al
+        </p>
+        <h1 style={{
+          fontFamily: "Montserrat, sans-serif",
+          fontSize: 20,
+          fontWeight: 900,
+          color: "#1A1A1A",
+          margin: 0,
+          lineHeight: 1.05,
+          letterSpacing: "-0.5px",
+        }}>
+          Club Patio Curauma
         </h1>
-        <p style={{ position: "relative", zIndex: 1, color: "rgba(255,255,255,0.9)", fontSize: 14, margin: 0, letterSpacing: "0.5px" }}>
+
+        {/* Línea gold decorativa */}
+        <div style={{
+          width: 36,
+          height: 2,
+          background: "linear-gradient(90deg, #C9920A, #D3B673)",
+          borderRadius: 2,
+          margin: "8px auto 8px",
+        }} />
+
+        <p style={{
+          fontSize: 10,
+          color: "#888",
+          letterSpacing: "1.5px",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          margin: 0,
+        }}>
           Fidelización · Premios · Comunidad
         </p>
-
-        {/* Badge aniversario */}
-        <div style={{
-          position: "relative", zIndex: 1,
-          marginTop: 14,
-          background: "rgba(255,255,255,0.2)",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          border: "1.5px solid rgba(255,255,255,0.45)",
-          borderRadius: 999,
-          padding: "7px 20px",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          animation: "heroAnivPulse 2.8s ease-in-out infinite",
-        }}>
-          <span style={{ fontSize: 18 }}>🎂</span>
-          <span style={{ color: "white", fontWeight: 900, fontSize: 13, letterSpacing: "0.4px", textShadow: "0 1px 4px rgba(0,0,0,0.35)" }}>
-            ¡4 Años de Patio Design Curauma!
-          </span>
-          <span style={{ fontSize: 18 }}>🎂</span>
-        </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
 
   const renderContent = () => {
@@ -638,15 +655,17 @@ export default function Home() {
                 {premiosBadge && (
                   <button
                     onClick={() => router.push("/premios")}
-                    className="mx-6 mb-3 w-[calc(100%-3rem)] flex items-center gap-3 px-4 py-3 rounded-2xl active:scale-[0.98] transition-transform text-left"
-                    style={{ background: "linear-gradient(135deg, #FEF08A 0%, #FDE047 100%)" }}
+                    className="mx-6 mb-3 w-[calc(100%-3rem)] flex items-center gap-3 px-4 py-3.5 rounded-2xl active:scale-[0.98] transition-transform text-left"
+                    style={{ background: "#FFFBF2", border: "1.5px solid #C9920A" }}
                   >
-                    <span className="text-2xl">🎁</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-amber-900 leading-tight">¡Tienes un premio disponible!</p>
-                      <p className="text-[11px] text-amber-800 font-medium">Toca para canjearlo ahora</p>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #C9920A, #D3B673)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Trophy style={{ width: 16, height: 16, color: "white" }} />
                     </div>
-                    <span className="text-amber-700 font-black text-xl shrink-0">›</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black leading-tight" style={{ color: "#1A1A1A" }}>Premio listo para canjear</p>
+                      <p className="text-[11px] font-medium" style={{ color: "#9A7B3A" }}>Toca para canjearlo ahora</p>
+                    </div>
+                    <span style={{ color: "#C9920A", fontSize: 20, fontWeight: 300 }}>›</span>
                   </button>
                 )}
 
@@ -785,55 +804,97 @@ export default function Home() {
             {/* Acceso rápido a Premios */}
             <div
               onClick={() => router.push("/premios")}
-              className="mx-6 active:scale-[0.97] transition-transform"
+              className="mx-6 active:scale-[0.97] transition-transform cursor-pointer"
               style={{
-                background: "linear-gradient(135deg, #C9920A 0%, #8DC63F 100%)",
+                background: "#FFFBF2",
                 borderRadius: "16px",
                 padding: "16px 20px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                cursor: "pointer",
-                boxShadow: "0 4px 15px rgba(201,146,10,0.3)",
+                border: "1.5px solid #E8D5A3",
+                boxShadow: "0 2px 12px rgba(201,146,10,0.08)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ fontSize: "28px" }}>🎁</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  background: "linear-gradient(135deg, #C9920A, #D3B673)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                  <Gift style={{ width: 20, height: 20, color: "white" }} />
+                </div>
                 <div>
-                  <p style={{ color: "white", fontWeight: 700, fontSize: "15px", margin: 0, fontFamily: "Montserrat, sans-serif" }}>
+                  <p style={{ color: "#1A1A1A", fontWeight: 800, fontSize: "15px", margin: 0 }}>
                     Mis Premios y Sellos
                   </p>
-                  <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "12px", margin: 0 }}>
+                  <p style={{ color: "#9A7B3A", fontSize: "12px", margin: "2px 0 0" }}>
                     Ver tarjeta · Canjear · Sorteo
                   </p>
                 </div>
               </div>
-              <span style={{ color: "white", fontSize: "20px" }}>›</span>
+              <span style={{ color: "#C9920A", fontSize: "22px", fontWeight: 300 }}>›</span>
             </div>
 
             <div className="px-6">
               <RecommendationWidget />
             </div>
 
-            {/* CTA Tienda Online — inmediatamente después de Destacados */}
+            {/* CTA Tienda Online */}
             <div className="px-6" style={{ marginTop: "12px", marginBottom: "12px" }}>
               <a
                 href="https://www.patiocuraumaonline.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 w-full h-14 rounded-full font-black text-white text-base shadow-lg transition-all hover:opacity-90 active:scale-[0.97]"
-                style={{ backgroundColor: "#5BB8D4" }}
+                className="inline-flex items-center justify-center gap-2.5 w-full transition-all active:scale-[0.97]"
+                style={{
+                  height: 54,
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, #5BB8D4 0%, #2E86AB 100%)",
+                  color: "white",
+                  fontWeight: 800,
+                  fontSize: 15,
+                  letterSpacing: "0.2px",
+                  textDecoration: "none",
+                  boxShadow: "0 4px 16px rgba(46,134,171,0.35)",
+                }}
               >
                 🛍️ Visita nuestra Tienda Online
               </a>
             </div>
 
-            <section className="px-6 pt-4">
-              <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            {/* Banner: Únete al Club */}
+            {!user && (
+              <div className="px-6">
+                <button
+                  onClick={() => setShowSolicitudModal(true)}
+                  className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-left active:scale-[0.98] transition-transform"
+                  style={{ background: "linear-gradient(135deg, #1C1408 0%, #2E1D08 100%)", boxShadow: "0 4px 16px rgba(0,0,0,0.18)" }}
+                >
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #C9920A, #E8C547)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <UserPlus style={{ width: 18, height: 18, color: "#1C1408" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: 13, fontWeight: 900, color: "#FFFFFF", lineHeight: 1.2 }}>
+                      ¿Quieres unirte al Club Patio?
+                    </p>
+                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>
+                      Rellena el formulario y te contactamos
+                    </p>
+                  </div>
+                  <span style={{ color: "#C9920A", fontSize: 20, fontWeight: 300 }}>›</span>
+                </button>
+              </div>
+            )}
+
+            <section className="px-6 pt-2">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#C9920A" }} />
                 <Input
                   placeholder="Buscar emprendimientos..."
-                  className="pl-11 h-12 rounded-xl bg-slate-50 border-none shadow-inner placeholder:text-gray-500"
+                  className="pl-11 h-12 rounded-2xl placeholder:text-slate-400 focus-visible:ring-1"
+                  style={{ background: "#FAFAF8", border: "1.5px solid #EEEBE4", fontSize: 14 }}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -842,21 +903,34 @@ export default function Home() {
 
             <section className="space-y-3">
               <div className="flex gap-2 overflow-x-auto pb-2 px-6 no-scrollbar">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={cn(
-                      "px-5 py-2 rounded-full text-[10px] font-bold whitespace-nowrap transition-all",
-                      selectedCategory === cat.id
-                        ? "bg-primary text-white border-transparent shadow-md border"
-                        : "text-[#333333] hover:border-primary/50 hover:text-primary"
-                    )}
-                    style={selectedCategory !== cat.id ? { background: "#F5F5F5", border: "1px solid #E5E7EB" } : {}}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
+                {CATEGORIES.map((cat) => {
+                  const CAT_COLORS: Record<string, { bg: string; text: string; light: string; border: string }> = {
+                    all:       { bg: "#C9920A", text: "#fff", light: "#FFF8E8", border: "#E8D5A3" },
+                    deco:      { bg: "#C2714F", text: "#fff", light: "#FDF3EF", border: "#EDD0C4" },
+                    gourmet:   { bg: "#4A7C59", text: "#fff", light: "#EEF6F1", border: "#B8D9C4" },
+                    joyeria:   { bg: "#7C3AED", text: "#fff", light: "#F3EFFE", border: "#C9B3F5" },
+                    belleza:   { bg: "#C2185B", text: "#fff", light: "#FDE9F2", border: "#F0B0CE" },
+                    artesania: { bg: "#B45309", text: "#fff", light: "#FEF3E2", border: "#EDD09A" },
+                    papeleria: { bg: "#1D6FAB", text: "#fff", light: "#E8F3FB", border: "#A8CFE8" },
+                    infantil:  { bg: "#0891B2", text: "#fff", light: "#E5F7FB", border: "#99D9EA" },
+                    vestuario: { bg: "#4338CA", text: "#fff", light: "#EDEFFE", border: "#BCBBF0" },
+                  };
+                  const color = CAT_COLORS[cat.id] ?? CAT_COLORS.all;
+                  const isActive = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className="px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all active:scale-95"
+                      style={isActive
+                        ? { background: color.bg, color: color.text, border: `1.5px solid ${color.bg}`, boxShadow: `0 3px 10px ${color.bg}40` }
+                        : { background: color.light, color: color.bg, border: `1.5px solid ${color.border}` }
+                      }
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Filtro favoritos — solo visible si el usuario está logueado */}
@@ -885,11 +959,14 @@ export default function Home() {
             </section>
 
             <section className="space-y-6 pt-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 px-6">
-                <h2 className="text-lg font-black text-foreground">Descubre</h2>
-                <Badge variant="outline" className="rounded-md border-slate-100 font-bold text-[10px]">
-                  {filteredEntrepreneurs.length} Locales
-                </Badge>
+              <div className="flex items-center justify-between px-6 pb-3" style={{ borderBottom: "1px solid #F0EDE8" }}>
+                <div className="flex items-center gap-2.5">
+                  <div style={{ width: 3, height: 18, borderRadius: 2, background: "linear-gradient(180deg, #C9920A, #D3B673)" }} />
+                  <h2 className="text-lg font-black" style={{ color: "#1A1A1A" }}>Descubre</h2>
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ background: "#FAFAF8", border: "1px solid #EEEBE4", color: "#888" }}>
+                  {filteredEntrepreneurs.length} locales
+                </span>
               </div>
 
               {filteredEntrepreneurs.length === 0 && !loading ? (
@@ -900,23 +977,12 @@ export default function Home() {
                 /* ── Modo carrusel: agrupado por categoría ── */
                 <div className="space-y-7">
                   {categorizedGroups.map((group) => (
-                    <div key={group.id} className="space-y-2">
-                      <div className="flex items-center justify-between px-6">
-                        <h3 className="text-sm font-black text-slate-700">{group.name}</h3>
-                        <span className="text-[10px] text-slate-400 font-semibold">{group.locals.length} local{group.locals.length !== 1 ? "es" : ""}</span>
-                      </div>
-                      <div className="flex gap-3 overflow-x-auto pb-2 px-6 no-scrollbar snap-x snap-mandatory">
-                        {group.locals.map((entrepreneur, idx) => {
-                          const isOpen = isOpenNow((entrepreneur as any).horariosEstructurados);
-                          const distKm = userCoords ? haversineKm(userCoords.lat, userCoords.lng, (entrepreneur as any).lat ?? PATIO_INFO.coordinates.lat, (entrepreneur as any).lng ?? PATIO_INFO.coordinates.lng) : undefined;
-                          return (
-                            <div key={entrepreneur.id} className="min-w-[150px] max-w-[150px] shrink-0 snap-start">
-                              <EntrepreneurCard entrepreneur={entrepreneur} isOpen={isOpen} distanceKm={filterCercano && distKm !== undefined ? distKm : undefined} priority={idx < 3} />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <GroupSection
+                      key={group.id}
+                      group={group}
+                      userCoords={userCoords}
+                      filterCercano={filterCercano}
+                    />
                   ))}
                 </div>
               ) : (
@@ -1049,6 +1115,7 @@ export default function Home() {
           onClose={() => setShowNpsSurvey(false)}
         />
       )}
+      <SolicitudClubModal open={showSolicitudModal} onClose={() => setShowSolicitudModal(false)} />
 
       <div className="max-w-lg mx-auto pb-4">
         {renderContent()}

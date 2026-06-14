@@ -94,6 +94,10 @@ export default function ModeradorPage() {
   const [sugerencias, setSugerencias] = useState<any[]>([]);
   const [loadingSugerencias, setLoadingSugerencias] = useState(true);
 
+  // Solicitudes de unirse al club
+  const [solicitudesClub, setSolicitudesClub] = useState<any[]>([]);
+  const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
+
   // Refresh manual (reemplaza onSnapshot)
   const [refreshing, setRefreshing] = useState(false);
 
@@ -137,12 +141,14 @@ export default function ModeradorPage() {
   const fetchLiveData = async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
-      const [sugerSnap, logsSnap] = await Promise.all([
+      const [sugerSnap, logsSnap, solicSnap] = await Promise.all([
         getDocs(query(collection(db, "sugerencias"), orderBy("fecha", "desc"), limit(50))),
         getDocs(query(collection(db, "system_logs"), orderBy("fecha", "desc"), limit(30))),
+        getDocs(query(collection(db, "solicitudes_club"), orderBy("fecha", "desc"), limit(100))),
       ]);
       setSugerencias(sugerSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setRecentTrans(logsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setSolicitudesClub(solicSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.warn("fetchLiveData:", e);
     } finally {
