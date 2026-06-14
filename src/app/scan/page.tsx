@@ -75,9 +75,9 @@ export default function ClientScannerPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // "smart"  → llegó con ?ref=, redirigiendo (muestra spinner)
-  // "scanner"→ modo normal, mostrar cámara
-  const [mode, setMode] = useState<"smart" | "scanner">("smart");
+  // "redirecting" → llegó con ?ref= o sin sesión, mostrando spinner mientras redirige
+  // "scanner"    → modo normal, mostrar cámara directamente
+  const [mode, setMode] = useState<"redirecting" | "scanner">("scanner");
 
   const [scanState, setScanState] = useState<"idle" | "loading" | "error">("idle");
   const [scanError, setScanError] = useState<ScanError | null>(null);
@@ -86,54 +86,63 @@ export default function ClientScannerPage() {
   const scannerInstance = useRef<any>(null);
   const isScanningRef = useRef(false);
 
+  const startScannerForUser = useCallback((user: import("firebase/auth").User) => {
+    getDoc(doc(db, "entrepreneur_profiles", user.uid)).then((snap) => {
+      if (snap.exists()) {
+        router.replace("/vendedor?action=scan");
+      } else {
+        setMode("scanner");
+        setScannerReady(true);
+      }
+    }).catch(() => {
+      setMode("scanner");
+      setScannerReady(true);
+    });
+  }, [router]);
+
   // ── Lógica de entrada ──────────────────────────────────────────────────────
-  // Si hay ?ref= → QR Universal del locatario fue escaneado por la cámara del móvil.
-  // Detectamos auth y redirigimos sin mostrar cámara.
-  // Sin ?ref= → flujo normal de escáner de cliente.
   useEffect(() => {
     const ref = typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("ref")
       : null;
 
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (ref) {
-        // ── MODO QR UNIVERSAL ─────────────────────────────────────────────
-        unsubscribe(); // Solo necesitamos el primer estado auth
+    // ── MODO QR UNIVERSAL (?ref=) ─────────────────────────────────────────
+    if (ref) {
+      setMode("redirecting");
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        unsubscribe();
         if (user) {
-          // Cliente ya registrado → ir directo al flujo de sello
           router.replace(`/canje?localId=${ref}`);
         } else {
-          // Cliente nuevo → guardar ref + redirigir a registro
-          if (typeof window !== "undefined") {
-            localStorage.setItem("referral_local_id", ref);
-            // url_retorno para que al INICIAR SESIÓN (usuario existente) vuelva al canje
-            localStorage.setItem("url_retorno", `/canje?localId=${ref}`);
-          }
+          localStorage.setItem("referral_local_id", ref);
+          localStorage.setItem("url_retorno", `/canje?localId=${ref}`);
           router.replace("/unete");
         }
+      });
+      return () => { unsubscribe(); stopScanner(); };
+    }
+
+    // ── MODO ESCÁNER NORMAL ───────────────────────────────────────────────
+    // Ruta rápida: auth.currentUser ya está disponible si el usuario tiene sesión activa
+    const cachedUser = auth.currentUser;
+    if (cachedUser) {
+      startScannerForUser(cachedUser);
+      return () => { stopScanner(); };
+    }
+
+    // Ruta lenta: Firebase aún inicializando (primera carga / cold start)
+    setMode("redirecting");
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      unsubscribe();
+      if (!user) {
+        toast({
+          variant: "destructive",
+          title: "Inicia Sesión",
+          description: "Debes iniciar sesión para escanear.",
+        });
+        router.replace("/");
       } else {
-        // ── MODO ESCÁNER NORMAL ───────────────────────────────────────────
-        if (!user) {
-          toast({
-            variant: "destructive",
-            title: "Inicia Sesión",
-            description: "Debes iniciar sesión para escanear.",
-          });
-          router.replace("/");
-        } else {
-          // Emprendedores tienen su propio escáner en /vendedor
-          getDoc(doc(db, "entrepreneur_profiles", user.uid)).then((snap) => {
-            if (snap.exists()) {
-              router.replace("/vendedor?action=scan");
-            } else {
-              setMode("scanner");
-              setScannerReady(true);
-            }
-          }).catch(() => {
-            setMode("scanner");
-            setScannerReady(true);
-          });
-        }
+        startScannerForUser(user);
       }
     });
 
@@ -285,8 +294,8 @@ export default function ClientScannerPage() {
     startScanner();
   }, [startScanner]);
 
-  // ── Pantalla de espera para modo QR Universal ──────────────────────────────
-  if (mode === "smart") {
+  // ── Pantalla de espera solo cuando se necesita redirigir ──────────────────
+  if (mode === "redirecting") {
     return (
       <main className="fixed inset-0 bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-5">
