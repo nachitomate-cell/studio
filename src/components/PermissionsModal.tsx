@@ -85,15 +85,24 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
         setPerms((p) => ({ ...p, location: "unsupported" }));
       }
 
-      // Camera
+      // Camera — iOS Safari no soporta permissions.query para camera,
+      // así que usamos localStorage como fallback para recordar el estado
       try {
         const cam = await navigator.permissions.query({ name: "camera" as PermissionName });
         setPerms((p) => ({ ...p, camera: cam.state as PermissionStatus }));
-        const onCam = () => setPerms((p) => ({ ...p, camera: cam.state as PermissionStatus }));
+        if (cam.state === "granted") {
+          localStorage.setItem("camera_permission_granted", "true");
+        }
+        const onCam = () => {
+          setPerms((p) => ({ ...p, camera: cam.state as PermissionStatus }));
+          if (cam.state === "granted") localStorage.setItem("camera_permission_granted", "true");
+        };
         cam.addEventListener("change", onCam);
         cleanups.push(() => cam.removeEventListener("change", onCam));
       } catch {
-        setPerms((p) => ({ ...p, camera: "prompt" }));
+        // iOS: Permissions API no disponible para cámara — usar cache de localStorage
+        const cached = localStorage.getItem("camera_permission_granted");
+        setPerms((p) => ({ ...p, camera: cached === "true" ? "granted" : "prompt" }));
       }
     };
 
@@ -137,8 +146,10 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       stream.getTracks().forEach((t) => t.stop());
+      localStorage.setItem("camera_permission_granted", "true");
       setPerms((p) => ({ ...p, camera: "granted" }));
     } catch {
+      localStorage.removeItem("camera_permission_granted");
       setPerms((p) => ({ ...p, camera: "denied" }));
     } finally {
       setLoading(null);

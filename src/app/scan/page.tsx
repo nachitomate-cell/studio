@@ -186,8 +186,11 @@ export default function ClientScannerPage() {
         (decoded) => onScanSuccess(decoded),
         () => {}
       );
+      // Cámara concedida — recordar para iOS (no soporta Permissions API)
+      localStorage.setItem("camera_permission_granted", "true");
     } catch (err: any) {
       console.error("Camera error:", err);
+      localStorage.removeItem("camera_permission_granted");
       setScanError({ type: "camera" });
       setScanState("error");
     }
