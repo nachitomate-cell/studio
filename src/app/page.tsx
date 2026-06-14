@@ -1117,7 +1117,7 @@ export default function Home() {
       )}
       <SolicitudClubModal open={showSolicitudModal} onClose={() => setShowSolicitudModal(false)} />
 
-      <div className="max-w-lg mx-auto pb-4">
+      <div className="max-w-lg mx-auto pb-24">
         {renderContent()}
       </div>
       <PWAInstallBanner userId={user?.uid ?? null} />
