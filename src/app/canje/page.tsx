@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { doc, onSnapshot, collection, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { ref as storageRef, uploadBytes } from "firebase/storage";
 import { cancelarPendingStamp } from "@/lib/puntos";
+import { esAsociado } from "@/lib/tipoComercio";
+import { MONTO_MAX } from "@/lib/sellos";
 import { SuccessScanner } from "@/components/loyalty/SuccessScanner";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2, AlertCircle, ArrowLeft, XCircle, Clock, RefreshCw,
+  Loader2, AlertCircle, ArrowLeft, XCircle, Clock, RefreshCw, Camera, Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -18,6 +21,7 @@ type Phase =
   | "init"        // verificando auth
   | "creating"    // creando pending_stamp
   | "waiting"     // esperando confirmación del vendedor
+  | "boleta"      // comercio asociado: formulario auto-servicio con boleta
   | "confirmed"   // sello confirmado ✅
   | "expired"     // expiró (5 min sin respuesta)
   | "rejected"    // vendedor rechazó
@@ -194,6 +198,121 @@ function ResultScreen({
   );
 }
 
+// ─── Formulario de boleta (comercios asociados / auto-servicio) ───────────────
+
+function BoletaForm({
+  vendorName,
+  onSubmit,
+  onCancel,
+  loading,
+}: {
+  vendorName: string;
+  onSubmit: (monto: number, file: File) => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [monto, setMonto] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const montoNum = parseInt(monto, 10) || 0;
+  const isOverLimit = montoNum > MONTO_MAX;
+  const canSubmit = montoNum > 0 && !isOverLimit && !!file && !loading;
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-7 space-y-6">
+        <div className="text-center space-y-1">
+          <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ backgroundColor: "rgba(211,182,115,0.12)" }}>
+            <Receipt className="w-7 h-7" style={{ color: "#D3B673" }} />
+          </div>
+          <h2 className="text-xl font-black text-slate-800">Registra tu compra</h2>
+          <p className="text-sm text-slate-500">
+            en <span className="font-black" style={{ color: "#D3B673" }}>{vendorName}</span>
+          </p>
+        </div>
+
+        {/* Monto */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Monto de la compra <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Ej: 5000"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value.replace(/\D/g, ""))}
+              disabled={loading}
+              className={`w-full h-14 pl-8 pr-4 rounded-2xl border-2 focus:outline-none text-lg font-black text-slate-800 bg-slate-50 transition-colors ${
+                isOverLimit ? "border-red-400" : "border-slate-200 focus:border-primary"
+              }`}
+            />
+          </div>
+          {isOverLimit && (
+            <p className="text-[11px] font-bold text-red-500">
+              El monto máximo es ${MONTO_MAX.toLocaleString("es-CL")}.
+            </p>
+          )}
+        </div>
+
+        {/* Foto de la boleta */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Foto de la boleta <span className="text-red-500">*</span>
+          </label>
+          <label className="flex flex-col items-center justify-center gap-2 w-full min-h-[120px] rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 cursor-pointer overflow-hidden">
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="Boleta" className="w-full h-full max-h-48 object-contain" />
+            ) : (
+              <>
+                <Camera className="w-8 h-8 text-slate-400" />
+                <span className="text-xs font-bold text-slate-400">Toca para tomar/elegir foto</span>
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFile}
+              disabled={loading}
+              className="hidden"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-3 pt-2">
+          <Button
+            onClick={() => file && onSubmit(montoNum, file)}
+            disabled={!canSubmit}
+            className="w-full h-14 rounded-2xl font-black text-base gap-2 shadow-lg"
+            style={{ backgroundColor: "#D3B673" }}
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Obtener mis sellos"}
+          </Button>
+          <Button
+            onClick={onCancel}
+            disabled={loading}
+            variant="outline"
+            className="w-full h-12 rounded-2xl font-bold text-slate-500 border-slate-200"
+          >
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Contenido principal ──────────────────────────────────────────────────────
 
 function CanjeContent() {
@@ -212,6 +331,7 @@ function CanjeContent() {
     userDisplayName: string;
   } | null>(null);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
+  const [boletaLoading, setBoletaLoading] = useState(false);
 
   const pendingIdRef = useRef<string | null>(null);
   const processingRef = useRef(false);
@@ -394,6 +514,21 @@ function CanjeContent() {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
         if (snap.exists()) nombreCliente = snap.data().nombre || nombreCliente;
       } catch { /* best-effort */ }
+
+      // ── Detectar tipo de comercio ──────────────────────────────────────────
+      // Comercio asociado → flujo auto-servicio con boleta (sin handshake).
+      // Emprendedor (o si falla la lectura) → flujo handshake normal.
+      try {
+        const vSnap = await getDoc(doc(db, "entrepreneur_profiles", localId));
+        if (vSnap.exists()) {
+          setVendorName(vSnap.data().businessName || vSnap.data().nombre || "el local");
+          if (esAsociado(vSnap.data())) {
+            setPhase("boleta");
+            return;
+          }
+        }
+      } catch { /* si falla, cae al handshake normal */ }
+
       await iniciarHandshake(user.uid, nombreCliente, localId);
     });
 
@@ -432,33 +567,52 @@ function CanjeContent() {
     console.timeEnd("3-show-spinner");
     console.timeEnd("total-scan");
 
-    // ── 4. Escribir en Firestore en background (sin await) ──────────────────
-    setDoc(pendingRef, {
-      userId,
-      userName: userName || "Miembro del Club",
-      vendorId,
-      status: "pending",
-      createdAt: serverTimestamp(),
-    })
-      .then(() => {
-        console.timeEnd("2-create-pending-stamp");
-        // ✓ Notificar al vendedor: pasamos pendingId para que el servidor
-        // lea el vendorId directamente desde Firestore (evita que el cliente
-        // pueda alterar el destinatario de la notificación).
-        fetch("/api/handshake/notify-vendor", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pendingId, clientName: userName || "Un cliente" }),
-        }).catch(() => {/* silencioso — no bloquear el flujo */});
-      })
-      .catch(() => {
-        if (pendingIdRef.current !== pendingId) return; // ya fue cancelado
-        setPhase("error");
-        setErrorMsg("No se pudo iniciar la solicitud. Inténtalo de nuevo.");
-        pendingIdRef.current = null;
-        setPendingId(null);
-        processingRef.current = false;
+    // ── 4. Capturar geolocalización (SOLO marketing/proximidad, NO bloqueante) ──
+    // El geofence NUNCA bloquea el sello: la presencia física la valida el vendedor
+    // al confirmar manualmente. Estas coords son best-effort para futuras alertas de
+    // proximidad. Si el usuario deniega el permiso o el GPS falla/tarda, resolvemos
+    // null en silencio y el pending_stamp se crea igual. Timeout corto + posición
+    // cacheada para no añadir fricción al flujo de ganar sellos.
+    const obtenerCoordenadas = (): Promise<{ lat: number; lng: number } | null> =>
+      new Promise((resolve) => {
+        if (typeof navigator === "undefined" || !navigator.geolocation) return resolve(null);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(null),
+          { enableHighAccuracy: false, timeout: 2000, maximumAge: 60000 }
+        );
       });
+
+    // ── 5. Escribir en Firestore en background (sin await) ──────────────────
+    obtenerCoordenadas().then((coords) => {
+      setDoc(pendingRef, {
+        userId,
+        userName: userName || "Miembro del Club",
+        vendorId,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        ...(coords ? { clientLat: coords.lat, clientLng: coords.lng } : {}),
+      })
+        .then(() => {
+          console.timeEnd("2-create-pending-stamp");
+          // ✓ Notificar al vendedor: pasamos pendingId para que el servidor
+          // lea el vendorId directamente desde Firestore (evita que el cliente
+          // pueda alterar el destinatario de la notificación).
+          fetch("/api/handshake/notify-vendor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pendingId, clientName: userName || "Un cliente" }),
+          }).catch(() => {/* silencioso — no bloquear el flujo */});
+        })
+        .catch(() => {
+          if (pendingIdRef.current !== pendingId) return; // ya fue cancelado
+          setPhase("error");
+          setErrorMsg("No se pudo iniciar la solicitud. Inténtalo de nuevo.");
+          pendingIdRef.current = null;
+          setPendingId(null);
+          processingRef.current = false;
+        });
+    });
 
     // ── 5. Fetch nombre del local + verificar ban en paralelo (background) ──
     const fetchName = cachedName
@@ -518,6 +672,51 @@ function CanjeContent() {
     router.push("/");
   };
 
+  // ── Enviar boleta (comercio asociado / auto-servicio) ─────────────────────
+  const enviarBoleta = async (monto: number, file: File) => {
+    const user = auth.currentUser;
+    if (!user || !localId) return;
+
+    // Validación de la foto con mensaje claro (evita el error críptico de Storage)
+    if (!file.type.startsWith("image/")) {
+      toast({ variant: "destructive", title: "Archivo inválido", description: "Debes subir una foto de la boleta (imagen)." });
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Foto muy pesada", description: "La imagen supera 15 MB. Usa una foto más liviana." });
+      return;
+    }
+
+    setBoletaLoading(true);
+    try {
+      const idToken = await user.getIdToken();
+      // Subir foto de la boleta a Storage. NO leemos la URL aquí: la regla de
+      // lectura de boletas es solo-staff (privacidad), así que el cliente solo
+      // sube y envía el path. El panel moderador (staff) resuelve la URL al auditar.
+      const path = `boletas/${localId}/${Date.now()}_${user.uid}.jpg`;
+      const sref = storageRef(storage, path);
+      await uploadBytes(sref, file, { contentType: file.type || "image/jpeg" });
+
+      const res = await fetch("/api/handshake/boleta-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ vendorId: localId, monto, boletaPath: path }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo registrar el sello.");
+
+      setSuccessData({
+        newTotalSellos: data.nuevoTotal ?? 1,
+        userDisplayName: data.userName ?? "",
+      });
+      setPhase("confirmed");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "No se pudo registrar", description: e?.message || "Inténtalo de nuevo." });
+    } finally {
+      setBoletaLoading(false);
+    }
+  };
+
   // ── Reintentar (después de expired/rejected) ──────────────────────────────
   const handleRetry = () => {
     if (!localId) return;
@@ -547,6 +746,17 @@ function CanjeContent() {
         vendorName={vendorName}
         onCancel={handleCancel}
         secondsElapsed={secondsElapsed}
+      />
+    );
+  }
+
+  if (phase === "boleta") {
+    return (
+      <BoletaForm
+        vendorName={vendorName}
+        onSubmit={enviarBoleta}
+        onCancel={() => router.push("/")}
+        loading={boletaLoading}
       />
     );
   }

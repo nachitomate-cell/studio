@@ -27,7 +27,7 @@ service firebase.storage {
 
     function isValidImage() {
       return request.resource.contentType.matches('image/.*')
-        && request.resource.size < 10 * 1024 * 1024; // máx 10 MB
+        && request.resource.size < 15 * 1024 * 1024; // máx 15 MB (fotos de cámara)
     }
 
     // ── Fotos de locales ─────────────────────────────────────────────────────
@@ -48,6 +48,21 @@ service firebase.storage {
     match /publicidad/{fileName} {
       allow read: if true;
       allow write: if isDirectorOrAdmin() && isValidImage();
+      allow delete: if isDirectorOrAdmin();
+    }
+
+    // ── Boletas de comercios asociados (flujo auto-servicio) ──────────────────
+    // Ruta: boletas/{vendorId}/{filename}
+    // El cliente autenticado SUBE su boleta (no puede leer las ajenas).
+    // Solo staff (moderador/director/admin) lee, para auditar. Solo staff borra.
+    match /boletas/{vendorId}/{fileName} {
+      allow read: if isDirectorOrAdmin();
+      // El tipo (image/*) y el tamaño (<15MB) se validan en el cliente (BoletaForm)
+      // y la operación se respalda en el endpoint /api/handshake/boleta-scan.
+      // No usamos isValidImage() aquí porque el emulador de Storage no puebla de
+      // forma confiable request.resource.contentType/size desde el SDK del navegador.
+      allow create: if isSignedIn();
+      allow update: if false;
       allow delete: if isDirectorOrAdmin();
     }
 
