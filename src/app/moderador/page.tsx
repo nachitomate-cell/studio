@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
 import { registrarCompra } from "@/lib/puntos";
+import { CATEGORIES } from "@/lib/data";
 
 import { ADMIN_EMAIL as MASTER_EMAIL, ALLOWED_MOD_EMAILS as ALLOWED_EMAILS } from "@/lib/constants";
 
@@ -72,6 +73,13 @@ export default function ModeradorPage() {
   // Config sello bienvenida
   const [configBienvenida, setConfigBienvenida] = useState<{ activo: boolean; cantidad: number }>({ activo: true, cantidad: 1 });
   const [savingConfig, setSavingConfig] = useState(false);
+
+  // Alta rápida de locales
+  const [vendorEmail, setVendorEmail] = useState("");
+  const [vendorLocal, setVendorLocal] = useState("");
+  const [vendorCategoria, setVendorCategoria] = useState("");
+  const [vendorLoading, setVendorLoading] = useState(false);
+  const [vendorResult, setVendorResult] = useState<{ email: string; vendorId: string; tempPassword: string | null } | null>(null);
 
   // Recálculo socios captados
   const [recalcSocios, setRecalcSocios] = useState(false);
@@ -157,6 +165,17 @@ export default function ModeradorPage() {
     }
   };
 
+  // Recordar PIN: si el moderador ya lo validó en este dispositivo, auto-desbloquear.
+  // Se guarda el PIN validado por email; si el PIN se rota (env var), deja de coincidir
+  // y se vuelve a pedir.
+  useEffect(() => {
+    if (!currentUserEmail || typeof window === "undefined") return;
+    const saved = localStorage.getItem(`mod_pin_ok:${currentUserEmail}`);
+    if (saved && saved === PIN_MAP[currentUserEmail]) {
+      setPinVerified(true);
+    }
+  }, [currentUserEmail]);
+
   // Countdown para el bloqueo del PIN
   useEffect(() => {
     if (!lockedUntil) return;
@@ -179,6 +198,10 @@ export default function ModeradorPage() {
     if (expected && pinInput.trim() === expected) {
       setPinVerified(true);
       setPinAttempts(0);
+      // Recordar para no volver a pedirlo en este dispositivo
+      if (typeof window !== "undefined" && currentUserEmail) {
+        localStorage.setItem(`mod_pin_ok:${currentUserEmail}`, expected);
+      }
     } else {
       const next = pinAttempts + 1;
       setPinAttempts(next);
@@ -448,6 +471,38 @@ export default function ModeradorPage() {
     }
   };
 
+  const handleCreateVendor = async () => {
+    if (!vendorEmail.trim() || !vendorLocal.trim() || !vendorCategoria.trim()) {
+      toast({ variant: "destructive", title: "Faltan datos", description: "Completa email, nombre del local y categoría." });
+      return;
+    }
+    setVendorLoading(true);
+    setVendorResult(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión activa");
+      const res = await fetch("/api/moderador/create-vendor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          email: vendorEmail.trim(),
+          nombreLocal: vendorLocal.trim(),
+          categoria: vendorCategoria.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo registrar el comercio.");
+
+      setVendorResult({ email: vendorEmail.trim(), vendorId: data.vendorId, tempPassword: data.tempPassword });
+      toast({ title: "Local creado con éxito ✅", description: "El encargado puede iniciar sesión con su correo." });
+      setVendorEmail(""); setVendorLocal(""); setVendorCategoria("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error al registrar", description: e.message || "Intenta de nuevo." });
+    } finally {
+      setVendorLoading(false);
+    }
+  };
+
   const markSugerenciaLeida = async (id: string) => {
     try {
       await updateDoc(doc(db, "sugerencias", id), { leida: true });
@@ -680,6 +735,93 @@ export default function ModeradorPage() {
             </Link>
           ))}
         </div>
+
+        {/* ALTA RÁPIDA DE LOCALES */}
+        <Card className="border-none shadow-xl shadow-emerald-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-emerald-100">
+          <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
+            <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              🏪 Alta Rápida de Locales
+            </CardTitle>
+            <p className="text-sm text-slate-500 font-medium mt-1">
+              Registra un comercio y su encargado en un solo paso. Se crea el usuario con permisos de emprendedor y el perfil del local.
+            </p>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8 space-y-5 bg-slate-50/20">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Email del Encargado</label>
+                <Input
+                  type="email"
+                  placeholder="encargado@correo.cl"
+                  value={vendorEmail}
+                  onChange={(e) => setVendorEmail(e.target.value)}
+                  disabled={vendorLoading}
+                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Nombre del Local</label>
+                <Input
+                  type="text"
+                  placeholder="Ej: Joyas Ana"
+                  value={vendorLocal}
+                  onChange={(e) => setVendorLocal(e.target.value)}
+                  disabled={vendorLoading}
+                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Categoría</label>
+                <select
+                  value={vendorCategoria}
+                  onChange={(e) => setVendorCategoria(e.target.value)}
+                  disabled={vendorLoading}
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:opacity-60"
+                >
+                  <option value="" disabled>Selecciona una categoría…</option>
+                  {CATEGORIES.filter((c) => c.id !== "all").map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleCreateVendor}
+              disabled={vendorLoading}
+              className="h-12 rounded-2xl px-6 font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20"
+            >
+              {vendorLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Registrando…</>
+              ) : (
+                <><Store className="w-4 h-4" /> Registrar Comercio</>
+              )}
+            </Button>
+
+            {vendorResult && (
+              <Alert className="bg-emerald-50 border-emerald-200 text-emerald-800 rounded-2xl">
+                <CheckCheck className="h-4 w-4 !text-emerald-600" />
+                <AlertTitle className="font-black">Local creado con éxito</AlertTitle>
+                <AlertDescription className="text-emerald-700 space-y-2">
+                  <p>
+                    El encargado <strong>{vendorResult.email}</strong> ya puede iniciar sesión con su correo.
+                  </p>
+                  {vendorResult.tempPassword ? (
+                    <div className="flex flex-wrap items-center gap-2 bg-white border border-emerald-200 rounded-xl px-3 py-2">
+                      <span className="text-xs font-bold uppercase tracking-wide text-emerald-600">Contraseña temporal</span>
+                      <code className="text-sm font-black text-slate-800 tracking-wider">{vendorResult.tempPassword}</code>
+                      <span className="text-[11px] text-emerald-600">— envíasela al encargado para su primer ingreso.</span>
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-emerald-600">
+                      El usuario ya existía: conserva su contraseña actual (solo se le asignó el rol de emprendedor).
+                    </p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
 
         {/* METRICAS (TARJETAS SUPERIORES) */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

@@ -120,7 +120,11 @@ function GroupSection({ group, userCoords, filterCercano }: {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("directory");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === "undefined") return "directory";
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "rewards" || t === "profile" || t === "directory" ? t : "directory";
+  });
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
@@ -297,6 +301,34 @@ export default function Home() {
 
     return () => unsubscribeDoc();
   }, [user]);
+
+  // Routing por rol: en el primer landing de la sesión, el emprendedor/staff entra
+  // directo a su herramienta de trabajo (/validar). Tras ese primer aterrizaje puede
+  // navegar el mall libremente como un usuario normal.
+  const vendorLandRef = useRef(false);
+  useEffect(() => {
+    if (!user || !userData || vendorLandRef.current) return;
+    vendorLandRef.current = true;
+
+    const email = (user.email ?? "").toLowerCase().trim();
+    if (email === ADMIN_EMAIL) return; // el admin gestiona desde /moderador
+
+    const isVendorRole = Array.isArray(userData.roles)
+      ? userData.roles.includes("emprendedor") || userData.roles.includes("staff")
+      : userData.rol === "emprendedor" || userData.rol === "staff";
+    if (!isVendorRole) return;
+    if (typeof window === "undefined") return;
+
+    const yaAterrizo = sessionStorage.getItem("vendor_landed");
+    sessionStorage.setItem("vendor_landed", "1");
+    if (yaAterrizo) return; // ya tuvo su landing esta sesión → lo dejamos navegar
+
+    // Si llegó explícitamente a un tab de la home (ej. tocó "Descubre"), respetarlo.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab")) return;
+
+    router.replace("/validar");
+  }, [user, userData, router]);
 
   // Show onboarding tutorial once per new client account
   useEffect(() => {
@@ -642,7 +674,7 @@ export default function Home() {
     if (showAuth) {
       return (
         <div className="py-6 px-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <Auth />
+          <Auth onLoginSuccess={() => { setShowAuth(false); setActiveTab("directory"); }} />
         </div>
       );
     }
@@ -1170,7 +1202,7 @@ export default function Home() {
         </div>
       )}
 
-      <BottomNav activeTab={activeTab} premiosBadge={premiosBadge} onTabChange={(tab) => {
+      <BottomNav activeTab={activeTab} premiosBadge={premiosBadge} isVendor={isVendor} onTabChange={(tab) => {
         setActiveTab(tab);
         setShowAuth(false);
       }} />

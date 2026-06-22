@@ -11,9 +11,10 @@ import { rechazarHandshake } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Users, CheckCircle2, XCircle, Clock, ShieldCheck,
-  ChevronLeft, User, AlertTriangle, Store, RefreshCw, Gift, Search, Camera, X,
+  ChevronLeft, User, AlertTriangle, RefreshCw, Gift, Search, Camera, X, QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import QRCode from "react-qr-code";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -443,6 +444,7 @@ export default function ValidarPanel({
   const [pendingStamps, setPendingStamps] = useState<PendingStamp[]>([]);
   const [selectedStamp, setSelectedStamp] = useState<PendingStamp | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   // ── Estado de validación de premios ──────────────────────────────────────
   const [prizeCode, setPrizeCode] = useState("");
@@ -860,72 +862,103 @@ export default function ValidarPanel({
       </div>
 
       {/* Contenido */}
-      <div className="max-w-lg mx-auto px-5 py-6 space-y-4">
+      <div className="max-w-lg mx-auto px-5 py-6 space-y-6">
 
-        {/* Instrucción */}
-        <div
-          className="flex items-start gap-3 px-4 py-3 rounded-2xl border"
-          style={{ backgroundColor: "rgba(211,182,115,0.07)", borderColor: "rgba(211,182,115,0.25)" }}
-        >
-          <Store className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#D3B673" }} />
-          <p className="text-xs font-medium text-slate-600 leading-relaxed">
-            Cuando un cliente escanea tu QR, su solicitud aparece aquí.
-            Toca la tarjeta para <strong>confirmar</strong> o <strong>rechazar</strong> el sello.
-            Las solicitudes expiran a los 5 minutos.
-          </p>
-        </div>
-
-        {/* Lista de pendientes */}
-        {pendingStamps.length === 0 ? (
-          <div className="py-16 flex flex-col items-center gap-4 text-center">
-            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center">
-              <Users className="w-10 h-10 text-slate-300" />
+        {/* ── PASO 1 · BANNER GIGANTE "DAR SELLOS" ──────────────────────── */}
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-[#fef08a] to-[#fde047] shadow-md shadow-amber-200/50">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white/50 flex items-center justify-center shrink-0 shadow-inner">
+              <QrCode className="w-8 h-8 text-gray-900" />
             </div>
-            <div>
-              <p className="text-base font-black text-slate-400">Sin solicitudes</p>
-              <p className="text-xs text-slate-300 font-medium mt-1">
-                Las nuevas solicitudes aparecerán aquí en tiempo real
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-widest text-amber-800/70">
+                Paso 1 · Dar Sellos
+              </p>
+              <h2 className="text-xl font-black text-gray-900 leading-tight mt-0.5">
+                Muestra tu código QR
+              </h2>
+              <p className="text-sm font-medium text-gray-800/80 mt-1.5 leading-snug">
+                Pídele al cliente que escanee el código QR de tu local para pedir su sello.
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400 font-bold">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: "3s" }} />
-              Escuchando en tiempo real...
-            </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {pendingStamps.map((stamp) => (
-              <StampCard
-                key={stamp.id}
-                stamp={stamp}
-                onClick={() => setSelectedStamp(stamp)}
-              />
-            ))}
-          </div>
-        )}
 
-        {/* Leyenda */}
-        <div className="pt-4 flex items-center justify-center gap-6 text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#D3B673" }} />
-            Tiempo normal
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-red-400" />
-            Menos de 1 min
-          </div>
+          {/* Botón de respaldo: QR digital */}
+          <button
+            onClick={() => setShowQrModal(true)}
+            className="mt-5 w-full h-12 rounded-2xl bg-gray-900 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-lg"
+          >
+            <QrCode className="w-5 h-5" />
+            Ver mi QR digital
+          </button>
         </div>
 
-        {/* ── SECCIÓN VALIDAR PREMIO ─────────────────────────────────────── */}
-        <div className="mt-8 space-y-4">
-          <div className="flex items-center gap-2 px-1">
-            <Gift className="w-4 h-4" style={{ color: "#D3B673" }} />
-            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Validar Premio</h2>
+        {/* ── RADAR · BANDEJA DE SOLICITUDES EN VIVO ────────────────────── */}
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h3 className="text-sm font-black text-slate-800">Solicitudes en vivo</h3>
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
+              <RefreshCw className="w-3 h-3 animate-spin" style={{ animationDuration: "3s" }} />
+              En tiempo real
+            </div>
+          </div>
+
+          {pendingStamps.length === 0 ? (
+            <div className="py-12 flex flex-col items-center gap-3 text-center">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+                <Users className="w-8 h-8 text-slate-300" />
+              </div>
+              <div>
+                <p className="text-base font-black text-slate-500">Esperando clientes...</p>
+                <p className="text-xs text-slate-400 font-medium mt-1 max-w-[240px]">
+                  Las solicitudes de sellos aparecerán aquí al instante.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingStamps.map((stamp) => (
+                <StampCard
+                  key={stamp.id}
+                  stamp={stamp}
+                  onClick={() => setSelectedStamp(stamp)}
+                />
+              ))}
+
+              {/* Leyenda — solo cuando hay solicitudes */}
+              <div className="pt-3 flex items-center justify-center gap-6 text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#D3B673" }} />
+                  Tiempo normal
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-red-400" />
+                  Menos de 1 min
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── PASO 2 · ENTREGAR PREMIO (zona gris, separación visual) ────── */}
+        <div className="-mx-5 mt-8 px-5 pt-7 pb-4 bg-gray-50 border-t-2 border-dashed border-slate-200">
+          <div className="flex items-center gap-3 mb-4 px-1">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: "rgba(110,187,209,0.15)" }}>
+              🎁
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: "#3F9CB8" }}>
+                Paso 2
+              </p>
+              <h2 className="text-lg font-black text-slate-800 leading-none mt-0.5">
+                Entregar un Premio
+              </h2>
+            </div>
           </div>
 
           <div
-            className="rounded-3xl border p-5 space-y-4"
-            style={{ borderColor: "rgba(211,182,115,0.25)", backgroundColor: "rgba(211,182,115,0.05)" }}
+            className="rounded-3xl border-2 p-5 space-y-4 bg-white shadow-sm"
+            style={{ borderColor: "rgba(110,187,209,0.35)" }}
           >
             <p className="text-xs text-slate-500 font-medium leading-relaxed">
               Escanea el QR del cliente o ingresa el código manualmente.
@@ -936,10 +969,10 @@ export default function ValidarPanel({
               <Button
                 onClick={startPrizeScanner}
                 disabled={verifyingPrize}
-                className="w-full h-12 rounded-2xl font-bold gap-2"
+                className="w-full h-16 rounded-2xl font-black text-base gap-2.5 shadow-lg shadow-cyan-200/50 active:scale-[0.98] transition-transform"
                 style={{ backgroundColor: "#6EBBD1", color: "white" }}
               >
-                <Camera className="w-5 h-5" />
+                <Camera className="w-6 h-6" />
                 Escanear QR de Premio
               </Button>
             ) : (
@@ -1104,6 +1137,49 @@ export default function ValidarPanel({
           onReject={handleReject}
           loading={actionLoading}
         />
+      )}
+
+      {/* Modal QR digital del local (respaldo si se perdió el impreso) */}
+      {showQrModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowQrModal(false); }}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-4" />
+            <div className="px-7 pt-5 pb-10 flex flex-col items-center text-center gap-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: "#D3B673" }}>
+                  Código de Mostrador
+                </p>
+                <h3 className="text-xl font-black text-slate-800 mt-1">{vendorName}</h3>
+                <p className="text-sm text-slate-400 font-medium mt-1.5 max-w-[280px]">
+                  Muéstrale este QR al cliente para que lo escanee y pida su sello.
+                </p>
+              </div>
+
+              <div className="bg-white border-2 rounded-3xl p-5 shadow-lg" style={{ borderColor: "#D3B67333" }}>
+                <QRCode
+                  value={`https://clubpatiocurauma.synaptechspa.cl/scan?ref=${vendorId}`}
+                  size={220}
+                  fgColor="#1A1A1A"
+                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                />
+              </div>
+
+              <button
+                onClick={() => setShowQrModal(false)}
+                className="w-full h-12 rounded-2xl text-sm font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

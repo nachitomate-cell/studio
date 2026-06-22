@@ -116,6 +116,35 @@ function EstadoBadge({ tipo }: { tipo: string }) {
   );
 }
 
+// Etiqueta del local / método — reutilizada en tabla (desktop) y tarjetas (móvil)
+function LocalLabel({ log, vendors }: { log: LogEntry; vendors: Record<string, string> }) {
+  if (log.metodo === "BIENVENIDA")
+    return <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full">🎁 Sello de Bienvenida</span>;
+  if (log.metodo === "SISTEMA")
+    return <span className="inline-flex items-center gap-1 text-blue-600 font-bold text-xs bg-blue-50 px-2 py-1 rounded-full">⚡ Bono de Login</span>;
+  if (log.metodo === "REFERIDO")
+    return <span className="inline-flex items-center gap-1 text-violet-600 font-bold text-xs bg-violet-50 px-2 py-1 rounded-full">🔗 Registro Referido · {vendors[log.vendedorId] || log.vendedorId || "—"}</span>;
+  if (log.metodo === "PERFIL_COMPLETO")
+    return <span className="inline-flex items-center gap-1 text-amber-600 font-bold text-xs bg-amber-50 px-2 py-1 rounded-full">✅ Perfil Completado</span>;
+  return <>{vendors[log.vendedorId] || log.vendedorId || "—"}</>;
+}
+
+function SellosBadge({ log }: { log: LogEntry }) {
+  const n = log.numSellos ?? 1;
+  if (log.anulada) {
+    return (
+      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-400 line-through">
+        -{n} {n === 1 ? "sello" : "sellos"}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+      +{n} {n === 1 ? "sello" : "sellos"}
+    </span>
+  );
+}
+
 function KpiCard({
   label,
   value,
@@ -128,20 +157,20 @@ function KpiCard({
   color?: string;
 }) {
   return (
-    <Card className="border-none shadow-md rounded-3xl bg-white">
-      <CardContent className="p-6">
-        <div className="flex items-start gap-4">
+    <Card className="border-none shadow-md rounded-2xl md:rounded-3xl bg-white">
+      <CardContent className="p-4 md:p-6">
+        <div className="flex items-start gap-3 md:gap-4">
           <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+            className="w-9 h-9 md:w-11 md:h-11 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0"
             style={{ backgroundColor: `${color}18`, color }}
           >
-            <Icon className="w-5 h-5" />
+            <Icon className="w-4 h-4 md:w-5 md:h-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5 md:mb-1 leading-tight">
               {label}
             </p>
-            <p className="text-xl font-black text-slate-800 truncate leading-tight">{value}</p>
+            <p className="text-base md:text-xl font-black text-slate-800 truncate leading-tight">{value}</p>
           </div>
         </div>
       </CardContent>
@@ -538,52 +567,60 @@ export default function ModeradorSellosPage() {
     <div className="min-h-screen bg-slate-50 pb-16">
       {/* Header sticky */}
       <div className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
-          <Link href="/moderador">
-            <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors shrink-0">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          </Link>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-              Registro de Sellos
-            </h1>
-            <p className="text-sm text-slate-400 font-medium">
-              Historial completo de transacciones
-            </p>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4">
+          {/* Fila título */}
+          <div className="flex items-center gap-3">
+            <Link href="/moderador">
+              <button className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors shrink-0">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            </Link>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                Registro de Sellos
+              </h1>
+              <p className="text-xs md:text-sm text-slate-400 font-medium truncate">
+                Historial completo de transacciones
+              </p>
+            </div>
           </div>
-          <Link href="/moderador/canjes">
+
+          {/* Fila acciones — scroll horizontal en móvil */}
+          <div className="flex items-center gap-2 mt-3 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+            <Link href="/moderador/canjes" className="shrink-0">
+              <Button
+                variant="outline"
+                className="rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+              >
+                <Gift className="w-4 h-4" />
+                Ver Canjes
+              </Button>
+            </Link>
             <Button
+              onClick={() => { setShowStatsModal(true); fetchStatsLocales(); }}
               variant="outline"
-              className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+              className="shrink-0 rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-amber-200 text-amber-600 hover:border-amber-400 hover:bg-amber-50 transition-all whitespace-nowrap"
             >
-              <Gift className="w-4 h-4" />
-              Ver Canjes
+              <Trophy className="w-4 h-4" />
+              Top Clientes
             </Button>
-          </Link>
-          <Button
-            onClick={() => { setShowStatsModal(true); fetchStatsLocales(); }}
-            variant="outline"
-            className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-amber-200 text-amber-600 hover:border-amber-400 hover:bg-amber-50 transition-all whitespace-nowrap"
-          >
-            <Trophy className="w-4 h-4" />
-            Top Clientes
-          </Button>
-          <Button
-            onClick={exportExcel}
-            variant="outline"
-            className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
-          >
-            <Download className="w-4 h-4" />
-            Exportar Excel
-          </Button>
+            <Button
+              onClick={exportExcel}
+              variant="outline"
+              className="shrink-0 rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+            >
+              <Download className="w-4 h-4" />
+              <span className="md:hidden">Excel</span>
+              <span className="hidden md:inline">Exportar Excel</span>
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-5 md:py-8 space-y-5 md:space-y-8">
 
         {/* ── KPI Cards ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <KpiCard
             label="Sellos este mes"
             value={kpis.totalSellos}
@@ -611,7 +648,7 @@ export default function ModeradorSellosPage() {
         </div>
 
         {/* ── Filtros ───────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-3 items-end">
+        <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:items-end">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Desde
@@ -620,7 +657,7 @@ export default function ModeradorSellosPage() {
               type="date"
               value={desde}
               onChange={(e) => { setDesde(e.target.value); setCurrentPage(1); }}
-              className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+              className="h-11 md:h-10 w-full px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -631,17 +668,17 @@ export default function ModeradorSellosPage() {
               type="date"
               value={hasta}
               onChange={(e) => { setHasta(e.target.value); setCurrentPage(1); }}
-              className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+              className="h-11 md:h-10 w-full px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
             />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 col-span-2 md:col-auto">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Local / Vendedor
             </label>
             <select
               value={vendorFilter}
               onChange={(e) => { setVendorFilter(e.target.value); setCurrentPage(1); }}
-              className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+              className="h-11 md:h-10 w-full px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
             >
               <option value="">Todos los locales</option>
               {vendorList.map((v) => (
@@ -649,14 +686,14 @@ export default function ModeradorSellosPage() {
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 col-span-2 md:col-auto">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Estado
             </label>
             <select
               value={estadoFilter}
               onChange={(e) => { setEstadoFilter(e.target.value); setCurrentPage(1); }}
-              className="h-10 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+              className="h-11 md:h-10 w-full px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
             >
               <option value="">Todos</option>
               <option value="confirmado">Confirmado</option>
@@ -664,7 +701,7 @@ export default function ModeradorSellosPage() {
               <option value="expirado">Expirado</option>
             </select>
           </div>
-          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+          <div className="flex flex-col gap-1 col-span-2 md:flex-1 md:min-w-[180px]">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Buscar cliente
             </label>
@@ -674,7 +711,7 @@ export default function ModeradorSellosPage() {
                 placeholder="Nombre del cliente..."
                 value={clienteFilter}
                 onChange={(e) => { setClienteFilter(e.target.value); setCurrentPage(1); }}
-                className="pl-9 h-10 rounded-xl border-slate-200 text-sm font-medium"
+                className="pl-9 h-11 md:h-10 rounded-xl border-slate-200 text-sm font-medium"
               />
             </div>
           </div>
@@ -682,7 +719,7 @@ export default function ModeradorSellosPage() {
             <Button
               variant="ghost"
               onClick={resetFiltros}
-              className="h-10 text-slate-400 hover:text-slate-600 text-xs font-bold rounded-xl"
+              className="col-span-2 md:col-auto h-10 text-slate-400 hover:text-slate-600 text-xs font-bold rounded-xl"
             >
               Limpiar filtros
             </Button>
@@ -700,20 +737,84 @@ export default function ModeradorSellosPage() {
             </div>
           ) : (
             <>
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <p className="text-sm font-bold text-slate-500">
+              <div className="px-4 md:px-6 py-3.5 md:py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+                <p className="text-xs md:text-sm font-bold text-slate-500 min-w-0">
                   {vendorAccurateCount !== null
-                    ? <>{vendorAccurateCount} {vendorAccurateCount === 1 ? "sello entregado" : "sellos entregados"} <span className="text-slate-300 font-medium">(sin anulados · total histórico)</span></>
-                    : <>{filtered.length}{" "}{filtered.length === 1 ? "registro" : "registros"}{hayFiltros ? " con filtros aplicados" : " en total"}</>
+                    ? <>{vendorAccurateCount} {vendorAccurateCount === 1 ? "sello" : "sellos"} <span className="text-slate-300 font-medium hidden sm:inline">(sin anulados · total histórico)</span></>
+                    : <>{filtered.length}{" "}{filtered.length === 1 ? "registro" : "registros"}<span className="hidden sm:inline">{hayFiltros ? " con filtros aplicados" : " en total"}</span></>
                   }
                 </p>
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+                <div className="flex items-center gap-2 text-[11px] md:text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 md:px-3 py-1.5 rounded-full shrink-0">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   Tiempo real
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* ── Vista MÓVIL: tarjetas ─────────────────────────────────── */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {paginated.length === 0 ? (
+                  <div className="px-4 py-16 text-center text-slate-300 font-bold text-sm">
+                    Sin registros para los filtros seleccionados
+                  </div>
+                ) : (
+                  paginated.map((log) => (
+                    <div key={log.id} className={`px-4 py-3.5 ${log.anulada ? "opacity-50" : ""}`}>
+                      {/* Fila 1: cliente + estado */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-black text-slate-800 text-sm truncate">
+                            {log.usuarioResuelto || log.usuario || "—"}
+                          </p>
+                          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            {formatFechaCompleta(log.fecha)}
+                          </p>
+                        </div>
+                        <div className="shrink-0">
+                          {log.anulada ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-600">
+                              Anulado
+                            </span>
+                          ) : (
+                            <EstadoBadge tipo={log.tipo} />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Fila 2: local */}
+                      <div className="mt-2 text-sm text-slate-500 font-medium truncate">
+                        <LocalLabel log={log} vendors={vendors} />
+                      </div>
+
+                      {/* Fila 3: sellos + monto + acción */}
+                      <div className="mt-2.5 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <SellosBadge log={log} />
+                          <span className="text-xs truncate">
+                            <MontoCell monto={log.monto} metodo={log.metodo} />
+                          </span>
+                        </div>
+                        {log.tipo === "FIDELIZACION" && !log.anulada && (
+                          <button
+                            onClick={() => handleAnularSello(log)}
+                            disabled={anulandoId === log.id}
+                            title="Anular sello"
+                            className="shrink-0 h-9 px-3 rounded-xl flex items-center gap-1.5 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-40 text-xs font-bold"
+                          >
+                            {anulandoId === log.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <><Undo2 className="w-4 h-4" /> Anular</>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* ── Vista ESCRITORIO: tabla ───────────────────────────────── */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 text-xs text-slate-400 uppercase font-black tracking-wider border-b-2 border-slate-100 sticky top-0">
                     <tr>
@@ -749,26 +850,10 @@ export default function ModeradorSellosPage() {
                             {log.usuarioResuelto || log.usuario || "—"}
                           </td>
                           <td className="px-6 py-4 text-slate-500 font-medium">
-                            {log.metodo === "BIENVENIDA"
-                              ? <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full">🎁 Sello de Bienvenida</span>
-                              : log.metodo === "SISTEMA"
-                              ? <span className="inline-flex items-center gap-1 text-blue-600 font-bold text-xs bg-blue-50 px-2 py-1 rounded-full">⚡ Bono de Login</span>
-                              : log.metodo === "REFERIDO"
-                              ? <span className="inline-flex items-center gap-1 text-violet-600 font-bold text-xs bg-violet-50 px-2 py-1 rounded-full">🔗 Registro Referido · {vendors[log.vendedorId] || log.vendedorId || "—"}</span>
-                              : log.metodo === "PERFIL_COMPLETO"
-                              ? <span className="inline-flex items-center gap-1 text-amber-600 font-bold text-xs bg-amber-50 px-2 py-1 rounded-full">✅ Perfil Completado</span>
-                              : vendors[log.vendedorId] || log.vendedorId || "—"}
+                            <LocalLabel log={log} vendors={vendors} />
                           </td>
                           <td className="px-6 py-4">
-                            {log.anulada ? (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-400 line-through">
-                                -{log.numSellos ?? 1} {(log.numSellos ?? 1) === 1 ? "sello" : "sellos"}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                                +{log.numSellos ?? 1} {(log.numSellos ?? 1) === 1 ? "sello" : "sellos"}
-                              </span>
-                            )}
+                            <SellosBadge log={log} />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <MontoCell monto={log.monto} metodo={log.metodo} />
@@ -806,24 +891,24 @@ export default function ModeradorSellosPage() {
               </div>
 
               {totalPages > 1 && (
-                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-                  <p className="text-xs text-slate-400 font-bold">
-                    Mostrando{" "}
+                <div className="px-4 md:px-6 py-3 md:py-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <p className="text-[11px] md:text-xs text-slate-400 font-bold min-w-0">
+                    <span className="hidden sm:inline">Mostrando{" "}</span>
                     {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)}–
                     {Math.min(currentPage * PAGE_SIZE, filtered.length)} de{" "}
                     {filtered.length}
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="rounded-xl border-slate-200 text-xs font-bold h-9"
+                      className="rounded-xl border-slate-200 text-xs font-bold h-9 px-3"
                     >
                       Anterior
                     </Button>
-                    <span className="text-xs font-black text-slate-500 px-2 tabular-nums">
+                    <span className="text-xs font-black text-slate-500 px-1 md:px-2 tabular-nums">
                       {currentPage} / {totalPages}
                     </span>
                     <Button
@@ -831,7 +916,7 @@ export default function ModeradorSellosPage() {
                       size="sm"
                       onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className="rounded-xl border-slate-200 text-xs font-bold h-9"
+                      className="rounded-xl border-slate-200 text-xs font-bold h-9 px-3"
                     >
                       Siguiente
                     </Button>
@@ -847,23 +932,23 @@ export default function ModeradorSellosPage() {
     {/* ── Modal Top Clientes por Local ──────────────────────────────────── */}
     {showStatsModal && (
       <div
-        className="fixed inset-0 z-[300] flex items-center justify-center p-4 md:p-6"
+        className="fixed inset-0 z-[300] flex items-end md:items-center justify-center md:p-6"
         onClick={() => setShowStatsModal(false)}
       >
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
         <div
-          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col animate-in zoom-in-95 duration-200"
+          className="relative bg-white rounded-t-3xl md:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] md:max-h-[88vh] flex flex-col animate-in slide-in-from-bottom-4 md:zoom-in-95 duration-200"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-7 pt-7 pb-5 border-b border-slate-100 shrink-0">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between px-5 md:px-7 pt-5 md:pt-7 pb-4 md:pb-5 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0">
                 <Trophy className="w-5 h-5" />
               </div>
-              <div>
-                <p className="font-black text-slate-800 text-lg leading-tight">Top Clientes por Local</p>
-                <p className="text-xs text-slate-400 font-medium">Mayor compra acumulada y cliente más frecuente · histórico total</p>
+              <div className="min-w-0">
+                <p className="font-black text-slate-800 text-base md:text-lg leading-tight">Top Clientes por Local</p>
+                <p className="text-[11px] md:text-xs text-slate-400 font-medium">Mayor compra y cliente más frecuente · histórico</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -884,7 +969,7 @@ export default function ModeradorSellosPage() {
           </div>
 
           {/* Body */}
-          <div className="overflow-y-auto flex-1 px-7 py-6">
+          <div className="overflow-y-auto flex-1 px-4 md:px-7 py-5 md:py-6 pb-safe">
             {loadingStats ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
                 <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
@@ -966,7 +1051,7 @@ export default function ModeradorSellosPage() {
 
           {/* Footer */}
           {!loadingStats && statsLocales.length > 0 && (
-            <div className="px-7 py-4 border-t border-slate-100 shrink-0">
+            <div className="px-4 md:px-7 py-3 md:py-4 border-t border-slate-100 shrink-0 pb-safe">
               <p className="text-xs text-slate-400 font-medium text-center">
                 {statsLocales.length} local{statsLocales.length !== 1 ? "es" : ""} con actividad · Solo incluye transacciones reales (excluye sellos de bienvenida y referidos)
               </p>

@@ -39,7 +39,7 @@ function generarCodigoReferido(nombre: string): string {
   return `${prefijo}-${sufijo}`;
 }
 
-export function Auth() {
+export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -176,6 +176,19 @@ export function Auth() {
           window.location.href = urlPendiente;
           return;
         }
+
+        // Routing por rol: el emprendedor/staff entra directo a su herramienta
+        // de trabajo (Validar); el cliente queda en Descubrir.
+        const data = snap.exists() ? snap.data() : null;
+        const roles: string[] = Array.isArray(data?.roles)
+          ? data!.roles
+          : data?.rol ? [data.rol] : [];
+        const isVendor = roles.includes("emprendedor") || roles.includes("staff");
+        if (isVendor) {
+          router.replace("/validar");
+          return;
+        }
+        onLoginSuccess?.();
       } else {
         if (!aceptaTerminos) throw new Error("Debes aceptar los términos de uso.");
         if (!nombre.trim()) throw new Error("Ingresa tu nombre completo.");

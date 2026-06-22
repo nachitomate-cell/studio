@@ -7,11 +7,14 @@ import { doc, getDoc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 import ValidarPanel from "@/components/ValidarPanel";
 import VendorStampModal from "@/components/VendorStampModal";
+import { BottomNav } from "@/components/navigation/BottomNav";
+import { useToast } from "@/hooks/use-toast";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
 
 export default function ValidarPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -35,7 +38,9 @@ export default function ValidarPage() {
           const data = snap.data();
           const roles: string[] = Array.isArray(data.roles) ? data.roles : [];
           const rol: string = data.rol ?? "";
-          const isVendor = roles.includes("emprendedor") || rol === "emprendedor";
+          const isVendor =
+            roles.includes("emprendedor") || roles.includes("staff") ||
+            rol === "emprendedor" || rol === "staff";
           if (isVendor) {
             setVendorId(user.uid);
             setAuthChecked(true);
@@ -44,10 +49,16 @@ export default function ValidarPage() {
         }
       } catch { /* ignore */ }
 
+      // Cliente normal intentando acceder a la herramienta de comercio.
+      toast({
+        variant: "destructive",
+        title: "Acceso restringido",
+        description: "No tienes permisos de comercio.",
+      });
       router.replace("/");
     });
     return () => unsub();
-  }, [router]);
+  }, [router, toast]);
 
   if (!authChecked) {
     return (
@@ -61,8 +72,12 @@ export default function ValidarPage() {
 
   return (
     <>
-      <ValidarPanel vendorId={vendorId} />
+      {/* Espacio inferior para que el BottomNav no tape el contenido del panel */}
+      <div className="bg-slate-50 pb-20">
+        <ValidarPanel vendorId={vendorId} />
+      </div>
       <VendorStampModal vendorId={vendorId} />
+      <BottomNav activeTab="validar" isVendor />
     </>
   );
 }
