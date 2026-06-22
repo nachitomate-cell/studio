@@ -16,6 +16,7 @@ import {
   X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
   DollarSign, BarChart2, RefreshCw, FileDown, HelpCircle,
   CheckCircle2, User, MessageCircle, CalendarDays, Star,
+  Sparkles, ExternalLink, Link2,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -30,6 +31,7 @@ import { CATEGORIES } from "@/lib/data";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import VendorStampModal from "@/components/VendorStampModal";
 import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
+import { clasificarPerfil, calcularSegmentacion, PERFILES_META, type PerfilConductual } from "@/lib/perfilesConductuales";
 
 // ── Helpers CRM ──────────────────────────────────────────────────────────────
 function currentMonth() {
@@ -55,6 +57,7 @@ interface ClienteStats {
   visitas: number;
   gasto: number;
   ultimaVisita: string;
+  perfil?: PerfilConductual;
 }
 
 
@@ -138,7 +141,12 @@ function calcularCRM(ventas: VentaRecord[]) {
     clienteMap[v.clienteId].gasto += v.monto || 0;
     if (v.fecha > clienteMap[v.clienteId].ultimaVisita) clienteMap[v.clienteId].ultimaVisita = v.fecha;
   });
-  const topClientes = Object.values(clienteMap).sort((a, b) => b.visitas - a.visitas).slice(0, 10);
+  // Segmentación conductual: clasificar a toda la cartera en los 5 perfiles
+  const todosClientes = Object.values(clienteMap);
+  todosClientes.forEach(c => { c.perfil = clasificarPerfil(c); });
+  const segmentacion = calcularSegmentacion(todosClientes);
+
+  const topClientes = [...todosClientes].sort((a, b) => b.visitas - a.visitas).slice(0, 10);
 
   // Clientes inactivos: última visita > 30 días
   const hace30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -160,7 +168,7 @@ function calcularCRM(ventas: VentaRecord[]) {
     ? Math.round(ventasConMonto.reduce((s, v) => s + (v.monto || 0), 0) / ventasConMonto.length) : 0;
   const ventasConMontoCount = ventasConMonto.length;
 
-  return { ingresosMes, clientesUnicos, tasaRetorno, topClientes, totalRegistros: ventas.length, clientesInactivos, visitasPorDia, maxDia, ticketPromedio, ventasConMontoCount };
+  return { ingresosMes, clientesUnicos, tasaRetorno, topClientes, totalRegistros: ventas.length, clientesInactivos, visitasPorDia, maxDia, ticketPromedio, ventasConMontoCount, segmentacion };
 }
 
 export default function VendedorPage() {
@@ -208,6 +216,10 @@ export default function VendedorPage() {
   const [savingOferta, setSavingOferta] = useState(false);
   const [vendorAvgRating, setVendorAvgRating] = useState<number | null>(null);
   const [vendorReviewCount, setVendorReviewCount] = useState(0);
+  // Link in Bio premium (bioo.cl)
+  const [biooInfo, setBiooInfo] = useState<{ handle?: string; claimUrl?: string; publicUrl?: string }>({});
+  const [biooBusy, setBiooBusy] = useState(false);
+  const [biooOpening, setBiooOpening] = useState(false);
 
 
   useEffect(() => {
@@ -288,6 +300,7 @@ export default function VendedorPage() {
               isPremium: data.isPremium === true,
             });
             setPreviewUrl(data.imageUrl || data.imageUrls?.[0] || null);
+            setBiooInfo({ handle: data.biooHandle, claimUrl: data.biooClaimUrl, publicUrl: data.biooPublicUrl });
             if (!profileLoadedRef.current && (!businessName.trim() || businessName.trim() === "—")) {
               toast({ title: "¡Bienvenido! Configura tu local", description: "Por favor, configura el nombre de tu local para empezar a entregar sellos." });
               router.push("/tienda");
@@ -461,6 +474,74 @@ export default function VendedorPage() {
     }));
   };
 
+  // ── Link in Bio premium (bioo.cl) — autoservicio del emprendedor ──────────
+  const crearMiBioo = async () => {
+    if (!auth.currentUser) {
+      toast({ variant: "destructive", title: "No autenticado", description: "Inicia sesión para crear tu página." });
+      return;
+    }
+    if (!shopForm.nombreTienda.trim() || shopForm.nombreTienda.trim() === "—") {
+      toast({ variant: "destructive", title: "Configura tu local primero", description: "Necesitas el nombre de tu local antes de crear tu Link in Bio." });
+      return;
+    }
+    setBiooBusy(true);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/bioo/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendorId: auth.currentUser.uid, idToken }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast({ variant: "destructive", title: "No se pudo crear", description: json.error || "Intenta de nuevo." });
+        return;
+      }
+      setBiooInfo({ handle: json.handle, claimUrl: json.claimUrl, publicUrl: json.publicUrl });
+      toast({ title: "¡Tu Link in Bio está listo!", description: `bioo.cl/${json.handle} — actívala para personalizarla.` });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo conectar. Intenta de nuevo." });
+    } finally {
+      setBiooBusy(false);
+    }
+  };
+
+  const copiarBioo = (texto: string, msg: string) => {
+    navigator.clipboard?.writeText(texto).then(
+      () => toast({ title: msg }),
+      () => toast({ variant: "destructive", title: "No se pudo copiar" })
+    );
+  };
+
+  // Abre el editor de bioo.cl con la sesión del emprendedor ya iniciada (SSO).
+  const abrirEditorBioo = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setBiooOpening(true);
+    const w = window.open("", "_blank"); // abrir en el gesto para evitar bloqueo
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/bioo/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.editUrl) {
+        if (w) w.close();
+        toast({ variant: "destructive", title: "No se pudo abrir", description: json.error || "Intenta de nuevo." });
+        return;
+      }
+      if (w) w.location.href = json.editUrl;
+      else window.location.href = json.editUrl;
+    } catch {
+      if (w) w.close();
+      toast({ variant: "destructive", title: "Error", description: "No se pudo conectar. Intenta de nuevo." });
+    } finally {
+      setBiooOpening(false);
+    }
+  };
+
   const handleSaveShopInfo = async () => {
     if (!auth.currentUser) {
       toast({ variant: "destructive", title: "No autenticado", description: "Debes iniciar sesión para realizar cambios." });
@@ -525,6 +606,18 @@ export default function VendedorPage() {
 
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       await updateDoc(userRef, { nombreTienda: shopForm.nombreTienda });
+
+      // Auto-crear su Link in Bio (bioo.cl) si aún no lo tiene. Idempotente y silencioso.
+      if (!biooInfo.handle) {
+        try {
+          const idToken = await auth.currentUser.getIdToken();
+          await fetch("/api/bioo/provision", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vendorId: auth.currentUser.uid, idToken }),
+          });
+        } catch { /* no bloquea el guardado */ }
+      }
 
       toast({ title: "¡Perfil actualizado!", description: "La información de tu local se ha guardado correctamente." });
       setView("dashboard");
@@ -989,6 +1082,42 @@ export default function VendedorPage() {
                 />
               )}
 
+              {/* ── Segmentación conductual (5 perfiles) ──────────────────────── */}
+              {crm.topClientes.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Segmentación de clientes</p>
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 shadow-sm space-y-3">
+                    {/* Barra de distribución apilada */}
+                    <div className="flex w-full h-3 rounded-full overflow-hidden bg-slate-100">
+                      {crm.segmentacion.filter(s => s.cantidad > 0).map(s => (
+                        <div
+                          key={s.perfil}
+                          style={{ width: `${s.porcentaje}%`, background: s.meta.color }}
+                          title={`${s.perfil}: ${s.cantidad} (${s.porcentaje}%)`}
+                        />
+                      ))}
+                    </div>
+                    {/* Detalle por perfil */}
+                    <div className="space-y-1.5">
+                      {crm.segmentacion.map(s => (
+                        <div key={s.perfil} className="flex items-center gap-2.5">
+                          <span className="text-base leading-none">{s.meta.emoji}</span>
+                          <span className="text-sm font-semibold text-slate-700 flex-1">{s.perfil}</span>
+                          <span className="text-xs font-bold text-slate-500 tabular-nums">{s.cantidad}</span>
+                          <span className="text-[10px] text-slate-400 w-9 text-right tabular-nums">{s.porcentaje}%</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                      Clasificación automática según frecuencia, gasto y recencia de cada cliente.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* ── Top clientes (con WhatsApp) ───────────────────────────────── */}
               {crm.topClientes.length > 0 && (
                 <div className="space-y-3">
@@ -1005,7 +1134,14 @@ export default function VendedorPage() {
                           <span className="text-xs font-black text-slate-500">#{i + 1}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-800 truncate">{c.nombre}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-bold text-slate-800 truncate">{c.nombre}</p>
+                            {c.perfil && (
+                              <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full border shrink-0", PERFILES_META[c.perfil].badgeClass)}>
+                                {PERFILES_META[c.perfil].emoji} {c.perfil}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-slate-400">
                             {c.visitas} visita{c.visitas !== 1 ? "s" : ""}
                             {c.gasto > 0 ? ` · ${formatCLP(c.gasto)}` : ""}
@@ -1399,6 +1535,78 @@ export default function VendedorPage() {
                 )}
 
               </div>{/* end space-y-6 */}
+
+              {/* ── Mi Link in Bio (bioo.cl) ─────────────────────────────── */}
+              <div className="mt-6 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50/60 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-sm">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-black text-slate-800 flex items-center gap-2 flex-wrap">
+                      Mi Link in Bio
+                      <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-700 border border-violet-300">bioo.cl</span>
+                    </p>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                      Tu página de enlaces para la bio de Instagram, con tu WhatsApp, redes y web en un solo toque.
+                    </p>
+                  </div>
+                </div>
+
+                {!biooInfo.handle ? (
+                  <div className="mt-4 space-y-3">
+                    <Button
+                      onClick={crearMiBioo}
+                      disabled={biooBusy}
+                      className="w-full h-12 rounded-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 gap-2"
+                    >
+                      {biooBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                      {biooBusy ? "Creando…" : "Crear mi Link in Bio"}
+                    </Button>
+                    <p className="text-[11px] text-slate-400 leading-relaxed text-center">
+                      Se crea con tus datos ya cargados. {!shopForm.isPremium && (
+                        <span className="text-violet-600 font-semibold">Con el plan Patrocinado desbloqueas temas, fondos y animaciones premium.</span>
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center gap-2 rounded-xl bg-white border border-violet-200 px-3 py-3">
+                      <Link2 className="w-4 h-4 text-violet-500 shrink-0" />
+                      <span className="text-sm font-bold text-slate-800 truncate flex-1">bioo.cl/{biooInfo.handle}</span>
+                      <button
+                        type="button"
+                        onClick={() => copiarBioo(biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`, "Enlace copiado")}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                        aria-label="Copiar enlace"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <a
+                        href={biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                        aria-label="Ver página"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={abrirEditorBioo}
+                      disabled={biooOpening}
+                      className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 transition-opacity disabled:opacity-60"
+                    >
+                      {biooOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                      {biooOpening ? "Abriendo editor…" : "Personalizar mi página →"}
+                    </button>
+                    <p className="text-[11px] text-slate-400 leading-relaxed text-center">
+                      Entras directo al editor con tu sesión, sin volver a iniciar sesión.
+                      {!shopForm.isPremium && <span className="text-violet-600 font-semibold"> Hazte Patrocinado para temas y fondos premium.</span>}
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="pt-4">
                 <Button
