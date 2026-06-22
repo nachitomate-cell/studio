@@ -16,7 +16,6 @@ import {
   X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
   DollarSign, BarChart2, RefreshCw, FileDown, HelpCircle,
   CheckCircle2, User, MessageCircle, CalendarDays, Star,
-  ExternalLink, Link2,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -30,6 +29,7 @@ import { CATEGORIES } from "@/lib/data";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
 import VendorStampModal from "@/components/VendorStampModal";
+import { BiooPromoCard } from "@/components/BiooPromoCard";
 import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
 import { clasificarPerfil, calcularSegmentacion, PERFILES_META, type PerfilConductual } from "@/lib/perfilesConductuales";
 
@@ -1668,85 +1668,15 @@ export default function VendedorPage() {
         {/* ── Beneficio VIP: Mi Link in Bio (bioo.cl) — destacado en el dashboard ── */}
         {view !== "scanner" && (
           <section>
-            <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-black/5 border-t-4 border-purple-600">
-              {/* Cabecera orientada al valor */}
-              <h3 className="text-lg font-bold text-gray-900 leading-snug">
-                🎁 Beneficio VIP: Tu Web Premium{" "}
-                <span className="text-xs font-semibold text-purple-600 whitespace-nowrap">(powered by bioo.cl)</span>
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Digitaliza tu local y aumenta tus ventas. 100% gratis para socios de Club Patio.
-              </p>
-
-              {/* Beneficios en viñetas (scannability) */}
-              <div className="flex flex-col gap-2 mb-5">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-lg leading-none mt-0.5">🔗</span>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-semibold text-gray-800">Menú y WhatsApp:</span> Todos tus canales en un solo toque.
-                  </p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-lg leading-none mt-0.5">💎</span>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-semibold text-gray-800">Imagen de Lujo:</span> Diseño nivel Apple en 10 segundos.
-                  </p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-lg leading-none mt-0.5">🎁</span>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-semibold text-gray-800">Ahorro total:</span> Herramienta pro gratis de por vida.
-                  </p>
-                </div>
-              </div>
-
-              {/* URL existente (si ya tiene página) */}
-              {biooInfo.handle && (
-                <div className="flex items-center gap-2 rounded-xl bg-gray-50 border border-gray-200 px-3 py-2.5 mb-3">
-                  <Link2 className="w-4 h-4 text-purple-500 shrink-0" />
-                  <span className="text-sm font-bold text-gray-800 truncate flex-1">bioo.cl/{biooInfo.handle}</span>
-                  <button
-                    type="button"
-                    onClick={() => copiarBioo(biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`, "Enlace copiado")}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                    aria-label="Copiar enlace"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <a
-                    href={biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                    aria-label="Ver página"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
-              )}
-
-              {/* CTA de alta conversión */}
-              {!biooInfo.handle ? (
-                <button
-                  type="button"
-                  onClick={crearMiBioo}
-                  disabled={biooBusy}
-                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 transition-transform active:scale-95 disabled:opacity-60 shadow-lg shadow-purple-500/25"
-                >
-                  {biooBusy && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {biooBusy ? "Activando…" : "🚀 Reclamar mi web gratis ahora"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={abrirEditorBioo}
-                  disabled={biooOpening}
-                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 transition-transform active:scale-95 disabled:opacity-60 shadow-lg shadow-purple-500/25"
-                >
-                  {biooOpening && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {biooOpening ? "Abriendo tu web…" : "✨ Abrir Editor y Personalizar"}
-                </button>
-              )}
-            </div>
+            <BiooPromoCard
+              handle={biooInfo.handle}
+              publicUrl={biooInfo.publicUrl}
+              busy={biooBusy}
+              opening={biooOpening}
+              onCrear={crearMiBioo}
+              onAbrir={abrirEditorBioo}
+              onCopiar={(u) => copiarBioo(u, "Enlace copiado")}
+            />
           </section>
         )}
 

@@ -7,6 +7,7 @@ import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
 import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc, addDoc, serverTimestamp, increment, getDocs, where } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
+import { BiooPromoCard } from "@/components/BiooPromoCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -828,6 +829,36 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   const [showProfileAI, setShowProfileAI] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
+  // ── bioo.cl: abrir el editor con SSO (provisiona si hace falta) ─────────────
+  const [biooOpening, setBiooOpening] = useState(false);
+  const abrirBioo = async (): Promise<void> => {
+    const u = auth.currentUser;
+    if (!u) return;
+    setBiooOpening(true);
+    const w = window.open("", "_blank"); // abrir en el gesto para evitar bloqueo de popups
+    try {
+      const idToken = await u.getIdToken();
+      const res = await fetch("/api/bioo/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.editUrl) {
+        if (w) w.close();
+        toast({ variant: "destructive", title: "No se pudo abrir", description: json.error || "Configura tu local primero." });
+        return;
+      }
+      if (w) w.location.href = json.editUrl;
+      else window.location.href = json.editUrl;
+    } catch {
+      if (w) w.close();
+      toast({ variant: "destructive", title: "Error", description: "No se pudo conectar con bioo.cl. Intenta nuevamente." });
+    } finally {
+      setBiooOpening(false);
+    }
+  };
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -1869,6 +1900,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               </motion.div>
             </Link>
           </div>
+
+          {/* bioo.cl — sitio web premium del comercio */}
+          <BiooPromoCard opening={biooOpening} onCrear={abrirBioo} onAbrir={abrirBioo} />
 
           {/* Mensajes del Club */}
           <section className="space-y-4">
