@@ -46,14 +46,14 @@ const USERS = [
     email: "empre1@test.cl",
     displayName: "Joyas Ana",
     usuario: { rol: "emprendedor", nombre: "Joyas Ana", comprasRealizadas: 0, puntos: 0, baneado: false, sellosEntregadosHistorico: 0 },
-    profile: { businessName: "Joyas Ana", nombre: "Joyas Ana", category: "artesania", tipo: "emprendedor", activo: true },
+    profile: { businessName: "Joyas Ana", nombre: "Joyas Ana", category: "artesania", tipo: "emprendedor", activo: true, imagenPerfil: "/Logo2.png", imagenTarjeta: "/Logo2.png" },
   },
   {
     uid: "u_asoc1",
     email: "asoc1@test.cl",
     displayName: "Café Fika",
     usuario: { rol: "emprendedor", nombre: "Café Fika", comprasRealizadas: 0, puntos: 0, baneado: false, sellosEntregadosHistorico: 0 },
-    profile: { businessName: "Café Fika", nombre: "Café Fika", category: "cafeteria", tipo: "asociado", activo: true },
+    profile: { businessName: "Café Fika", nombre: "Café Fika", category: "cafeteria", tipo: "asociado", activo: true, imagenPerfil: "/Logo2.png", imagenTarjeta: "/Logo2.png" },
   },
   {
     uid: "u_cliente1",

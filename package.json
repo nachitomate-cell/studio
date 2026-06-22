@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack -p 9002 -H 0.0.0.0",
     "emulators": "firebase emulators:start --only auth,firestore,storage --project studio-7914495232-557f1 --import ./.emulator-data --export-on-exit ./.emulator-data",
-    "dev:emu": "cross-env NEXT_PUBLIC_USE_EMULATORS=true FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 next dev --turbopack -p 9002 -H 0.0.0.0",
+    "dev:emu": "cross-env NEXT_PUBLIC_USE_EMULATORS=true FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 STORAGE_EMULATOR_HOST=http://127.0.0.1:9199 next dev --turbopack -p 9002 -H 0.0.0.0",
     "seed:emu": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/seed-emulator.mjs",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
