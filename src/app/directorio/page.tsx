@@ -89,6 +89,10 @@ const VENDOR_CATEGORIES = [
   { id: "PORTAL", name: "Portal / Directorio", icon: "" },
 ];
 
+// Link in Bio (bioo.cl): la API /api/bioo aún no está desplegada en producción.
+// Mantener en false hasta que bioo esté listo, para no mostrar un botón que da 404.
+const BIOO_ENABLED = false;
+
 const PAYMENT_OPTIONS = [
   { key: "efectivo",      label: "Efectivo" },
   { key: "debito",        label: "Débito / Crédito" },
@@ -943,8 +947,8 @@ export default function DirectorioPage() {
                   </div>
                 )}
 
-                {/* Link in Bio premium (bioo.cl) — solo al editar un comercio guardado */}
-                {editingVendorId && (
+                {/* Link in Bio premium (bioo.cl) — oculto hasta desplegar /api/bioo (BIOO_ENABLED) */}
+                {BIOO_ENABLED && editingVendorId && (
                   <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50/60 p-4 space-y-3">
                     <div className="flex items-start gap-2.5">
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-sm">
