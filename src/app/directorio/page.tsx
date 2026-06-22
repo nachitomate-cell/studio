@@ -89,9 +89,9 @@ const VENDOR_CATEGORIES = [
   { id: "PORTAL", name: "Portal / Directorio", icon: "" },
 ];
 
-// Link in Bio (bioo.cl): la API /api/bioo aún no está desplegada en producción.
-// Mantener en false hasta que bioo esté listo, para no mostrar un botón que da 404.
-const BIOO_ENABLED = false;
+// Link in Bio (bioo.cl): integración SSO activa. Requiere que /api/bioo esté
+// desplegado y las env BIOO_PROVISION_URL/SECRET configuradas en este proyecto.
+const BIOO_ENABLED = true;
 
 const PAYMENT_OPTIONS = [
   { key: "efectivo",      label: "Efectivo" },
