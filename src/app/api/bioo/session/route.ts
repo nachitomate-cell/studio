@@ -36,7 +36,10 @@ export async function POST(request: Request) {
     }
     // URL de la función de SSO en bioo (deriva de la de provisión).
     const partnerUrl = provisionUrl.replace(/\/biooProvision$/, "/provisionPartnerUser");
-    const editorBase = process.env.BIOO_EDITOR_URL || "https://bioo.cl/editor";
+    // Página de auto-login en producción: links/claim.html lee ?ct=<customToken>,
+    // hace signInWithCustomToken y reenvía al editor. (El editor React con ?token=
+    // es un rewrite que aún NO está en producción — no se usa hasta el cutover.)
+    const claimBase = process.env.BIOO_CLAIM_URL || "https://bioo.cl/claim";
 
     // Identidad del emprendedor (su propia sesión en Club Patio).
     let decoded;
@@ -100,7 +103,7 @@ export async function POST(request: Request) {
       ).catch(() => {/* no crítico */});
     }
 
-    const editUrl = `${editorBase}?token=${encodeURIComponent(j.customToken)}`;
+    const editUrl = `${claimBase}?ct=${encodeURIComponent(j.customToken)}`;
     return NextResponse.json({ success: true, handle: j.handle, editUrl });
   } catch (e) {
     console.error("[bioo/session] error:", e);
