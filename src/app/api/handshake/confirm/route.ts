@@ -78,6 +78,10 @@ export async function POST(request: Request) {
         throw new Error("La solicitud expiró. Han pasado más de 5 minutos.");
       }
 
+      // NOTA: el geofence NO bloquea la acreditación de sellos. La presencia física
+      // se valida por la confirmación manual del vendedor (transacción atómica).
+      // Las coords del cliente (si existen) solo se usan para marketing/proximidad.
+
       const { userId, userName } = pending;
       const userRef = adminDb.collection("usuarios").doc(userId);
       const userSnap = await tx.get(userRef);
@@ -191,7 +195,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ...result! });
   } catch (error: any) {
     console.error("[handshake/confirm] Error:", error);
-    const status = error.message?.includes("expiró") ? 410 : 500;
-    return NextResponse.json({ error: error.message ?? "Error interno" }, { status });
+    const msg: string = error.message ?? "Error interno";
+    const status = msg.includes("expiró") ? 410 : 500;
+    return NextResponse.json({ error: msg }, { status });
   }
 }

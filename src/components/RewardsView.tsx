@@ -14,7 +14,7 @@ import QRCode from "react-qr-code";
 import { motion, AnimatePresence } from "framer-motion";
 import { collection, query, where, onSnapshot, Timestamp, doc, deleteDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { canjearPremio, verificarCanjesExpirados } from "@/lib/puntos";
+import { canjearPremioRemoto, verificarCanjesExpirados } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { RewardsHelpModal } from "@/components/RewardsHelpModal";
 
@@ -491,18 +491,11 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
     if (!confirmPremio || !user) return;
     setCanjeando(true);
     try {
-      const displayName = auth.currentUser?.displayName || "";
-      const { canjeId, codigo } = await canjearPremio(db, user.uid, displayName, {
-        id: confirmPremio.id,
-        nombre: confirmPremio.nombre,
-        icono: confirmPremio.icono,
-        vendorId: confirmPremio.vendorId,
-        vendorNombre: confirmPremio.vendorNombre,
-        sellosRequeridos: confirmPremio.sellosRequeridos,
-      });
+      const { canjeId, codigo } = await canjearPremioRemoto(confirmPremio.id);
       const expiraEn = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
       setSuccessData({
-        canjeId, codigo,
+        canjeId: canjeId ?? "",
+        codigo: codigo ?? "",
         premioNombre: confirmPremio.nombre,
         premioIcono: confirmPremio.icono,
         vendorNombre: confirmPremio.vendorNombre,
@@ -526,8 +519,9 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
   const proximoPremioReq = premiosReqs.find((r) => r > sellos) ?? null;
   const tienePremioDisponible = premiosReqs.some((r) => r <= sellos);
   const sellosRestantesParaPremio = proximoPremioReq !== null ? proximoPremioReq - sellos : null;
-  // Si hay premio disponible, mostrar la tarjeta completa (10/10) para que quede obvio
-  const sellosDisplay = tienePremioDisponible ? 10 : sellosEnTarjeta;
+  // La tarjeta muestra SIEMPRE el conteo real de sellos. La disponibilidad de
+  // premio se comunica aparte (badge "premio listo"), sin falsear el progreso.
+  const sellosDisplay = sellosEnTarjeta;
 
   const pendingCanjes = myCanjes.filter((c) => c.status === "pending");
   const pastCanjes = myCanjes.filter((c) => c.status !== "pending");

@@ -4,6 +4,7 @@ import {
   collection, addDoc, runTransaction, serverTimestamp, deleteDoc,
   query, where, getDocs, writeBatch,
 } from "firebase/firestore";
+import { auth } from "./firebase";
 import { enviarNotificacionLocal } from "./notificaciones";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -252,249 +253,42 @@ export async function cancelarPendingStamp(db: Firestore, pendingId: string): Pr
   await deleteDoc(doc(db, "pending_stamps", pendingId));
 }
 
-/**
- * Confirma un sello via handshake. Transacción atómica:
- *  1. Valida que la solicitud esté pendiente y no haya expirado (5 min).
- *  2. Incrementa sellos del usuario.
- *  3. Marca la solicitud como 'confirmed'.
- */
-export async function confirmarHandshake(
-  db: Firestore,
-  pendingId: string,
-  monto: number = 0
-): Promise<{ userId: string; vendorId: string; userName: string; nuevoTotal: number }> {
-  const pendingRef = doc(db, "pending_stamps", pendingId);
-
-  const result = await runTransaction(db, async (transaction) => {
-    const pendingSnap = await transaction.get(pendingRef);
-    if (!pendingSnap.exists()) throw new Error("Solicitud no encontrada.");
-
-    const pending = pendingSnap.data();
-    if (pending.status !== "pending") {
-      if (pending.status === "expired") throw new Error("La solicitud ya expiró.");
-      throw new Error("La solicitud ya fue procesada.");
-    }
-
-    // Validar expiración de 5 minutos
-    const createdAt: Date = pending.createdAt?.toDate?.() ?? new Date(0);
-    const minutesElapsed = (Date.now() - createdAt.getTime()) / 60000;
-    if (minutesElapsed > 5) {
-      transaction.update(pendingRef, { status: "expired" });
-      throw new Error("La solicitud expiró. Han pasado más de 5 minutos.");
-    }
-
-    const { userId, vendorId, userName } = pending;
-    const userRef = doc(db, "usuarios", userId);
-    const userSnap = await transaction.get(userRef);
-
-    const timestamp = new Date().toISOString();
-    const currentSellos = userSnap.exists() ? (userSnap.data().comprasRealizadas || 0) : 0;
-    const nuevoTotal = currentSellos + 1;
-    // Usar el nombre real del perfil, no el del pending_stamps (que puede ser genérico)
-    const realUserName = (userSnap.exists() ? userSnap.data().nombre : null) || userName || "Miembro";
-
-    // Confirmar solicitud (nuevoTotal se escribe para que el cliente
-    // pueda leerlo desde el onSnapshot y mostrar el total correcto)
-    transaction.update(pendingRef, {
-      status: "confirmed",
-      monto,
-      nuevoTotal,
-      confirmedAt: serverTimestamp(),
-    });
-
-    // Actualizar usuario
-    if (userSnap.exists()) {
-      transaction.update(userRef, {
-        comprasRealizadas: increment(1),
-        sellosHistoricos: increment(1),
-        recompensaDisponible: nuevoTotal >= 5,
-        puntos: increment(50),
-        lastPurchaseAt: timestamp,
-        lastUpdate: timestamp,
-        [`lastVendorScans.${vendorId}`]: timestamp,
-        [`sellosLocales.${vendorId}`]: increment(1),
-      });
-    } else {
-      transaction.set(userRef, {
-        comprasRealizadas: 1,
-        sellosHistoricos: 1,
-        recompensaDisponible: false,
-        puntos: 100,
-        totalCanjesHistoricos: 0,
-        baneado: false,
-        createdAt: timestamp,
-        lastVendorScans: { [vendorId]: timestamp },
-        sellosLocales: { [vendorId]: 1 },
-      });
-    }
-
-    return { userId, vendorId, userName: realUserName, nuevoTotal };
-  });
-
-  // Sincronizar Google Wallet (fire-and-forget — no bloquea el handshake)
-  syncUserStampsToWallet(result.userId, result.nuevoTotal);
-
-  // Operaciones no críticas (fuera de la transacción)
-  const timestamp = new Date().toISOString();
-  (async () => {
-    try {
-      // Batch atómico: log + venta + contador para evitar contadores desincronizados
-      const currentMonth = timestamp.substring(0, 7); // YYYY-MM
-      const auxBatch = writeBatch(db);
-      auxBatch.set(doc(collection(db, "system_logs")), {
-        usuario: result.userName,
-        usuarioId: result.userId,
-        vendedorId: result.vendorId,
-        accion: "recibió un sello (handshake)",
-        fecha: timestamp,
-        tipo: "FIDELIZACION",
-        metodo: "HANDSHAKE",
-        monto,
-      });
-      auxBatch.set(doc(collection(db, "usuarios", result.vendorId, "ventas_registradas")), {
-        vendedorId: result.vendorId,
-        clienteId: result.userId,
-        clienteNombre: result.userName,
-        fecha: timestamp,
-        metodo: "HANDSHAKE",
-        monto,
-      });
-      auxBatch.update(doc(db, "usuarios", result.vendorId), {
-        sellosEntregadosHistorico: increment(1),
-        [`sellosEntregadosMensual.${currentMonth}`]: increment(1),
-      });
-      await auxBatch.commit();
-      await enviarNotificacionLocal(
-        result.userId,
-        "¡Sello Confirmado! ✅",
-        `Tu sello fue aprobado. ¡Te faltan pocos para tu próximo premio!`
-      );
-      if (result.nuevoTotal % 5 === 0) {
-        await enviarNotificacionLocal(result.userId, "¡Premio Listo! 🎁", `¡Felicidades! Completaste ${result.nuevoTotal} sellos.`);
-      }
-    } catch (e) {
-      console.warn("[Handshake] Operación auxiliar falló:", e);
-    }
-  })();
-
-  return result;
-}
+// NOTA: confirmarHandshake() (client-side) fue eliminada por seguridad (MEDIA-2).
+// La confirmación de sellos ahora corre EXCLUSIVAMENTE server-side vía Admin SDK
+// en /api/handshake/confirm y /api/handshake/vendor-scan.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CANJES DE PREMIOS (colección 'canjes')
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Genera un código único localmente sin queries a Firestore.
-// Timestamp base36 (últimos 5 chars, ~ms de unicidad) + random 4 chars.
-// Colisión prácticamente imposible: para coincidir, dos canjes deben generarse
-// en el mismo milisegundo Y la parte random (36^4 = 1.6M combinaciones) debe ser igual.
-function generarCodigoUnico(premioNombre: string): string {
-  const prefijo = premioNombre
-    .substring(0, 4)
-    .toUpperCase()
-    .replace(/\s/g, "X")
-    .replace(/[^A-Z0-9X]/g, "X");
-  const ts  = Date.now().toString(36).slice(-5).toUpperCase();
-  const rnd = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefijo}-${ts}${rnd}`;
-}
+/**
+ * CRÍTICA-1: el canje de premios ahora corre EXCLUSIVAMENTE server-side.
+ * Este helper llama a /api/canje/create con el ID token del usuario. El backend
+ * (Admin SDK) lee el costo/tipo del premio desde Firestore y descuenta sellos de
+ * forma atómica — el cliente ya no puede fabricar vouchers sin gastar sellos.
+ *
+ * Devuelve { sorteo:false, canjeId, codigo } para premios normales,
+ * o { sorteo:true, ticketsSorteo } para sorteos.
+ */
+export async function canjearPremioRemoto(premioId: string): Promise<{
+  sorteo: boolean;
+  canjeId?: string;
+  codigo?: string;
+  ticketsSorteo?: number;
+  premioNombre?: string;
+}> {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Sin sesión activa.");
 
-export interface PremioParaCanje {
-  id: string;
-  nombre: string;
-  icono: string;
-  vendorId: string;
-  vendorNombre: string;
-  sellosRequeridos: number;
-}
-
-/** Crea un canje en la colección 'canjes'. Transacción atómica: descuenta sellos + crea documento. */
-export async function canjearPremio(
-  db: Firestore,
-  userId: string,
-  userName: string,
-  premio: PremioParaCanje
-): Promise<{ canjeId: string; codigo: string }> {
-  const codigo = generarCodigoUnico(premio.nombre);
-  const expiraEn = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-  const userRef = doc(db, "usuarios", userId);
-  const premioRef = doc(db, "premios", premio.id);
-
-  const canjeId = await runTransaction(db, async (transaction) => {
-    // 1. Obtener usuario y premio en paralelo dentro de la transacción
-    const [userSnap, premioSnap] = await Promise.all([
-      transaction.get(userRef),
-      transaction.get(premioRef),
-    ]);
-
-    if (!userSnap.exists()) throw new Error("Usuario no encontrado.");
-    const userData = userSnap.data();
-    if (userData.baneado) throw new Error("Usuario baneado.");
-
-    // 2. Validar Stock (si el campo existe y es número)
-    if (premioSnap.exists()) {
-      const pData = premioSnap.data();
-      if (typeof pData.stock === "number" && pData.stock <= 0) {
-        throw new Error("Lo sentimos, este premio se ha agotado.");
-      }
-    }
-
-    // 3. Validar Sellos
-    const sellosActuales = userData.comprasRealizadas || 0;
-    if (sellosActuales < premio.sellosRequeridos) {
-      throw new Error("No tienes suficientes sellos.");
-    }
-
-    const nuevoTotal = sellosActuales - premio.sellosRequeridos;
-    const canjeRef = doc(collection(db, "canjes"));
-
-    // 4. Crear el canje
-    transaction.set(canjeRef, {
-      clienteId: userId,
-      clienteNombre: userData.nombre || userName || "Miembro del Club",
-      premioId: premio.id,
-      premioNombre: premio.nombre,
-      premioIcono: premio.icono,
-      vendorId: premio.vendorId,
-      vendorNombre: premio.vendorNombre,
-      sellosDescontados: premio.sellosRequeridos,
-      codigo,
-      status: "pending",
-      creadoEn: serverTimestamp(),
-      expiraEn,
-    });
-
-    // 5. Descontar sellos
-    transaction.update(userRef, {
-      comprasRealizadas: increment(-premio.sellosRequeridos),
-      recompensaDisponible: nuevoTotal >= 5,
-    });
-
-    // 6. Decrementar stock si aplica
-    if (premioSnap.exists() && typeof premioSnap.data()?.stock === "number") {
-      transaction.update(premioRef, { stock: increment(-1) });
-    }
-
-    return canjeRef.id;
+  const res = await fetch("/api/canje/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ premioId }),
   });
 
-  // Log no crítico
-  (async () => {
-    try {
-      await addDoc(collection(db, "system_logs"), {
-        usuario: userName || "Miembro del Club",
-        usuarioId: userId,
-        vendedorId: premio.vendorId,
-        accion: `canjeó premio "${premio.nombre}" (código: ${codigo})`,
-        fecha: new Date().toISOString(),
-        tipo: "CANJE_PREMIO",
-      });
-    } catch (e) {
-      console.warn("[canjearPremio] Log falló:", e);
-    }
-  })();
-
-  return { canjeId, codigo };
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "No se pudo procesar el canje.");
+  return data;
 }
 
 /** Marca como expirados los canjes del usuario que superaron las 48h. */

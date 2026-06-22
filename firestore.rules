@@ -60,19 +60,16 @@ service cloud.firestore {
         && request.resource.data.puntos in [50, 100];
       // Actualización: staff puede modificar cualquier campo.
       // El propietario puede actualizar su propio documento pero NO puede modificar
-      // campos de privilegio para evitar auto-escalada de rol (CRÍTICO-06).
-      // Excepción: canje de premio — el owner puede decrementar comprasRealizadas
-      // (solo reducir, jamás aumentar) junto con recompensaDisponible.
+      // campos de privilegio ni el saldo de sellos (CRÍTICO-06 / CRÍTICA-1).
+      // El canje de premios y los tickets de sorteo se procesan EXCLUSIVAMENTE
+      // server-side vía Admin SDK (/api/canje/create), que descuenta sellos de
+      // forma atómica. El cliente jamás escribe comprasRealizadas/ticketsSorteo.
       allow update: if isStaff()
         || (isOwner(userId)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'rol', 'roles', 'baneado', 'puntos',
             'comprasRealizadas', 'sellosHistoricos', 'ticketsSorteo'
-          ]))
-        || (isOwner(userId)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comprasRealizadas', 'recompensaDisponible'])
-          && request.resource.data.comprasRealizadas < resource.data.comprasRealizadas
-        );
+          ]));
       // Borrado: solo staff
       allow delete: if isStaff();
 
@@ -109,22 +106,17 @@ service cloud.firestore {
     match /premios/{premioId} {
       allow read: if true; // catálogo público — incentiva registro
       allow create, delete: if isDirector();
-      // Directores pueden modificar cualquier campo.
-      // Clientes autenticados solo pueden decrementar stock en 1 (durante canje).
-      // La regla valida: solo el campo 'stock' cambia, baja exactamente en 1 y era > 0.
-      allow update: if isDirector() || (
-        isSignedIn() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']) &&
-        request.resource.data.stock == resource.data.stock - 1 &&
-        resource.data.stock > 0
-      );
+      // CRÍTICA-1: el stock solo lo modifican directores o el Admin SDK durante
+      // el canje (/api/canje/create). El cliente ya no decrementa stock directamente.
+      allow update: if isDirector();
     }
 
     // ── Canjes de Premios ──────────────────────────────────────────────────────
     match /canjes/{canjeId} {
-      // Cliente crea su propio canje (clienteId debe coincidir con su uid)
-      allow create: if isSignedIn()
-        && request.resource.data.clienteId == request.auth.uid;
+      // CRÍTICA-1: la creación de vouchers es EXCLUSIVAMENTE server-side
+      // (/api/canje/create, Admin SDK). El cliente ya no puede fabricar canjes
+      // sin gastar sellos. El Admin SDK ignora estas reglas.
+      allow create: if false;
       // Cliente lee sus propios canjes; emprendedor lee los de su local; staff lee todo
       allow read: if isSignedIn() && (
         resource.data.clienteId == request.auth.uid ||

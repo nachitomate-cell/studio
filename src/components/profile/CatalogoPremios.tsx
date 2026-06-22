@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShoppingBag, Ticket, Gift, Loader2, CheckCircle2, Clock, ArrowRight, XCircle, AlertCircle, Store } from "lucide-react";
-import { canjearPremio } from "@/lib/puntos";
-import { db, auth } from "@/lib/firebase";
+import { canjearPremioRemoto } from "@/lib/puntos";
+import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { updateDoc, doc, increment, collection, onSnapshot, where, query } from "firebase/firestore";
+import { collection, onSnapshot, where, query } from "firebase/firestore";
 
 interface CatalogoPremiosProps {
   userId: string;
@@ -64,26 +64,18 @@ export function CatalogoPremios({ userId, userEmail, comprasActuales }: Catalogo
     setSelectedPremio(null);
     setLoadingId(premio.id);
     try {
-      if (premio.esSorteo) {
-        // Sorteo: solo incrementa tickets, sin voucher
-        const userRef = doc(db, "usuarios", userId);
-        await updateDoc(userRef, {
-          comprasRealizadas: increment(-(premio.sellosRequeridos || 0)),
-          ticketsSorteo: increment(1),
-        });
+      // Canje 100% server-side (Admin SDK). El backend decide sorteo vs voucher
+      // leyendo el premio desde Firestore y descuenta sellos atómicamente.
+      const result = await canjearPremioRemoto(premio.id);
+      if (result.sorteo) {
         toast({ title: "¡Ticket de Sorteo generado!", description: "Ya estás participando en el Gran Sorteo del Mes. 🎉" });
       } else {
-        const userName = auth.currentUser?.displayName || "";
-        const vendorNombre = premio.vendorNombre || vendorNames[premio.vendorId] || "Patio Curauma";
-        const { canjeId, codigo } = await canjearPremio(db, userId, userName, {
-          id: premio.id,
-          nombre: premio.nombre,
-          icono: premio.icono || "🎁",
-          vendorId: premio.vendorId || "",
-          vendorNombre,
-          sellosRequeridos: premio.sellosRequeridos || 0,
+        setCelebration({
+          canjeId: result.canjeId!,
+          codigo: result.codigo!,
+          premioNombre: premio.nombre,
+          premioIcono: premio.icono || "🎁",
         });
-        setCelebration({ canjeId, codigo, premioNombre: premio.nombre, premioIcono: premio.icono || "🎁" });
       }
     } catch (error: any) {
       console.error("Error handleCanje:", error);
