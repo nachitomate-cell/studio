@@ -19,6 +19,19 @@ function createAdminApp(): App {
   // Evita re-inicialización en Fast Refresh (dev) y en Workers concurrentes
   if (getApps().length > 0) return getApps()[0];
 
+  // ── Modo emulador (ambiente de pruebas) ──────────────────────────────────
+  // Si el Admin SDK detecta estas variables, enruta automáticamente al emulador.
+  // No se necesitan credenciales reales: basta el projectId (debe coincidir con
+  // el del cliente para compartir el mismo namespace en el emulador).
+  if (process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    return initializeApp({
+      projectId:
+        process.env.FIREBASE_ADMIN_PROJECT_ID?.trim() ||
+        process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() ||
+        "studio-7914495232-557f1",
+    });
+  }
+
   const projectId   = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim();
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL?.trim();
 

@@ -1,12 +1,13 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
 import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
   memoryLocalCache,
+  connectFirestoreEmulator,
 } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -31,6 +32,24 @@ const db = initializeFirestore(app, {
     : memoryLocalCache(),
 });
 const storage = getStorage(app);
+
+// ── Emuladores (solo en ambiente de pruebas) ────────────────────────────────
+// El servidor inyecta window.__USE_EMULATORS__ en el <head> del layout (lee la
+// variable en runtime; ver layout.tsx). Es robusto sin importar el bundler:
+// no depende del inlining de NEXT_PUBLIC_* (que Turbopack no garantiza).
+// En producción el flag es false, así que NUNCA se conecta a emuladores.
+// El flag global evita reconectar en Fast Refresh (HMR) — lanzaría error.
+if (
+  typeof window !== "undefined" &&
+  (window as any).__USE_EMULATORS__ === true &&
+  !(globalThis as any).__EMULATORS_CONNECTED__
+) {
+  (globalThis as any).__EMULATORS_CONNECTED__ = true;
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectStorageEmulator(storage, "127.0.0.1", 9199);
+  console.info("🧪 Firebase conectado a EMULADORES locales (auth:9099 firestore:8080 storage:9199)");
+}
 
 // Initialize Analytics conditionally (only in browser)
 let analytics: any;
