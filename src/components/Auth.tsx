@@ -14,6 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc, updateDoc, increment, addDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { getFriendlyErrorMessage } from "@/lib/firebaseErrors";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,7 +120,7 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
         description: "Revisa tu bandeja de entrada (y carpeta de spam).",
       });
     } catch (err: any) {
-      setError(err.message || "No se pudo enviar el correo. Intenta nuevamente.");
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setResetLoading(false);
     }
@@ -318,12 +319,7 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
         return;
       }
     } catch (err: any) {
-      let message = err.message || "Ocurrió un error inesperado.";
-      if (message.includes("email-already-in-use")) message = "Este correo ya está registrado. ¿Quizás quieres iniciar sesión?";
-      if (message.includes("weak-password")) message = "La contraseña debe tener al menos 6 caracteres.";
-      if (message.includes("invalid-email")) message = "El formato del correo electrónico no es válido.";
-      if (message.includes("wrong-password") || message.includes("invalid-credential")) message = "Correo o contraseña incorrectos.";
-      setError(message);
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }

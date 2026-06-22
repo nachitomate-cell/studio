@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { getFriendlyErrorMessage } from "@/lib/firebaseErrors";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,7 +117,7 @@ export default function UnetePage() {
       setResetSent(true);
       setError(null);
     } catch (err: any) {
-      setError(err.message || "Error al enviar el correo. Intenta nuevamente.");
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setResetLoading(false);
     }
@@ -275,12 +276,10 @@ export default function UnetePage() {
         });
       }
     } catch (err: any) {
-      let message = err.message || "Ocurrió un error inesperado.";
-      if (message.includes("email-already-in-use")) message = "Este correo ya está registrado. ¿Quizás quieres iniciar sesión?";
-      if (message.includes("weak-password")) message = "La contraseña debe tener al menos 6 caracteres.";
-      if (message.includes("invalid-email")) message = "El formato del correo electrónico no es válido.";
-      if (message.includes("wrong-password") || message.includes("invalid-credential")) message = "Correo o contraseña incorrectos.";
-      if (err?.code === "unavailable" || message.includes("IndexedDB") || message.includes("AbortError")) {
+      const raw: string = err?.message || "";
+      let message = getFriendlyErrorMessage(err);
+      // Caso especial (no es de Auth): el navegador bloqueó IndexedDB (modo privado, etc.).
+      if (err?.code === "unavailable" || raw.includes("IndexedDB") || raw.includes("AbortError")) {
         if (createdAuthUser) { try { await createdAuthUser.delete(); } catch {} }
         message = "Tu navegador bloqueó el almacenamiento local. Abre esta página en una ventana normal (no privada) e inténtalo de nuevo.";
       }
