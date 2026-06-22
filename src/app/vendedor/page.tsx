@@ -1536,77 +1536,7 @@ export default function VendedorPage() {
 
               </div>{/* end space-y-6 */}
 
-              {/* ── Mi Link in Bio (bioo.cl) ─────────────────────────────── */}
-              <div className="mt-6 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50/60 p-5">
-                <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-sm">
-                    <Sparkles className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-base font-black text-slate-800 flex items-center gap-2 flex-wrap">
-                      Mi Link in Bio
-                      <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-700 border border-violet-300">bioo.cl</span>
-                    </p>
-                    <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-                      Tu página de enlaces para la bio de Instagram, con tu WhatsApp, redes y web en un solo toque.
-                    </p>
-                  </div>
-                </div>
-
-                {!biooInfo.handle ? (
-                  <div className="mt-4 space-y-3">
-                    <Button
-                      onClick={crearMiBioo}
-                      disabled={biooBusy}
-                      className="w-full h-12 rounded-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 gap-2"
-                    >
-                      {biooBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                      {biooBusy ? "Creando…" : "Crear mi Link in Bio"}
-                    </Button>
-                    <p className="text-[11px] text-slate-400 leading-relaxed text-center">
-                      Se crea con tus datos ya cargados. {!shopForm.isPremium && (
-                        <span className="text-violet-600 font-semibold">Con el plan Patrocinado desbloqueas temas, fondos y animaciones premium.</span>
-                      )}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    <div className="flex items-center gap-2 rounded-xl bg-white border border-violet-200 px-3 py-3">
-                      <Link2 className="w-4 h-4 text-violet-500 shrink-0" />
-                      <span className="text-sm font-bold text-slate-800 truncate flex-1">bioo.cl/{biooInfo.handle}</span>
-                      <button
-                        type="button"
-                        onClick={() => copiarBioo(biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`, "Enlace copiado")}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
-                        aria-label="Copiar enlace"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      <a
-                        href={biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
-                        aria-label="Ver página"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={abrirEditorBioo}
-                      disabled={biooOpening}
-                      className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 transition-opacity disabled:opacity-60"
-                    >
-                      {biooOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                      {biooOpening ? "Abriendo editor…" : "Personalizar mi página →"}
-                    </button>
-                    <p className="text-[11px] text-slate-400 leading-relaxed text-center">
-                      Entras directo al editor con tu sesión, sin volver a iniciar sesión.
-                      {!shopForm.isPremium && <span className="text-violet-600 font-semibold"> Hazte Patrocinado para temas y fondos premium.</span>}
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* Mi Link in Bio: movido al Dashboard principal como Beneficio VIP destacado. */}
 
               <div className="pt-4">
                 <Button
@@ -1734,6 +1664,78 @@ export default function VendedorPage() {
             </Alert>
           )}
         </section>
+
+        {/* ── Beneficio VIP: Mi Link in Bio (bioo.cl) — destacado en el dashboard ── */}
+        {view !== "scanner" && (
+          <section>
+            <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50/70 p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-sm">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-black text-slate-800 flex items-center gap-2 flex-wrap">
+                    🎁 Beneficio Exclusivo: Tu Web Premium
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-700 border border-violet-300">bioo.cl</span>
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                    Por ser parte de Club Patio Curauma, tienes acceso{" "}
+                    <strong className="text-violet-700">gratuito</strong> a bioo.cl. Reúne tus redes sociales,
+                    WhatsApp y menú en un solo link profesional. <strong>¡Actívalo en 1 minuto!</strong>
+                  </p>
+                </div>
+              </div>
+
+              {!biooInfo.handle ? (
+                <div className="mt-4">
+                  <Button
+                    onClick={crearMiBioo}
+                    disabled={biooBusy}
+                    className="w-full h-12 rounded-xl font-black bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 gap-2 shadow-lg shadow-violet-500/20"
+                  >
+                    {biooBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="text-base">🚀</span>}
+                    {biooBusy ? "Activando…" : "Activar mi Link in Bio"}
+                  </Button>
+                  <p className="text-[11px] text-slate-400 leading-relaxed text-center mt-2">
+                    Se crea con tus datos ya cargados, sin costo.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center gap-2 rounded-xl bg-white border border-violet-200 px-3 py-2.5">
+                    <Link2 className="w-4 h-4 text-violet-500 shrink-0" />
+                    <span className="text-sm font-bold text-slate-800 truncate flex-1">bioo.cl/{biooInfo.handle}</span>
+                    <button
+                      type="button"
+                      onClick={() => copiarBioo(biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`, "Enlace copiado")}
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                      aria-label="Copiar enlace"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <a
+                      href={biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                      aria-label="Ver página"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={abrirEditorBioo}
+                    disabled={biooOpening}
+                    className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-black bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 transition-opacity disabled:opacity-60 shadow-lg shadow-violet-500/20"
+                  >
+                    {biooOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="text-base">✨</span>}
+                    {biooOpening ? "Abriendo tu web…" : "Personalizar mi web"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-1">
