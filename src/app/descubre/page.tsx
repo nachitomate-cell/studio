@@ -39,6 +39,10 @@ export default async function DescubrePage() {
 
   const ctaHref = "/unete";
 
+  const localesAsociados = locales.filter((l: any) => l.tipo === "asociado");
+  const localesEmprendedores = locales.filter((l: any) => l.tipo !== "asociado");
+  const hayAsociados = localesAsociados.length > 0;
+
   return (
     <div className="fixed inset-0 z-[99999] overflow-y-auto [-webkit-overflow-scrolling:touch] text-slate-50 bg-[#0f172a] bg-[radial-gradient(at_10%_10%,rgba(211,182,115,0.12)_0px,transparent_55%),radial-gradient(at_90%_90%,rgba(157,204,101,0.08)_0px,transparent_55%)] font-[family-name:'PT_Sans',-apple-system,system-ui,sans-serif]">
       {/* Blobs */}
@@ -175,32 +179,33 @@ export default async function DescubrePage() {
 
         {/* ── LOCALES ── */}
         {locales.length > 0 && (
-          <section className="pb-8">
-            <div className="px-6">
-              <SectionTitle sub="Gana sellos en todos estos locales">Locales participantes</SectionTitle>
-            </div>
-            <div className="flex gap-3 overflow-x-auto px-6 pt-1 pb-2 [scrollbar-width:none] [-webkit-overflow-scrolling:touch]">
-              {locales.map((local: any) => (
-                <div key={local.id} className="flex-shrink-0 w-28 flex flex-col items-center text-center bg-slate-800/60 border border-white/[0.07] rounded-2xl p-3">
-                  <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center p-2 mb-3 shadow-md">
-                    <img
-                      src={local.imagenTarjeta || local.imagenPerfil}
-                      alt={local.businessName || local.name || "Local"}
-                      className="w-full h-full object-contain rounded-full"
-                    />
-                  </div>
-                  <p className="text-[11px] font-bold text-slate-50 mb-0.5 leading-[1.3]">
-                    {local.businessName || local.name}
-                  </p>
-                  {local.category && (
-                    <p className="text-[10px] text-[#D3B673] capitalize">
-                      {local.category}
-                    </p>
-                  )}
+          hayAsociados ? (
+            <section className="pb-8 space-y-5">
+              {/* Comercios Asociados (arriba, destacados) */}
+              <div>
+                <div className="px-6">
+                  <SectionTitle sub="Suma sellos con tu boleta, al instante">🏪 Comercios Asociados</SectionTitle>
                 </div>
-              ))}
-            </div>
-          </section>
+                <LocalesRow locales={localesAsociados} />
+              </div>
+              {/* Emprendedores (abajo) */}
+              {localesEmprendedores.length > 0 && (
+                <div>
+                  <div className="px-6">
+                    <SectionTitle sub="Gana sellos en cada compra">🎨 Emprendedores</SectionTitle>
+                  </div>
+                  <LocalesRow locales={localesEmprendedores} />
+                </div>
+              )}
+            </section>
+          ) : (
+            <section className="pb-8">
+              <div className="px-6">
+                <SectionTitle sub="Gana sellos en todos estos locales">Locales participantes</SectionTitle>
+              </div>
+              <LocalesRow locales={locales} />
+            </section>
+          )
         )}
 
         {/* ── BENEFICIOS (Bento Box) ── */}
@@ -274,6 +279,40 @@ export default async function DescubrePage() {
 
       {/* Smart Sticky CTA inferior (cliente — se oculta sobre #cta-final) */}
       <StickyCta href={ctaHref} watchId="cta-final" />
+    </div>
+  );
+}
+
+function LocalCard({ local }: { local: any }) {
+  const asociado = local.tipo === "asociado";
+  return (
+    <div className="relative flex-shrink-0 w-28 flex flex-col items-center text-center bg-slate-800/60 border border-white/[0.07] rounded-2xl p-3">
+      {asociado && (
+        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[#5BB8D4]/20 text-[#7FD0E6]">
+          Asociado
+        </span>
+      )}
+      <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center p-2 mb-3 shadow-md">
+        <img
+          src={local.imagenTarjeta || local.imagenPerfil}
+          alt={local.businessName || local.name || "Local"}
+          className="w-full h-full object-contain rounded-full"
+        />
+      </div>
+      <p className="text-[11px] font-bold text-slate-50 mb-0.5 leading-[1.3]">
+        {local.businessName || local.name}
+      </p>
+      {local.category && (
+        <p className="text-[10px] text-[#D3B673] capitalize">{local.category}</p>
+      )}
+    </div>
+  );
+}
+
+function LocalesRow({ locales }: { locales: any[] }) {
+  return (
+    <div className="flex gap-3 overflow-x-auto px-6 pt-1 pb-2 [scrollbar-width:none] [-webkit-overflow-scrolling:touch]">
+      {locales.map((local: any) => <LocalCard key={local.id} local={local} />)}
     </div>
   );
 }

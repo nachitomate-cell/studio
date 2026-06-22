@@ -86,27 +86,32 @@ export async function POST(req: NextRequest) {
         throw new Error("El usuario ya tiene 0 sellos, no se puede anular");
       }
 
-      const nuevoSellos = sellosActuales - 1;
+      // Restar la cantidad real de sellos del registro (boletas/handshake pueden dar 1–4).
+      const n: number = logData.numSellos ?? 1;
+      const nuevoSellos = Math.max(0, sellosActuales - n);
 
       // ── Todas las escrituras después ──────────────────────────────────────
       tx.update(userRef, {
         comprasRealizadas: nuevoSellos,
-        sellosHistoricos: Math.max(0, sellosHistoricos - 1),
+        sellosHistoricos: Math.max(0, sellosHistoricos - n),
         recompensaDisponible: nuevoSellos >= 5,
       });
 
       if (vendorRef && vendorSnap?.exists) {
         const entregados: number = vendorSnap.data()!.sellosEntregadosHistorico ?? 0;
         tx.update(vendorRef, {
-          sellosEntregadosHistorico: Math.max(0, entregados - 1),
+          sellosEntregadosHistorico: Math.max(0, entregados - n),
         });
       }
 
-      // Marcar el log como anulado (conservar como auditoría)
+      // Marcar el log como anulado (conservar como auditoría). Se limpia la
+      // referencia a la boleta porque la imagen se elimina de Storage al anular.
       tx.update(logRef, {
         anulada: true,
         anuladaPor: callerUid,
         anuladaEn: new Date().toISOString(),
+        boletaPath: null,
+        boletaUrl: null,
       });
 
       return nuevoSellos;

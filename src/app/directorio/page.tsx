@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Plus, Edit3, Trash2, Loader2,
   Search, ImagePlus, X, Check, Crown,
+  Sparkles, ExternalLink, Copy, Link2,
 } from "lucide-react";
 import { getSafeImageUrl } from "@/lib/utils";
 import { ADMIN_EMAIL } from "@/lib/constants";
@@ -41,6 +42,10 @@ interface VendorProfile {
   active: boolean;
   isPremium: boolean;
   promoText: string;
+  biooHandle?: string;
+  biooClaimUrl?: string;
+  biooPublicUrl?: string;
+  tipo: "emprendedor" | "asociado";
 }
 
 interface VendorForm {
@@ -104,6 +109,7 @@ export default function DirectorioPage() {
   // Data
   const [vendors, setVendors]       = useState<VendorProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tipoFilter, setTipoFilter] = useState<"todos" | "asociado" | "emprendedor">("todos");
 
   // Form modal state
   const [showForm, setShowForm]               = useState(false);
@@ -117,6 +123,10 @@ export default function DirectorioPage() {
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting]         = useState(false);
+
+  // Link in Bio premium (bioo.cl)
+  const [biooInfo, setBiooInfo] = useState<{ handle?: string; claimUrl?: string; publicUrl?: string }>({});
+  const [biooBusy, setBiooBusy] = useState(false);
 
   // ── Auth guard ───────────────────────────────────────────────────────────
 
@@ -172,6 +182,10 @@ export default function DirectorioPage() {
           active:          v.active !== false,
           isPremium:       v.isPremium === true,
           promoText:       v.promoText      || "",
+          biooHandle:      v.biooHandle      || undefined,
+          biooClaimUrl:    v.biooClaimUrl    || undefined,
+          biooPublicUrl:   v.biooPublicUrl   || undefined,
+          tipo:            v.tipo === "asociado" ? "asociado" : "emprendedor",
         };
       });
       data.sort((a, b) => a.businessName.localeCompare(b.businessName));
@@ -180,6 +194,22 @@ export default function DirectorioPage() {
 
     return () => unsub();
   }, [isAuthorized]);
+
+  // ── Toggle tipo de comercio (Emprendedor ⇄ Comercio Asociado) ────────────
+  // Cambia cómo el cliente gana el sello: asociado = auto-servicio por boleta;
+  // emprendedor = handshake con confirmación del vendedor. El QR no cambia.
+  const toggleTipo = async (vendor: VendorProfile) => {
+    const nuevo = vendor.tipo === "asociado" ? "emprendedor" : "asociado";
+    try {
+      await updateDoc(doc(db, "entrepreneur_profiles", vendor.id), { tipo: nuevo });
+      toast({
+        title: nuevo === "asociado" ? "🏪 Ahora es Comercio Asociado" : "🎨 Ahora es Emprendedor",
+        description: `${vendor.businessName || "El local"} usará el flujo ${nuevo === "asociado" ? "de boleta (auto-servicio)" : "de handshake (confirma el vendedor)"}.`,
+      });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "No se pudo cambiar el tipo", description: e?.message || "Intenta de nuevo." });
+    }
+  };
 
   // ── Form helpers ─────────────────────────────────────────────────────────
 
@@ -205,6 +235,7 @@ export default function DirectorioPage() {
     setImagePreview(
       getSafeImageUrl(vendor.imagenTarjeta || vendor.imageUrl, "") || null
     );
+    setBiooInfo({ handle: vendor.biooHandle, claimUrl: vendor.biooClaimUrl, publicUrl: vendor.biooPublicUrl });
     setShowForm(true);
   };
 
@@ -213,7 +244,40 @@ export default function DirectorioPage() {
     setForm(DEFAULT_FORM);
     setPendingImageFile(null);
     setImagePreview(null);
+    setBiooInfo({});
     setShowForm(true);
+  };
+
+  // ── Link in Bio premium (bioo.cl) ──────────────────────────────────────────
+  const activarBioo = async () => {
+    if (!editingVendorId || !auth.currentUser) return;
+    setBiooBusy(true);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/bioo/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendorId: editingVendorId, idToken }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast({ variant: "destructive", title: "No se pudo activar", description: json.error || "Intenta de nuevo." });
+        return;
+      }
+      setBiooInfo({ handle: json.handle, claimUrl: json.claimUrl, publicUrl: json.publicUrl });
+      toast({ title: "¡Link in Bio activado!", description: `bioo.cl/${json.handle} está listo para personalizar.` });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo conectar. Intenta de nuevo." });
+    } finally {
+      setBiooBusy(false);
+    }
+  };
+
+  const copiar = (texto: string, msg: string) => {
+    navigator.clipboard?.writeText(texto).then(
+      () => toast({ title: msg }),
+      () => toast({ variant: "destructive", title: "No se pudo copiar" })
+    );
   };
 
   const closeForm = () => {
@@ -372,8 +436,9 @@ export default function DirectorioPage() {
 
   const filteredVendors = vendors.filter(
     (v) =>
-      v.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.category.toLowerCase().includes(searchQuery.toLowerCase())
+      (tipoFilter === "todos" || v.tipo === tipoFilter) &&
+      (v.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+       v.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // ── Loading state ────────────────────────────────────────────────────────
@@ -429,6 +494,27 @@ export default function DirectorioPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+        </div>
+
+        {/* ── Filtro por tipo ────────────────────────────────────────── */}
+        <div className="flex gap-2">
+          {([
+            { id: "todos",       label: "Todos" },
+            { id: "asociado",    label: "🏪 Asociados" },
+            { id: "emprendedor", label: "🎨 Emprendedores" },
+          ] as const).map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setTipoFilter(f.id)}
+              className={`flex-1 h-9 rounded-xl text-xs font-bold transition-colors ${
+                tipoFilter === f.id
+                  ? "bg-primary text-white"
+                  : "bg-white text-slate-500 border border-slate-200"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
 
         {/* ── Lista ──────────────────────────────────────────────────── */}
@@ -487,6 +573,18 @@ export default function DirectorioPage() {
                       >
                         {vendor.active ? "ACTIVO" : "INACTIVO"}
                       </span>
+                      {/* Toggle tipo de comercio — clic para alternar */}
+                      <button
+                        onClick={() => toggleTipo(vendor)}
+                        title="Clic para cambiar entre Emprendedor y Comercio Asociado"
+                        className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full transition-colors"
+                        style={{
+                          background: vendor.tipo === "asociado" ? "#E0F2FE" : "#FEF3C7",
+                          color:      vendor.tipo === "asociado" ? "#0369A1" : "#B45309",
+                        }}
+                      >
+                        {vendor.tipo === "asociado" ? "🏪 Asociado" : "🎨 Emprendedor"}
+                      </button>
                     </div>
                   </div>
 
@@ -842,6 +940,87 @@ export default function DirectorioPage() {
                       placeholder="Ej: Gana doble sello en compras sobre $15.000 🍷"
                       className="rounded-xl min-h-[64px] resize-none border-amber-200 focus:border-amber-400"
                     />
+                  </div>
+                )}
+
+                {/* Link in Bio premium (bioo.cl) — solo al editar un comercio guardado */}
+                {editingVendorId && (
+                  <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50/60 p-4 space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-sm">
+                        <Sparkles className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                          Link in Bio
+                          <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-700 border border-violet-300">bioo.cl</span>
+                        </p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                          Una página de enlaces profesional con temas, fondos y animaciones, lista para la bio de Instagram.
+                        </p>
+                      </div>
+                    </div>
+
+                    {!biooInfo.handle && (
+                      <>
+                        <Button
+                          onClick={activarBioo}
+                          disabled={biooBusy}
+                          className="w-full h-11 rounded-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 gap-2"
+                        >
+                          {biooBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                          {biooBusy ? "Activando…" : "Crear Link in Bio"}
+                        </Button>
+                        {!form.isPremium && (
+                          <p className="text-[11px] text-violet-700 bg-violet-100/70 rounded-lg px-3 py-2">
+                            ✦ Con el plan <span className="font-bold underline">Patrocinado</span> el comercio desbloquea temas, fondos y animaciones premium en su página.
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {biooInfo.handle && (
+                      <div className="space-y-2.5">
+                        <div className="flex items-center gap-2 rounded-xl bg-white border border-violet-200 px-3 py-2.5">
+                          <Link2 className="w-4 h-4 text-violet-500 shrink-0" />
+                          <span className="text-sm font-bold text-slate-800 truncate flex-1">bioo.cl/{biooInfo.handle}</span>
+                          <button
+                            type="button"
+                            onClick={() => copiar(biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`, "Enlace público copiado")}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                            title="Copiar enlace público"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <a
+                            href={biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                            title="Ver página"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
+
+                        {biooInfo.claimUrl && (
+                          <div className="rounded-xl bg-violet-100/60 border border-violet-200 px-3 py-2.5 space-y-1.5">
+                            <p className="text-[11px] font-bold text-violet-800">Enlace de activación para el comercio</p>
+                            <p className="text-[10.5px] text-violet-600/90 leading-relaxed">
+                              Envíaselo al comercio: al abrirlo e iniciar sesión con Google, toma el control de su página (ya prellenada con sus datos) para personalizarla.
+                            </p>
+                            <div className="flex items-center gap-2 pt-0.5">
+                              <Button
+                                type="button"
+                                onClick={() => copiar(biooInfo.claimUrl!, "Enlace de activación copiado")}
+                                className="h-9 rounded-lg font-bold bg-violet-600 text-white hover:bg-violet-700 gap-1.5 text-xs flex-1"
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Copiar enlace de activación
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

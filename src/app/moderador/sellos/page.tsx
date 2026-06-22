@@ -6,11 +6,12 @@ import {
   collection, onSnapshot, query, orderBy, limit, getDocs, getDoc, doc, where,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { ref as storageRef, getDownloadURL, deleteObject } from "firebase/storage";
+import { auth, db, storage } from "@/lib/firebase";
 import {
   Loader2, ChevronLeft, Download, Search, BarChart2,
   TrendingUp, Store, Star, Stamp, Gift, Undo2,
-  Trophy, X, RefreshCw, ShoppingBag, Repeat2,
+  Trophy, X, RefreshCw, ShoppingBag, Repeat2, Receipt, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ interface LogEntry {
   monto?: number;
   numSellos?: number;
   anulada?: boolean;
+  boletaPath?: string;
   usuarioResuelto?: string;
 }
 
@@ -189,6 +191,10 @@ export default function ModeradorSellosPage() {
   const [vendorList, setVendorList] = useState<VendorInfo[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
 
+  // Boletas (Fase 5: auditoría). Map logId → URL resuelta de Storage (staff).
+  const [boletaUrls, setBoletaUrls] = useState<Record<string, string>>({});
+  const [boletaModal, setBoletaModal] = useState<string | null>(null);
+
   // Cache de nombres resueltos por userId
   const nameCache = useRef<Record<string, string>>({});
 
@@ -337,6 +343,7 @@ export default function ModeradorSellosPage() {
             monto: d.data().monto,
             numSellos: d.data().numSellos,
             anulada: d.data().anulada === true,
+            boletaPath: d.data().boletaPath || undefined,
           }))
           .filter((l) => l.tipo === "FIDELIZACION" || l.tipo === "SELLO_RECHAZADO");
 
@@ -360,6 +367,34 @@ export default function ModeradorSellosPage() {
 
     return () => unsub();
   }, [authorized]);
+
+  // ── Resolver URLs de boletas (solo staff puede leerlas en Storage) ──────────
+  useEffect(() => {
+    const pendientes = logs.filter(
+      (l) => l.metodo === "CLIENT_BOLETA" && l.boletaPath && !boletaUrls[l.id]
+    );
+    if (pendientes.length === 0) return;
+    let cancelado = false;
+    (async () => {
+      const entradas = await Promise.all(
+        pendientes.map(async (l) => {
+          try {
+            const url = await getDownloadURL(storageRef(storage, l.boletaPath!));
+            return [l.id, url] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+      if (cancelado) return;
+      setBoletaUrls((prev) => {
+        const next = { ...prev };
+        entradas.forEach((e) => { if (e) next[e[0]] = e[1]; });
+        return next;
+      });
+    })();
+    return () => { cancelado = true; };
+  }, [logs, boletaUrls]);
 
   // ── Conteo preciso por vendor (onSnapshot sin limit, excluye anulados) ───────
   useEffect(() => {
@@ -496,13 +531,39 @@ export default function ModeradorSellosPage() {
     XLSX.writeFile(wb, `sellos_patiocurauma_${hoy}.xlsx`);
   };
 
+  // ── Limpieza masiva de boletas antiguas ─────────────────────────────────────
+  const [limpiando, setLimpiando] = useState(false);
+
+  const handleLimpiarBoletas = async () => {
+    if (!confirm("¿Borrar las fotos de boletas con más de 90 días?\n\nSe conserva el registro de auditoría en el historial; solo se libera el almacenamiento de las imágenes. Esta acción no se puede deshacer.")) return;
+    setLimpiando(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Sin sesión activa");
+      const res = await fetch("/api/admin/limpiar-boletas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ olderThanDays: 90 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error desconocido");
+      alert(`Limpieza completa: ${data.borradas} boleta(s) eliminada(s) de ${data.encontradas} con más de ${data.olderThanDays} días.`);
+    } catch (e: any) {
+      alert("Error al limpiar boletas: " + e.message);
+    } finally {
+      setLimpiando(false);
+    }
+  };
+
   // ── Anular Sello ───────────────────────────────────────────────────────────
   const [anulandoId, setAnulandoId] = useState<string | null>(null);
 
   const handleAnularSello = async (log: LogEntry) => {
-    if (!confirm(`¿Anular el sello de "${log.usuarioResuelto || log.usuario}" del ${formatFechaCompleta(log.fecha)}?\n\nEsto restará 1 sello al cliente y actualizará la tarjeta de Google Wallet. Esta acción queda registrada en auditoría.`)) return;
+    const n = log.numSellos ?? 1;
+    if (!confirm(`¿Anular ${n} ${n === 1 ? "sello" : "sellos"} de "${log.usuarioResuelto || log.usuario}" del ${formatFechaCompleta(log.fecha)}?\n\nEsto restará ${n} ${n === 1 ? "sello" : "sellos"} al cliente, actualizará Google Wallet y eliminará la boleta si existe. Esta acción queda registrada en auditoría.`)) return;
 
     setAnulandoId(log.id);
+    const boletaPath = log.boletaPath; // capturar antes de que el log se actualice
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("Sin sesión activa");
@@ -520,7 +581,12 @@ export default function ModeradorSellosPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error desconocido");
 
-      // El onSnapshot actualizará el estado automáticamente
+      // Eliminar la foto de la boleta de Storage (staff puede borrar). Best-effort.
+      if (boletaPath) {
+        deleteObject(storageRef(storage, boletaPath)).catch(() => {/* ya no existe o sin permiso */});
+        setBoletaUrls((prev) => { const next = { ...prev }; delete next[log.id]; return next; });
+      }
+      // El onSnapshot actualizará el resto del estado automáticamente
     } catch (err: any) {
       alert(`Error al anular sello: ${err.message}`);
     } finally {
@@ -612,6 +678,16 @@ export default function ModeradorSellosPage() {
               <Download className="w-4 h-4" />
               <span className="md:hidden">Excel</span>
               <span className="hidden md:inline">Exportar Excel</span>
+            </Button>
+            <Button
+              onClick={handleLimpiarBoletas}
+              disabled={limpiando}
+              variant="outline"
+              title="Borrar fotos de boletas con más de 90 días (conserva el registro)"
+              className="shrink-0 rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-500 transition-all whitespace-nowrap"
+            >
+              {limpiando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              <span className="hidden md:inline">Limpiar boletas</span>
             </Button>
           </div>
         </div>
@@ -781,8 +857,17 @@ export default function ModeradorSellosPage() {
                       </div>
 
                       {/* Fila 2: local */}
-                      <div className="mt-2 text-sm text-slate-500 font-medium truncate">
-                        <LocalLabel log={log} vendors={vendors} />
+                      <div className="mt-2 text-sm text-slate-500 font-medium flex items-center gap-2">
+                        <span className="truncate"><LocalLabel log={log} vendors={vendors} /></span>
+                        {log.metodo === "CLIENT_BOLETA" && boletaUrls[log.id] && (
+                          <button
+                            onClick={() => setBoletaModal(boletaUrls[log.id])}
+                            title="Ver boleta"
+                            className="shrink-0 w-8 h-8 rounded-lg overflow-hidden border border-slate-200"
+                          >
+                            <img src={boletaUrls[log.id]} alt="boleta" className="w-full h-full object-cover" />
+                          </button>
+                        )}
                       </div>
 
                       {/* Fila 3: sellos + monto + acción */}
@@ -850,7 +935,21 @@ export default function ModeradorSellosPage() {
                             {log.usuarioResuelto || log.usuario || "—"}
                           </td>
                           <td className="px-6 py-4 text-slate-500 font-medium">
-                            <LocalLabel log={log} vendors={vendors} />
+                            <div className="flex items-center gap-2">
+                              <LocalLabel log={log} vendors={vendors} />
+                              {log.metodo === "CLIENT_BOLETA" && boletaUrls[log.id] && (
+                                <button
+                                  onClick={() => setBoletaModal(boletaUrls[log.id])}
+                                  title="Ver boleta"
+                                  className="shrink-0 w-8 h-8 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-primary/40 transition"
+                                >
+                                  <img src={boletaUrls[log.id]} alt="boleta" className="w-full h-full object-cover" />
+                                </button>
+                              )}
+                              {log.metodo === "CLIENT_BOLETA" && !boletaUrls[log.id] && !log.anulada && (
+                                <Receipt className="w-4 h-4 text-slate-300 shrink-0" />
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <SellosBadge log={log} />
@@ -1057,6 +1156,29 @@ export default function ModeradorSellosPage() {
               </p>
             </div>
           )}
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal: boleta a tamaño completo ───────────────────────────────── */}
+    {boletaModal && (
+      <div
+        className="fixed inset-0 z-[400] flex items-center justify-center p-4"
+        onClick={() => setBoletaModal(null)}
+      >
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <img
+            src={boletaModal}
+            alt="Boleta"
+            className="max-w-[92vw] max-h-[88vh] rounded-2xl shadow-2xl object-contain bg-white"
+          />
+          <button
+            onClick={() => setBoletaModal(null)}
+            className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white text-slate-700 flex items-center justify-center shadow-lg hover:bg-slate-100"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
       </div>
     )}

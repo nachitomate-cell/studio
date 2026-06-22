@@ -25,6 +25,19 @@ service firebase.storage {
       );
     }
 
+    // Staff que puede auditar boletas (incluye moderador, no solo director/admin).
+    function isStaffStorage() {
+      return isSignedIn() && (
+        request.auth.token.email == "ignaciiio.mate@gmail.com" ||
+        firestore.get(
+          /databases/(default)/documents/usuarios/$(request.auth.uid)
+        ).data.get("rol", "") in ["moderador", "director", "director_patio", "admin"] ||
+        firestore.get(
+          /databases/(default)/documents/usuarios/$(request.auth.uid)
+        ).data.get("roles", []).hasAny(["moderador", "director", "director_patio", "admin"])
+      );
+    }
+
     function isValidImage() {
       return request.resource.contentType.matches('image/.*')
         && request.resource.size < 15 * 1024 * 1024; // máx 15 MB (fotos de cámara)
@@ -56,14 +69,15 @@ service firebase.storage {
     // El cliente autenticado SUBE su boleta (no puede leer las ajenas).
     // Solo staff (moderador/director/admin) lee, para auditar. Solo staff borra.
     match /boletas/{vendorId}/{fileName} {
-      allow read: if isDirectorOrAdmin();
+      // Lectura/borrado: staff (moderador/director/admin) para auditar y limpiar.
+      allow read: if isStaffStorage();
       // El tipo (image/*) y el tamaño (<15MB) se validan en el cliente (BoletaForm)
       // y la operación se respalda en el endpoint /api/handshake/boleta-scan.
       // No usamos isValidImage() aquí porque el emulador de Storage no puebla de
       // forma confiable request.resource.contentType/size desde el SDK del navegador.
       allow create: if isSignedIn();
       allow update: if false;
-      allow delete: if isDirectorOrAdmin();
+      allow delete: if isStaffStorage();
     }
 
     // ── Cualquier otro path: denegado ────────────────────────────────────────

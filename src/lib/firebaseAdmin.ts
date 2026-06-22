@@ -14,6 +14,9 @@ import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getMessaging, type Messaging } from "firebase-admin/messaging";
+import { getStorage, type Storage } from "firebase-admin/storage";
+
+const STORAGE_BUCKET = "studio-7914495232-557f1.firebasestorage.app";
 
 function createAdminApp(): App {
   // Evita re-inicialización en Fast Refresh (dev) y en Workers concurrentes
@@ -29,6 +32,7 @@ function createAdminApp(): App {
         process.env.FIREBASE_ADMIN_PROJECT_ID?.trim() ||
         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() ||
         "studio-7914495232-557f1",
+      storageBucket: STORAGE_BUCKET,
     });
   }
 
@@ -59,6 +63,7 @@ function createAdminApp(): App {
 
   return initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
+    storageBucket: STORAGE_BUCKET,
   });
 }
 
@@ -81,3 +86,4 @@ function lazyProxy<T extends object>(factory: () => T): T {
 export const adminAuth:      Auth      = lazyProxy(() => getAuth(getAdminApp()));
 export const adminDb:        Firestore = lazyProxy(() => getFirestore(getAdminApp()));
 export const adminMessaging: Messaging = lazyProxy(() => getMessaging(getAdminApp()));
+export const adminStorage:   Storage   = lazyProxy(() => getStorage(getAdminApp()));

@@ -420,6 +420,7 @@ export default function Home() {
             horariosEstructurados: data.horariosEstructurados || null,
             lat: data.lat || null,
             lng: data.lng || null,
+            tipo: data.tipo === "asociado" ? "asociado" : "emprendedor",
           } as Entrepreneur & { isHiddenFromFeed?: boolean };
         });
         _entrepreneursCache = docs;
@@ -561,6 +562,14 @@ export default function Home() {
       const dA = haversineKm(userCoords.lat, userCoords.lng, a.lat ?? MALL_LAT, a.lng ?? MALL_LNG);
       const dB = haversineKm(userCoords.lat, userCoords.lng, b.lat ?? MALL_LAT, b.lng ?? MALL_LNG);
       return dA - dB;
+    });
+  } else {
+    // Destacados: los Comercios Asociados aparecen primero (orden por defecto).
+    // El sort de JS es estable, así que dentro de cada tipo se conserva el orden.
+    result = [...result].sort((a: any, b: any) => {
+      const pa = a.tipo === "asociado" ? 0 : 1;
+      const pb = b.tipo === "asociado" ? 0 : 1;
+      return pa - pb;
     });
   }
 
