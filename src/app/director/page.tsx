@@ -11,7 +11,7 @@ import {
   BarChart3, Users, Ticket, TrendingUp,
   ArrowLeft, Download, Send, Plus, Trash2,
   Edit3, Trophy, Megaphone, Loader2, Store, Crown, Check, X, ImagePlus, FolderOpen, Copy, QrCode,
-  Search, UserCheck, MapPin, Link, ExternalLink, Clock,
+  Search, UserCheck, MapPin, Link, ExternalLink, Clock, Tag,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Switch } from "@/components/ui/switch";
@@ -168,6 +168,11 @@ export default function DirectorPage() {
   const [campanaActualId, setCampanaActualId] = useState<string | null>(null);
   const [historialPublicidad, setHistorialPublicidad] = useState<any[]>([]);
 
+  // Categorías de negocios
+  const [categorias, setCategorias] = useState<any[]>([]);
+  const [categoriaForm, setCategoriaForm] = useState({ nombre: "", icono: "🏷️" });
+  const [savingCategoria, setSavingCategoria] = useState(false);
+
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -294,12 +299,20 @@ export default function DirectorPage() {
       );
     });
 
+    // Listener de categorías de negocios
+    const unsubCategorias = onSnapshot(collection(db, "categorias_negocios"), (snap) => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+      docs.sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999));
+      setCategorias(docs);
+    });
+
     return () => {
       unsubLogs();
       unsubRankingRol();
       unsubRankingRoles();
       unsubPremios();
       unsubProfiles();
+      unsubCategorias();
     };
   }, [isAuthorized]);
 
@@ -612,6 +625,56 @@ export default function DirectorPage() {
   const handleToggleActivo = async (id: string, activo: boolean) => {
     await updateDoc(doc(db, "premios", id), { activo: !activo });
     toast({ title: activo ? "Premio desactivado" : "Premio activado" });
+  };
+
+  const handleCreateCategoria = async () => {
+    const nombre = categoriaForm.nombre.trim();
+    if (!nombre) {
+      toast({ variant: "destructive", title: "Falta el nombre", description: "Ingresa un nombre para la categoría." });
+      return;
+    }
+    const slug = nombre
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (!slug) {
+      toast({ variant: "destructive", title: "Nombre inválido", description: "Usa al menos una letra o número." });
+      return;
+    }
+    setSavingCategoria(true);
+    try {
+      const ref = doc(db, "categorias_negocios", slug);
+      const existing = await getDoc(ref);
+      if (existing.exists()) {
+        toast({ variant: "destructive", title: "Ya existe", description: "Esa categoría ya está registrada." });
+        return;
+      }
+      await setDoc(ref, {
+        nombre,
+        icono: categoriaForm.icono.trim() || "🏷️",
+        orden: categorias.length,
+        creadoEn: serverTimestamp(),
+        creadoPor: currentUserId,
+      });
+      setCategoriaForm({ nombre: "", icono: "🏷️" });
+      toast({ title: "Categoría creada", description: nombre });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo crear la categoría." });
+    } finally {
+      setSavingCategoria(false);
+    }
+  };
+
+  const handleDeleteCategoria = async (id: string, nombre: string) => {
+    if (!confirm(`¿Eliminar la categoría "${nombre}"?`)) return;
+    try {
+      await deleteDoc(doc(db, "categorias_negocios", id));
+      toast({ title: "Categoría eliminada" });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la categoría." });
+    }
   };
 
   const handleTogglePremium = async (id: string, current: boolean) => {
@@ -1071,6 +1134,78 @@ export default function DirectorPage() {
               <div className="py-8 text-center text-xs text-slate-400 italic">No hay premios configurados. Crea el primero.</div>
             )}
           </div>
+        </section>
+
+        {/* CATEGORÍAS DE NEGOCIOS */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <Tag className="w-4 h-4 text-primary" /> Categorías de Negocios
+            </h2>
+            <Badge className="bg-primary/10 text-primary border-none text-[9px]">{categorias.length}</Badge>
+          </div>
+
+          <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+            <CardContent className="p-5 space-y-3">
+              <div className="grid grid-cols-[64px_1fr] gap-2">
+                <Input
+                  value={categoriaForm.icono}
+                  onChange={(e) => setCategoriaForm({ ...categoriaForm, icono: e.target.value })}
+                  placeholder="🏷️"
+                  maxLength={4}
+                  className="rounded-xl h-11 text-center text-xl"
+                  aria-label="Ícono"
+                />
+                <Input
+                  value={categoriaForm.nombre}
+                  onChange={(e) => setCategoriaForm({ ...categoriaForm, nombre: e.target.value })}
+                  placeholder="Nombre de la categoría"
+                  maxLength={40}
+                  className="rounded-xl h-11"
+                  aria-label="Nombre de la categoría"
+                />
+              </div>
+              <Button
+                onClick={handleCreateCategoria}
+                disabled={savingCategoria || !categoriaForm.nombre.trim()}
+                className="w-full h-11 rounded-2xl font-black gap-2 bg-primary hover:bg-primary/90 text-white shadow-sm shadow-primary/20"
+              >
+                {savingCategoria ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Agregar categoría
+              </Button>
+            </CardContent>
+          </Card>
+
+          {categorias.length > 0 ? (
+            <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+              <CardContent className="p-2 divide-y divide-slate-50">
+                {categorias.map((cat) => (
+                  <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors rounded-2xl group">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-xl">
+                        {cat.icono || "🏷️"}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-800 truncate">{cat.nombre}</p>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">{cat.id}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteCategoria(cat.id, cat.nombre)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50"
+                      aria-label={`Eliminar ${cat.nombre}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="py-6 text-center text-xs text-slate-400 italic">
+              Aún no hay categorías. Crea la primera arriba.
+            </div>
+          )}
         </section>
 
         {/* GRÁFICO DE SALUD DEL PATIO */}
