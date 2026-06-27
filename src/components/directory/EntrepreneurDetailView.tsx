@@ -27,6 +27,7 @@ import {
   Star,
   Pencil,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -968,6 +969,27 @@ function DetailContent() {
                 Contactar por WhatsApp
               </Button>
             )
+          )}
+
+          {/* Link in Bio premium (bioo.cl) */}
+          {entrepreneur.biooHandle && (
+            <Button
+              className="w-full h-14 rounded-2xl font-black text-base gap-2.5 transition-all active:scale-95 border-none"
+              style={{
+                background: "linear-gradient(135deg, #7c3aed, #d946ef)",
+                color: "white",
+                boxShadow: "0 8px 24px rgba(124,58,237,0.28)",
+              }}
+              onClick={() => {
+                window.open(
+                  entrepreneur.biooPublicUrl || `https://bioo.cl/${entrepreneur.biooHandle}`,
+                  "_blank"
+                );
+              }}
+            >
+              <Sparkles className="w-5 h-5" />
+              Ver mi Link in Bio
+            </Button>
           )}
 
           {/* Instagram + Ver Mapa — renderizado condicional */}

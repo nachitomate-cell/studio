@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Loader2, Save, ImagePlus, Upload, HelpCircle, X,
+  Sparkles, ExternalLink, Link2, Copy,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +32,10 @@ export default function TiendaPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Link in Bio (bioo.cl)
+  const [biooInfo, setBiooInfo] = useState<{ handle?: string; claimUrl?: string; publicUrl?: string }>({});
+  const [biooBusy, setBiooBusy] = useState(false);
+  const [biooOpening, setBiooOpening] = useState(false);
 
   const [shopForm, setShopForm] = useState({
     nombreTienda: "",
@@ -80,6 +85,7 @@ export default function TiendaPage() {
             isPremium: data.isPremium === true,
           });
           setPreviewUrl(data.imageUrl || data.imageUrls?.[0] || null);
+          setBiooInfo({ handle: data.biooHandle, claimUrl: data.biooClaimUrl, publicUrl: data.biooPublicUrl });
         }
       });
 
@@ -102,6 +108,75 @@ export default function TiendaPage() {
     if (file) {
       setProfileImage(file);
       setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  // ── Link in Bio (bioo.cl) — autoservicio del emprendedor ──────────────────
+  const crearMiBioo = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ variant: "destructive", title: "No autenticado", description: "Inicia sesión para crear tu página." });
+      return;
+    }
+    if (!shopForm.nombreTienda.trim() || shopForm.nombreTienda.trim() === "—") {
+      toast({ variant: "destructive", title: "Configura tu local primero", description: "Necesitas el nombre de tu local antes de crear tu Link in Bio." });
+      return;
+    }
+    setBiooBusy(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/bioo/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendorId: user.uid, idToken }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast({ variant: "destructive", title: "No se pudo crear", description: json.error || "Intenta de nuevo." });
+        return;
+      }
+      setBiooInfo({ handle: json.handle, claimUrl: json.claimUrl, publicUrl: json.publicUrl });
+      toast({ title: "¡Tu Link in Bio está listo!", description: `bioo.cl/${json.handle} — actívala para personalizarla.` });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo conectar. Intenta de nuevo." });
+    } finally {
+      setBiooBusy(false);
+    }
+  };
+
+  const copiarBioo = (texto: string, msg: string) => {
+    navigator.clipboard?.writeText(texto).then(
+      () => toast({ title: msg }),
+      () => toast({ variant: "destructive", title: "No se pudo copiar" })
+    );
+  };
+
+  // Abre el editor de bioo.cl con la sesión del emprendedor ya iniciada (SSO).
+  const abrirEditorBioo = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setBiooOpening(true);
+    const w = window.open("", "_blank");
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/bioo/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.editUrl) {
+        if (w) w.close();
+        toast({ variant: "destructive", title: "No se pudo abrir", description: json.error || "Intenta de nuevo." });
+        return;
+      }
+      if (w) w.location.href = json.editUrl;
+      else window.location.href = json.editUrl;
+    } catch {
+      if (w) w.close();
+      toast({ variant: "destructive", title: "Error", description: "No se pudo conectar. Intenta de nuevo." });
+    } finally {
+      setBiooOpening(false);
     }
   };
 
@@ -155,6 +230,18 @@ export default function TiendaPage() {
       }, { merge: true });
 
       await updateDoc(doc(db, "usuarios", user.uid), { nombreTienda: shopForm.nombreTienda });
+
+      // Auto-crear su Link in Bio (bioo.cl) si aún no lo tiene. Idempotente y silencioso.
+      if (!biooInfo.handle) {
+        try {
+          const idToken = await user.getIdToken();
+          await fetch("/api/bioo/provision", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vendorId: user.uid, idToken }),
+          });
+        } catch { /* no bloquea el guardado */ }
+      }
 
       toast({ title: "¡Perfil actualizado!", description: "La información de tu local se ha guardado correctamente." });
       router.push("/vendedor");
@@ -431,6 +518,79 @@ export default function TiendaPage() {
                 )}
               </div>
             )}
+
+            {/* ── Mi Link in Bio (bioo.cl) ─────────────────────────────── */}
+            <div className="mt-2 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50/60 p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-sm">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-black text-slate-800 flex items-center gap-2 flex-wrap">
+                    Mi Link in Bio
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-700 border border-violet-300">bioo.cl</span>
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                    Tu página de enlaces para la bio de Instagram, con tu WhatsApp, redes y web en un solo toque.
+                  </p>
+                </div>
+              </div>
+
+              {!biooInfo.handle ? (
+                <div className="mt-4 space-y-3">
+                  <Button
+                    onClick={crearMiBioo}
+                    disabled={biooBusy}
+                    className="w-full h-12 rounded-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 gap-2"
+                  >
+                    {biooBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                    {biooBusy ? "Creando…" : "Crear mi Link in Bio"}
+                  </Button>
+                  <p className="text-[11px] text-slate-400 leading-relaxed text-center">
+                    Se crea con tus datos ya cargados.{" "}
+                    {!shopForm.isPremium && (
+                      <span className="text-violet-600 font-semibold">Con el plan Patrocinado desbloqueas temas, fondos y animaciones premium.</span>
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center gap-2 rounded-xl bg-white border border-violet-200 px-3 py-3">
+                    <Link2 className="w-4 h-4 text-violet-500 shrink-0" />
+                    <span className="text-sm font-bold text-slate-800 truncate flex-1">bioo.cl/{biooInfo.handle}</span>
+                    <button
+                      type="button"
+                      onClick={() => copiarBioo(biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`, "Enlace copiado")}
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                      aria-label="Copiar enlace"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <a
+                      href={biooInfo.publicUrl || `https://bioo.cl/${biooInfo.handle}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                      aria-label="Ver página"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={abrirEditorBioo}
+                    disabled={biooOpening}
+                    className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 transition-opacity disabled:opacity-60"
+                  >
+                    {biooOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                    {biooOpening ? "Abriendo editor…" : "Personalizar mi página →"}
+                  </button>
+                  <p className="text-[11px] text-slate-400 leading-relaxed text-center">
+                    Entras directo al editor con tu sesión, sin volver a iniciar sesión.
+                    {!shopForm.isPremium && <span className="text-violet-600 font-semibold"> Hazte Patrocinado para temas y fondos premium.</span>}
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Guardar */}
             <Button
