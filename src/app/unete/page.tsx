@@ -55,7 +55,12 @@ export default function UnetePage() {
     setPhone(val);
   };
   const [nombre, setNombre] = useState("");
-  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [diaNac, setDiaNac] = useState("");
+  const [mesNac, setMesNac] = useState("");
+  const [anioNac, setAnioNac] = useState("");
+  const diaRef = useRef<HTMLInputElement>(null);
+  const mesRef = useRef<HTMLInputElement>(null);
+  const anioRef = useRef<HTMLInputElement>(null);
   const [comuna, setComuna] = useState("");
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aceptaMarketing, setAceptaMarketing] = useState(false);
@@ -73,6 +78,21 @@ export default function UnetePage() {
   const [comoNosConocio, setComoNosConocio] = useState("");
 
   const preventAutoRedirect = useRef(false);
+
+  // Validación + composición de fecha YYYY-MM-DD desde los 3 campos
+  const fechaNacimientoValida = (() => {
+    if (!diaNac || !mesNac || !anioNac) return null;
+    const d = Number(diaNac), m = Number(mesNac), y = Number(anioNac);
+    if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) return null;
+    if (y < 1900 || y > new Date().getFullYear()) return null;
+    if (m < 1 || m > 12) return null;
+    if (d < 1 || d > 31) return null;
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+    if (dt.getTime() > Date.now()) return null;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  })();
+  const fechaNacimiento = fechaNacimientoValida ?? "";
 
   // Capturar ?ref= del QR del locatario y parámetros UTM
   useEffect(() => {
@@ -301,7 +321,8 @@ export default function UnetePage() {
       if (!/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
         setError("Teléfono inválido. Usa formato +56 9 XXXX XXXX."); return;
       }
-      if (!fechaNacimiento) { setError("Ingresa tu fecha de nacimiento."); return; }
+      if (!diaNac || !mesNac || !anioNac) { setError("Ingresa tu fecha de nacimiento."); return; }
+      if (!fechaNacimientoValida) { setError("La fecha de nacimiento no es válida. Revisa día, mes y año."); return; }
       if (!aceptaTerminos) { setError("Debes aceptar los términos de uso para continuar."); return; }
     }
     handleAuth(e);
@@ -309,7 +330,7 @@ export default function UnetePage() {
 
   const resetForm = () => {
     setError(null);
-    setNombre(""); setFechaNacimiento(""); setComuna(""); setComunaSeleccionada("");
+    setNombre(""); setDiaNac(""); setMesNac(""); setAnioNac(""); setComuna(""); setComunaSeleccionada("");
     setCodigoReferido(""); setAceptaTerminos(false); setAceptaMarketing(false);
     setAceptaPromoLocales(false); setShowOptional(false); setShowPassword(false);
     setResetSent(false); setComoNosConocio("");
@@ -574,12 +595,67 @@ export default function UnetePage() {
                 {/* Fecha de nacimiento (obligatoria, solo registro) */}
                 {!isLogin && (
                   <div className="u-field">
-                    <Label htmlFor="u-bday" className="u-label">
+                    <Label htmlFor="u-bday-d" className="u-label">
                       <Calendar className="u-label-icon" /> Fecha de nacimiento <span style={{ color: "#ef4444" }}>*</span>
                     </Label>
-                    <Input id="u-bday" type="date"
-                      value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)}
-                      className="u-input" max={new Date().toISOString().split("T")[0]} />
+                    <div className="u-bday">
+                      <input
+                        ref={diaRef}
+                        id="u-bday-d"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="DD"
+                        maxLength={2}
+                        autoComplete="bday-day"
+                        value={diaNac}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+                          setDiaNac(v);
+                          if (v.length === 2) mesRef.current?.focus();
+                        }}
+                        className="u-input u-bday-input"
+                        aria-label="Día"
+                      />
+                      <span className="u-bday-sep">/</span>
+                      <input
+                        ref={mesRef}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="MM"
+                        maxLength={2}
+                        autoComplete="bday-month"
+                        value={mesNac}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+                          setMesNac(v);
+                          if (v.length === 2) anioRef.current?.focus();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Backspace" && mesNac === "") diaRef.current?.focus();
+                        }}
+                        className="u-input u-bday-input"
+                        aria-label="Mes"
+                      />
+                      <span className="u-bday-sep">/</span>
+                      <input
+                        ref={anioRef}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="AAAA"
+                        maxLength={4}
+                        autoComplete="bday-year"
+                        value={anioNac}
+                        onChange={(e) => setAnioNac(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Backspace" && anioNac === "") mesRef.current?.focus();
+                        }}
+                        className="u-input u-bday-input u-bday-input--year"
+                        aria-label="Año"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -891,6 +967,27 @@ export default function UnetePage() {
           align-items: center;
         }
         .u-eye:hover { color: #94a3b8; }
+
+        /* Fecha de nacimiento (3 campos) */
+        .u-bday {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .u-bday-input {
+          flex: 1;
+          min-width: 0;
+          text-align: center;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 1px;
+        }
+        .u-bday-input--year { flex: 1.4; }
+        .u-bday-sep {
+          color: #475569;
+          font-size: 18px;
+          font-weight: 700;
+          user-select: none;
+        }
 
         /* Select */
         .u-select {
