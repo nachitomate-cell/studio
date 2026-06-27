@@ -1,13 +1,19 @@
 /**
  * GET /api/cron/daily-notifications
  *
- * Cron job diario que envía notificaciones push segmentadas según el estado
- * de sellos de cada usuario.
+ * Cron job diario que envía notificaciones push segmentadas según la cantidad
+ * de sellos acumulados de cada usuario.
  *
- * Segmentos:
- *   REGALO  — 7+ sellos acumulados → dirigir a Tienda Patio Curauma
- *   CAFÉ    — 5 a 6 sellos          → dirigir al bazar a canjear café gratis
- *   GENERAL — menos de 5 sellos     → incentivar visita / beneficio Fronza
+ * Segmentos (campaña Club Patio Curauma):
+ *   VIP          — 10+ sellos  → socios más fieles, premios exclusivos
+ *   CASI_VIP     — 7 a 9 sellos → a poco de los premios grandes
+ *   PRIMER_CANJE — 5 a 6 sellos → ya pueden canjear sus primeros premios
+ *   CASI_LLEGO   — 3 a 4 sellos → muy cerca del primer canje
+ *   NUEVOS       — 1 a 2 sellos → recién empezando, mostrar todo lo que ganan
+ *   REACTIVACION — 0 sellos     → aún no estrenan beneficios
+ *
+ * El saludo "Hola {nombre}" se personaliza con el nombre real del usuario, por
+ * lo que cada notificación es individual (sendEach en lotes de 500).
  *
  * Protegido con CRON_SECRET para que solo Vercel pueda invocarlo.
  * Horario: 13:00 UTC = ~10:00 Chile (UTC-3 verano / UTC-4 invierno)
@@ -15,59 +21,138 @@
 
 import { NextResponse } from "next/server";
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getMessaging, MulticastMessage } from "firebase-admin/messaging";
+import { getMessaging, Message } from "firebase-admin/messaging";
 import { getFirestore } from "firebase-admin/firestore";
 
-// ── Catálogos de mensajes por segmento ────────────────────────────────────────
+// ── Definición de segmentos ────────────────────────────────────────────────────
+//
+// `min` es la cantidad mínima de sellos (inclusive) para caer en el segmento.
+// Se evalúan de mayor a menor, así que el primero que cumpla `sellos >= min` gana.
+// `saludoEmoji` se concatena tras "Hola {nombre}"; `cuerpo` es el resto del texto.
 
-const MENSAJES_REGALO = [
+type Segmento = {
+  tipo: string;
+  min: number;
+  titulo: string;
+  saludoEmoji: string;
+  cuerpo: string;
+  cta: string;
+  link: string;
+};
+
+const SEGMENTOS: Segmento[] = [
   {
-    titulo: "🎁 ¡Ya desbloqueaste tu regalo Club Patio!",
-    cuerpo: "Acércate a Tienda Patio Curauma y canjea tu regalo exclusivo por tus sellos 💛 ¡Te esperamos en el bazar Outlet!",
+    tipo: "diaria_vip",
+    min: 10,
+    titulo: "👑 Eres socio VIP del Club Patio",
+    saludoEmoji: "👑",
+    cuerpo:
+      "¡Eres uno de nuestros socios más especiales del Club Patio Curauma!\n\n" +
+      "Con tus sellos ya tienes acceso a premios exclusivos 🎁:\n" +
+      "☕ Cool Café → café de grano de origen gratis (15 sellos)\n" +
+      "🍺 Magura → 15% de descuento en tu cuenta total\n" +
+      "🍣 Sushi Pro → 20% de descuento en local y delivery\n" +
+      "🏋️ JyM Gym → 1 semana gratis\n" +
+      "🧘 Studio Grit → 15% descuento en membresía con PAT\n\n" +
+      "Este finde también puedes pasar por el Bazar del Outlet 🍭 — con 5 sellos hay sorpresa dulce esperándote.",
+    cta: "Ver premios",
+    link: "/",
   },
   {
-    titulo: "✨ Tu regalo exclusivo está esperándote",
-    cuerpo: "Gracias por preferir Patio Curauma y apoyar a nuestros emprendedores locales 💛 Pasa por Tienda Patio Curauma a canjearlo.",
+    tipo: "diaria_casi_vip",
+    min: 7,
+    titulo: "🔥 Estás a poco de los premios grandes",
+    saludoEmoji: "☀️",
+    cuerpo:
+      "¡Estás muy cerca de los premios grandes del Club Patio Curauma! 💧\n\n" +
+      "Con tus sellos te falta poquito para:\n" +
+      "☕ 10 sellos → café gratis en Cool Café\n" +
+      "🏋️ 10 sellos → 1 semana gratis en JyM Gym\n" +
+      "🍣 10 sellos → 15% de descuento en Sushi Pro\n" +
+      "🍺 10 sellos → Happy Hour extendido en Magura\n\n" +
+      "Este finde es tu oportunidad perfecta 🤍 Pasa por el Bazar del Outlet 🍭 y suma sellos en tus locales favoritos del Patio.",
+    cta: "Ver premios",
+    link: "/",
   },
   {
-    titulo: "🎁 ¡Ven a buscar tu premio a Patio Curauma Tienda!",
-    cuerpo: "Encuéntranos en Avenida Universidad #134 local 1. De miércoles a domingo de 12:00 a 20:00 hrs. ¡Tu regalo te espera! 💛",
+    tipo: "diaria_primer_canje",
+    min: 5,
+    titulo: "🎁 ¡Ya puedes canjear tus primeros premios!",
+    saludoEmoji: "🎁",
+    cuerpo:
+      "¡Ya tienes sellos suficientes para canjear tus primeros premios del Club Patio Curauma!\n\n" +
+      "Muestra tu app en estos locales y recibe:\n" +
+      "🏪 Patio Curauma Tienda → 1 premio dulce 🍬\n" +
+      "☕ Cool Café → 1 Macaron o Brigadeiro delicioso\n" +
+      "🍣 Sushi Pro → 10% de descuento\n" +
+      "🏋️ JyM Gym → 3 días gratis para probar\n" +
+      "🧘 Studio Grit → 1 clase de prueba gratis\n" +
+      "🍺 Magura → Pisco Sour en tu almuerzo\n\n" +
+      "Y este finde el Bazar del Outlet 🍭 tiene café especial esperándote con 5 sellos ✨",
+    cta: "Canjear",
+    link: "/",
+  },
+  {
+    tipo: "diaria_casi_llego",
+    min: 3,
+    titulo: "⏳ ¡Te falta muy poquito para tu premio!",
+    saludoEmoji: "🍭",
+    cuerpo:
+      "¡Te falta muy poquito para tu primer premio del Club Patio Curauma! 🎉\n\n" +
+      "Con solo 1 o 2 sellos más podrás canjear:\n" +
+      "🍬 Un dulce en Patio Curauma Tienda\n" +
+      "☕ Un Macaron o Brigadeiro en Cool Café\n" +
+      "🏋️ 3 días gratis en JyM Gym\n" +
+      "🍣 10% de descuento en Sushi Pro\n" +
+      "🍺 Pisco Sour gratis en Magura\n\n" +
+      "👉 Este finde pasa por el Bazar del Outlet 🍭 en Patio Curauma y suma el sello que te falta.",
+    cta: "Ver premios",
+    link: "/",
+  },
+  {
+    tipo: "diaria_nuevos",
+    min: 1,
+    titulo: "🎉 ¡Ya estás dentro del Club Patio!",
+    saludoEmoji: "👋",
+    cuerpo:
+      "¡Ya estás dentro del Club Patio Curauma! 🎉\n\n" +
+      "¿Sabías que con solo 5 sellos ya puedes canjear premios en 6 comercios? 🎁\n" +
+      "☕ Cool Café → Macaron o Brigadeiro\n" +
+      "🏪 Patio Curauma Tienda → Premio dulce\n" +
+      "🏋️ JyM Gym → 3 días gratis\n" +
+      "🍣 Sushi Pro → 10% de descuento\n" +
+      "🍺 Magura → Pisco Sour gratis en almuerzo\n" +
+      "🧘 Studio Grit → 1 clase de prueba gratis\n\n" +
+      "👉 Este fin de semana pasa por el Bazar del Outlet 🍭 y suma sellos visitando tus locales favoritos del Patio.",
+    cta: "Ver app",
+    link: "/",
+  },
+  {
+    tipo: "diaria_reactivacion",
+    min: 0,
+    titulo: "💛 Tus beneficios te esperan en el Patio",
+    saludoEmoji: "👋",
+    cuerpo:
+      "¡Eres parte del Club Patio Curauma pero aún no has estrenado tus beneficios! 😊\n\n" +
+      "La buena noticia: con tu primera visita a cualquier local del Patio ya empiezas a acumular sellos ☀️\n\n" +
+      "Este finde tenemos algo especial: el Bazar del Outlet 🍭 en el Patio Curauma. Con 5 sellos hay regalos dulces para ti.\n\n" +
+      "Solo muestra tu app del Club al pagar y el local te da tus sellos automáticamente.",
+    cta: "Ver app",
+    link: "/",
   },
 ];
 
-const MENSAJES_CAFE = [
-  {
-    titulo: "☕✨ ¡Ya tienes tu recompensa en Club Patio!",
-    cuerpo: "Acumulaste los sellos para canjear un café GRATIS en el bazar Patio Curauma 🙌 ¡Ven a disfrutar una pausa rica con nuestros emprendedores!",
-  },
-  {
-    titulo: "🎉 ¡Felicitaciones! Tu café gratis te espera",
-    cuerpo: "Tu fidelidad tiene premio 💛 Pasa por el bazar Patio Curauma Outlet, disfruta tu café gratis y sigue sumando sellos.",
-  },
-  {
-    titulo: "⭐ Recuerda: con 5 sellos ya puedes canjear tus premios",
-    cuerpo: "¿Cuántos te faltan? Ven a Patio Curauma Tienda en Avenida Universidad 134 local 1 y busca tu sello. 💛",
-  },
-];
+function segmentoPara(sellos: number): Segmento {
+  // SEGMENTOS está ordenado de mayor a menor `min`, así que el primero que
+  // cumpla gana. El último (min: 0) siempre captura el caso 0 sellos.
+  return SEGMENTOS.find((s) => sellos >= s.min) ?? SEGMENTOS[SEGMENTOS.length - 1];
+}
 
-const MENSAJES_GENERAL = [
-  {
-    titulo: "✨ Más compras, más beneficios en Patio Curauma",
-    cuerpo: "Sigue acumulando sellos y accede a cafés gratis, regalos exclusivos y beneficios especiales junto a nuestro auspiciador Fronza 💛",
-  },
-  {
-    titulo: "🔥 Beneficio exclusivo Club Patio + Fronza",
-    cuerpo: "Tus compras en Patio Curauma desbloquean promociones especiales junto a Fronza. ¡Compra local, acumula beneficios y vive la experiencia Club Patio!",
-  },
-  {
-    titulo: "✨ Esta semana es perfecta para visitar el Patio",
-    cuerpo: "Recorre el bazar, conoce nuevos emprendimientos y acumula sellos. Moda, cafetería, accesorios, decoración y más te esperan 💛",
-  },
-  {
-    titulo: "⭐ Con 5 sellos ya puedes canjear tus premios",
-    cuerpo: "¿Cuántos te faltan? Ven a Patio Curauma Tienda en Avenida Universidad 134 local 1 y busca tu sello. 💛",
-  },
-];
+function construirCuerpo(seg: Segmento, nombre: string): string {
+  const primerNombre = (nombre || "").trim().split(/\s+/)[0];
+  const saludo = primerNombre ? `Hola ${primerNombre}` : "Hola";
+  return `${saludo} ${seg.saludoEmoji}\n\n${seg.cuerpo}`;
+}
 
 // ── Firebase Admin ─────────────────────────────────────────────────────────────
 function getAdminApp(): App {
@@ -87,14 +172,14 @@ function getAdminApp(): App {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function buildMulticast(
-  tokens: string[],
+function buildMessage(
+  token: string,
   titulo: string,
   cuerpo: string,
   link: string
-): MulticastMessage {
+): Message {
   return {
-    tokens,
+    token,
     notification: { title: titulo, body: cuerpo },
     android: {
       priority: "high",
@@ -132,32 +217,6 @@ function buildMulticast(
   };
 }
 
-type Stats = { success: number; failed: number; invalidTokens: string[] };
-
-async function enviarSegmento(
-  messaging: ReturnType<typeof getMessaging>,
-  tokens: string[],
-  titulo: string,
-  cuerpo: string,
-  link: string
-): Promise<Stats> {
-  const BATCH_SIZE = 500;
-  const stats: Stats = { success: 0, failed: 0, invalidTokens: [] };
-
-  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
-    const batch = tokens.slice(i, i + BATCH_SIZE);
-    const result = await messaging.sendEachForMulticast(buildMulticast(batch, titulo, cuerpo, link));
-    stats.success += result.successCount;
-    stats.failed  += result.failureCount;
-    result.responses.forEach((resp, idx) => {
-      if (!resp.success && resp.error?.code === "messaging/registration-token-not-registered") {
-        stats.invalidTokens.push(batch[idx]);
-      }
-    });
-  }
-  return stats;
-}
-
 // ── Handler ────────────────────────────────────────────────────────────────────
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -176,15 +235,18 @@ export async function GET(request: Request) {
       .where("fcmToken", "!=", null)
       .get();
 
-    // Índice día del año — cada segmento usa un offset distinto para variar mensajes independientemente
-    const dayOfYear = Math.floor(
-      (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
-    );
+    type Destinatario = {
+      uid: string;
+      token: string;
+      titulo: string;
+      cuerpo: string;
+      tipo: string;
+      cta: string;
+      link: string;
+    };
 
-    type UserEntry = { uid: string; token: string };
-    const segmentoRegalo:  UserEntry[] = [];
-    const segmentoCafe:    UserEntry[] = [];
-    const segmentoGeneral: UserEntry[] = [];
+    const destinatarios: Destinatario[] = [];
+    const conteoSegmentos: Record<string, number> = {};
 
     usersSnap.docs.forEach((docSnap) => {
       const data  = docSnap.data();
@@ -192,99 +254,80 @@ export async function GET(request: Request) {
       if (!token || typeof token !== "string" || token.length <= 10) return;
       if (data.baneado) return;
 
+      // `comprasRealizadas` es el SALDO ACTUAL canjeable (baja al canjear), no un
+      // acumulado de por vida. Por eso los mensajes "ya puedes canjear" usan este valor.
       const sellos = data.comprasRealizadas ?? 0;
-      const entry: UserEntry = { uid: docSnap.id, token };
+      let seg      = segmentoPara(sellos);
 
-      if (sellos >= 7) {
-        segmentoRegalo.push(entry);
-      } else if (sellos >= 5) {
-        segmentoCafe.push(entry);
-      } else {
-        segmentoGeneral.push(entry);
+      // Excepción: un cliente que canjeó todos sus sellos queda en 0 saldo pero NO
+      // es un usuario inactivo. Evitamos mandarle el mensaje "aún no estrenas tus
+      // beneficios" y le damos el de "Nuevos" (alentador) en su lugar.
+      if (seg.tipo === "diaria_reactivacion") {
+        const esClienteRecurrente =
+          (data.sellosHistoricos ?? 0) > 0 || (data.totalCanjesHistoricos ?? 0) > 0;
+        if (esClienteRecurrente) {
+          seg = SEGMENTOS.find((s) => s.tipo === "diaria_nuevos") ?? seg;
+        }
       }
+
+      destinatarios.push({
+        uid: docSnap.id,
+        token,
+        titulo: seg.titulo,
+        cuerpo: construirCuerpo(seg, data.nombre ?? ""),
+        tipo: seg.tipo,
+        cta: seg.cta,
+        link: seg.link,
+      });
+      conteoSegmentos[seg.tipo] = (conteoSegmentos[seg.tipo] ?? 0) + 1;
     });
 
-    // Mensajes del día para cada segmento (rotación independiente)
-    const msgRegalo  = MENSAJES_REGALO [dayOfYear % MENSAJES_REGALO.length];
-    const msgCafe    = MENSAJES_CAFE   [dayOfYear % MENSAJES_CAFE.length];
-    const msgGeneral = MENSAJES_GENERAL[(dayOfYear + 1) % MENSAJES_GENERAL.length];
-
-    const allInvalidTokens: string[] = [];
+    // ── Envío FCM (sendEach, lotes de 500) ──────────────────────────────────────
+    const BATCH_SIZE = 500;
+    const invalidTokens: string[] = [];
     let totalSuccess = 0;
     let totalFailed  = 0;
 
-    if (segmentoRegalo.length > 0) {
-      const s = await enviarSegmento(
-        messaging,
-        segmentoRegalo.map((u) => u.token),
-        msgRegalo.titulo,
-        msgRegalo.cuerpo,
-        "/"
-      );
-      totalSuccess += s.success;
-      totalFailed  += s.failed;
-      allInvalidTokens.push(...s.invalidTokens);
+    for (let i = 0; i < destinatarios.length; i += BATCH_SIZE) {
+      const batch = destinatarios.slice(i, i + BATCH_SIZE);
+      const messages = batch.map((d) => buildMessage(d.token, d.titulo, d.cuerpo, d.link));
+      const result = await messaging.sendEach(messages);
+      totalSuccess += result.successCount;
+      totalFailed  += result.failureCount;
+      result.responses.forEach((resp, idx) => {
+        if (!resp.success && resp.error?.code === "messaging/registration-token-not-registered") {
+          invalidTokens.push(batch[idx].token);
+        }
+      });
     }
 
-    if (segmentoCafe.length > 0) {
-      const s = await enviarSegmento(
-        messaging,
-        segmentoCafe.map((u) => u.token),
-        msgCafe.titulo,
-        msgCafe.cuerpo,
-        "/"
-      );
-      totalSuccess += s.success;
-      totalFailed  += s.failed;
-      allInvalidTokens.push(...s.invalidTokens);
-    }
-
-    if (segmentoGeneral.length > 0) {
-      const s = await enviarSegmento(
-        messaging,
-        segmentoGeneral.map((u) => u.token),
-        msgGeneral.titulo,
-        msgGeneral.cuerpo,
-        "/"
-      );
-      totalSuccess += s.success;
-      totalFailed  += s.failed;
-      allInvalidTokens.push(...s.invalidTokens);
-    }
-
-    // Guardar notificación individual en Firestore (500 por batch)
+    // ── Guardar notificación individual en Firestore (500 por batch) ────────────
     const now = new Date().toISOString();
     const FIRESTORE_CHUNK = 500;
 
-    const todosLosUsuarios: { uid: string; msg: { titulo: string; cuerpo: string }; tipo: string }[] = [
-      ...segmentoRegalo.map((u)  => ({ uid: u.uid, msg: msgRegalo,  tipo: "diaria_regalo"  })),
-      ...segmentoCafe.map((u)    => ({ uid: u.uid, msg: msgCafe,    tipo: "diaria_cafe"    })),
-      ...segmentoGeneral.map((u) => ({ uid: u.uid, msg: msgGeneral, tipo: "diaria_general" })),
-    ];
-
-    for (let i = 0; i < todosLosUsuarios.length; i += FIRESTORE_CHUNK) {
-      const chunk = todosLosUsuarios.slice(i, i + FIRESTORE_CHUNK);
+    for (let i = 0; i < destinatarios.length; i += FIRESTORE_CHUNK) {
+      const chunk = destinatarios.slice(i, i + FIRESTORE_CHUNK);
       const batch = adminDb.batch();
-      chunk.forEach(({ uid, msg, tipo }) => {
-        const ref = adminDb.collection("usuarios").doc(uid).collection("notificaciones").doc();
+      chunk.forEach((d) => {
+        const ref = adminDb.collection("usuarios").doc(d.uid).collection("notificaciones").doc();
         batch.set(ref, {
-          titulo:  msg.titulo,
-          mensaje: msg.cuerpo,
+          titulo:  d.titulo,
+          mensaje: d.cuerpo,
           leida:   false,
           fecha:   now,
-          tipo,
+          tipo:    d.tipo,
           isAI:    false,
-          cta:     tipo === "diaria_general" ? "Ver App" : "Canjear",
+          cta:     d.cta,
         });
       });
       await batch.commit();
     }
 
-    // Limpiar tokens inválidos de Firestore
-    if (allInvalidTokens.length > 0) {
+    // ── Limpiar tokens inválidos de Firestore ───────────────────────────────────
+    if (invalidTokens.length > 0) {
       const cleanupBatch = adminDb.batch();
       usersSnap.docs.forEach((docSnap) => {
-        if (allInvalidTokens.includes(docSnap.data().fcmToken)) {
+        if (invalidTokens.includes(docSnap.data().fcmToken)) {
           cleanupBatch.update(docSnap.ref, { fcmToken: null });
         }
       });
@@ -292,20 +335,18 @@ export async function GET(request: Request) {
     }
 
     console.log(
-      `[cron/daily] Regalo: ${segmentoRegalo.length} | Café: ${segmentoCafe.length} | General: ${segmentoGeneral.length}` +
-      ` | OK: ${totalSuccess} | Fail: ${totalFailed} | Tokens limpios: ${allInvalidTokens.length}`
+      `[cron/daily] Destinatarios: ${destinatarios.length} | ` +
+      Object.entries(conteoSegmentos).map(([t, n]) => `${t}: ${n}`).join(" | ") +
+      ` | OK: ${totalSuccess} | Fail: ${totalFailed} | Tokens limpios: ${invalidTokens.length}`
     );
 
     return NextResponse.json({
       success: true,
       sent:    totalSuccess,
       failed:  totalFailed,
-      cleaned: allInvalidTokens.length,
-      segmentos: {
-        regalo:  { usuarios: segmentoRegalo.length,  mensaje: msgRegalo.titulo  },
-        cafe:    { usuarios: segmentoCafe.length,    mensaje: msgCafe.titulo    },
-        general: { usuarios: segmentoGeneral.length, mensaje: msgGeneral.titulo },
-      },
+      cleaned: invalidTokens.length,
+      total:   destinatarios.length,
+      segmentos: conteoSegmentos,
     });
   } catch (error: any) {
     console.error("[cron/daily] Error:", error);
