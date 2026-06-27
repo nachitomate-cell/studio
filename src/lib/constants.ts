@@ -13,6 +13,15 @@ export const ALLOWED_MOD_EMAILS: readonly string[] = [
   "fgcservicios@gmail.com",
 ];
 
+/**
+ * Dominio canónico de producción. Usar SIEMPRE para enlaces compartibles
+ * (QR, "Copiar Enlace", links de referido) en lugar de window.location.origin
+ * — así no se filtran dominios viejos/preview a clientes finales.
+ */
+export const CANONICAL_BASE_URL = (
+  process.env.NEXT_PUBLIC_BASE_URL ?? "https://clubpatiocurauma.synaptechspa.cl"
+).replace(/\/$/, "");
+
 export const SELLOS_PARA_RECOMPENSA = 5;
 export const HANDSHAKE_EXPIRATION_MINUTES = 5;
 export const PUNTOS_POR_COMPRA = 50;

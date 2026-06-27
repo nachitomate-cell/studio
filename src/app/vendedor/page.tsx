@@ -27,7 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/data";
 
-import { ADMIN_EMAIL } from "@/lib/constants";
+import { ADMIN_EMAIL, CANONICAL_BASE_URL } from "@/lib/constants";
 import VendorStampModal from "@/components/VendorStampModal";
 import { BiooPromoCard } from "@/components/BiooPromoCard";
 import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
@@ -927,7 +927,7 @@ export default function VendedorPage() {
                 className="w-full max-w-[280px] rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 gap-2"
                 onClick={() => {
                   if (auth.currentUser?.uid) {
-                    navigator.clipboard.writeText(`${window.location.origin}/scan?ref=${auth.currentUser.uid}`);
+                    navigator.clipboard.writeText(`${CANONICAL_BASE_URL}/scan?ref=${auth.currentUser.uid}`);
                     toast({ title: "Enlace copiado", description: "Compártelo por WhatsApp o Instagram." });
                   }
                 }}
