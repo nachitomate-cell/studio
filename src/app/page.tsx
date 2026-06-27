@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { doc, onSnapshot, collection, query, getDocs, where } from "firebase/firestore";
 import { app, auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
 import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
@@ -33,6 +33,7 @@ import { useLocation, LOCATIONS } from "@/context/LocationContext";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import VendorStampModal from "@/components/VendorStampModal";
+import ValidarPanel from "@/components/ValidarPanel";
 import PushNotifModal, { type PushNotifData } from "@/components/PushNotifModal";
 import { SolicitudClubModal } from "@/components/SolicitudClubModal";
 import QRCode from "react-qr-code";
@@ -120,11 +121,18 @@ function GroupSection({ group, userCoords, filterCercano }: {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window === "undefined") return "directory";
-    const t = new URLSearchParams(window.location.search).get("tab");
-    return t === "rewards" || t === "profile" || t === "directory" ? t : "directory";
-  });
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState("directory");
+
+  // Sincroniza el tab activo con `?tab=` cada vez que cambia la URL (ej. al llegar
+  // desde /validar tocando Premios o Mi Perfil). Sin esto, el initializer de useState
+  // se evalúa en SSR sin window y se queda en "directory" hasta una recarga dura.
+  useEffect(() => {
+    const t = searchParams?.get("tab");
+    if (t === "rewards" || t === "profile" || t === "directory" || t === "validar") {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuth, setShowAuth] = useState(false);
@@ -147,9 +155,7 @@ export default function Home() {
   const [pushBannerLoading, setPushBannerLoading] = useState(false);
   const [publicidad, setPublicidad] = useState<{ imageUrl: string; cta: string | null } | null>(null);
   const [showPublicidad, setShowPublicidad] = useState(false);
-  const [publicidadLoading, setPublicidadLoading] = useState(() =>
-    typeof window !== "undefined" ? !sessionStorage.getItem("publicidad_vista") : false
-  );
+  const [publicidadLoading, setPublicidadLoading] = useState(false);
   const [streak, setStreak] = useState(0);
   const [ofertasHoy, setOfertasHoy] = useState<any[]>([]);
   
@@ -166,6 +172,9 @@ export default function Home() {
 
   useEffect(() => {
     sessionStorage.setItem('home_visited', '1');
+    if (!sessionStorage.getItem("publicidad_vista")) {
+      setPublicidadLoading(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -327,7 +336,9 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab")) return;
 
-    router.replace("/validar");
+    // Validar es ahora un tab in-page: sincronizamos la URL y el efecto de
+    // searchParams hace el set del activeTab.
+    router.replace("/?tab=validar");
   }, [user, userData, router]);
 
   // Show onboarding tutorial once per new client account
@@ -1135,6 +1146,19 @@ export default function Home() {
         return <RewardsTab user={user} userData={userData} onShowAuth={() => setShowAuth(true)} />;
       case "profile":
         return <div className="pt-6 px-4 bg-white"><UserProfile onSwitchMode={() => {}} onShowAuth={() => setShowAuth(true)} /><div className="h-24" /></div>;
+      case "validar":
+        if (!user || !canValidar) {
+          return (
+            <div className="min-h-[60vh] flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              No tienes permisos de comercio.
+            </div>
+          );
+        }
+        return (
+          <div className="bg-slate-50 pb-20">
+            <ValidarPanel vendorId={user.uid} onBack={() => setActiveTab("directory")} />
+          </div>
+        );
       default:
         return null;
     }
@@ -1143,9 +1167,11 @@ export default function Home() {
   const isAdmin = user?.email?.toLowerCase().trim() === ADMIN_EMAIL;
   const isVendor = userData
     ? Array.isArray(userData.roles)
-      ? userData.roles.includes("emprendedor")
-      : userData.rol === "emprendedor"
+      ? userData.roles.includes("emprendedor") || userData.roles.includes("staff")
+      : userData.rol === "emprendedor" || userData.rol === "staff"
     : false;
+  // Admin también puede operar la herramienta Validar (paridad con /validar legacy).
+  const canValidar = isVendor || isAdmin;
 
   return (
     <main className="min-h-screen bg-white">
@@ -1163,9 +1189,13 @@ export default function Home() {
       )}
       <SolicitudClubModal open={showSolicitudModal} onClose={() => setShowSolicitudModal(false)} />
 
-      <div className="max-w-lg mx-auto pb-24">
-        {renderContent()}
-      </div>
+      {activeTab === "validar" ? (
+        renderContent()
+      ) : (
+        <div className="max-w-lg mx-auto pb-24">
+          {renderContent()}
+        </div>
+      )}
       <PWAInstallBanner userId={user?.uid ?? null} />
 
       {/* Banner de activación de push notifications */}

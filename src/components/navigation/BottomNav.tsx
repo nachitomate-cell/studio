@@ -35,7 +35,7 @@ export function BottomNav({ activeTab, onTabChange, premiosBadge = false, isVend
   // El emprendedor entra a su herramienta de trabajo (Validar) por defecto, pero
   // mantiene acceso al mall. Sin QR flotante central para no romper el layout.
   const vendorItems: NavItem[] = [
-    { id: "validar", label: "Validar", icon: CheckCircle, route: "/validar" },
+    { id: "validar", label: "Validar", icon: CheckCircle },
     { id: "directory", label: "Descubre", icon: LayoutGrid },
     { id: "rewards", label: "Premios", icon: Gift },
     { id: "profile", label: "Mi Perfil", icon: User },
