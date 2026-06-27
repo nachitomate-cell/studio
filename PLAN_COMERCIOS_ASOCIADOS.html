@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Plan: Comercios Asociados + Flujo de sellos con boleta</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #1e293b; font-size: 10pt; line-height: 1.5; margin: 0; }
+  h1 { font-size: 18pt; color: #0f172a; margin: 0 0 2px; line-height: 1.2; }
+  .sub { color: #C9920A; font-weight: 600; font-size: 10.5pt; margin: 0 0 14px; }
+  h2 { font-size: 12.5pt; color: #0f172a; margin: 22px 0 7px; padding-bottom: 4px; border-bottom: 2px solid #C9920A; }
+  h3 { font-size: 10.8pt; color: #0f172a; margin: 14px 0 4px; background: #f1f5f9; padding: 5px 9px; border-radius: 5px; border-left: 3px solid #C9920A; }
+  p { margin: 5px 0; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 16px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9pt; }
+  th { background: #0f172a; color: #fff; text-align: left; padding: 6px 9px; font-weight: 600; }
+  td { padding: 6px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  ul, ol { margin: 5px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  strong { color: #0f172a; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: "Consolas", monospace; font-size: 8.6pt; color: #be123c; }
+  .note { background: #fef9ec; border: 1px solid #f1d592; border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 9.2pt; }
+  .files { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 9pt; }
+  h2, h3, table, .note { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>Plan: Comercios Asociados + Flujo de sellos con boleta</h1>
+<p class="sub">Club Patio Curauma</p>
+
+<h2>1. Concepto</h2>
+<p>Hoy todos los comercios viven en <code>entrepreneur_profiles</code> sin distinción. Se introduce un segundo tipo de comercio con identidad, presentación y <strong>flujo de sellos propio</strong>:</p>
+<table>
+  <thead><tr><th></th><th>Emprendedor (actual)</th><th>Comercio Asociado (nuevo)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Quién es</strong></td><td>Artesano / persona (joyería, deco, artesanía)</td><td>Local/marca establecida (cafetería, restaurante, gimnasio)</td></tr>
+    <tr><td><strong>Flujo de sellos</strong></td><td>El <strong>vendedor escanea</strong> al cliente y confirma en caja</td><td><strong>Auto-servicio:</strong> el cliente escanea el QR del local, ingresa el monto y <strong>sube foto de la boleta</strong></td></tr>
+    <tr><td><strong>Aprobación</strong></td><td>Inmediata por el vendedor</td><td>Automática, con <strong>auditoría posterior</strong> del moderador (revisa boletas, anula las falsas)</td></tr>
+    <tr><td><strong>Cálculo de sellos</strong></td><td><code>calcularSellos(monto)</code> (1–4 según monto)</td><td><strong>El mismo</strong> <code>calcularSellos(monto)</code> — la mecánica no cambia</td></tr>
+    <tr><td><strong>Meta de premio</strong></td><td>5 sellos</td><td>5 sellos (igual)</td></tr>
+  </tbody>
+</table>
+<p>La diferencia funcional real es <strong>cómo se gana el sello</strong> (auto-servicio con prueba) y la <strong>auditoría de boletas</strong>.</p>
+
+<h2>2. Modelo de datos</h2>
+<h3>2.1 entrepreneur_profiles — campo nuevo</h3>
+<ul><li><code>tipo: "emprendedor" | "asociado"</code> — default <code>"emprendedor"</code> (lectura tolerante: si falta, es emprendedor). Nada existente se rompe.</li></ul>
+<h3>2.2 system_logs — campos nuevos en sellos por boleta</h3>
+<ul>
+  <li><code>metodo: "CLIENT_BOLETA"</code> (distinto de <code>VENDOR_SCAN</code>)</li>
+  <li><code>boletaUrl</code> — URL de la imagen en Storage · <code>boletaPath</code> — ruta interna (para borrarla en limpieza)</li>
+  <li><code>monto</code>, <code>numSellos</code>, <code>tipo: "FIDELIZACION"</code> (como hoy) · <code>revisada?</code> — marca de auditoría</li>
+</ul>
+<h3>2.3 Firebase Storage — nueva carpeta</h3>
+<ul><li><code>boletas/{vendorId}/{timestamp}_{uid}.jpg</code> — separada de <code>entrepreneur_photos/</code> para poder limpiarla sin tocar logos.</li></ul>
+<h3>2.4 Reglas de seguridad</h3>
+<ul><li>Usuario autenticado puede <strong>subir</strong> a <code>boletas/</code>. Lectura restringida a roles staff (moderador/admin/director).</li></ul>
+
+<h2>3. Fundación compartida</h2>
+<p><strong>Nuevo:</strong> <code>src/lib/tipoComercio.ts</code> — el tipo, etiquetas ("Comercio Asociado" / "Emprendedor"), estilos de badge, y lector <code>getTipoComercio(data)</code> (default <code>"emprendedor"</code>) + helper <code>esAsociado(data)</code>. Punto único de verdad para no repetir strings por toda la app.</p>
+
+<h2>4. Fases de implementación</h2>
+
+<h3>FASE 1 — Fundación + carga masiva (sin UI visible para el socio)</h3>
+<ol>
+  <li>Crear <code>src/lib/tipoComercio.ts</code>.</li>
+  <li>Agregar campo <code>tipo</code> a <code>comercios_a_cargar.mjs</code> y al script <code>_ingresar_comercios.mjs</code>.</li>
+  <li>Default propuesto para los 6: <strong>Asociados:</strong> Fika, El Refugio, Máster Brod, Pomarus, Moviclean · <strong>Emprendedor:</strong> Antojitos de la Nutri <em>(ajustable)</em>.</li>
+</ol>
+<p><em>Entregable:</em> los 6 comercios cargados con su <code>tipo</code> correcto. Aún sin cambios visuales.</p>
+
+<h3>FASE 2 — Panel Moderador: cambiar el tipo</h3>
+<ul>
+  <li>Toggle <strong>Emprendedor ⇄ Comercio Asociado</strong> que escribe <code>tipo</code> en <code>entrepreneur_profiles/{uid}</code>.</li>
+  <li>Cumple asignar el tipo "en ambos" (carga masiva + panel). Archivos: <code>src/app/moderador/page.tsx</code> y/o <code>src/app/directorio/page.tsx</code>.</li>
+</ul>
+
+<h3>FASE 3 — Superficies visibles para el socio</h3>
+<ul>
+  <li><strong>Directorio / Descubre:</strong> sección separada "Comercios Asociados" (arriba) y "Emprendedores" (abajo); <strong>badge</strong> "Asociado" en la tarjeta; <strong>filtro</strong> Asociados / Emprendedores. Archivos: <code>src/app/directorio/page.tsx</code>, <code>src/app/descubre/page.tsx</code>.</li>
+  <li><strong>Home / Destacados:</strong> los Asociados aparecen <strong>priorizados</strong>.</li>
+</ul>
+
+<h3>FASE 4 — Flujo de sellos por boleta (auto-servicio) — núcleo</h3>
+<p>Disparador: el cliente escanea el QR del local (<code>/canje?localId=&lt;uid&gt;</code>), que <strong>ya existe</strong>.</p>
+<ol>
+  <li><strong>Detección de tipo en /canje:</strong> si <code>tipo !== "asociado"</code> → flujo actual sin cambios. Si <code>tipo === "asociado"</code> → nuevo formulario: (1) monto de la compra ($1–$150.000), (2) foto de boleta obligatoria, (3) botón "Obtener mis sellos".</li>
+  <li><strong>Subida de imagen</strong> a <code>boletas/{localId}/{timestamp}_{uid}.jpg</code> (mismo patrón <code>uploadBytes</code> + <code>getDownloadURL</code> de los logos).</li>
+  <li><strong>Nueva API</strong> <code>POST /api/handshake/boleta-scan</code>: auth + rate limit; valida monto y que el local sea <code>tipo: "asociado"</code>; <code>calcularSellos(monto)</code>; otorga sellos (mismos campos); registra en <code>system_logs</code> con <code>metodo: "CLIENT_BOLETA"</code>, <code>boletaUrl</code>, <code>boletaPath</code>; push al cliente (reutiliza <code>vendor-scan</code>).</li>
+  <li><strong>Confirmación:</strong> misma celebración de sello del flujo actual.</li>
+</ol>
+<div class="note"><strong>Anti-fraude (auto-reportado):</strong> boleta obligatoria · rate limit por IP + cooldown por usuario+local (reutiliza <code>lastVendorScans</code>) · tope de monto ($150.000) · todo queda con boleta para que el moderador anule las falsas · <em>opcional:</em> dejar el sello "pendiente de revisión" si se prefiere control previo (decisión §5).</div>
+
+<h3>FASE 5 — Auditoría de boletas en Moderador</h3>
+<p>Sobre <code>src/app/moderador/sellos/page.tsx</code> (que ya lista sellos y permite anular):</p>
+<ol>
+  <li><strong>Ver la boleta:</strong> miniatura de <code>boletaUrl</code> en los registros <code>CLIENT_BOLETA</code> (click → imagen completa).</li>
+  <li><strong>Anular sello falso:</strong> ya existe <code>POST /api/admin/anular-sello</code> (resta sello, actualiza Google Wallet, marca <code>anulada</code>). <strong>Extender</strong> para que al anular <strong>borre la imagen</strong> de Storage.</li>
+  <li><strong>Limpiar imágenes:</strong> acción nueva para borrar en lote boletas antiguas de Storage conservando el registro en <code>system_logs</code>. Nueva API <code>POST /api/admin/limpiar-boletas</code> (solo staff).</li>
+</ol>
+
+<h2>5. Decisiones abiertas (requieren tu confirmación)</h2>
+<ol>
+  <li><strong>¿Aprobación previa o posterior?</strong> El requisito dice "se le dan los sellos" al subir la boleta → <strong>otorgar de inmediato</strong> y auditar después. Alternativa: dejar el sello "pendiente" hasta aprobación del moderador (más fricción, menos fraude). <strong>Asumo: inmediato + auditoría posterior.</strong></li>
+  <li><strong>¿Cuáles de los 6 son Asociados?</strong> Propuesta: todos menos Antojitos de la Nutri.</li>
+  <li><strong>¿Limpieza de imágenes automática o manual?</strong> Propongo manual (botón) + opción "borrar boletas de más de N días". ¿Criterio fijo (ej. 90 días)?</li>
+  <li><strong>Cooldown auto-servicio:</strong> ¿1 boleta por local cada X horas por usuario, para evitar repetir la misma compra?</li>
+</ol>
+
+<h2>6. Orden de ejecución sugerido</h2>
+<p>Fase 1 → 2 (fundación, sirve para cargar los 6) → Fase 4 + 5 (el flujo de boleta y su auditoría, el corazón) → Fase 3 (superficies visuales). Lo funcional antes que lo cosmético. Cada fase es entregable y verificable por separado.</p>
+
+<h2>7. Resumen de archivos</h2>
+<div class="files">
+  <p><strong>Nuevos:</strong> <code>src/lib/tipoComercio.ts</code> · <code>src/app/api/handshake/boleta-scan/route.ts</code> · <code>src/app/api/admin/limpiar-boletas/route.ts</code></p>
+  <p><strong>Modificados:</strong> <code>comercios_a_cargar.mjs</code>, <code>_ingresar_comercios.mjs</code> (campo tipo) · <code>src/app/moderador/page.tsx</code> (toggle) · <code>src/app/directorio/page.tsx</code>, <code>src/app/descubre/page.tsx</code> (secciones, badge, filtro) · Home/Destacados · <code>src/app/canje/page.tsx</code> (formulario boleta) · <code>src/app/moderador/sellos/page.tsx</code> (ver boletas, limpiar) · <code>src/app/api/admin/anular-sello/route.ts</code> (borrar imagen al anular) · Reglas de Storage/Firestore (carpeta <code>boletas/</code>)</p>
+</div>
+
+</body>
+</html>

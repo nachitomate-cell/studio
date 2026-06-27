@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Documentación del Proceso de Desarrollo — Club Patio Curauma</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    margin: 0;
+  }
+  h1 {
+    font-size: 19pt;
+    color: #0f172a;
+    margin: 0 0 4px;
+    line-height: 1.2;
+  }
+  h2 {
+    font-size: 13pt;
+    color: #0f172a;
+    margin: 26px 0 8px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #C9920A;
+  }
+  h3 {
+    font-size: 11.5pt;
+    color: #C9920A;
+    margin: 20px 0 4px;
+  }
+  p { margin: 6px 0; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 18px 0; }
+  .meta {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 14px 0 4px;
+    font-size: 9.5pt;
+  }
+  .meta p { margin: 3px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 9.5pt;
+  }
+  th {
+    background: #0f172a;
+    color: #fff;
+    text-align: left;
+    padding: 7px 10px;
+    font-weight: 600;
+  }
+  td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f8fafc; }
+  tbody tr:last-child td { font-weight: 700; background: #fef9ec; }
+  .result {
+    background: #f0fdf4;
+    border-left: 3px solid #059669;
+    padding: 8px 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 9.8pt;
+  }
+  ul { margin: 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  strong { color: #0f172a; }
+  code {
+    background: #f1f5f9;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "Consolas", monospace;
+    font-size: 9pt;
+    color: #be123c;
+  }
+  .footer {
+    margin-top: 24px;
+    font-size: 8.5pt;
+    color: #94a3b8;
+    font-style: italic;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 10px;
+  }
+  h3, table, .result { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>Documentación del Proceso de Desarrollo</h1>
+<p style="font-size:12pt;color:#C9920A;font-weight:600;margin-top:2px;">Club Patio Curauma — PWA de fidelización con modelo de datos conductual propietario</p>
+
+<div class="meta">
+  <p><strong>Titular del desarrollo:</strong> Synaptech Spa</p>
+  <p><strong>Período documentado:</strong> 24 de marzo de 2026 – 14 de junio de 2026</p>
+  <p><strong>Evidencia técnica:</strong> historial de control de versiones (Git) — 342 registros de cambios fechados y trazables</p>
+  <p><strong>Base de código:</strong> 155 archivos fuente · ~38.400 líneas de código (TypeScript/React)</p>
+</div>
+
+<h2>1. Naturaleza del I+D</h2>
+<p>El componente de Investigación y Desarrollo del proyecto consiste en el <strong>desarrollo iterativo de un modelo de datos conductual propietario</strong> que ningún sistema estándar de fidelización por sellos ofrece de forma nativa. Mientras una plataforma de "tarjeta de sellos" convencional solo cuenta visitas, este desarrollo construye sobre cada interacción un <strong>perfil conductual</strong> que cruza tres dimensiones medibles —frecuencia, valor y recencia— y entrega a cada comercio analítica individual comparada contra el promedio del ecosistema.</p>
+<p>El desarrollo se ejecutó de forma <strong>iterativa e incremental</strong>, con tres versiones claramente diferenciadas. Cada versión está respaldada por su correspondiente conjunto de cambios en el historial de control de versiones del proyecto.</p>
+
+<h2>2. Iteraciones del desarrollo</h2>
+
+<h3>Versión 1.0 — Sistema básico de sellos digitales (prueba de concepto)</h3>
+<p><strong>Período:</strong> 24 de marzo – 11 de abril de 2026 · <strong>135 iteraciones de código (commits)</strong><br>
+<strong>Hito de cierre:</strong> <code>Release v1.0 — Versión funcional estable</code> (10–11 de abril de 2026)</p>
+<p>Prueba de concepto que valida la mecánica central de fidelización digital:</p>
+<ul>
+  <li>Acumulación de sellos mediante escaneo de códigos QR (cliente ↔ comercio).</li>
+  <li>Autenticación de usuarios y creación automática de perfiles en base de datos.</li>
+  <li>Catálogo de premios y mecanismo de canje de sellos.</li>
+  <li>Directorio de comercios adheridos y distinción de roles (socio, emprendedor, director).</li>
+  <li>Empaquetado como aplicación instalable (PWA) y base para apps nativas (Android/iOS).</li>
+</ul>
+<div class="result"><strong>Resultado:</strong> se demuestra técnicamente la viabilidad del circuito completo "ganar → canjear" sobre infraestructura propia. Es la línea base estable sobre la que se construye el I+D diferenciador.</div>
+
+<h3>Versión 2.0 — Módulo de segmentación por 5 perfiles conductuales</h3>
+<p><strong>Período:</strong> 12 de abril – 22 de mayo de 2026 · <strong>144 iteraciones de código (commits)</strong><br>
+<strong>Hitos clave:</strong> <code>sistema de referidos, CRM del vendedor y segmentación de marketing</code> (5-may) → <code>recolección de datos de usuario para segmentación y analytics</code> (22-may)</p>
+<p>Incorporación del núcleo de I+D: un <strong>motor de segmentación conductual</strong> que clasifica automáticamente a cada cliente en uno de <strong>5 perfiles propietarios</strong>, a partir de su frecuencia de visitas, su gasto/ticket promedio y la recencia de su última interacción:</p>
+<table>
+  <thead><tr><th>Perfil</th><th>Criterio conductual</th></tr></thead>
+  <tbody>
+    <tr><td>👑 <strong>VIP</strong></td><td>Alta frecuencia + actividad reciente. Núcleo de mayor valor del comercio.</td></tr>
+    <tr><td>💎 <strong>Alto Valor</strong></td><td>Gasto/ticket por sobre el promedio aunque su frecuencia no sea la más alta.</td></tr>
+    <tr><td>🤝 <strong>Fidelizado</strong></td><td>Cliente recurrente y activo; hábito de regreso consolidado.</td></tr>
+    <tr><td>🌱 <strong>En Desarrollo</strong></td><td>2–3 visitas; en proceso de construcción de hábito.</td></tr>
+    <tr><td>✨ <strong>Potencial</strong></td><td>Cliente nuevo o por reactivar; conversión sin explotar.</td></tr>
+  </tbody>
+</table>
+<p>Funcionalidades asociadas a la segmentación:</p>
+<ul>
+  <li>CRM por comercio con identificación de clientes inactivos (&gt;30 días), tasa de retorno y ticket promedio.</li>
+  <li>Acciones de marketing dirigidas por segmento (reactivación vía WhatsApp, plantillas).</li>
+  <li>Notificaciones push segmentadas según comportamiento (motor de mensajería con IA).</li>
+  <li>Sistema de referidos y captura ampliada de datos conductuales.</li>
+</ul>
+<div class="result"><strong>Resultado:</strong> el sistema deja de ser un contador de sellos y pasa a generar <strong>inteligencia conductual accionable</strong> por comercio. La clasificación de los 5 perfiles está implementada como un módulo canónico y reutilizable del sistema (<code>src/lib/perfilesConductuales.ts</code>).</div>
+
+<h3>Versión actual — Dashboard de analytics por comercio (métricas individuales vs promedio del ecosistema)</h3>
+<p><strong>Período:</strong> 22 de mayo – 14 de junio de 2026 · <strong>63 iteraciones de código (commits)</strong><br>
+<strong>Hitos clave:</strong> <code>módulos SynapTech AI en /vendedor, perfil socio y /director</code> (22-may), agregación de métricas por comercio.</p>
+<p>Capa de analítica que entrega a cada comercio un <strong>tablero individual</strong> y posiciona su desempeño frente al <strong>promedio del ecosistema</strong> Club Patio Curauma:</p>
+<ul>
+  <li>Distribución visual de la cartera de cada comercio entre los 5 perfiles conductuales.</li>
+  <li>Métricas individuales por comercio (visitas, retención, ticket, días más activos) calculadas sobre los registros reales de fidelización.</li>
+  <li>Panel directivo (<code>/director</code>) con ranking y métricas globales del ecosistema, base de la comparación "individual vs promedio".</li>
+  <li>Capa de insights asistida por IA (Gemini) que traduce los datos en recomendaciones de gestión.</li>
+</ul>
+<div class="result"><strong>Resultado:</strong> cada comercio adherido accede a analítica de nivel profesional —antes reservada a grandes cadenas— y puede comparar su rendimiento contra el agregado del ecosistema, cerrando el ciclo de valor del modelo de datos conductual.</div>
+
+<h2>3. Trazabilidad y verificabilidad</h2>
+<p>Todo el proceso de desarrollo está registrado en el sistema de control de versiones del proyecto (Git), con <strong>342 cambios fechados</strong> entre el 24 de marzo y el 14 de junio de 2026. Cada iteración descrita en este documento es verificable mediante el historial de commits, lo que constituye evidencia técnica objetiva del esfuerzo de I+D, su cronología y su carácter incremental.</p>
+<table>
+  <thead><tr><th>Versión</th><th>Período</th><th>Iteraciones (commits)</th></tr></thead>
+  <tbody>
+    <tr><td>V1.0 — Sellos digitales (PoC)</td><td>24-mar a 11-abr 2026</td><td>135</td></tr>
+    <tr><td>V2.0 — Segmentación 5 perfiles</td><td>12-abr a 22-may 2026</td><td>144</td></tr>
+    <tr><td>Versión actual — Analytics por comercio</td><td>22-may a 14-jun 2026</td><td>63</td></tr>
+    <tr><td>Total</td><td>24-mar a 14-jun 2026</td><td>342</td></tr>
+  </tbody>
+</table>
+
+<p class="footer">Documento generado a partir del historial técnico real del repositorio. Las fechas, conteos de iteraciones y nombres de hitos provienen directamente del control de versiones del proyecto y pueden auditarse.</p>
+
+</body>
+</html>
