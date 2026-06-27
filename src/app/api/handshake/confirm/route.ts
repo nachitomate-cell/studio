@@ -14,6 +14,7 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
 
 function calcularSellos(monto: number): number {
   if (monto >= 40_000) return 4;
@@ -159,11 +160,7 @@ export async function POST(request: Request) {
             monto,
           });
 
-        const currentMonth = timestamp.substring(0, 7);
-        await adminDb.collection("usuarios").doc(result!.vendorId).update({
-          sellosEntregadosHistorico: FieldValue.increment(result!.numSellos),
-          [`sellosEntregadosMensual.${currentMonth}`]: FieldValue.increment(result!.numSellos),
-        });
+        await aplicarEntregaConRecompensa(result!.vendorId, result!.numSellos, timestamp);
 
         await adminDb
           .collection("usuarios").doc(result!.userId)

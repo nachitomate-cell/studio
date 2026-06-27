@@ -14,6 +14,7 @@ import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
 
 const SELLOS_PARA_PREMIO = 5;
 
@@ -131,10 +132,9 @@ export async function POST(request: Request) {
     const timestamp = new Date().toISOString();
     (async () => {
       try {
-        const currentMonth = timestamp.substring(0, 7);
         const { nuevoTotal, vendorName, userId, numSellos, prevSellos } = result!;
 
-        // Logs, ventas y contadores del vendedor
+        // Logs, ventas y contadores del vendedor (incluye bonus por entregas si está activo)
         await Promise.all([
           adminDb.collection("system_logs").add({
             usuario: result!.userName,
@@ -156,10 +156,7 @@ export async function POST(request: Request) {
             monto,
             numSellos,
           }),
-          adminDb.collection("usuarios").doc(vendorId).update({
-            sellosEntregadosHistorico: FieldValue.increment(numSellos),
-            [`sellosEntregadosMensual.${currentMonth}`]: FieldValue.increment(numSellos),
-          }),
+          aplicarEntregaConRecompensa(vendorId, numSellos, timestamp),
         ]);
 
         // Notificación al cliente con push FCM

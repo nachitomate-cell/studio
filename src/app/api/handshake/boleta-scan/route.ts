@@ -18,6 +18,7 @@ import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { calcularSellos, SELLOS_PARA_PREMIO, MONTO_MAX } from "@/lib/sellos";
 import { esAsociado } from "@/lib/tipoComercio";
+import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
 
 // Anti-doble-envío de la misma boleta: 1 boleta por local cada 5 min por usuario.
 const COOLDOWN_MS = 5 * 60 * 1000;
@@ -133,10 +134,7 @@ export async function POST(request: Request) {
             numSellos,
             boletaPath,
           }),
-          adminDb.collection("usuarios").doc(vendorId).update({
-            sellosEntregadosHistorico: FieldValue.increment(numSellos),
-            [`sellosEntregadosMensual.${timestamp.substring(0, 7)}`]: FieldValue.increment(numSellos),
-          }),
+          aplicarEntregaConRecompensa(vendorId, numSellos, timestamp),
         ]);
 
         // Notificación al cliente (Firestore + push FCM)

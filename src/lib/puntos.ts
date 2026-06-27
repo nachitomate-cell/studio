@@ -114,6 +114,45 @@ export async function registrarCompra(db: Firestore, userId: string, vendedorId?
       batch.update(doc(db, "usuarios", vendedorId), vendorCounterUpdate);
       await batch.commit().catch((e) => console.warn("[registrarCompra] Batch vendor falló:", e));
 
+      // Bonus por entregas: si está activo, sumar 1 sello propio al vendedor cada N entregas.
+      // Se hace fuera del batch para no romper el flujo principal si Firestore rules lo bloquean.
+      try {
+        const configSnap = await getDoc(doc(db, "configuracion", "general"));
+        const cfg = configSnap.exists() ? (configSnap.data()?.recompensaEmprendedor as any) : null;
+        if (cfg?.activo === true) {
+          const cada = Math.max(1, Math.min(50, Number(cfg.cada ?? 5)));
+          const vendorRef = doc(db, "usuarios", vendedorId);
+          const recompensa = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(vendorRef);
+            if (!snap.exists()) return 0;
+            const data = snap.data();
+            const entregados = Number(data.sellosEntregadosHistorico || 0);
+            const prev = entregados - 1; // ya se sumó 1 en el batch previo
+            const bonus = Math.floor(entregados / cada) - Math.floor(prev / cada);
+            if (bonus <= 0) return 0;
+            const sellosPrev = Number(data.comprasRealizadas || 0);
+            const sellosNuevo = sellosPrev + bonus;
+            tx.update(vendorRef, {
+              comprasRealizadas: increment(bonus),
+              sellosHistoricos: increment(bonus),
+              recompensaDisponible: sellosNuevo >= 5,
+              sellosBonificacionHistorico: increment(bonus),
+              lastBonusAt: timestamp,
+            });
+            return bonus;
+          });
+          if (recompensa > 0) {
+            await enviarNotificacionLocal(
+              vendedorId,
+              "¡Sello de bonificación! 🎁",
+              `Sumaste +${recompensa} ${recompensa === 1 ? "sello" : "sellos"} por entregar ${cada} sellos a tus clientes.`,
+            );
+          }
+        }
+      } catch (e) {
+        console.warn("[registrarCompra] Bonus por entregas falló (no crítico):", e);
+      }
+
       if (metodoOverride === "REFERIDO") {
         await enviarNotificacionLocal(vendedorId, "¡Nuevo Socio Captado! 🎉", `${clienteNombre} se registró en el Club usando tu QR. +1 sello atribuido a tu local.`);
       } else if (isClientScan) {

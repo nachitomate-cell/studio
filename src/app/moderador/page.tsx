@@ -74,6 +74,10 @@ export default function ModeradorPage() {
   const [configBienvenida, setConfigBienvenida] = useState<{ activo: boolean; cantidad: number }>({ activo: true, cantidad: 1 });
   const [savingConfig, setSavingConfig] = useState(false);
 
+  // Config recompensa por entregas (emprendedores/comercios asociados)
+  const [configRecompensaEmp, setConfigRecompensaEmp] = useState<{ activo: boolean; cada: number }>({ activo: false, cada: 5 });
+  const [savingRecompensaEmp, setSavingRecompensaEmp] = useState(false);
+
   // Alta rápida de locales
   const [vendorEmail, setVendorEmail] = useState("");
   const [vendorLocal, setVendorLocal] = useState("");
@@ -302,6 +306,8 @@ export default function ModeradorPage() {
       if (snap.exists()) {
         const data = snap.data()?.selloBienvenida;
         if (data) setConfigBienvenida({ activo: data.activo !== false, cantidad: Number(data.cantidad ?? 1) });
+        const rec = snap.data()?.recompensaEmprendedor;
+        if (rec) setConfigRecompensaEmp({ activo: rec.activo === true, cada: Math.max(1, Math.min(50, Number(rec.cada ?? 5))) });
       }
     } catch { /* no crítico */ }
   };
@@ -317,6 +323,25 @@ export default function ModeradorPage() {
       toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la configuración." });
     } finally {
       setSavingConfig(false);
+    }
+  };
+
+  const saveConfigRecompensaEmp = async () => {
+    setSavingRecompensaEmp(true);
+    try {
+      await setDoc(doc(db, "configuracion", "general"), {
+        recompensaEmprendedor: { activo: configRecompensaEmp.activo, cada: configRecompensaEmp.cada },
+      }, { merge: true });
+      toast({
+        title: "Configuración guardada",
+        description: configRecompensaEmp.activo
+          ? `Bonus activo · 1 sello cada ${configRecompensaEmp.cada} entregas.`
+          : "Bonus por entregas desactivado.",
+      });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la configuración." });
+    } finally {
+      setSavingRecompensaEmp(false);
     }
   };
 
@@ -1386,6 +1411,67 @@ export default function ModeradorPage() {
                 className="w-full h-11 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
               >
                 {savingConfig ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Settings className="w-4 h-4 mr-2" />}
+                Guardar configuración
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* T5. RECOMPENSA POR ENTREGAS (Emprendedores / Comercios Asociados) */}
+          <Card className="border-none shadow-xl shadow-amber-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-amber-100 md:col-span-2">
+            <div className="bg-amber-50/50 p-6 border-b border-amber-100/50 flex flex-col gap-2">
+              <div className="flex items-center gap-3 text-amber-600">
+                <Gift className="w-5 h-5" />
+                <h3 className="font-bold text-lg">Bonus por Entregas</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">
+                Emprendedores y comercios asociados ganan 1 sello propio por cada N sellos que entreguen a sus clientes.
+              </p>
+            </div>
+            <CardContent className="p-6 space-y-5 bg-slate-50/20">
+              {/* Toggle activo/inactivo */}
+              <div className="flex items-center justify-between bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-sm">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Estado</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {configRecompensaEmp.activo
+                      ? `Cada ${configRecompensaEmp.cada} entregas, el local recibe 1 sello`
+                      : "El bonus por entregas está desactivado"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setConfigRecompensaEmp(c => ({ ...c, activo: !c.activo }))}
+                  className="shrink-0 transition-transform active:scale-95"
+                  aria-label={configRecompensaEmp.activo ? "Desactivar bonus" : "Activar bonus"}
+                >
+                  {configRecompensaEmp.activo
+                    ? <ToggleRight className="w-10 h-10 text-amber-500" />
+                    : <ToggleLeft className="w-10 h-10 text-slate-300" />}
+                </button>
+              </div>
+
+              {/* Cantidad de entregas para ganar 1 sello */}
+              <div className={`bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-sm space-y-3 transition-opacity ${!configRecompensaEmp.activo ? "opacity-40 pointer-events-none" : ""}`}>
+                <p className="text-sm font-bold text-slate-800">Entregas para ganar 1 sello</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setConfigRecompensaEmp(c => ({ ...c, cada: Math.max(1, c.cada - 1) }))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-slate-600 text-lg flex items-center justify-center transition-colors"
+                  >−</button>
+                  <span className="w-12 text-center text-2xl font-black text-slate-800">{configRecompensaEmp.cada}</span>
+                  <button
+                    onClick={() => setConfigRecompensaEmp(c => ({ ...c, cada: Math.min(50, c.cada + 1) }))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-slate-600 text-lg flex items-center justify-center transition-colors"
+                  >+</button>
+                  <span className="text-xs text-slate-400 font-medium ml-1">máx. 50</span>
+                </div>
+              </div>
+
+              <Button
+                onClick={saveConfigRecompensaEmp}
+                disabled={savingRecompensaEmp}
+                className="w-full h-11 rounded-xl font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+              >
+                {savingRecompensaEmp ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Gift className="w-4 h-4 mr-2" />}
                 Guardar configuración
               </Button>
             </CardContent>
