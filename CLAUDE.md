@@ -80,6 +80,6 @@ All sensitive config lives in `.env.local` (never committed). Required vars:
 - `NEXT_PUBLIC_FIREBASE_VAPID_KEY` — Web Push
 
 ### Vercel Deployment
-- Production domain: `club-patio-curauma.vercel.app`
+- Production domain: `clubpatiocurauma.synaptechspa.cl` (Vercel alias `club-patio-curauma.vercel.app` is legacy/deprecated)
 - `next.config.ts` has `output: 'export'` commented out — the app runs as a standard Next.js server (not static export) on Vercel
 - Image optimization is disabled (`unoptimized: true`)

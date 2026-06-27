@@ -17,7 +17,7 @@
  *   3. En las DevTools del teléfono o en Firestore verás el token guardado
  */
 
-const BASE_URL = "https://club-patio-curauma.vercel.app";
+const BASE_URL = "https://clubpatiocurauma.synaptechspa.cl";
 const token = process.argv[2];
 
 if (!token) {

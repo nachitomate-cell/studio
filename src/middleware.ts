@@ -46,7 +46,6 @@ export function middleware(request: NextRequest) {
     const currentHost = (request.headers.get("host") || "").split(":")[0];
     const fromOurApp =
       (currentHost && referer.includes(currentHost)) ||
-      referer.includes("club-patio-curauma.vercel.app") ||
       referer.includes("synaptechspa.cl") ||
       referer.includes("localhost");
     if (!fromOurApp) {

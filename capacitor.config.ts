@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
   server: {
     // Carga el sitio live de Vercel — las API routes funcionan en el servidor
     // Para build APK offline: eliminar esta línea, habilitar output:'export' en next.config.ts y hacer npm run build
-    url: 'https://club-patio-curauma.vercel.app',
+    url: 'https://clubpatiocurauma.synaptechspa.cl',
     cleartext: false,
     androidScheme: 'https',
   },

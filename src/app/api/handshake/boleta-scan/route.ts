@@ -156,7 +156,7 @@ export async function POST(request: Request) {
 
         const fcmToken = clientSnap.data()?.fcmToken as string | undefined;
         if (fcmToken) {
-          const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://club-patio-curauma.vercel.app";
+          const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://clubpatiocurauma.synaptechspa.cl";
           await adminMessaging.send({
             token: fcmToken,
             notification: { title: notifTitulo, body: notifMensaje },

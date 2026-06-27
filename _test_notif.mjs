@@ -57,7 +57,7 @@ try {
   console.log(`✅ Broadcast creado: ${ref.id}`);
   console.log(`   Enviando a: ${TARGET_EMAIL}`);
   console.log(`   La Cloud Function lo procesará en segundos.`);
-  console.log(`   URL: https://club-patio-curauma.vercel.app/notificacion?id=${ref.id}`);
+  console.log(`   URL: https://clubpatiocurauma.synaptechspa.cl/notificacion?id=${ref.id}`);
 } catch (err) {
   console.error("❌ Error:", err.message);
 }

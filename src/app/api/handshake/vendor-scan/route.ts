@@ -190,7 +190,7 @@ export async function POST(request: Request) {
         // Enviar push si el cliente tiene FCM token registrado
         const fcmToken = clientSnap.data()?.fcmToken as string | undefined;
         if (fcmToken) {
-          const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://club-patio-curauma.vercel.app";
+          const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://clubpatiocurauma.synaptechspa.cl";
           const link = `${BASE_URL}${notifCta}`;
           await adminMessaging.send({
             token: fcmToken,

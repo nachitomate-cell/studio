@@ -189,7 +189,7 @@ async function sendPushNotification(user: UserDoc, promo: PromoMessage): Promise
           requireInteraction: false,
         },
         fcmOptions: {
-          link: "https://club-patio-curauma.vercel.app/",
+          link: "https://clubpatiocurauma.synaptechspa.cl/",
         },
       },
     });

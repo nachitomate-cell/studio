@@ -120,7 +120,7 @@ async function main() {
     loyaltyPointsLabel: "Sellos",
     hexBackgroundColor: "#0a2342",
     programLogo: {
-      sourceUri: { uri: "https://club-patio-curauma.vercel.app/Logo3.png" },
+      sourceUri: { uri: "https://clubpatiocurauma.synaptechspa.cl/Logo3.png" },
       contentDescription: {
         defaultValue: { language: "es-CL", value: "Logo Club Patio Curauma" },
       },

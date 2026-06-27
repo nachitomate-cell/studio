@@ -89,7 +89,7 @@ function buildLoyaltyObject(
     // Hero image: terraza del patio (fondo consistente con el color #C9920A de la clase)
     heroImage: {
       sourceUri: {
-        uri: "https://club-patio-curauma.vercel.app/terraza-patio.png",
+        uri: "https://clubpatiocurauma.synaptechspa.cl/terraza-patio.png",
       },
       contentDescription: {
         defaultValue: {
@@ -221,7 +221,7 @@ export async function PATCH(request: Request) {
       },
       heroImage: {
         sourceUri: {
-          uri: "https://club-patio-curauma.vercel.app/terraza-patio.png",
+          uri: "https://clubpatiocurauma.synaptechspa.cl/terraza-patio.png",
         },
         contentDescription: {
           defaultValue: { language: "es-CL", value: "Terraza Patio Curauma" },

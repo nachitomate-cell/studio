@@ -114,9 +114,9 @@ export default function TraficoPage() {
             Agrega <code className="bg-slate-100 px-1 rounded">?utm_source=instagram</code> al final de tus links de publicidad para empezar a ver estadísticas aquí.
           </p>
           <div className="mt-4 bg-slate-50 rounded-2xl p-4 text-left text-xs font-mono text-slate-500 space-y-1 max-w-md mx-auto">
-            <p>Instagram:<br/><span className="text-primary break-all">https://club-patio-curauma.vercel.app?utm_source=instagram&utm_campaign=junio2026</span></p>
-            <p className="mt-2">Flyer impreso:<br/><span className="text-primary break-all">https://club-patio-curauma.vercel.app?utm_source=flyer&utm_campaign=inauguracion</span></p>
-            <p className="mt-2">WhatsApp:<br/><span className="text-primary break-all">https://club-patio-curauma.vercel.app?utm_source=whatsapp&utm_campaign=promo_julio</span></p>
+            <p>Instagram:<br/><span className="text-primary break-all">https://clubpatiocurauma.synaptechspa.cl?utm_source=instagram&utm_campaign=junio2026</span></p>
+            <p className="mt-2">Flyer impreso:<br/><span className="text-primary break-all">https://clubpatiocurauma.synaptechspa.cl?utm_source=flyer&utm_campaign=inauguracion</span></p>
+            <p className="mt-2">WhatsApp:<br/><span className="text-primary break-all">https://clubpatiocurauma.synaptechspa.cl?utm_source=whatsapp&utm_campaign=promo_julio</span></p>
           </div>
         </div>
       )}
@@ -234,13 +234,13 @@ export default function TraficoPage() {
           <h2 className="font-black text-slate-800 mb-3">Cómo crear links de campaña</h2>
           <div className="space-y-2 text-xs font-mono text-slate-500">
             <p><span className="font-sans font-bold text-slate-600">Instagram:</span><br/>
-              <span className="text-primary break-all">https://club-patio-curauma.vercel.app?utm_source=instagram&utm_medium=social&utm_campaign=NOMBRE</span>
+              <span className="text-primary break-all">https://clubpatiocurauma.synaptechspa.cl?utm_source=instagram&utm_medium=social&utm_campaign=NOMBRE</span>
             </p>
             <p className="pt-1"><span className="font-sans font-bold text-slate-600">Flyer / volante:</span><br/>
-              <span className="text-primary break-all">https://club-patio-curauma.vercel.app?utm_source=flyer&utm_medium=print&utm_campaign=NOMBRE</span>
+              <span className="text-primary break-all">https://clubpatiocurauma.synaptechspa.cl?utm_source=flyer&utm_medium=print&utm_campaign=NOMBRE</span>
             </p>
             <p className="pt-1"><span className="font-sans font-bold text-slate-600">WhatsApp:</span><br/>
-              <span className="text-primary break-all">https://club-patio-curauma.vercel.app?utm_source=whatsapp&utm_medium=chat&utm_campaign=NOMBRE</span>
+              <span className="text-primary break-all">https://clubpatiocurauma.synaptechspa.cl?utm_source=whatsapp&utm_medium=chat&utm_campaign=NOMBRE</span>
             </p>
           </div>
         </div>
