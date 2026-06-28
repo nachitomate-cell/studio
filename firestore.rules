@@ -256,5 +256,15 @@ service cloud.firestore {
         allow delete: if false;
       }
     }
+
+    // ── Configuración del Club (colección actual usada por la app) ─────────────
+    // Contiene el doc `general` con selloBienvenida y recompensaEmprendedor.
+    // Lectura pública: el flujo de registro en /unete y los endpoints server-side
+    // necesitan leerla sin sesión iniciada. Escritura solo para staff (moderador,
+    // director, admin) que opera /moderador con PIN.
+    match /configuracion/{docId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
   }
 }
