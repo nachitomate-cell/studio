@@ -205,24 +205,36 @@ function BoletaForm({
   onSubmit,
   onCancel,
   loading,
+  monto,
+  setMonto,
+  preview,
+  fileRef,
+  setPreview,
 }: {
   vendorName: string;
-  onSubmit: (monto: number, file: File) => void;
+  onSubmit: (monto: number) => void;
   onCancel: () => void;
   loading: boolean;
+  monto: string;
+  setMonto: (v: string) => void;
+  preview: string | null;
+  fileRef: React.MutableRefObject<File | null>;
+  setPreview: (v: string | null) => void;
 }) {
-  const [monto, setMonto] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-
   const montoNum = parseInt(monto, 10) || 0;
   const isOverLimit = montoNum > MONTO_MAX;
-  const canSubmit = montoNum > 0 && !isOverLimit && !!file && !loading;
+  const canSubmit = montoNum > 0 && !isOverLimit && !!preview && !loading;
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
-    setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : null);
+    fileRef.current = f;
+    if (!f) { setPreview(null); return; }
+    // Convertir a DataURL para que sobreviva un remount de la página
+    // (iOS Safari descarga la pestaña al abrir la cámara y vuelve a montar
+    // todo el árbol React al regresar — un blob URL no sobrevive a eso).
+    const reader = new FileReader();
+    reader.onload = () => setPreview(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(f);
   };
 
   return (
@@ -292,7 +304,7 @@ function BoletaForm({
 
         <div className="flex flex-col gap-3 pt-2">
           <Button
-            onClick={() => file && onSubmit(montoNum, file)}
+            onClick={() => preview && onSubmit(montoNum)}
             disabled={!canSubmit}
             className="w-full h-14 rounded-2xl font-black text-base gap-2 shadow-lg"
             style={{ backgroundColor: "#D3B673" }}
@@ -315,6 +327,29 @@ function BoletaForm({
 
 // ─── Contenido principal ──────────────────────────────────────────────────────
 
+// Clave de sessionStorage para persistir el estado del formulario de boleta
+// y sobrevivir a un remount completo (iOS Safari recarga la pestaña al abrir
+// la cámara nativa). Scoped por localId para no mezclar comercios.
+const BOLETA_STORAGE_KEY = (localId: string) => `boleta_state_v1_${localId}`;
+
+interface BoletaPersistedState {
+  phase: "boleta";
+  vendorName: string;
+  monto: string;
+  preview: string | null; // DataURL — sobrevive al remount
+}
+
+function loadBoletaState(localId: string | null): BoletaPersistedState | null {
+  if (!localId || typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(BOLETA_STORAGE_KEY(localId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BoletaPersistedState;
+    if (parsed?.phase !== "boleta") return null;
+    return parsed;
+  } catch { return null; }
+}
+
 function CanjeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -322,9 +357,14 @@ function CanjeContent() {
 
   const localId = searchParams.get("localId");
 
-  const [phase, setPhase] = useState<Phase>("init");
+  // Hidratación síncrona desde sessionStorage: si veníamos de tomar una foto y
+  // la pestaña se descargó, partimos directo en "boleta" con monto y preview
+  // restaurados — sin flash de "Verificando...".
+  const initialBoleta = loadBoletaState(localId);
+
+  const [phase, setPhase] = useState<Phase>(initialBoleta ? "boleta" : "init");
   const [errorMsg, setErrorMsg] = useState("");
-  const [vendorName, setVendorName] = useState("el local");
+  const [vendorName, setVendorName] = useState(initialBoleta?.vendorName ?? "el local");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{
     newTotalSellos: number;
@@ -333,9 +373,39 @@ function CanjeContent() {
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [boletaLoading, setBoletaLoading] = useState(false);
 
+  // Estado del formulario de boleta — hoisted aquí para que persista a través
+  // de los re-renders de CanjeContent (el File en sí no se serializa, pero
+  // el preview en DataURL alcanza para reconstruirlo al enviar).
+  const [boletaMonto, setBoletaMonto] = useState<string>(initialBoleta?.monto ?? "");
+  const [boletaPreview, setBoletaPreview] = useState<string | null>(initialBoleta?.preview ?? null);
+  const boletaFileRef = useRef<File | null>(null);
+
   const pendingIdRef = useRef<string | null>(null);
   const processingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Persistir estado del formulario de boleta cuando esté activo. Si la pestaña
+  // se descarga (iOS al abrir cámara), volvemos a este mismo punto al volver.
+  useEffect(() => {
+    if (!localId) return;
+    if (phase !== "boleta") {
+      // Limpiar cualquier estado guardado de boleta una vez que ya no aplica
+      try { sessionStorage.removeItem(BOLETA_STORAGE_KEY(localId)); } catch { /* */ }
+      return;
+    }
+    try {
+      const payload: BoletaPersistedState = {
+        phase: "boleta",
+        vendorName,
+        monto: boletaMonto,
+        preview: boletaPreview,
+      };
+      sessionStorage.setItem(BOLETA_STORAGE_KEY(localId), JSON.stringify(payload));
+    } catch {
+      // QuotaExceeded en fotos muy grandes — no es crítico, igual sobrevive
+      // el remount del monto si la imagen no cabe.
+    }
+  }, [localId, phase, vendorName, boletaMonto, boletaPreview]);
 
   // ── Precalentar conexión Firestore al montar (establece WebSocket antes del escaneo) ──
   useEffect(() => {
@@ -508,6 +578,22 @@ function CanjeContent() {
       }
       if (processingRef.current) return;
       processingRef.current = true;
+
+      // Restauración tibia: si ya veníamos en flujo de boleta (hidratado desde
+      // sessionStorage tras un remount por la cámara), no reiniciamos el flujo.
+      // Solo verificamos ban en background y dejamos al usuario donde estaba.
+      if (initialBoleta) {
+        getDoc(doc(db, "usuarios", user.uid))
+          .then((snap) => {
+            if (snap.exists() && snap.data().baneado) {
+              setPhase("error");
+              setErrorMsg("Tu cuenta ha sido suspendida.");
+            }
+          })
+          .catch(() => { /* best-effort */ });
+        return;
+      }
+
       // Preferir nombre de Firestore — displayName es null en cuentas email/password
       let nombreCliente = user.displayName || "Miembro";
       try {
@@ -673,16 +759,38 @@ function CanjeContent() {
   };
 
   // ── Enviar boleta (comercio asociado / auto-servicio) ─────────────────────
-  const enviarBoleta = async (monto: number, file: File) => {
+  const enviarBoleta = async (monto: number) => {
     const user = auth.currentUser;
     if (!user || !localId) return;
 
+    // Resolver el archivo a subir. Caso A: el File está en memoria (recién tomado).
+    // Caso B: la pestaña se descargó al abrir la cámara y hidratamos desde
+    // sessionStorage — solo tenemos el preview en DataURL. Reconstruimos un Blob.
+    let blob: Blob | null = boletaFileRef.current;
+    let contentType = "image/jpeg";
+    if (!blob && boletaPreview && boletaPreview.startsWith("data:")) {
+      try {
+        const res = await fetch(boletaPreview);
+        blob = await res.blob();
+        contentType = blob.type || "image/jpeg";
+      } catch {
+        toast({ variant: "destructive", title: "Foto perdida", description: "Vuelve a tomar la foto e inténtalo de nuevo." });
+        return;
+      }
+    } else if (blob) {
+      contentType = blob.type || "image/jpeg";
+    }
+    if (!blob) {
+      toast({ variant: "destructive", title: "Falta la foto", description: "Toma una foto de la boleta antes de enviar." });
+      return;
+    }
+
     // Validación de la foto con mensaje claro (evita el error críptico de Storage)
-    if (!file.type.startsWith("image/")) {
+    if (!contentType.startsWith("image/")) {
       toast({ variant: "destructive", title: "Archivo inválido", description: "Debes subir una foto de la boleta (imagen)." });
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
+    if (blob.size > 15 * 1024 * 1024) {
       toast({ variant: "destructive", title: "Foto muy pesada", description: "La imagen supera 15 MB. Usa una foto más liviana." });
       return;
     }
@@ -695,7 +803,7 @@ function CanjeContent() {
       // sube y envía el path. El panel moderador (staff) resuelve la URL al auditar.
       const path = `boletas/${localId}/${Date.now()}_${user.uid}.jpg`;
       const sref = storageRef(storage, path);
-      await uploadBytes(sref, file, { contentType: file.type || "image/jpeg" });
+      await uploadBytes(sref, blob, { contentType });
 
       const res = await fetch("/api/handshake/boleta-scan", {
         method: "POST",
@@ -704,6 +812,12 @@ function CanjeContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "No se pudo registrar el sello.");
+
+      // Limpiar estado persistido — la boleta ya fue procesada
+      try { sessionStorage.removeItem(BOLETA_STORAGE_KEY(localId)); } catch { /* */ }
+      boletaFileRef.current = null;
+      setBoletaPreview(null);
+      setBoletaMonto("");
 
       setSuccessData({
         newTotalSellos: data.nuevoTotal ?? 1,
@@ -755,8 +869,18 @@ function CanjeContent() {
       <BoletaForm
         vendorName={vendorName}
         onSubmit={enviarBoleta}
-        onCancel={() => router.push("/")}
+        onCancel={() => {
+          if (localId) {
+            try { sessionStorage.removeItem(BOLETA_STORAGE_KEY(localId)); } catch { /* */ }
+          }
+          router.push("/");
+        }}
         loading={boletaLoading}
+        monto={boletaMonto}
+        setMonto={setBoletaMonto}
+        preview={boletaPreview}
+        setPreview={setBoletaPreview}
+        fileRef={boletaFileRef}
       />
     );
   }
