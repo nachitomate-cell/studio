@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { ALLOWED_MOD_EMAILS } from "@/lib/constants";
+import { ALLOWED_MOD_EMAILS, canAccessModPanel } from "@/lib/constants";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Loader2, ArrowLeft, TrendingUp } from "lucide-react";
 import Link from "next/link";
@@ -43,7 +43,20 @@ export default function TraficoPage() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user || !ALLOWED_MOD_EMAILS.includes((user.email ?? "").trim().toLowerCase())) {
+      if (!user) {
+        setAccessDenied(true);
+        setLoading(false);
+        setTimeout(() => router.push("/"), 2000);
+        return;
+      }
+      let allowed = ALLOWED_MOD_EMAILS.includes((user.email ?? "").trim().toLowerCase());
+      if (!allowed) {
+        try {
+          const userSnap = await getDoc(doc(db, "usuarios", user.uid));
+          allowed = canAccessModPanel(user.email, userSnap.exists() ? userSnap.data() : null);
+        } catch { /* deny por default */ }
+      }
+      if (!allowed) {
         setAccessDenied(true);
         setLoading(false);
         setTimeout(() => router.push("/"), 2000);

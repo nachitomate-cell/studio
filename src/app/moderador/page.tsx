@@ -17,7 +17,7 @@ import Link from "next/link";
 import { registrarCompra } from "@/lib/puntos";
 import { CATEGORIES } from "@/lib/data";
 
-import { ADMIN_EMAIL as MASTER_EMAIL, ALLOWED_MOD_EMAILS as ALLOWED_EMAILS } from "@/lib/constants";
+import { ADMIN_EMAIL as MASTER_EMAIL, ALLOWED_MOD_EMAILS as ALLOWED_EMAILS, canAccessModPanel } from "@/lib/constants";
 
 const MAX_PIN_ATTEMPTS = 3;
 const PIN_LOCKOUT_SECONDS = 60;
@@ -128,14 +128,21 @@ export default function ModeradorPage() {
         router.push("/");
         return;
       }
+      // Permite por email allowlist o por rol staff (director/director_patio/admin/moderador)
+      let allowedByRole = false;
       if (!ALLOWED_EMAILS.includes((user.email ?? "").trim().toLowerCase())) {
-        // Logueado pero sin permisos
-        setAccessDenied(true);
-        setLoadingConfig(false);
-        setTimeout(() => {
-          router.push("/");
-        }, 3500);
-        return;
+        try {
+          const snap = await getDoc(doc(db, "usuarios", user.uid));
+          allowedByRole = canAccessModPanel(user.email, snap.exists() ? snap.data() : null);
+        } catch { /* deny por default */ }
+        if (!allowedByRole) {
+          setAccessDenied(true);
+          setLoadingConfig(false);
+          setTimeout(() => {
+            router.push("/");
+          }, 3500);
+          return;
+        }
       }
 
       setCurrentUserEmail((user.email ?? "").trim().toLowerCase());

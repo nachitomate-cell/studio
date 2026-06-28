@@ -32,10 +32,9 @@ service cloud.firestore {
       return isSignedIn() && getUserRol() in ["moderador", "director_patio", "director", "admin"];
     }
 
-    function isAdmin() {
-      return isSignedIn() && getUserRol() == "admin";
-    }
-
+    // El rol "director" tiene las mismas facultades que "admin" — la única
+    // restricción del admin es el acceso al panel /superadmin, que se gatea
+    // por email (SUPERADMIN_EMAIL) en el cliente, no por estas reglas.
     function isDirector() {
       return isSignedIn() && getUserRol() in ["director_patio", "director", "admin"];
     }
@@ -127,7 +126,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         resource.data.vendorId == request.auth.uid || isStaff()
       );
-      allow delete: if isAdmin();
+      allow delete: if isDirector();
     }
 
     // ── Canjes Activos (vouchers generados) ────────────────────────────────────
@@ -140,7 +139,7 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid;
       // Solo staff puede marcar voucher como "usado"
       allow update: if isStaff();
-      allow delete: if isAdmin();
+      allow delete: if isDirector();
     }
 
     // ── Pending Stamps (Handshake Digital) ────────────────────────────────────
@@ -169,7 +168,7 @@ service cloud.firestore {
     match /broadcast_messages/{messageId} {
       allow read: if isStaff();
       allow create: if isDirector();
-      allow update, delete: if isAdmin();
+      allow update, delete: if isDirector();
     }
 
     // ── Logs del Sistema (inmutables) ──────────────────────────────────────────
@@ -194,14 +193,14 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow read: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow update: if isStaff();
-      allow delete: if isAdmin();
+      allow delete: if isDirector();
     }
 
     // ── Leads de Marketing ─────────────────────────────────────────────────────
     match /leads_marketing/{leadId} {
       allow read: if isStaff();
       allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
+      allow update, delete: if isDirector();
     }
 
     // ── Códigos de Referido ────────────────────────────────────────────────────

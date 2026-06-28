@@ -18,7 +18,7 @@ import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { ADMIN_EMAIL, ALLOWED_MOD_EMAILS } from "@/lib/constants";
 
-const ROLES_PERMITIDOS = ["admin", "moderador"];
+const ROLES_PERMITIDOS = ["admin", "director", "director_patio", "moderador"];
 const TEMP_PASSWORD = "PasswordTemporal123!";
 
 export async function POST(request: Request) {
