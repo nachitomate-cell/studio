@@ -204,6 +204,9 @@ export default function ModeradorSellosPage() {
   const [vendorFilter, setVendorFilter] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
   const [estadoFilter, setEstadoFilter] = useState("");
+  // Filtra por tipo de comercio: "" todos · "asociado" solo comercios asociados (boleta auto-servicio)
+  // · "emprendedor" solo emprendedores (handshake/vendor-scan/cliente-scan).
+  const [tipoComercioFilter, setTipoComercioFilter] = useState("");
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -469,6 +472,8 @@ export default function ModeradorSellosPage() {
       if (estadoFilter === "rechazado" && l.tipo !== "SELLO_RECHAZADO") return false;
       if (estadoFilter === "expirado" && l.tipo === "FIDELIZACION") return false;
     }
+    if (tipoComercioFilter === "asociado" && l.metodo !== "CLIENT_BOLETA") return false;
+    if (tipoComercioFilter === "emprendedor" && l.metodo === "CLIENT_BOLETA") return false;
     const nombre = (l.usuarioResuelto || l.usuario).toLowerCase();
     if (clienteFilter && !nombre.includes(clienteFilter.toLowerCase())) return false;
     return true;
@@ -600,10 +605,11 @@ export default function ModeradorSellosPage() {
     setVendorFilter("");
     setClienteFilter("");
     setEstadoFilter("");
+    setTipoComercioFilter("");
     setCurrentPage(1);
   };
 
-  const hayFiltros = desde || hasta || vendorFilter || clienteFilter || estadoFilter;
+  const hayFiltros = desde || hasta || vendorFilter || clienteFilter || estadoFilter || tipoComercioFilter;
 
   // ── Render: loading / no autorizado ───────────────────────────────────────
   if (authLoading) {
@@ -775,6 +781,20 @@ export default function ModeradorSellosPage() {
               <option value="confirmado">Confirmado</option>
               <option value="rechazado">Rechazado</option>
               <option value="expirado">Expirado</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 col-span-2 md:col-auto">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Tipo de comercio
+            </label>
+            <select
+              value={tipoComercioFilter}
+              onChange={(e) => { setTipoComercioFilter(e.target.value); setCurrentPage(1); }}
+              className="h-11 md:h-10 w-full px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+            >
+              <option value="">Todos</option>
+              <option value="asociado">Comercios asociados (con boleta)</option>
+              <option value="emprendedor">Emprendedores (QR / handshake)</option>
             </select>
           </div>
           <div className="flex flex-col gap-1 col-span-2 md:flex-1 md:min-w-[180px]">
