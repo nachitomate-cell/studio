@@ -25,6 +25,7 @@ const PIN_LOCKOUT_SECONDS = 60;
 const PIN_MAP: Record<string, string> = {
   [MASTER_EMAIL]: (process.env.NEXT_PUBLIC_MOD_PIN_ADMIN || "482917").trim(),
   "fgcservicios@gmail.com": (process.env.NEXT_PUBLIC_MOD_PIN_FGC || "736254").trim(),
+  "nachitomate@gmail.com": (process.env.NEXT_PUBLIC_MOD_PIN_DIRECTOR_PATIO || "582047").trim(),
 };
 
 interface Cliente {
