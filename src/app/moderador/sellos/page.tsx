@@ -6,7 +6,7 @@ import {
   collection, onSnapshot, query, orderBy, limit, getDocs, getDoc, doc, where,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { ref as storageRef, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref as storageRef, deleteObject } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
 import {
   Loader2, ChevronLeft, Download, Search, BarChart2,
@@ -371,7 +371,11 @@ export default function ModeradorSellosPage() {
     return () => unsub();
   }, [authorized]);
 
-  // ── Resolver URLs de boletas (solo staff puede leerlas en Storage) ──────────
+  // ── Resolver URLs de boletas (vía API server-side con Admin SDK) ───────────
+  // Antes usábamos getDownloadURL desde el cliente, pero la regla cross-service
+  // de Storage Rules (firestore.get para verificar rol) falla en silencio para
+  // algunos directores. El endpoint /api/admin/boleta-url usa Admin SDK y firma
+  // la URL sin depender de las reglas de Storage.
   useEffect(() => {
     const pendientes = logs.filter(
       (l) => l.metodo === "CLIENT_BOLETA" && l.boletaPath && !boletaUrls[l.id]
@@ -379,12 +383,27 @@ export default function ModeradorSellosPage() {
     if (pendientes.length === 0) return;
     let cancelado = false;
     (async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      let idToken: string;
+      try { idToken = await user.getIdToken(); } catch { return; }
+
       const entradas = await Promise.all(
         pendientes.map(async (l) => {
           try {
-            const url = await getDownloadURL(storageRef(storage, l.boletaPath!));
-            return [l.id, url] as const;
-          } catch {
+            const res = await fetch("/api/admin/boleta-url", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({ boletaPath: l.boletaPath }),
+            });
+            if (!res.ok) {
+              console.warn("[boleta-url] HTTP", res.status, await res.text().catch(() => ""));
+              return null;
+            }
+            const data = await res.json();
+            return [l.id, data.url as string] as const;
+          } catch (e) {
+            console.warn("[boleta-url] fetch fallo:", e);
             return null;
           }
         })
