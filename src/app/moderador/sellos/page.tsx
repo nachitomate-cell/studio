@@ -579,6 +579,33 @@ export default function ModeradorSellosPage() {
     }
   };
 
+  // ── Borrado TOTAL de boletas (acción destructiva con confirmación doble) ────
+  const handleBorrarTodasBoletas = async () => {
+    if (!confirm("⚠️ ATENCIÓN — Esto borrará TODAS las fotos de boletas del sistema (sin importar la fecha).\n\nSe conservan los registros en el historial, pero ya no podrás revisar las imágenes. Esta acción no se puede deshacer.\n\n¿Continuar?")) return;
+    const palabraClave = prompt('Para confirmar, escribí exactamente:\n\nBORRAR TODO');
+    if (palabraClave !== "BORRAR TODO") {
+      alert("Confirmación incorrecta. No se borró nada.");
+      return;
+    }
+    setLimpiando(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Sin sesión activa");
+      const res = await fetch("/api/admin/limpiar-boletas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ olderThanDays: 0 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error desconocido");
+      alert(`Borrado total completo: ${data.borradas} boleta(s) eliminada(s) de ${data.encontradas} encontradas.${data.errores ? ` ${data.errores} con errores.` : ""}`);
+    } catch (e: any) {
+      alert("Error al borrar boletas: " + e.message);
+    } finally {
+      setLimpiando(false);
+    }
+  };
+
   // ── Anular Sello ───────────────────────────────────────────────────────────
   const [anulandoId, setAnulandoId] = useState<string | null>(null);
 
@@ -712,7 +739,18 @@ export default function ModeradorSellosPage() {
               className="shrink-0 rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-500 transition-all whitespace-nowrap"
             >
               {limpiando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              <span className="hidden md:inline">Limpiar boletas</span>
+              <span className="hidden md:inline">Limpiar +90d</span>
+            </Button>
+            <Button
+              onClick={handleBorrarTodasBoletas}
+              disabled={limpiando}
+              variant="outline"
+              title="Borrar TODAS las fotos de boletas (acción destructiva)"
+              className="shrink-0 rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-red-200 text-red-500 bg-red-50/50 hover:border-red-400 hover:bg-red-50 transition-all whitespace-nowrap"
+            >
+              {limpiando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              <span className="hidden md:inline">Borrar todas</span>
+              <span className="md:hidden">Todas</span>
             </Button>
           </div>
         </div>
