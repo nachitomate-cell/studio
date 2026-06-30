@@ -11,12 +11,16 @@
  * vendorId, así que el documento del perfil debe indexarse por el uid.
  *
  * Seguridad: requiere `Authorization: Bearer <idToken>` de un moderador/admin.
- * Body: { email, nombreLocal, categoria }
+ * Body: { email, nombreLocal, categoria, tipo? }
+ *   tipo: "emprendedor" (default) | "asociado" | "membresia"
  */
 
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { ADMIN_EMAIL, ALLOWED_MOD_EMAILS } from "@/lib/constants";
+import type { TipoComercio } from "@/lib/tipoComercio";
+
+const TIPOS_VALIDOS: TipoComercio[] = ["emprendedor", "asociado", "membresia"];
 
 const ROLES_PERMITIDOS = ["admin", "director", "director_patio", "moderador"];
 const TEMP_PASSWORD = "PasswordTemporal123!";
@@ -61,6 +65,10 @@ export async function POST(request: Request) {
     const email: string = (body.email ?? "").trim().toLowerCase();
     const nombreLocal: string = (body.nombreLocal ?? "").trim();
     const categoria: string = (body.categoria ?? "").trim();
+    const tipoRaw: string = (body.tipo ?? "emprendedor").trim();
+    const tipo: TipoComercio = (TIPOS_VALIDOS as string[]).includes(tipoRaw)
+      ? (tipoRaw as TipoComercio)
+      : "emprendedor";
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "Email inválido." }, { status: 400 });
@@ -125,7 +133,7 @@ export async function POST(request: Request) {
         businessName: nombreLocal, // el directorio lee businessName || nombre
         categoria,
         category: categoria,       // el directorio lee category || rubro
-        tipo: "emprendedor",
+        tipo,
         activo: true,
         createdAt: timestamp,
         creadoPor: decoded.uid,

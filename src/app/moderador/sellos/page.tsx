@@ -35,11 +35,24 @@ interface LogEntry {
   tipo: string;
   metodo?: string;
   monto?: number;
+  tier?: string;
   numSellos?: number;
   anulada?: boolean;
   boletaPath?: string;
   usuarioResuelto?: string;
 }
+
+// metodos auto-servicio (con boleta a auditar). Mismo flujo de UI moderador.
+function tieneBoleta(metodo?: string): boolean {
+  return metodo === "CLIENT_BOLETA" || metodo === "CLIENT_MEMBRESIA";
+}
+
+const TIER_LABEL_MOD: Record<string, string> = {
+  mensual: "Mensual",
+  trimestral: "Trimestral",
+  semestral: "Semestral",
+  anual: "Anual",
+};
 
 interface VendorInfo {
   id: string;
@@ -68,11 +81,19 @@ function formatMonto(monto?: number): string {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(monto);
 }
 
-function MontoCell({ monto, metodo }: { monto?: number; metodo?: string }) {
+function MontoCell({ monto, metodo, tier }: { monto?: number; metodo?: string; tier?: string }) {
   if (monto && monto > 0) {
     return (
       <span className="font-medium text-slate-700">
         {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(monto)}
+      </span>
+    );
+  }
+  // Membresía: monto no aplica — los sellos vienen del plan elegido.
+  if (metodo === "CLIENT_MEMBRESIA" && tier) {
+    return (
+      <span className="text-violet-600 text-xs font-bold" title="Plan declarado por el cliente — verificar contra la boleta">
+        Plan: {TIER_LABEL_MOD[tier] ?? tier}
       </span>
     );
   }
@@ -344,6 +365,7 @@ export default function ModeradorSellosPage() {
             tipo: d.data().tipo || "",
             metodo: d.data().metodo,
             monto: d.data().monto,
+            tier: d.data().tier,
             numSellos: d.data().numSellos,
             anulada: d.data().anulada === true,
             boletaPath: d.data().boletaPath || undefined,
@@ -378,7 +400,7 @@ export default function ModeradorSellosPage() {
   // la URL sin depender de las reglas de Storage.
   useEffect(() => {
     const pendientes = logs.filter(
-      (l) => l.metodo === "CLIENT_BOLETA" && l.boletaPath && !boletaUrls[l.id]
+      (l) => tieneBoleta(l.metodo) && l.boletaPath && !boletaUrls[l.id]
     );
     if (pendientes.length === 0) return;
     let cancelado = false;
@@ -492,7 +514,8 @@ export default function ModeradorSellosPage() {
       if (estadoFilter === "expirado" && l.tipo === "FIDELIZACION") return false;
     }
     if (tipoComercioFilter === "asociado" && l.metodo !== "CLIENT_BOLETA") return false;
-    if (tipoComercioFilter === "emprendedor" && l.metodo === "CLIENT_BOLETA") return false;
+    if (tipoComercioFilter === "membresia" && l.metodo !== "CLIENT_MEMBRESIA") return false;
+    if (tipoComercioFilter === "emprendedor" && tieneBoleta(l.metodo)) return false;
     const nombre = (l.usuarioResuelto || l.usuario).toLowerCase();
     if (clienteFilter && !nombre.includes(clienteFilter.toLowerCase())) return false;
     return true;
@@ -851,6 +874,7 @@ export default function ModeradorSellosPage() {
             >
               <option value="">Todos</option>
               <option value="asociado">Comercios asociados (con boleta)</option>
+              <option value="membresia">Membresías (gimnasios)</option>
               <option value="emprendedor">Emprendedores (QR / handshake)</option>
             </select>
           </div>
@@ -936,7 +960,7 @@ export default function ModeradorSellosPage() {
                       {/* Fila 2: local */}
                       <div className="mt-2 text-sm text-slate-500 font-medium flex items-center gap-2">
                         <span className="truncate"><LocalLabel log={log} vendors={vendors} /></span>
-                        {log.metodo === "CLIENT_BOLETA" && boletaUrls[log.id] && (
+                        {tieneBoleta(log.metodo) && boletaUrls[log.id] && (
                           <button
                             onClick={() => setBoletaModal(boletaUrls[log.id])}
                             title="Ver boleta"
@@ -952,7 +976,7 @@ export default function ModeradorSellosPage() {
                         <div className="flex items-center gap-2 min-w-0">
                           <SellosBadge log={log} />
                           <span className="text-xs truncate">
-                            <MontoCell monto={log.monto} metodo={log.metodo} />
+                            <MontoCell monto={log.monto} metodo={log.metodo} tier={log.tier} />
                           </span>
                         </div>
                         {log.tipo === "FIDELIZACION" && !log.anulada && (
@@ -1014,7 +1038,7 @@ export default function ModeradorSellosPage() {
                           <td className="px-6 py-4 text-slate-500 font-medium">
                             <div className="flex items-center gap-2">
                               <LocalLabel log={log} vendors={vendors} />
-                              {log.metodo === "CLIENT_BOLETA" && boletaUrls[log.id] && (
+                              {tieneBoleta(log.metodo) && boletaUrls[log.id] && (
                                 <button
                                   onClick={() => setBoletaModal(boletaUrls[log.id])}
                                   title="Ver boleta"
@@ -1023,7 +1047,7 @@ export default function ModeradorSellosPage() {
                                   <img src={boletaUrls[log.id]} alt="boleta" className="w-full h-full object-cover" />
                                 </button>
                               )}
-                              {log.metodo === "CLIENT_BOLETA" && !boletaUrls[log.id] && !log.anulada && (
+                              {tieneBoleta(log.metodo) && !boletaUrls[log.id] && !log.anulada && (
                                 <Receipt className="w-4 h-4 text-slate-300 shrink-0" />
                               )}
                             </div>
@@ -1032,7 +1056,7 @@ export default function ModeradorSellosPage() {
                             <SellosBadge log={log} />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <MontoCell monto={log.monto} metodo={log.metodo} />
+                            <MontoCell monto={log.monto} metodo={log.metodo} tier={log.tier} />
                           </td>
                           <td className="px-6 py-4">
                             {log.anulada ? (

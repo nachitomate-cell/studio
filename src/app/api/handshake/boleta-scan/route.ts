@@ -1,14 +1,23 @@
 /**
  * POST /api/handshake/boleta-scan
  *
- * Flujo AUTO-SERVICIO de comercios asociados: el cliente escanea el QR del local,
- * ingresa el monto y sube la foto de la boleta. El sello se otorga al instante;
- * el moderador audita después (puede anular boletas falsas).
+ * Flujo AUTO-SERVICIO con boleta. Cubre dos tipos de comercio:
+ *
+ *   - "asociado"  → el cliente ingresa el monto y sube la foto de la boleta;
+ *                   los sellos salen de calcularSellos(monto).
+ *   - "membresia" → el cliente elige un tier fijo (mensual/trimestral/...)
+ *                   y sube la boleta; los sellos salen de TIER_SELLOS[tier]
+ *                   sin tomar en cuenta el monto.
+ *
+ * En ambos casos el sello se otorga al instante; el moderador audita después y
+ * puede anular si el cliente mintió (de monto o de tier).
  *
  * El sello se acredita al CLIENTE autenticado (uid del token), no al vendedor.
  *
  * Headers: Authorization: Bearer <idToken>
- * Body:    { vendorId: string, monto: number, boletaPath: string }
+ * Body:    { vendorId: string, boletaPath: string,
+ *            monto?: number,                    // requerido si asociado
+ *            tier?: "mensual"|"trimestral"|... } // requerido si membresia
  */
 
 import { NextResponse } from "next/server";
@@ -16,8 +25,11 @@ import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { calcularSellos, SELLOS_PARA_PREMIO, MONTO_MAX } from "@/lib/sellos";
-import { esAsociado } from "@/lib/tipoComercio";
+import {
+  calcularSellos, SELLOS_PARA_PREMIO, MONTO_MAX,
+  calcularSellosMembresia, esMembresiaTier, TIER_LABEL, MembresiaTier,
+} from "@/lib/sellos";
+import { esAsociado, esMembresia } from "@/lib/tipoComercio";
 import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
 
 // Anti-doble-envío de la misma boleta: 1 boleta por local cada 5 min por usuario.
@@ -44,27 +56,40 @@ export async function POST(request: Request) {
     }
     const userId = decoded.uid;
 
-    const { vendorId, monto, boletaPath } = await request.json();
+    const { vendorId, monto, boletaPath, tier } = await request.json();
 
     if (!vendorId || typeof vendorId !== "string") {
       return NextResponse.json({ error: "vendorId requerido" }, { status: 400 });
-    }
-    if (typeof monto !== "number" || monto <= 0 || monto > MONTO_MAX) {
-      return NextResponse.json({ error: `El monto es obligatorio y debe estar entre $1 y $${MONTO_MAX.toLocaleString("es-CL")}.` }, { status: 400 });
     }
     if (!boletaPath || typeof boletaPath !== "string") {
       return NextResponse.json({ error: "La foto de la boleta es obligatoria." }, { status: 400 });
     }
 
-    // El local debe ser un comercio ASOCIADO (este flujo no aplica a emprendedores).
+    // El local debe ser asociado o membresía; los emprendedores siguen handshake.
     const vendorSnap = await adminDb.collection("entrepreneur_profiles").doc(vendorId).get();
     if (!vendorSnap.exists) {
       return NextResponse.json({ error: "Local no encontrado." }, { status: 404 });
     }
-    if (!esAsociado(vendorSnap.data())) {
+    const vendorData = vendorSnap.data();
+    const isMembresia = esMembresia(vendorData);
+    const isAsociado = esAsociado(vendorData);
+    if (!isMembresia && !isAsociado) {
       return NextResponse.json({ error: "Este local no admite auto-servicio por boleta." }, { status: 400 });
     }
-    const vendorName = vendorSnap.data()?.businessName || vendorSnap.data()?.nombre || "el local";
+    const vendorName = vendorData?.businessName || vendorData?.nombre || "el local";
+
+    // Validación específica por tipo de comercio.
+    let tierValidado: MembresiaTier | null = null;
+    if (isMembresia) {
+      if (!esMembresiaTier(tier)) {
+        return NextResponse.json({ error: "Debes elegir un plan (mensual, trimestral, semestral o anual)." }, { status: 400 });
+      }
+      tierValidado = tier;
+    } else {
+      if (typeof monto !== "number" || monto <= 0 || monto > MONTO_MAX) {
+        return NextResponse.json({ error: `El monto es obligatorio y debe estar entre $1 y $${MONTO_MAX.toLocaleString("es-CL")}.` }, { status: 400 });
+      }
+    }
 
     const userRef = adminDb.collection("usuarios").doc(userId);
     let result: { userId: string; userName: string; nuevoTotal: number; numSellos: number; prevSellos: number };
@@ -82,7 +107,7 @@ export async function POST(request: Request) {
         throw new Error("Ya registraste una compra en este local hace poco. Intenta más tarde.");
       }
 
-      const numSellos = calcularSellos(monto);
+      const numSellos = tierValidado ? calcularSellosMembresia(tierValidado) : calcularSellos(monto);
       const prevSellos = u.comprasRealizadas || 0;
       const nuevoTotal = prevSellos + numSellos;
       const timestamp = new Date().toISOString();
@@ -108,17 +133,22 @@ export async function POST(request: Request) {
       try {
         const { nuevoTotal, numSellos, prevSellos, userName } = result!;
 
+        const metodo = tierValidado ? "CLIENT_MEMBRESIA" : "CLIENT_BOLETA";
+        const accion = tierValidado
+          ? `recibió ${numSellos} ${numSellos === 1 ? "sello" : "sellos"} por membresía ${TIER_LABEL[tierValidado].toLowerCase()}`
+          : `recibió ${numSellos} ${numSellos === 1 ? "sello" : "sellos"} por boleta ($${(monto as number).toLocaleString("es-CL")})`;
+
         await Promise.all([
           // Log con la boleta adjunta para auditoría del moderador
           adminDb.collection("system_logs").add({
             usuario: userName,
             usuarioId: userId,
             vendedorId: vendorId,
-            accion: `recibió ${numSellos} ${numSellos === 1 ? "sello" : "sellos"} por boleta ($${monto.toLocaleString("es-CL")})`,
+            accion,
             fecha: timestamp,
             tipo: "FIDELIZACION",
-            metodo: "CLIENT_BOLETA",
-            monto,
+            metodo,
+            ...(tierValidado ? { tier: tierValidado } : { monto }),
             numSellos,
             boletaPath,
             boletaUrl: null, // el moderador (staff) resuelve la URL desde boletaPath al auditar
@@ -129,8 +159,8 @@ export async function POST(request: Request) {
             clienteId: userId,
             clienteNombre: userName,
             fecha: timestamp,
-            metodo: "CLIENT_BOLETA",
-            monto,
+            metodo,
+            ...(tierValidado ? { tier: tierValidado } : { monto }),
             numSellos,
             boletaPath,
           }),

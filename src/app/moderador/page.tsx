@@ -83,8 +83,16 @@ export default function ModeradorPage() {
   const [vendorEmail, setVendorEmail] = useState("");
   const [vendorLocal, setVendorLocal] = useState("");
   const [vendorCategoria, setVendorCategoria] = useState("");
+  const [vendorTipo, setVendorTipo] = useState<"emprendedor" | "asociado" | "membresia">("emprendedor");
   const [vendorLoading, setVendorLoading] = useState(false);
   const [vendorResult, setVendorResult] = useState<{ email: string; vendorId: string; tempPassword: string | null } | null>(null);
+
+  // Tipo de comercio por local — lista para cambios on-the-fly
+  type VendorTipoRow = { vendorId: string; nombre: string; tipo: "emprendedor" | "asociado" | "membresia" };
+  const [vendorTipos, setVendorTipos] = useState<VendorTipoRow[]>([]);
+  const [loadingVendorTipos, setLoadingVendorTipos] = useState(false);
+  const [savingTipoId, setSavingTipoId] = useState<string | null>(null);
+  const [vendorTipoBusqueda, setVendorTipoBusqueda] = useState("");
 
   // Recálculo socios captados
   const [recalcSocios, setRecalcSocios] = useState(false);
@@ -153,6 +161,7 @@ export default function ModeradorPage() {
       loadReferralStats();
       fetchLiveData();
       fetchPendingStamps();
+      fetchVendorTipos();
     });
 
     return () => { unsubscribe(); };
@@ -521,6 +530,7 @@ export default function ModeradorPage() {
           email: vendorEmail.trim(),
           nombreLocal: vendorLocal.trim(),
           categoria: vendorCategoria.trim(),
+          tipo: vendorTipo,
         }),
       });
       const data = await res.json();
@@ -528,11 +538,61 @@ export default function ModeradorPage() {
 
       setVendorResult({ email: vendorEmail.trim(), vendorId: data.vendorId, tempPassword: data.tempPassword });
       toast({ title: "Local creado con éxito ✅", description: "El encargado puede iniciar sesión con su correo." });
-      setVendorEmail(""); setVendorLocal(""); setVendorCategoria("");
+      setVendorEmail(""); setVendorLocal(""); setVendorCategoria(""); setVendorTipo("emprendedor");
+      fetchVendorTipos(); // refrescar el listado para que aparezca el recién creado
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error al registrar", description: e.message || "Intenta de nuevo." });
     } finally {
       setVendorLoading(false);
+    }
+  };
+
+  const fetchVendorTipos = async () => {
+    setLoadingVendorTipos(true);
+    try {
+      const snap = await getDocs(collection(db, "entrepreneur_profiles"));
+      const rows: VendorTipoRow[] = snap.docs.map((d) => {
+        const data = d.data() as any;
+        const tipo = data?.tipo === "asociado" || data?.tipo === "membresia" ? data.tipo : "emprendedor";
+        return {
+          vendorId: d.id,
+          nombre: data?.businessName || data?.nombre || "(sin nombre)",
+          tipo,
+        };
+      });
+      rows.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+      setVendorTipos(rows);
+    } catch {
+      // silencioso — el panel queda vacío y el moderador puede reintentar
+    } finally {
+      setLoadingVendorTipos(false);
+    }
+  };
+
+  const handleUpdateVendorTipo = async (
+    vendorId: string,
+    nuevoTipo: "emprendedor" | "asociado" | "membresia",
+  ) => {
+    setSavingTipoId(vendorId);
+    // Actualización optimista — si falla revertimos.
+    const previo = vendorTipos.find((v) => v.vendorId === vendorId)?.tipo ?? "emprendedor";
+    setVendorTipos((prev) => prev.map((v) => v.vendorId === vendorId ? { ...v, tipo: nuevoTipo } : v));
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión activa");
+      const res = await fetch("/api/moderador/update-vendor-tipo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ vendorId, tipo: nuevoTipo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo actualizar el tipo.");
+      toast({ title: "Tipo actualizado ✅", description: `Ahora es ${nuevoTipo}.` });
+    } catch (e: any) {
+      setVendorTipos((prev) => prev.map((v) => v.vendorId === vendorId ? { ...v, tipo: previo } : v));
+      toast({ variant: "destructive", title: "Error", description: e?.message || "No se pudo actualizar." });
+    } finally {
+      setSavingTipoId(null);
     }
   };
 
@@ -819,6 +879,35 @@ export default function ModeradorPage() {
               </div>
             </div>
 
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Tipo de comercio</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {([
+                  { id: "emprendedor", titulo: "🎨 Emprendedor",       desc: "Confirma en caja (handshake)" },
+                  { id: "asociado",    titulo: "🏪 Comercio asociado", desc: "Auto-servicio con monto + boleta" },
+                  { id: "membresia",   titulo: "🏋️ Membresía / gym",   desc: "Cliente elige plan (mensual/anual…)" },
+                ] as const).map((opt) => {
+                  const selected = vendorTipo === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setVendorTipo(opt.id)}
+                      disabled={vendorLoading}
+                      className={`text-left px-4 py-3 rounded-2xl border-2 transition-all ${
+                        selected
+                          ? "border-emerald-500 bg-emerald-50/60 shadow-sm"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <div className={`text-sm font-black ${selected ? "text-emerald-700" : "text-slate-700"}`}>{opt.titulo}</div>
+                      <div className="text-[11px] font-medium text-slate-500 mt-0.5">{opt.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <Button
               onClick={handleCreateVendor}
               disabled={vendorLoading}
@@ -852,6 +941,81 @@ export default function ModeradorPage() {
                   )}
                 </AlertDescription>
               </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* TIPO DE COMERCIO POR LOCAL */}
+        <Card className="border-none shadow-xl shadow-violet-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-violet-100">
+          <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
+            <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              🔁 Tipo de Comercio por Local
+            </CardTitle>
+            <p className="text-sm text-slate-500 font-medium mt-1">
+              Cambia el flujo de cualquier local. <strong>Emprendedor</strong> usa handshake en caja; <strong>Asociado</strong> es auto-servicio con monto + boleta; <strong>Membresía</strong> es para gimnasios — el cliente elige el plan (mensual/trimestral/semestral/anual).
+            </p>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8 space-y-4 bg-slate-50/20">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar local por nombre…"
+                  value={vendorTipoBusqueda}
+                  onChange={(e) => setVendorTipoBusqueda(e.target.value)}
+                  className="pl-9 h-11 rounded-2xl border-slate-200 bg-white"
+                />
+              </div>
+              <Button
+                onClick={fetchVendorTipos}
+                disabled={loadingVendorTipos}
+                variant="outline"
+                className="h-11 rounded-2xl border-slate-200 text-slate-600 hover:border-violet-400 hover:text-violet-600 gap-2"
+                title="Recargar lista"
+              >
+                {loadingVendorTipos ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              </Button>
+            </div>
+
+            {loadingVendorTipos && vendorTipos.length === 0 ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+              </div>
+            ) : vendorTipos.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-10">Aún no hay locales registrados.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto rounded-2xl border border-slate-100">
+                {vendorTipos
+                  .filter((v) => v.nombre.toLowerCase().includes(vendorTipoBusqueda.toLowerCase()))
+                  .map((v) => {
+                    const emoji = v.tipo === "membresia" ? "🏋️" : v.tipo === "asociado" ? "🏪" : "🎨";
+                    const saving = savingTipoId === v.vendorId;
+                    return (
+                      <div key={v.vendorId} className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 px-4 py-3 bg-white">
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <span className="text-xl shrink-0">{emoji}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-800 truncate">{v.nombre}</p>
+                            <p className="text-[10px] font-mono text-slate-300 truncate">{v.vendorId}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <select
+                            value={v.tipo}
+                            onChange={(e) => handleUpdateVendorTipo(v.vendorId, e.target.value as any)}
+                            disabled={saving}
+                            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 focus:outline-none focus:border-violet-400 disabled:opacity-50"
+                          >
+                            <option value="emprendedor">🎨 Emprendedor (handshake)</option>
+                            <option value="asociado">🏪 Asociado (boleta)</option>
+                            <option value="membresia">🏋️ Membresía (gym)</option>
+                          </select>
+                          {saving && <Loader2 className="w-4 h-4 animate-spin text-violet-500" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
             )}
           </CardContent>
         </Card>

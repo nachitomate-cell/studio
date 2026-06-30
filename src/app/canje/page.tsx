@@ -6,8 +6,8 @@ import { auth, db, storage } from "@/lib/firebase";
 import { doc, onSnapshot, collection, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { ref as storageRef, uploadBytes } from "firebase/storage";
 import { cancelarPendingStamp } from "@/lib/puntos";
-import { esAsociado } from "@/lib/tipoComercio";
-import { MONTO_MAX } from "@/lib/sellos";
+import { esAsociado, esMembresia } from "@/lib/tipoComercio";
+import { MONTO_MAX, TIER_LABEL, TIER_SELLOS, MembresiaTier } from "@/lib/sellos";
 import { SuccessScanner } from "@/components/loyalty/SuccessScanner";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -22,10 +22,13 @@ type Phase =
   | "creating"    // creando pending_stamp
   | "waiting"     // esperando confirmación del vendedor
   | "boleta"      // comercio asociado: formulario auto-servicio con boleta
+  | "membresia"   // gimnasio/membresía: selector de tier + boleta
   | "confirmed"   // sello confirmado ✅
   | "expired"     // expiró (5 min sin respuesta)
   | "rejected"    // vendedor rechazó
   | "error";      // error genérico
+
+const TIER_ORDER: MembresiaTier[] = ["mensual", "trimestral", "semestral", "anual"];
 
 // ─── Waiting UI ─────────────────────────────────────────────────────────────
 
@@ -325,6 +328,138 @@ function BoletaForm({
   );
 }
 
+// ─── Formulario de membresía (gimnasios / planes con tier) ───────────────────
+
+function MembresiaForm({
+  vendorName,
+  onSubmit,
+  onCancel,
+  loading,
+  tier,
+  setTier,
+  preview,
+  fileRef,
+  setPreview,
+}: {
+  vendorName: string;
+  onSubmit: (tier: MembresiaTier) => void;
+  onCancel: () => void;
+  loading: boolean;
+  tier: MembresiaTier | null;
+  setTier: (t: MembresiaTier) => void;
+  preview: string | null;
+  fileRef: React.MutableRefObject<File | null>;
+  setPreview: (v: string | null) => void;
+}) {
+  const canSubmit = !!tier && !!preview && !loading;
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    fileRef.current = f;
+    if (!f) { setPreview(null); return; }
+    // DataURL para sobrevivir el remount al abrir la cámara nativa en iOS.
+    const reader = new FileReader();
+    reader.onload = () => setPreview(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(f);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-7 space-y-6">
+        <div className="text-center space-y-1">
+          <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ backgroundColor: "rgba(211,182,115,0.12)" }}>
+            <Receipt className="w-7 h-7" style={{ color: "#D3B673" }} />
+          </div>
+          <h2 className="text-xl font-black text-slate-800">Elige tu plan</h2>
+          <p className="text-sm text-slate-500">
+            en <span className="font-black" style={{ color: "#D3B673" }}>{vendorName}</span>
+          </p>
+        </div>
+
+        {/* Selector de tier */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Plan contratado <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {TIER_ORDER.map((t) => {
+              const isSelected = tier === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTier(t)}
+                  disabled={loading}
+                  className={`flex flex-col items-center justify-center gap-1 h-20 rounded-2xl border-2 transition-all font-bold ${
+                    isSelected
+                      ? "border-primary bg-primary/10 shadow-md"
+                      : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                  }`}
+                  style={isSelected ? { borderColor: "#D3B673", backgroundColor: "rgba(211,182,115,0.12)" } : undefined}
+                >
+                  <span className={`text-sm ${isSelected ? "text-slate-800" : "text-slate-600"}`}>
+                    {TIER_LABEL[t]}
+                  </span>
+                  <span className="text-[11px] font-black" style={{ color: isSelected ? "#D3B673" : "#94a3b8" }}>
+                    +{TIER_SELLOS[t]} sellos
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Foto de la boleta */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Foto de la boleta / comprobante <span className="text-red-500">*</span>
+          </label>
+          <label className="flex flex-col items-center justify-center gap-2 w-full min-h-[120px] rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 cursor-pointer overflow-hidden">
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="Boleta" className="w-full h-full max-h-48 object-contain" />
+            ) : (
+              <>
+                <Camera className="w-8 h-8 text-slate-400" />
+                <span className="text-xs font-bold text-slate-400">Toca para tomar/elegir foto</span>
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFile}
+              disabled={loading}
+              className="hidden"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-3 pt-2">
+          <Button
+            onClick={() => tier && onSubmit(tier)}
+            disabled={!canSubmit}
+            className="w-full h-14 rounded-2xl font-black text-base gap-2 shadow-lg"
+            style={{ backgroundColor: "#D3B673" }}
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+              tier ? `Obtener mis ${TIER_SELLOS[tier]} sellos` : "Elige un plan"
+            )}
+          </Button>
+          <Button
+            onClick={onCancel}
+            disabled={loading}
+            variant="outline"
+            className="w-full h-12 rounded-2xl font-bold text-slate-500 border-slate-200"
+          >
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Contenido principal ──────────────────────────────────────────────────────
 
 // Clave de sessionStorage para persistir el estado del formulario de boleta
@@ -333,10 +468,11 @@ function BoletaForm({
 const BOLETA_STORAGE_KEY = (localId: string) => `boleta_state_v1_${localId}`;
 
 interface BoletaPersistedState {
-  phase: "boleta";
+  phase: "boleta" | "membresia";
   vendorName: string;
-  monto: string;
-  preview: string | null; // DataURL — sobrevive al remount
+  monto: string;                   // usado solo en "boleta"
+  tier: MembresiaTier | null;      // usado solo en "membresia"
+  preview: string | null;          // DataURL — sobrevive al remount
 }
 
 function loadBoletaState(localId: string | null): BoletaPersistedState | null {
@@ -345,7 +481,7 @@ function loadBoletaState(localId: string | null): BoletaPersistedState | null {
     const raw = sessionStorage.getItem(BOLETA_STORAGE_KEY(localId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as BoletaPersistedState;
-    if (parsed?.phase !== "boleta") return null;
+    if (parsed?.phase !== "boleta" && parsed?.phase !== "membresia") return null;
     return parsed;
   } catch { return null; }
 }
@@ -362,7 +498,7 @@ function CanjeContent() {
   // restaurados — sin flash de "Verificando...".
   const initialBoleta = loadBoletaState(localId);
 
-  const [phase, setPhase] = useState<Phase>(initialBoleta ? "boleta" : "init");
+  const [phase, setPhase] = useState<Phase>(initialBoleta ? initialBoleta.phase : "init");
   const [errorMsg, setErrorMsg] = useState("");
   const [vendorName, setVendorName] = useState(initialBoleta?.vendorName ?? "el local");
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -373,10 +509,11 @@ function CanjeContent() {
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [boletaLoading, setBoletaLoading] = useState(false);
 
-  // Estado del formulario de boleta — hoisted aquí para que persista a través
-  // de los re-renders de CanjeContent (el File en sí no se serializa, pero
-  // el preview en DataURL alcanza para reconstruirlo al enviar).
+  // Estado de los formularios auto-servicio (boleta + membresía). Hoisted aquí
+  // para que persista a través de los re-renders. El File no se serializa pero
+  // el preview en DataURL alcanza para reconstruirlo al enviar.
   const [boletaMonto, setBoletaMonto] = useState<string>(initialBoleta?.monto ?? "");
+  const [membresiaTier, setMembresiaTier] = useState<MembresiaTier | null>(initialBoleta?.tier ?? null);
   const [boletaPreview, setBoletaPreview] = useState<string | null>(initialBoleta?.preview ?? null);
   const boletaFileRef = useRef<File | null>(null);
 
@@ -384,28 +521,28 @@ function CanjeContent() {
   const processingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Persistir estado del formulario de boleta cuando esté activo. Si la pestaña
-  // se descarga (iOS al abrir cámara), volvemos a este mismo punto al volver.
+  // Persistir estado del formulario auto-servicio cuando esté activo. Si la
+  // pestaña se descarga (iOS al abrir cámara), volvemos a este mismo punto al
+  // volver. Cubre boleta y membresía con la misma clave.
   useEffect(() => {
     if (!localId) return;
-    if (phase !== "boleta") {
-      // Limpiar cualquier estado guardado de boleta una vez que ya no aplica
+    if (phase !== "boleta" && phase !== "membresia") {
       try { sessionStorage.removeItem(BOLETA_STORAGE_KEY(localId)); } catch { /* */ }
       return;
     }
     try {
       const payload: BoletaPersistedState = {
-        phase: "boleta",
+        phase,
         vendorName,
         monto: boletaMonto,
+        tier: membresiaTier,
         preview: boletaPreview,
       };
       sessionStorage.setItem(BOLETA_STORAGE_KEY(localId), JSON.stringify(payload));
     } catch {
-      // QuotaExceeded en fotos muy grandes — no es crítico, igual sobrevive
-      // el remount del monto si la imagen no cabe.
+      // QuotaExceeded en fotos muy grandes — no es crítico.
     }
-  }, [localId, phase, vendorName, boletaMonto, boletaPreview]);
+  }, [localId, phase, vendorName, boletaMonto, membresiaTier, boletaPreview]);
 
   // ── Precalentar conexión Firestore al montar (establece WebSocket antes del escaneo) ──
   useEffect(() => {
@@ -602,12 +739,17 @@ function CanjeContent() {
       } catch { /* best-effort */ }
 
       // ── Detectar tipo de comercio ──────────────────────────────────────────
-      // Comercio asociado → flujo auto-servicio con boleta (sin handshake).
+      // Asociado  → flujo auto-servicio con boleta (monto + foto).
+      // Membresía → flujo auto-servicio con tier fijo (gimnasios + foto).
       // Emprendedor (o si falla la lectura) → flujo handshake normal.
       try {
         const vSnap = await getDoc(doc(db, "entrepreneur_profiles", localId));
         if (vSnap.exists()) {
           setVendorName(vSnap.data().businessName || vSnap.data().nombre || "el local");
+          if (esMembresia(vSnap.data())) {
+            setPhase("membresia");
+            return;
+          }
           if (esAsociado(vSnap.data())) {
             setPhase("boleta");
             return;
@@ -758,8 +900,12 @@ function CanjeContent() {
     router.push("/");
   };
 
-  // ── Enviar boleta (comercio asociado / auto-servicio) ─────────────────────
-  const enviarBoleta = async (monto: number) => {
+  // ── Enviar boleta (asociado o membresía) ──────────────────────────────────
+  // El cuerpo difiere: asociado manda { monto }, membresía manda { tier }.
+  // La subida de la foto y los toasts de error son comunes.
+  const enviarBoletaConPayload = async (
+    extraBody: { monto: number } | { tier: MembresiaTier }
+  ) => {
     const user = auth.currentUser;
     if (!user || !localId) return;
 
@@ -785,7 +931,6 @@ function CanjeContent() {
       return;
     }
 
-    // Validación de la foto con mensaje claro (evita el error críptico de Storage)
     if (!contentType.startsWith("image/")) {
       toast({ variant: "destructive", title: "Archivo inválido", description: "Debes subir una foto de la boleta (imagen)." });
       return;
@@ -798,9 +943,8 @@ function CanjeContent() {
     setBoletaLoading(true);
     try {
       const idToken = await user.getIdToken();
-      // Subir foto de la boleta a Storage. NO leemos la URL aquí: la regla de
-      // lectura de boletas es solo-staff (privacidad), así que el cliente solo
-      // sube y envía el path. El panel moderador (staff) resuelve la URL al auditar.
+      // Subir foto a Storage. NO leemos la URL aquí: la regla de lectura es
+      // solo-staff (privacidad); el cliente solo sube y envía el path.
       const path = `boletas/${localId}/${Date.now()}_${user.uid}.jpg`;
       const sref = storageRef(storage, path);
       await uploadBytes(sref, blob, { contentType });
@@ -808,7 +952,7 @@ function CanjeContent() {
       const res = await fetch("/api/handshake/boleta-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ vendorId: localId, monto, boletaPath: path }),
+        body: JSON.stringify({ vendorId: localId, boletaPath: path, ...extraBody }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "No se pudo registrar el sello.");
@@ -818,6 +962,7 @@ function CanjeContent() {
       boletaFileRef.current = null;
       setBoletaPreview(null);
       setBoletaMonto("");
+      setMembresiaTier(null);
 
       setSuccessData({
         newTotalSellos: data.nuevoTotal ?? 1,
@@ -830,6 +975,9 @@ function CanjeContent() {
       setBoletaLoading(false);
     }
   };
+
+  const enviarBoleta = (monto: number) => enviarBoletaConPayload({ monto });
+  const enviarMembresia = (tier: MembresiaTier) => enviarBoletaConPayload({ tier });
 
   // ── Reintentar (después de expired/rejected) ──────────────────────────────
   const handleRetry = () => {
@@ -878,6 +1026,27 @@ function CanjeContent() {
         loading={boletaLoading}
         monto={boletaMonto}
         setMonto={setBoletaMonto}
+        preview={boletaPreview}
+        setPreview={setBoletaPreview}
+        fileRef={boletaFileRef}
+      />
+    );
+  }
+
+  if (phase === "membresia") {
+    return (
+      <MembresiaForm
+        vendorName={vendorName}
+        onSubmit={enviarMembresia}
+        onCancel={() => {
+          if (localId) {
+            try { sessionStorage.removeItem(BOLETA_STORAGE_KEY(localId)); } catch { /* */ }
+          }
+          router.push("/");
+        }}
+        loading={boletaLoading}
+        tier={membresiaTier}
+        setTier={setMembresiaTier}
         preview={boletaPreview}
         setPreview={setBoletaPreview}
         fileRef={boletaFileRef}

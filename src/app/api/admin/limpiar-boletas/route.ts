@@ -45,11 +45,11 @@ export async function POST(req: NextRequest) {
 
   const cutoffIso = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
 
-  // Buscar logs de boleta (query de campo único — sin índice compuesto) y filtrar
-  // en memoria por antigüedad + presencia de boletaPath.
+  // Buscar logs con boleta de cualquier flujo auto-servicio (asociado o
+  // membresía). Query "in" evita un índice compuesto y cubre ambos métodos.
   const snap = await adminDb
     .collection("system_logs")
-    .where("metodo", "==", "CLIENT_BOLETA")
+    .where("metodo", "in", ["CLIENT_BOLETA", "CLIENT_MEMBRESIA"])
     .get();
 
   const objetivos = snap.docs.filter((d) => {
