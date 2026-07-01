@@ -148,6 +148,7 @@ export default function ModeradorPage() {
     fechaInicio: "",
   });
   const [creandoPartido, setCreandoPartido] = useState(false);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
@@ -607,6 +608,53 @@ export default function ModeradorPage() {
       });
     } finally {
       setCreandoPartido(false);
+    }
+  };
+
+  const handleBorrarPartido = async (partido: PartidoPendiente) => {
+    if (borrandoId) return;
+    if (typeof window === "undefined") return;
+    const ok = window.confirm(
+      "¿Estás seguro de eliminar este partido? Esta acción no se puede deshacer.",
+    );
+    if (!ok) return;
+
+    setBorrandoId(partido.id);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sesión no válida.");
+      const res = await fetch("/api/mundial/borrar-partido", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ partidoId: partido.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo borrar el partido.");
+      toast({
+        title: "Partido eliminado correctamente",
+        description:
+          data.pronosticosBorrados > 0
+            ? `${partido.equipoA} vs ${partido.equipoB} · ${data.pronosticosBorrados} pronóstico${data.pronosticosBorrados === 1 ? "" : "s"} huérfano${data.pronosticosBorrados === 1 ? "" : "s"} limpiado${data.pronosticosBorrados === 1 ? "" : "s"}.`
+            : `${partido.equipoA} vs ${partido.equipoB}.`,
+      });
+      // Remueve localmente para no depender de un refresh
+      setPartidosPendientes((prev) => prev.filter((p) => p.id !== partido.id));
+      setResolverDraft((prev) => {
+        const next = { ...prev };
+        delete next[partido.id];
+        return next;
+      });
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al borrar",
+        description: e?.message ?? "Intenta nuevamente.",
+      });
+    } finally {
+      setBorrandoId(null);
     }
   };
 
@@ -1321,9 +1369,23 @@ export default function ModeradorPage() {
                 return (
                   <div
                     key={p.id}
-                    className="rounded-2xl border border-slate-100 bg-white p-4 md:p-5 shadow-sm"
+                    className="relative rounded-2xl border border-slate-100 bg-white p-4 md:p-5 shadow-sm"
                   >
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => handleBorrarPartido(p)}
+                      disabled={borrandoId === p.id}
+                      title="Eliminar partido"
+                      aria-label={`Eliminar partido ${p.equipoA} vs ${p.equipoB}`}
+                      className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-wait"
+                    >
+                      {borrandoId === p.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-3 pr-8">
                       <span>{p.fase ?? "Fase de grupos"}</span>
                       <span className="text-slate-400">{fechaTxt}</span>
                     </div>

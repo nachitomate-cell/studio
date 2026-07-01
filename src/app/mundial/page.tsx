@@ -101,6 +101,19 @@ export default function MundialPage() {
   const [ranking, setRanking] = useState<Ranking | null>(null);
   const [rankingLoading, setRankingLoading] = useState(false);
 
+  // Pulso breve al contador de "Ganados" al entrar a la página, para llamar
+  // la atención sobre saldo actualizado (ej. tras cerrar un partido).
+  const [pulseGanados, setPulseGanados] = useState(true);
+  useEffect(() => {
+    const id = setTimeout(() => setPulseGanados(false), 3000);
+    return () => clearTimeout(id);
+  }, []);
+
+  // Asegurar que el usuario aterrice viendo los "Próximos Partidos" al entrar.
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, []);
+
   const [unlocking, setUnlocking] = useState(false);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [draft, setDraft] = useState<Record<string, { a: string; b: string }>>({});
@@ -166,11 +179,17 @@ export default function MundialPage() {
           headers: { Authorization: `Bearer ${idToken}` },
         });
         const data = await res.json();
-        if (!cancelled && res.ok) {
-          setRanking({ totalJugadores: data.totalJugadores ?? 0, top5: data.top5 ?? [] });
+        if (cancelled) return;
+        if (!res.ok) {
+          console.warn("[ranking] respuesta no OK:", res.status, data);
+          return;
         }
+        setRanking({
+          totalJugadores: data.totalJugadores ?? 0,
+          top5: data.top5 ?? [],
+        });
       } catch (e) {
-        console.warn("[ranking]", e);
+        console.warn("[ranking] fetch falló:", e);
       } finally {
         if (!cancelled) setRankingLoading(false);
       }
@@ -288,18 +307,26 @@ export default function MundialPage() {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div className="flex-1">
-            <h1 className="text-lg font-black text-slate-800">Polla Mundialista</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-black text-slate-800 leading-tight">Polla Mundialista</h1>
             <p className="text-xs text-slate-400 font-medium">
               {sellos} sello{sellos !== 1 ? "s" : ""} · {unlocked ? "Pase Libre activo" : "Bloqueado"}
             </p>
           </div>
-          <div
-            className="px-3 py-1.5 rounded-2xl font-black text-sm"
-            style={{ backgroundColor: "rgba(211,182,115,0.12)", color: "#D3B673" }}
-          >
-            {sellos} ⭐
-          </div>
+          {unlocked && (
+            <div
+              className={`flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 px-3 py-1 rounded-full ${
+                pulseGanados ? "animate-pulse" : ""
+              }`}
+              title="Sellos ganados en el torneo"
+            >
+              <Trophy className="w-3.5 h-3.5 text-yellow-600" />
+              <span className="text-xs font-bold text-slate-600 whitespace-nowrap">
+                Ganados:{" "}
+                <span className="text-yellow-600 font-black">{mundialPuntos ?? 0}</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -588,9 +615,20 @@ function PartidosFeed({
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {partidos.map((p) => {
+  // Partidos vienen ordenados asc por fechaInicio desde el snapshot.
+  // Próximos = no finalizados (asc). Finalizados = finalizados, más recientes primero.
+  const proximosPartidos = partidos.filter((p) => p.finalizado !== true);
+  const partidosFinalizados = partidos
+    .filter((p) => p.finalizado === true)
+    .slice()
+    .reverse();
+
+  // "En vivo" = comenzaron pero aún no se registró el resultado.
+  const enVivoCount = proximosPartidos.filter(
+    (p) => p.fechaInicio.toMillis() <= ahoraMs,
+  ).length;
+
+  const renderPartidoCard = (p: Partido) => {
         const pron = pronosticos[p.id];
         const isFinalizado = p.finalizado === true;
         const isLocked = !isFinalizado && p.fechaInicio.toMillis() <= ahoraMs;
@@ -615,7 +653,7 @@ function PartidosFeed({
         return (
           <Card
             key={p.id}
-            className="rounded-2xl border border-gray-100 shadow-sm bg-gradient-to-b from-white to-gray-50/50 overflow-hidden"
+            className="rounded-2xl border border-gray-100 shadow-sm bg-gradient-to-b from-white to-gray-50/50 overflow-hidden mb-3"
           >
             <div className="p-4 sm:p-5">
               {/* Cabecera: fase (izq) · fecha/estado (der) — apilable en móvil */}
@@ -742,36 +780,91 @@ function PartidosFeed({
                 </div>
               </div>
             ) : (
-              <div className="px-5 pb-5 space-y-2">
-                <div className="rounded-xl bg-slate-900 px-4 py-3 text-center">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
-                    Resultado Final
-                  </p>
-                  {pron && (
-                    <p className="mt-1 text-[11px] font-bold text-slate-300">
-                      Tú apostaste: {pron.golesA} - {pron.golesB}
-                    </p>
-                  )}
+              <div className="px-5 pb-5 flex flex-col items-center gap-1 mt-3">
+                {/* Fila superior: Resultado Real (chip robusto) */}
+                <div className="w-full rounded-xl bg-slate-900 text-white px-4 py-2.5 text-center shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 mr-2">
+                    Resultado Real
+                  </span>
+                  <span className="text-lg font-black tabular-nums">
+                    {typeof p.golesA === "number" ? p.golesA : "—"}
+                    <span className="mx-2 text-slate-500">-</span>
+                    {typeof p.golesB === "number" ? p.golesB : "—"}
+                  </span>
                 </div>
 
-                {pron?.resuelto && typeof pron.sellosGanados === "number" && (
-                  <div
-                    className={
-                      pron.sellosGanados > 0
-                        ? "rounded-xl px-4 py-3 text-center bg-emerald-500 text-white font-black shadow-sm"
-                        : "rounded-xl px-4 py-3 text-center bg-gray-100 text-gray-500 font-bold"
-                    }
-                  >
-                    {pron.sellosGanados > 0
-                      ? `🎉 ¡Ganaste ${pron.sellosGanados} ${pron.sellosGanados === 1 ? "sello" : "sellos"}!`
-                      : "No acertaste esta vez"}
-                  </div>
-                )}
+                {/* Fila inferior: Tu pronóstico + badge de sellos */}
+                <div className="w-full rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-2.5 flex items-center justify-between gap-3">
+                  <span className="text-xs font-medium text-gray-600">
+                    Tu pronóstico:{" "}
+                    <span className="font-bold text-gray-800 tabular-nums">
+                      {pron ? `${pron.golesA} - ${pron.golesB}` : "—"}
+                    </span>
+                  </span>
+                  {pron?.resuelto && typeof pron.sellosGanados === "number" ? (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-black shrink-0 ${
+                        pron.sellosGanados > 0
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      +{pron.sellosGanados} {pron.sellosGanados === 1 ? "Sello" : "Sellos"}
+                    </span>
+                  ) : pron ? (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-black bg-gray-100 text-gray-400 shrink-0">
+                      Pendiente
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-black bg-gray-100 text-gray-400 shrink-0">
+                      Sin apuesta
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </Card>
         );
-      })}
+      };
+
+  return (
+    <div>
+      {/* Sección 1 · Próximos partidos */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+            ⚽ Próximos Partidos
+          </h2>
+          {enVivoCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-600 text-[11px] font-black uppercase tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              En vivo · {enVivoCount}
+            </span>
+          )}
+        </div>
+
+        {proximosPartidos.length === 0 ? (
+          <Card className="p-8 text-center border-dashed border-slate-200 bg-white">
+            <Trophy className="w-10 h-10 mx-auto text-slate-300" />
+            <p className="mt-4 text-slate-500 font-medium">
+              No hay partidos próximos por ahora, ¡vuelve pronto!
+            </p>
+          </Card>
+        ) : (
+          proximosPartidos.map(renderPartidoCard)
+        )}
+      </section>
+
+      {/* Sección 2 · Historial de resultados */}
+      {partidosFinalizados.length > 0 && (
+        <section className="mt-8">
+          <div className="border-t border-slate-200 mb-6" />
+          <h2 className="text-lg font-bold text-gray-500 mb-4 flex items-center gap-2">
+            📜 Historial de Resultados
+          </h2>
+          {partidosFinalizados.map(renderPartidoCard)}
+        </section>
+      )}
     </div>
   );
 }
