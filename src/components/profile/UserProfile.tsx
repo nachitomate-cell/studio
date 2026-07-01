@@ -19,7 +19,7 @@ import {
   Clock, Bell, CheckCircle2,
   ExternalLink, Sparkles,
   Calendar, FlaskConical, Navigation,
-  LayoutDashboard, AlertTriangle, Trash2,
+  LayoutDashboard, ShieldCheck, AlertTriangle, Trash2,
   Loader2, Info, MessageSquare, ChevronRight,
   Copy, Share2, Users,
   Sun, TreePine, Backpack, Bird, Leaf, Music, Heart, ShoppingBag, Pencil, Flower2, Flame,
@@ -1395,6 +1395,28 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                 </Badge>
               )}
             </div>
+
+            {/* Acceso directo a paneles de gestión (admin/director) */}
+            {(isAdmin || isDirector) && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {isAdmin && (
+                  <Link
+                    href="/moderador"
+                    className="flex-1 min-w-[140px] flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-sm active:scale-[0.98] transition-all"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-amber-300" />
+                    Panel Moderador
+                  </Link>
+                )}
+                <Link
+                  href="/director"
+                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-sm active:scale-[0.98] transition-all"
+                >
+                  <LayoutDashboard className="w-4 h-4 text-indigo-200" />
+                  Panel Director
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 

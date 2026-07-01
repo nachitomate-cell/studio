@@ -7,6 +7,14 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "usuarios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mundialUnlocked", "order": "ASCENDING" },
+        { "fieldPath": "mundialPuntos", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

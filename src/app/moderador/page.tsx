@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, updateDoc, doc, limit, orderBy, getDoc, setDoc, writeBatch, increment, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, limit, orderBy, getDoc, setDoc, writeBatch, increment, addDoc, Timestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,6 +122,33 @@ export default function ModeradorPage() {
   // Refresh manual (reemplaza onSnapshot)
   const [refreshing, setRefreshing] = useState(false);
 
+  // Seed de partidos del mundial (utilidad de desarrollo)
+  const [seedingMundial, setSeedingMundial] = useState(false);
+
+  // Panel de resolución de partidos del mundial
+  type PartidoPendiente = {
+    id: string;
+    equipoA: string;
+    equipoB: string;
+    banderaA?: string;
+    banderaB?: string;
+    fase?: string;
+    fechaInicio?: Timestamp;
+  };
+  const [partidosPendientes, setPartidosPendientes] = useState<PartidoPendiente[]>([]);
+  const [loadingPartidos, setLoadingPartidos] = useState(false);
+  const [resolviendoId, setResolviendoId] = useState<string | null>(null);
+  const [resolverDraft, setResolverDraft] = useState<Record<string, { a: string; b: string }>>({});
+
+  // Formulario de alta manual de partidos del mundial
+  const [nuevoPartido, setNuevoPartido] = useState({
+    equipoA: "",
+    equipoB: "",
+    fase: "Octavos de final",
+    fechaInicio: "",
+  });
+  const [creandoPartido, setCreandoPartido] = useState(false);
+
   // PIN — con bloqueo por intentos fallidos
   const [pinVerified, setPinVerified] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -162,6 +189,7 @@ export default function ModeradorPage() {
       fetchLiveData();
       fetchPendingStamps();
       fetchVendorTipos();
+      fetchPartidosPendientes();
     });
 
     return () => { unsubscribe(); };
@@ -402,6 +430,183 @@ export default function ModeradorPage() {
       toast({ variant: "destructive", title: "Error en recálculo", description: e.message });
     } finally {
       setRecalcSocios(false);
+    }
+  };
+
+  const handleSeedMundial = async () => {
+    if (seedingMundial) return;
+    setSeedingMundial(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sesión no válida.");
+      const res = await fetch("/api/mundial/seed", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudieron sembrar los partidos.");
+      const limpiezaTxt =
+        (data.legacyPartidosBorrados ?? 0) > 0
+          ? ` · limpió ${data.legacyPartidosBorrados} legacy + ${data.legacyPronosticosBorrados ?? 0} pronósticos huérfanos`
+          : "";
+      toast({
+        title: "Partidos oficiales cargados 🏆",
+        description: `${data.count} partidos escritos en mundial_partidos${limpiezaTxt}.`,
+      });
+      // Refrescar la lista de pendientes tras sembrar
+      fetchPartidosPendientes();
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al sembrar partidos",
+        description: e?.message ?? "Intenta nuevamente.",
+      });
+    } finally {
+      setSeedingMundial(false);
+    }
+  };
+
+  // Cargar partidos con finalizado != true.
+  // Firestore no soporta `!=` con orderBy cross-field sin índice, así que
+  // filtramos client-side leyendo el orderBy por fechaInicio.
+  const fetchPartidosPendientes = async () => {
+    setLoadingPartidos(true);
+    try {
+      const snap = await getDocs(
+        query(collection(db, "mundial_partidos"), orderBy("fechaInicio", "asc")),
+      );
+      const list: PartidoPendiente[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as any;
+        if (data.finalizado === true) return;
+        list.push({
+          id: d.id,
+          equipoA: data.equipoA ?? "Equipo A",
+          equipoB: data.equipoB ?? "Equipo B",
+          banderaA: data.banderaA,
+          banderaB: data.banderaB,
+          fase: data.fase,
+          fechaInicio: data.fechaInicio,
+        });
+      });
+      setPartidosPendientes(list);
+    } catch (e: any) {
+      console.error("[fetchPartidosPendientes]", e);
+      toast({
+        variant: "destructive",
+        title: "No se pudieron cargar los partidos",
+        description: e?.message ?? "Intenta nuevamente.",
+      });
+    } finally {
+      setLoadingPartidos(false);
+    }
+  };
+
+  const handleResolverPartido = async (partido: PartidoPendiente) => {
+    const d = resolverDraft[partido.id];
+    const golesA = Number(d?.a);
+    const golesB = Number(d?.b);
+    if (!Number.isInteger(golesA) || !Number.isInteger(golesB) || golesA < 0 || golesB < 0) {
+      toast({
+        variant: "destructive",
+        title: "Marcador inválido",
+        description: "Ingresa dos números enteros no negativos.",
+      });
+      return;
+    }
+    setResolviendoId(partido.id);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sesión no válida.");
+      const res = await fetch("/api/mundial/resolver", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ partidoId: partido.id, golesA, golesB }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo resolver el partido.");
+      toast({
+        title: `Partido finalizado ⚽`,
+        description: `${partido.equipoA} ${golesA} - ${golesB} ${partido.equipoB}. ${data.sellosRepartidos ?? 0} sellos repartidos entre ${(data.exactos ?? 0) + (data.ganador ?? 0)} pronósticos.`,
+      });
+      // Remover localmente para que desaparezca la tarjeta
+      setPartidosPendientes((prev) => prev.filter((p) => p.id !== partido.id));
+      setResolverDraft((prev) => {
+        const next = { ...prev };
+        delete next[partido.id];
+        return next;
+      });
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al resolver",
+        description: e?.message ?? "Intenta nuevamente.",
+      });
+    } finally {
+      setResolviendoId(null);
+    }
+  };
+
+  const handleCrearPartido = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (creandoPartido) return;
+    const { equipoA, equipoB, fase, fechaInicio } = nuevoPartido;
+    if (!equipoA.trim() || !equipoB.trim() || !fase.trim() || !fechaInicio) {
+      toast({
+        variant: "destructive",
+        title: "Campos incompletos",
+        description: "Completa equipos, fase y fecha antes de crear el partido.",
+      });
+      return;
+    }
+    setCreandoPartido(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sesión no válida.");
+      // `datetime-local` devuelve un string naive ("2026-07-05T18:00"). El
+      // constructor de Date lo interpreta en la zona horaria del navegador y
+      // .toISOString() lo convierte a UTC — así el server guarda el instante
+      // correcto sin importar la zona del servidor.
+      const isoUtc = new Date(fechaInicio).toISOString();
+
+      const res = await fetch("/api/mundial/crear-partido", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          equipoA: equipoA.trim(),
+          equipoB: equipoB.trim(),
+          fase: fase.trim(),
+          fechaInicio: isoUtc,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo crear el partido.");
+      toast({
+        title: "Partido creado ⚽",
+        description: `${data.equipoA} vs ${data.equipoB} (${data.fase}).`,
+      });
+      // Reset formulario + refresh lista pendientes
+      setNuevoPartido({
+        equipoA: "",
+        equipoB: "",
+        fase: fase, // conservamos la fase para agilizar creaciones en tanda
+        fechaInicio: "",
+      });
+      fetchPartidosPendientes();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al crear partido",
+        description: err?.message ?? "Intenta nuevamente.",
+      });
+    } finally {
+      setCreandoPartido(false);
     }
   };
 
@@ -829,6 +1034,26 @@ export default function ModeradorPage() {
           ))}
         </div>
 
+        {/* UTILIDADES DE DESARROLLO (sutil) */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleSeedMundial}
+            disabled={seedingMundial}
+            className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors underline-offset-4 hover:underline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+            title="Inserta 3 partidos de prueba en mundial_partidos"
+          >
+            {seedingMundial ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Cargando partidos…
+              </>
+            ) : (
+              <>🧪 Cargar Partidos de Prueba (Mundial)</>
+            )}
+          </button>
+        </div>
+
         {/* ALTA RÁPIDA DE LOCALES */}
         <Card className="border-none shadow-xl shadow-emerald-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-emerald-100">
           <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
@@ -941,6 +1166,231 @@ export default function ModeradorPage() {
                   )}
                 </AlertDescription>
               </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* CREAR NUEVO PARTIDO (MUNDIAL) */}
+        <Card className="border-none shadow-xl shadow-yellow-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-yellow-100">
+          <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
+            <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              ➕ Crear Nuevo Partido
+            </CardTitle>
+            <p className="text-sm text-slate-500 font-medium mt-1">
+              Añade partidos manualmente cuando se definan los cruces. Puedes escribir <strong>"A definir"</strong> como equipo si aún no lo sabes.
+            </p>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8 bg-slate-50/20">
+            <form onSubmit={handleCrearPartido} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Equipo A
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Ej: Argentina"
+                    value={nuevoPartido.equipoA}
+                    onChange={(e) =>
+                      setNuevoPartido((prev) => ({ ...prev, equipoA: e.target.value }))
+                    }
+                    disabled={creandoPartido}
+                    className="h-12 rounded-2xl border-slate-200 bg-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Equipo B
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Ej: Francia · o 'A definir'"
+                    value={nuevoPartido.equipoB}
+                    onChange={(e) =>
+                      setNuevoPartido((prev) => ({ ...prev, equipoB: e.target.value }))
+                    }
+                    disabled={creandoPartido}
+                    className="h-12 rounded-2xl border-slate-200 bg-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Fase
+                  </label>
+                  <select
+                    value={nuevoPartido.fase}
+                    onChange={(e) =>
+                      setNuevoPartido((prev) => ({ ...prev, fase: e.target.value }))
+                    }
+                    disabled={creandoPartido}
+                    className="w-full h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:outline-none focus:border-yellow-500 disabled:opacity-60"
+                  >
+                    <option value="Eliminatoria de 32">Eliminatoria de 32</option>
+                    <option value="Octavos de final">Octavos de final</option>
+                    <option value="Cuartos de final">Cuartos de final</option>
+                    <option value="Semifinales">Semifinales</option>
+                    <option value="Final">Final</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Fecha y Hora
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    value={nuevoPartido.fechaInicio}
+                    onChange={(e) =>
+                      setNuevoPartido((prev) => ({ ...prev, fechaInicio: e.target.value }))
+                    }
+                    disabled={creandoPartido}
+                    className="h-12 rounded-2xl border-slate-200 bg-white"
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={creandoPartido}
+                className="w-full h-12 rounded-2xl font-black text-sm bg-slate-900 hover:bg-slate-800 text-amber-100"
+              >
+                {creandoPartido ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creando…
+                  </span>
+                ) : (
+                  "Crear Partido"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* RESOLVER PARTIDOS (MUNDIAL) */}
+        <Card className="border-none shadow-xl shadow-amber-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-amber-100">
+          <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  ⚽ Resolver Partidos (Mundial)
+                </CardTitle>
+                <p className="text-sm text-slate-500 font-medium mt-1">
+                  Ingresa el marcador real de cada partido. Se repartirán <strong>2 sellos</strong> por marcador exacto y <strong>1 sello</strong> por acertar al ganador (o empate).
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchPartidosPendientes}
+                disabled={loadingPartidos}
+                className="rounded-2xl h-10 px-4 border-slate-200 text-slate-600 font-bold gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingPartidos ? "animate-spin" : ""}`} />
+                Actualizar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8 space-y-3 bg-slate-50/20">
+            {loadingPartidos && partidosPendientes.length === 0 ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+              </div>
+            ) : partidosPendientes.length === 0 ? (
+              <div className="text-center py-10 rounded-2xl border-2 border-dashed border-slate-200 bg-white">
+                <p className="text-slate-500 font-medium">
+                  No hay partidos pendientes por resolver.
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Cuando termine un partido, aparecerá aquí para ingresar el marcador.
+                </p>
+              </div>
+            ) : (
+              partidosPendientes.map((p) => {
+                const draft = resolverDraft[p.id] ?? { a: "", b: "" };
+                const isResolving = resolviendoId === p.id;
+                const fechaTxt = p.fechaInicio && typeof (p.fechaInicio as any).toDate === "function"
+                  ? (p.fechaInicio as Timestamp).toDate().toLocaleString("es-CL", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "—";
+
+                return (
+                  <div
+                    key={p.id}
+                    className="rounded-2xl border border-slate-100 bg-white p-4 md:p-5 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-3">
+                      <span>{p.fase ?? "Fase de grupos"}</span>
+                      <span className="text-slate-400">{fechaTxt}</span>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-4">
+                      <div className="text-right">
+                        <div className="text-2xl leading-none">{p.banderaA ?? "🏳️"}</div>
+                        <div className="mt-1 font-black text-slate-800 text-sm md:text-base">
+                          {p.equipoA}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={30}
+                          value={draft.a}
+                          onChange={(e) =>
+                            setResolverDraft((prev) => ({
+                              ...prev,
+                              [p.id]: { a: e.target.value, b: prev[p.id]?.b ?? "" },
+                            }))
+                          }
+                          disabled={isResolving}
+                          className="w-14 h-12 text-center text-lg font-black rounded-xl border-slate-200 bg-slate-50"
+                        />
+                        <span className="text-slate-300 font-black">:</span>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={30}
+                          value={draft.b}
+                          onChange={(e) =>
+                            setResolverDraft((prev) => ({
+                              ...prev,
+                              [p.id]: { a: prev[p.id]?.a ?? "", b: e.target.value },
+                            }))
+                          }
+                          disabled={isResolving}
+                          className="w-14 h-12 text-center text-lg font-black rounded-xl border-slate-200 bg-slate-50"
+                        />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-2xl leading-none">{p.banderaB ?? "🏳️"}</div>
+                        <div className="mt-1 font-black text-slate-800 text-sm md:text-base">
+                          {p.equipoB}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => handleResolverPartido(p)}
+                      disabled={isResolving}
+                      className="mt-4 w-full h-11 rounded-xl font-black text-sm bg-slate-900 hover:bg-slate-800 text-amber-100"
+                    >
+                      {isResolving ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Repartiendo sellos…
+                        </span>
+                      ) : (
+                        "Finalizar y Repartir Sellos"
+                      )}
+                    </Button>
+                  </div>
+                );
+              })
             )}
           </CardContent>
         </Card>
