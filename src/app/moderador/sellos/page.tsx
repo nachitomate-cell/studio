@@ -40,6 +40,7 @@ interface LogEntry {
   anulada?: boolean;
   boletaPath?: string;
   usuarioResuelto?: string;
+  origenBienvenida?: string; // 'qr' | 'instagram' | undefined (registros antiguos)
 }
 
 // metodos auto-servicio (con boleta a auditar). Mismo flujo de UI moderador.
@@ -141,8 +142,24 @@ function EstadoBadge({ tipo }: { tipo: string }) {
 
 // Etiqueta del local / método — reutilizada en tabla (desktop) y tarjetas (móvil)
 function LocalLabel({ log, vendors }: { log: LogEntry; vendors: Record<string, string> }) {
-  if (log.metodo === "BIENVENIDA")
+  if (log.metodo === "BIENVENIDA") {
+    if (log.origenBienvenida === "instagram") {
+      return (
+        <span className="inline-flex items-center gap-1 font-bold text-xs bg-pink-100 text-pink-700 border border-pink-300 px-2 py-1 rounded-full">
+          🎁 Bienvenida · 📸 Instagram
+        </span>
+      );
+    }
+    if (log.origenBienvenida === "qr") {
+      return (
+        <span className="inline-flex items-center gap-1 font-bold text-xs bg-blue-100 text-blue-700 border border-blue-300 px-2 py-1 rounded-full">
+          🎁 Bienvenida · 📱 QR Físico
+        </span>
+      );
+    }
+    // Registros antiguos sin origen: badge legado
     return <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full">🎁 Sello de Bienvenida</span>;
+  }
   if (log.metodo === "SISTEMA")
     return <span className="inline-flex items-center gap-1 text-blue-600 font-bold text-xs bg-blue-50 px-2 py-1 rounded-full">⚡ Bono de Login</span>;
   if (log.metodo === "REFERIDO")
@@ -228,6 +245,8 @@ export default function ModeradorSellosPage() {
   // Filtra por tipo de comercio: "" todos · "asociado" solo comercios asociados (boleta auto-servicio)
   // · "emprendedor" solo emprendedores (handshake/vendor-scan/cliente-scan).
   const [tipoComercioFilter, setTipoComercioFilter] = useState("");
+  // Filtro rápido de sellos de bienvenida: "" (sin filtro), "todas", "qr", "instagram", "directo"
+  const [bienvenidaFilter, setBienvenidaFilter] = useState("");
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -369,6 +388,7 @@ export default function ModeradorSellosPage() {
             numSellos: d.data().numSellos,
             anulada: d.data().anulada === true,
             boletaPath: d.data().boletaPath || undefined,
+            origenBienvenida: d.data().origenBienvenida || undefined,
           }))
           .filter((l) => l.tipo === "FIDELIZACION" || l.tipo === "SELLO_RECHAZADO");
 
@@ -516,6 +536,13 @@ export default function ModeradorSellosPage() {
     if (tipoComercioFilter === "asociado" && l.metodo !== "CLIENT_BOLETA") return false;
     if (tipoComercioFilter === "membresia" && l.metodo !== "CLIENT_MEMBRESIA") return false;
     if (tipoComercioFilter === "emprendedor" && tieneBoleta(l.metodo)) return false;
+    if (bienvenidaFilter) {
+      if (l.metodo !== "BIENVENIDA") return false;
+      if (bienvenidaFilter === "qr" && l.origenBienvenida !== "qr") return false;
+      if (bienvenidaFilter === "instagram" && l.origenBienvenida !== "instagram") return false;
+      if (bienvenidaFilter === "directo" && l.origenBienvenida) return false;
+      // "todas" no aplica sub-filtro
+    }
     const nombre = (l.usuarioResuelto || l.usuario).toLowerCase();
     if (clienteFilter && !nombre.includes(clienteFilter.toLowerCase())) return false;
     return true;
@@ -560,7 +587,16 @@ export default function ModeradorSellosPage() {
         Hora: dt.hora,
         Cliente: l.usuarioResuelto || l.usuario,
         "RUT/Tel": l.usuarioId,
-        Local: l.metodo === "BIENVENIDA" ? "Sello de Bienvenida" : l.metodo === "SISTEMA" ? "Bono de Login" : l.metodo === "REFERIDO" ? `Registro Referido · ${vendors[l.vendedorId] || l.vendedorId || "—"}` : l.metodo === "PERFIL_COMPLETO" ? "Perfil Completado" : vendors[l.vendedorId] || l.vendedorId || "—",
+        Local: l.metodo === "BIENVENIDA"
+          ? (l.origenBienvenida === "instagram"
+              ? "Sello de Bienvenida · Instagram"
+              : l.origenBienvenida === "qr"
+                ? "Sello de Bienvenida · QR Físico"
+                : "Sello de Bienvenida")
+          : l.metodo === "SISTEMA" ? "Bono de Login"
+          : l.metodo === "REFERIDO" ? `Registro Referido · ${vendors[l.vendedorId] || l.vendedorId || "—"}`
+          : l.metodo === "PERFIL_COMPLETO" ? "Perfil Completado"
+          : vendors[l.vendedorId] || l.vendedorId || "—",
         Monto: l.monto && l.monto > 0 ? l.monto : 0,
         Sellos: `+${l.numSellos ?? 1}`,
         Estado: estado,
@@ -675,10 +711,11 @@ export default function ModeradorSellosPage() {
     setClienteFilter("");
     setEstadoFilter("");
     setTipoComercioFilter("");
+    setBienvenidaFilter("");
     setCurrentPage(1);
   };
 
-  const hayFiltros = desde || hasta || vendorFilter || clienteFilter || estadoFilter || tipoComercioFilter;
+  const hayFiltros = desde || hasta || vendorFilter || clienteFilter || estadoFilter || tipoComercioFilter || bienvenidaFilter;
 
   // ── Render: loading / no autorizado ───────────────────────────────────────
   if (authLoading) {
@@ -876,6 +913,22 @@ export default function ModeradorSellosPage() {
               <option value="asociado">Comercios asociados (con boleta)</option>
               <option value="membresia">Membresías (gimnasios)</option>
               <option value="emprendedor">Emprendedores (QR / handshake)</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 col-span-2 md:col-auto">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              🎁 Bienvenidas
+            </label>
+            <select
+              value={bienvenidaFilter}
+              onChange={(e) => { setBienvenidaFilter(e.target.value); setCurrentPage(1); }}
+              className="h-11 md:h-10 w-full px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:border-primary transition-colors"
+            >
+              <option value="">Ver todos los registros</option>
+              <option value="todas">Solo Bienvenidas (todas)</option>
+              <option value="qr">Bienvenida · 📱 QR Físico</option>
+              <option value="instagram">Bienvenida · 📸 Instagram</option>
+              <option value="directo">Bienvenida · directo/legado</option>
             </select>
           </div>
           <div className="flex flex-col gap-1 col-span-2 md:flex-1 md:min-w-[180px]">

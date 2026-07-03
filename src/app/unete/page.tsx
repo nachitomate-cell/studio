@@ -265,6 +265,14 @@ export default function UnetePage() {
             localStorage.removeItem("url_retorno");
           } catch { /* no crítico */ }
         } else if (bienvenidaActivo) {
+          // Trazabilidad de origen. Los QR físicos están impresos con la URL base
+          // (sin params), así que el default es "qr". Solo marcamos Instagram cuando
+          // el parámetro es explícito o llega el fbclid (IG lo añade siempre).
+          const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+          const rawSource = (urlParams?.get("source") || urlParams?.get("utm_source") || "").toLowerCase();
+          const hasFbclid = !!urlParams?.get("fbclid");
+          const origenBienvenida = rawSource === "instagram" || hasFbclid ? "instagram" : "qr";
+
           addDoc(collection(db, "system_logs"), {
             usuario: nombre.trim(),
             usuarioId: newUser.uid,
@@ -273,6 +281,7 @@ export default function UnetePage() {
             tipo: "FIDELIZACION",
             metodo: "BIENVENIDA",
             cantidad: bienvenidaCantidad,
+            origenBienvenida,
           }).catch(() => {});
           syncUserStampsToWallet(newUser.uid, bienvenidaCantidad);
         }
