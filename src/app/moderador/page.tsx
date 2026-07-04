@@ -1082,22 +1082,23 @@ export default function ModeradorPage() {
           ))}
         </div>
 
-        {/* UTILIDADES DE DESARROLLO (sutil) */}
+        {/* SEMBRADO DEL CALENDARIO MUNDIALISTA */}
         <div className="flex justify-end">
           <button
             type="button"
             onClick={handleSeedMundial}
             disabled={seedingMundial}
-            className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors underline-offset-4 hover:underline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-            title="Inserta 3 partidos de prueba en mundial_partidos"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm text-white shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "linear-gradient(135deg, #C9920A 0%, #E8B028 100%)" }}
+            title="Reescribe el calendario oficial en mundial_partidos (idempotente por ID)"
           >
             {seedingMundial ? (
               <>
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Cargando partidos…
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sembrando partidos…
               </>
             ) : (
-              <>🧪 Cargar Partidos de Prueba (Mundial)</>
+              <>🏆 Sembrar / Recargar Partidos del Mundial</>
             )}
           </button>
         </div>

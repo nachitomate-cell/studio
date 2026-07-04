@@ -24,7 +24,18 @@ const ROLES_PERMITIDOS = ["admin", "director", "director_patio", "moderador"];
 
 // IDs de sembrados previos (dummy) que se limpian automáticamente al reejecutar.
 // La eliminación es idempotente: si ya no existen, el batch.delete es un no-op.
-const LEGACY_IDS = ["seed-arg-fra", "seed-bra-esp", "seed-ale-por"];
+const LEGACY_IDS = [
+  // Sembrados iniciales dummy
+  "seed-arg-fra", "seed-bra-esp", "seed-ale-por",
+  // Eliminatoria de 32 (jugada antes del 4 de julio)
+  "mex-ecu", "ing-rdc", "bel-sen", "usa-bih",
+  "esp-aut", "por-cro", "sui-arg",
+  "aus-egi", "arg-cab", "col-gha",
+  // Octavos legacy con IDs cortos (reemplazados por -oct o ya jugados)
+  "can-mar", "par-fra", "bra-nor",
+  // Cuartos inventados de la iteración anterior (equipos incorrectos)
+  "qf-arg-ecu", "qf-esp-ale", "qf-fra-por", "qf-bra-uru",
+];
 
 // Calendario oficial. Añade filas aquí conforme se definan los cruces.
 // Fechas en ISO 8601 con offset -04:00 (hora de Chile).
@@ -37,33 +48,38 @@ type PartidoSeed = {
   fase: string;
   fechaInicio: string;
   finalizado: boolean;
+  enJuego?: boolean;
   golesA?: number;
   golesB?: number;
 };
 
 const partidosReales: PartidoSeed[] = [
-  // Partido ya finalizado (Ayer)
-  { id: "mex-ecu", equipoA: "México", banderaA: "🇲🇽", equipoB: "Ecuador", banderaB: "🇪🇨", fase: "Eliminatoria de 32", fechaInicio: "2026-06-30T12:00:00-04:00", finalizado: true, golesA: 2, golesB: 0 },
+  // ── Octavos de final (Sáb 04-07 → Mar 07-07) ───────────────────────────
+  // Paraguay 0-0 Francia: en entretiempo al momento del seed (04-07).
+  { id: "par-fra-oct", equipoA: "Paraguay",        banderaA: "🇵🇾", equipoB: "Francia",        banderaB: "🇫🇷",                    fase: "Octavos de final", fechaInicio: "2026-07-04T17:00:00-04:00", finalizado: false, enJuego: true, golesA: 0, golesB: 0 },
+  { id: "bra-nor-oct", equipoA: "Brasil",          banderaA: "🇧🇷", equipoB: "Noruega",        banderaB: "🇳🇴",                    fase: "Octavos de final", fechaInicio: "2026-07-05T16:00:00-04:00", finalizado: false },
+  { id: "mex-ing-oct", equipoA: "México",          banderaA: "🇲🇽", equipoB: "Inglaterra",     banderaB: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", fase: "Octavos de final", fechaInicio: "2026-07-05T20:00:00-04:00", finalizado: false },
+  { id: "por-esp-oct", equipoA: "Portugal",        banderaA: "🇵🇹", equipoB: "España",         banderaB: "🇪🇸",                    fase: "Octavos de final", fechaInicio: "2026-07-06T15:00:00-04:00", finalizado: false },
+  { id: "usa-bel-oct", equipoA: "Estados Unidos",  banderaA: "🇺🇸", equipoB: "Bélgica",        banderaB: "🇧🇪",                    fase: "Octavos de final", fechaInicio: "2026-07-06T20:00:00-04:00", finalizado: false },
+  { id: "arg-egi-oct", equipoA: "Argentina",       banderaA: "🇦🇷", equipoB: "Egipto",         banderaB: "🇪🇬",                    fase: "Octavos de final", fechaInicio: "2026-07-07T12:00:00-04:00", finalizado: false },
+  { id: "sui-col-oct", equipoA: "Suiza",           banderaA: "🇨🇭", equipoB: "Colombia",       banderaB: "🇨🇴",                    fase: "Octavos de final", fechaInicio: "2026-07-07T16:00:00-04:00", finalizado: false },
 
-  // Partidos de Hoy (1 de Julio)
-  { id: "ing-rdc", equipoA: "Inglaterra", banderaA: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", equipoB: "RD Congo", banderaB: "🇨🇩", fase: "Eliminatoria de 32", fechaInicio: "2026-07-01T12:00:00-04:00", finalizado: false },
-  { id: "bel-sen", equipoA: "Bélgica", banderaA: "🇧🇪", equipoB: "Senegal", banderaB: "🇸🇳", fase: "Eliminatoria de 32", fechaInicio: "2026-07-01T16:00:00-04:00", finalizado: false },
-  { id: "usa-bih", equipoA: "Estados Unidos", banderaA: "🇺🇸", equipoB: "Bosnia y Herz.", banderaB: "🇧🇦", fase: "Eliminatoria de 32", fechaInicio: "2026-07-01T20:00:00-04:00", finalizado: false },
+  // ── Cuartos de final (Jue 09-07 → Sáb 11-07) ───────────────────────────
+  // Marruecos ya clasificó (Canadá 0-x Marruecos ya jugado).
+  { id: "qf-01", equipoA: "A definir", banderaA: "❓", equipoB: "Marruecos", banderaB: "🇲🇦", fase: "Cuartos de final", fechaInicio: "2026-07-09T16:00:00-04:00", finalizado: false },
+  { id: "qf-02", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Cuartos de final", fechaInicio: "2026-07-10T15:00:00-04:00", finalizado: false },
+  { id: "qf-03", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Cuartos de final", fechaInicio: "2026-07-11T17:00:00-04:00", finalizado: false },
+  { id: "qf-04", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Cuartos de final", fechaInicio: "2026-07-11T21:00:00-04:00", finalizado: false },
 
-  // Partidos de Mañana (2 de Julio)
-  { id: "esp-aut", equipoA: "España", banderaA: "🇪🇸", equipoB: "Austria", banderaB: "🇦🇹", fase: "Eliminatoria de 32", fechaInicio: "2026-07-02T15:00:00-04:00", finalizado: false },
-  { id: "por-cro", equipoA: "Portugal", banderaA: "🇵🇹", equipoB: "Croacia", banderaB: "🇭🇷", fase: "Eliminatoria de 32", fechaInicio: "2026-07-02T19:00:00-04:00", finalizado: false },
-  { id: "sui-arg", equipoA: "Suiza", banderaA: "🇨🇭", equipoB: "Argelia", banderaB: "🇩🇿", fase: "Eliminatoria de 32", fechaInicio: "2026-07-02T23:00:00-04:00", finalizado: false },
+  // ── Semifinales (Mar 14-07 → Mié 15-07) ────────────────────────────────
+  { id: "sf-01", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Semifinal", fechaInicio: "2026-07-14T15:00:00-04:00", finalizado: false },
+  { id: "sf-02", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Semifinal", fechaInicio: "2026-07-15T15:00:00-04:00", finalizado: false },
 
-  // Partidos del Viernes (3 de Julio)
-  { id: "aus-egi", equipoA: "Australia", banderaA: "🇦🇺", equipoB: "Egipto", banderaB: "🇪🇬", fase: "Eliminatoria de 32", fechaInicio: "2026-07-03T14:00:00-04:00", finalizado: false },
-  { id: "arg-cab", equipoA: "Argentina", banderaA: "🇦🇷", equipoB: "Cabo Verde", banderaB: "🇨🇻", fase: "Eliminatoria de 32", fechaInicio: "2026-07-03T18:00:00-04:00", finalizado: false },
-  { id: "col-gha", equipoA: "Colombia", banderaA: "🇨🇴", equipoB: "Ghana", banderaB: "🇬🇭", fase: "Eliminatoria de 32", fechaInicio: "2026-07-03T21:30:00-04:00", finalizado: false },
+  // ── Tercer lugar (Sáb 18-07) ───────────────────────────────────────────
+  { id: "third-place", equipoA: "A definir", banderaA: "🥉", equipoB: "A definir", banderaB: "🥉", fase: "Eliminatoria por el tercer lugar", fechaInicio: "2026-07-18T17:00:00-04:00", finalizado: false },
 
-  // Octavos de final (Sábado 4 y Domingo 5)
-  { id: "can-mar", equipoA: "Canadá", banderaA: "🇨🇦", equipoB: "Marruecos", banderaB: "🇲🇦", fase: "Octavos de final", fechaInicio: "2026-07-04T13:00:00-04:00", finalizado: false },
-  { id: "par-fra", equipoA: "Paraguay", banderaA: "🇵🇾", equipoB: "Francia", banderaB: "🇫🇷", fase: "Octavos de final", fechaInicio: "2026-07-04T17:00:00-04:00", finalizado: false },
-  { id: "bra-nor", equipoA: "Brasil", banderaA: "🇧🇷", equipoB: "Noruega", banderaB: "🇳🇴", fase: "Octavos de final", fechaInicio: "2026-07-05T16:00:00-04:00", finalizado: false },
+  // ── Final (Dom 19-07) ──────────────────────────────────────────────────
+  { id: "final-01", equipoA: "A definir", banderaA: "🏆", equipoB: "A definir", banderaB: "🏆", fase: "Final", fechaInicio: "2026-07-19T15:00:00-04:00", finalizado: false },
 ];
 
 export async function POST(request: Request) {
@@ -133,6 +149,7 @@ export async function POST(request: Request) {
         fase: p.fase,
         fechaInicio: Timestamp.fromDate(new Date(p.fechaInicio)),
         finalizado: p.finalizado,
+        enJuego: p.enJuego === true && !p.finalizado,
         seed: true,
         seededAt: FieldValue.serverTimestamp(),
         seededBy: decoded.uid,
@@ -141,6 +158,10 @@ export async function POST(request: Request) {
         payload.golesA = p.golesA ?? 0;
         payload.golesB = p.golesB ?? 0;
         payload.resueltoEn = FieldValue.serverTimestamp();
+      } else if (p.enJuego) {
+        // Marcador en vivo al momento del seed. Sin resueltoEn.
+        payload.golesA = p.golesA ?? 0;
+        payload.golesB = p.golesB ?? 0;
       }
       batch.set(ref, payload, { merge: true });
     }
