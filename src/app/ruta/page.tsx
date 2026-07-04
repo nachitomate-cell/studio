@@ -9,7 +9,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Map, Loader2, X, ChevronRight, HelpCircle, Share2 } from "lucide-react";
 import { isVendorVisible, getSafeImageUrl } from "@/lib/utils";
-import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Real-time hook ────────────────────────────────────────────────────────────
@@ -54,7 +53,7 @@ function ProgressBar({ visited, total }: { visited: number; total: number }) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-slate-600">Locales descubiertos</span>
-        <span className="text-xs font-black" style={{ color: "#D3B673" }}>
+        <span className="text-xs font-black" style={{ color: "#E6196E" }}>
           {visited} / {total}
         </span>
       </div>
@@ -63,7 +62,7 @@ function ProgressBar({ visited, total }: { visited: number; total: number }) {
           className="h-full rounded-full transition-all duration-700"
           style={{
             width: `${pct}%`,
-            background: "linear-gradient(90deg, #D3B673 0%, #8DC63F 100%)",
+            background: "linear-gradient(90deg, #E6196E 0%, #D3B673 100%)",
           }}
         />
       </div>
@@ -102,11 +101,13 @@ function StampCell({
             ? "border-dashed border-slate-200 bg-slate-50 cursor-pointer active:bg-slate-100"
             : isFrequent
             ? "border-[#D3B673] bg-white"
-            : "border-primary/30 bg-white shadow-sm"
+            : "border-[#E6196E] bg-white shadow-sm"
         }`}
         style={
           isFrequent
             ? { boxShadow: "0 0 20px 4px rgba(211,182,115,0.30), 0 2px 8px rgba(0,0,0,0.08)" }
+            : isActive
+            ? { boxShadow: "0 0 14px 2px rgba(230,25,110,0.22), 0 2px 8px rgba(0,0,0,0.06)" }
             : {}
         }
       >
@@ -141,10 +142,8 @@ function StampCell({
         {/* Stamp count badge */}
         {!isInactive && (
           <div
-            className={`absolute -bottom-2 -right-2 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-md ${
-              isFrequent ? "" : "bg-primary"
-            }`}
-            style={{ backgroundColor: isFrequent ? "#D3B673" : undefined }}
+            className="absolute -bottom-2 -right-2 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-md"
+            style={{ backgroundColor: isFrequent ? "#D3B673" : "#E6196E" }}
           >
             {stampCount}
           </div>
@@ -175,7 +174,7 @@ function StampCell({
       <p
         className="text-[10px] text-center font-bold leading-tight line-clamp-2 transition-colors duration-300"
         style={{
-          color: isFrequent ? "#C9920A" : isActive ? "#334155" : "#94a3b8",
+          color: isFrequent ? "#C9920A" : isActive ? "#E6196E" : "#94a3b8",
         }}
       >
         {vendor.name}
@@ -359,15 +358,31 @@ export default function MiRutaPage() {
         text: "Descubrí esta app hecha por @SynapTechSpA 🚀 synaptechspa.cl",
         url: "https://synaptechspa.cl",
       });
-      await updateDoc(doc(db, "usuarios", userId), { hasSynapTechShared: true });
-      await registrarCompra(db, userId, undefined, false, "synap_share");
-      toast({ title: "¡+1 Sello ganado!", description: "Gracias por compartir SynapTech 🚀" });
-      setShowSynapModal(null);
-      setShowLogoRain(true);
     } catch (err: any) {
       if (err?.name !== "AbortError") {
         toast({ title: "No se pudo compartir", variant: "destructive" });
       }
+      return;
+    }
+
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión activa.");
+      const res = await fetch("/api/synaptech/share-bonus", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo acreditar el sello.");
+      toast({ title: "¡+1 Sello ganado!", description: "Gracias por compartir SynapTech 🚀" });
+      setShowSynapModal(null);
+      setShowLogoRain(true);
+    } catch (err: any) {
+      toast({
+        title: "No se pudo acreditar el sello",
+        description: err?.message ?? "Intenta nuevamente.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -460,8 +475,17 @@ export default function MiRutaPage() {
         >
           <ArrowLeft className="w-6 h-6" />
         </Button>
+        <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 border border-[#E6196E]/25 shadow-sm">
+          <Image
+            src="/curauma/logo-ruta-curauma.png"
+            alt="Logo Ruta Curauma"
+            width={36}
+            height={36}
+            className="object-cover w-full h-full"
+          />
+        </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-black text-slate-800">Mi Ruta</h1>
+          <h1 className="text-xl font-black text-slate-800">Ruta Curauma</h1>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             Álbum de Estampillas
           </p>
@@ -481,14 +505,17 @@ export default function MiRutaPage() {
         {/* Progress card */}
         <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-5 space-y-4">
           <div className="flex items-center gap-3 mb-1">
-            <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ backgroundColor: "rgba(211,182,115,0.12)" }}
-            >
-              <Map className="w-5 h-5" style={{ color: "#D3B673" }} />
+            <div className="w-11 h-11 rounded-2xl overflow-hidden shrink-0 border border-[#E6196E]/25 shadow-sm">
+              <Image
+                src="/curauma/logo-ruta-curauma.png"
+                alt="Logo Ruta Curauma"
+                width={44}
+                height={44}
+                className="object-cover w-full h-full"
+              />
             </div>
             <div>
-              <h2 className="text-sm font-black text-slate-800">Álbum del Patio</h2>
+              <h2 className="text-sm font-black text-slate-800">Ruta Curauma</h2>
               <p className="text-[11px] text-slate-400 font-medium">
                 Visita cada local para iluminar su estampilla
               </p>
@@ -526,7 +553,7 @@ export default function MiRutaPage() {
             Sin visitar
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-primary" />
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#E6196E" }} />
             Visitado
           </div>
           <div className="flex items-center gap-1.5">
@@ -624,16 +651,19 @@ export default function MiRutaPage() {
             {/* Header strip */}
             <div
               className="px-7 pt-8 pb-6"
-              style={{ background: "linear-gradient(135deg, #C9920A22 0%, #8DC63F11 100%)" }}
+              style={{ background: "linear-gradient(135deg, rgba(230,25,110,0.22) 0%, rgba(211,182,115,0.10) 100%)" }}
             >
-              <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
-                style={{ backgroundColor: "rgba(211,182,115,0.15)" }}
-              >
-                <span style={{ fontSize: 28, lineHeight: 1 }}>🗺️</span>
+              <div className="w-14 h-14 rounded-2xl overflow-hidden mb-5 border border-[#E6196E]/40 shadow-md">
+                <Image
+                  src="/curauma/logo-ruta-curauma.png"
+                  alt="Logo Ruta Curauma"
+                  width={56}
+                  height={56}
+                  className="object-cover w-full h-full"
+                />
               </div>
               <h2 className="text-xl font-black text-white leading-snug">
-                Tu Pasaporte<br />Patio Curauma
+                Tu Pasaporte<br />Ruta Curauma
               </h2>
             </div>
 
@@ -673,7 +703,7 @@ export default function MiRutaPage() {
               <div className="space-y-2 pt-1">
                 {[
                   { dot: "#94a3b8", label: "Aún no visitado", sub: "Gris, esperando tu primera visita" },
-                  { dot: "#4ade80", label: "Visitado", sub: "Color completo · contador de sellos" },
+                  { dot: "#E6196E", label: "Visitado", sub: "Rosa vibrante · contador de sellos" },
                   { dot: "#D3B673", label: "Frecuente (5+ sellos)", sub: "Brillo dorado · tarjeta completada" },
                 ].map(({ dot, label, sub }) => (
                   <div key={label} className="flex items-center gap-3">
@@ -692,9 +722,9 @@ export default function MiRutaPage() {
               <button
                 onClick={() => setShowRouteInfo(false)}
                 className="w-full h-12 rounded-2xl font-black text-sm transition-all active:scale-[0.97]"
-                style={{ background: "linear-gradient(135deg, #C9920A 0%, #E8B028 100%)", color: "#fff" }}
+                style={{ background: "linear-gradient(135deg, #E6196E 0%, #C9920A 100%)", color: "#fff", boxShadow: "0 6px 18px rgba(230,25,110,0.35)" }}
               >
-                ¡Vamos a recorrer! 🗺️
+                ¡Vamos a recorrer!
               </button>
             </div>
           </div>

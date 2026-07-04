@@ -95,6 +95,7 @@ export async function POST(request: Request) {
       const numSellos = calcularSellos(monto);
       const currentSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
       const nuevoTotal = currentSellos + numSellos;
+      console.log(`[DEBUG POLLA] handshake/confirm — uid=${userId} prev=${currentSellos} +${numSellos} new=${nuevoTotal} monto=${monto}`);
       const realUserName = (userSnap.exists ? userSnap.data()!.nombre : null) || userName || "Miembro";
 
       tx.update(pendingRef, {

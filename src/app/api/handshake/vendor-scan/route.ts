@@ -90,6 +90,7 @@ export async function POST(request: Request) {
       const numSellos = calcularSellos(monto);
       const nuevoTotal = prevSellos + numSellos;
       const timestamp = new Date().toISOString();
+      console.log(`[DEBUG POLLA] handshake/vendor-scan — uid=${userId} prev=${prevSellos} +${numSellos} new=${nuevoTotal} monto=${monto}`);
       const realUserName = (userSnap.exists ? userSnap.data()!.nombre : null) || userName || "Miembro";
 
       tx.update(pendingRef, {

@@ -7,7 +7,6 @@ import Image from "next/image";
 import { doc, increment, onSnapshot, runTransaction, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { registrarCompra } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -812,15 +811,31 @@ export default function RutaBacPage() {
         text: "Descubrí el pasaporte digital de @BarrioAlegreConce hecho por @SynapTechSpA 🍷🚀",
         url: "https://synaptechspa.cl",
       });
-      await updateDoc(doc(db, "usuarios", userId), { hasSynapTechShared: true });
-      await registrarCompra(db, userId, undefined, false, "synap_share");
-      toast({ title: "¡+1 Sello ganado!", description: "Gracias por compartir SynapTech 🚀" });
-      setShowSynapModal(null);
-      setShowLogoRain(true);
     } catch (err: any) {
       if (err?.name !== "AbortError") {
         toast({ title: "No se pudo compartir", variant: "destructive" });
       }
+      return;
+    }
+
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Sin sesión activa.");
+      const res = await fetch("/api/synaptech/share-bonus", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo acreditar el sello.");
+      toast({ title: "¡+1 Sello ganado!", description: "Gracias por compartir SynapTech 🚀" });
+      setShowSynapModal(null);
+      setShowLogoRain(true);
+    } catch (err: any) {
+      toast({
+        title: "No se pudo acreditar el sello",
+        description: err?.message ?? "Intenta nuevamente.",
+        variant: "destructive",
+      });
     }
   };
 

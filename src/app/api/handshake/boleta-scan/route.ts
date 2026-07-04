@@ -111,6 +111,7 @@ export async function POST(request: Request) {
       const prevSellos = u.comprasRealizadas || 0;
       const nuevoTotal = prevSellos + numSellos;
       const timestamp = new Date().toISOString();
+      console.log(`[DEBUG POLLA] handshake/boleta-scan — uid=${userId} prev=${prevSellos} +${numSellos} new=${nuevoTotal} monto=${monto} tier=${tierValidado ?? "-"}`);
       const realUserName = u.nombre || u.correo || "Miembro";
 
       tx.update(userRef, {

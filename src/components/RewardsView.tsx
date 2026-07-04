@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Gift, Loader2, CheckCircle2, XCircle, AlertCircle, Store,
-  Clock, HelpCircle, Stamp, WifiOff, X, Star, Check, ScanLine,
+  Clock, HelpCircle, Stamp, WifiOff, X, Star, Check, ScanLine, Lock,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { motion, AnimatePresence } from "framer-motion";
@@ -355,6 +355,7 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
 
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showStampAnim, setShowStampAnim] = useState(false);
+  const [shakeBac, setShakeBac] = useState(false);
   const [isOffline, setIsOffline] = useState(
     typeof window !== "undefined" ? !navigator.onLine : false
   );
@@ -783,23 +784,96 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
         </div>
       </section>
 
-      {/* ── Mi Ruta ─────────────────────────────────────────────────────────── */}
+      {/* ── Ruta Curauma ─────────────────────────────────────────────────────── */}
       <Card
         onClick={() => router.push("/ruta")}
-        className="cursor-pointer border-none shadow-md rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
-        style={{ background: "#0F172A" }}
+        className="cursor-pointer shadow-md rounded-3xl overflow-hidden transition-all active:scale-[0.98] border border-[#E6196E]/40 hover:border-[#E6196E]"
+        style={{
+          background: "radial-gradient(circle at top right, rgba(230,25,110,0.18) 0%, #0F172A 60%)",
+          boxShadow: "0 0 24px rgba(230,25,110,0.15), 0 4px 12px rgba(0,0,0,0.25)",
+        }}
       >
-        <CardContent className="p-5 flex items-center justify-between">
-          <div className="space-y-0.5">
+        <CardContent className="p-5 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 border border-white/10 shadow-md">
+            <Image
+              alt="Logo Ruta Curauma"
+              className="object-cover w-full h-full"
+              height={40}
+              src="/curauma/logo-ruta-curauma.png"
+              width={40}
+            />
+          </div>
+          <div className="flex-1 min-w-0 space-y-0.5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Explora el patio</p>
-            <h3 className="text-xl font-black text-white flex items-center gap-2">🗺️ Mi Ruta</h3>
+            <h3 className="text-xl font-black text-white">Ruta Curauma</h3>
             <p className="text-xs text-white/70 mt-1">
               Colecciona estampillas visitando todos los locales aliados.
             </p>
           </div>
-          <span className="text-2xl font-light text-white/40">›</span>
+          <span className="text-2xl font-light text-[#E6196E]/70">›</span>
         </CardContent>
       </Card>
+
+      {/* ── Ruta BAC · Teaser (bloqueado) ────────────────────────────────────── */}
+      <motion.div
+        onClick={() => {
+          setShakeBac(true);
+          toast({
+            title: "🍷 ¡La Ruta BAC abre muy pronto!",
+            description: "Prepárate para recorrer los 26 locales adheridos en Cerro Alegre y Concepción.",
+          });
+          setTimeout(() => setShakeBac(false), 500);
+        }}
+        animate={shakeBac ? { x: [0, -6, 6, -4, 4, -2, 2, 0] } : { x: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative overflow-hidden select-none cursor-pointer rounded-3xl border border-[#FF4B91]/40 shadow-lg p-4 md:p-5 flex items-center gap-4 active:scale-[0.98] transition-transform"
+        style={{
+          background: "linear-gradient(135deg, #1a2b5c 0%, #0f1a3d 100%)",
+          boxShadow: "0 0 24px rgba(255,75,145,0.18), 0 6px 18px rgba(0,0,0,0.35)",
+        }}
+        role="button"
+        aria-label="Ruta BAC · Tapas & Copas V.02 (próximamente)"
+      >
+        {/* Decorative glow */}
+        <div
+          className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(255,75,145,0.20) 0%, transparent 70%)" }}
+        />
+
+        {/* Logo */}
+        <div className="w-12 h-12 rounded-xl bg-[#24346c] p-1.5 flex items-center justify-center border border-white/10 shrink-0 relative">
+          <Image
+            src="/bac/logo-tapas-copas.png"
+            alt="Ruta BAC · Tapas & Copas"
+            width={40}
+            height={40}
+            className="object-contain w-full h-full"
+          />
+        </div>
+
+        {/* Text block */}
+        <div className="flex-1 min-w-0 relative">
+          <span className="bg-[#FF4B91]/20 text-[#FF4B91] font-bold text-[10px] px-2 py-0.5 rounded-full inline-block mb-1 tracking-wider">
+            🔒 PRÓXIMAMENTE
+          </span>
+          <h3 className="text-white font-black text-base md:text-lg tracking-wide leading-tight">
+            Ruta BAC · Tapas &amp; Copas V.02
+          </h3>
+          <p className="text-slate-300 text-xs md:text-sm mt-0.5 leading-snug">
+            Recorre Cerro Alegre y Concepción. Desbloquea tu pasaporte pronto.
+          </p>
+        </div>
+
+        {/* Lock indicator */}
+        <div className="shrink-0 relative flex flex-col items-center gap-1">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10"
+            style={{ background: "rgba(253,241,214,0.08)" }}
+          >
+            <Lock className="w-4 h-4" style={{ color: "#FDF1D6" }} />
+          </div>
+        </div>
+      </motion.div>
 
       {/* ── Catálogo de Beneficios ────────────────────────────────────────────── */}
       <section className="space-y-3">

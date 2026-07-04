@@ -137,9 +137,15 @@ export default function MundialPage() {
   // Perfil (sellos + mundialUnlocked + mundialPuntos + nombre)
   useEffect(() => {
     if (!userId) return;
+    let prevSellos: number | null = null;
     const unsub = onSnapshot(doc(db, "usuarios", userId), (snap) => {
       const d = snap.exists() ? snap.data() : null;
-      setSellos(Number(d?.comprasRealizadas || 0));
+      const nextSellos = Number(d?.comprasRealizadas || 0);
+      if (prevSellos !== null && prevSellos !== nextSellos) {
+        console.log(`[DEBUG POLLA] onSnapshot usuarios/${userId} — comprasRealizadas: ${prevSellos} → ${nextSellos} (Δ${nextSellos - prevSellos})`);
+      }
+      prevSellos = nextSellos;
+      setSellos(nextSellos);
       setUnlocked(d?.mundialUnlocked === true);
       setMundialPuntos(Number(d?.mundialPuntos || 0));
       setUserNombre(
