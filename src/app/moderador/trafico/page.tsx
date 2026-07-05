@@ -9,6 +9,12 @@ import { ALLOWED_MOD_EMAILS, canAccessModPanel } from "@/lib/constants";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Loader2, ArrowLeft, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import {
+  formatCampaignName,
+  hasCampaignAlias,
+  loadCampaignDictionary,
+  normalizeSource,
+} from "@/lib/campaignMapper";
 
 interface Visita {
   id: string;
@@ -22,6 +28,22 @@ interface Visita {
 
 const COLORS = ["#C9920A", "#8DC63F", "#5BB8D4", "#6366f1", "#f43f5e", "#f97316", "#10b981", "#a855f7"];
 
+function agruparNormalizado<T>(
+  arr: T[],
+  key: keyof T,
+  transform: (raw?: string | null) => string,
+): { name: string; visitas: number }[] {
+  const map: Record<string, number> = {};
+  for (const item of arr) {
+    const raw = (item[key] as string | undefined | null) ?? null;
+    const k = transform(raw);
+    map[k] = (map[k] || 0) + 1;
+  }
+  return Object.entries(map)
+    .map(([name, visitas]) => ({ name, visitas }))
+    .sort((a, b) => b.visitas - a.visitas);
+}
+
 function agrupar<T>(arr: T[], key: keyof T): { name: string; visitas: number }[] {
   const map: Record<string, number> = {};
   for (const item of arr) {
@@ -31,6 +53,11 @@ function agrupar<T>(arr: T[], key: keyof T): { name: string; visitas: number }[]
   return Object.entries(map)
     .map(([name, visitas]) => ({ name, visitas }))
     .sort((a, b) => b.visitas - a.visitas);
+}
+
+function truncarId(id: string, prefijo = 8): string {
+  if (id.length <= prefijo + 3) return id;
+  return `${id.slice(0, prefijo)}…`;
 }
 
 export default function TraficoPage() {
@@ -62,6 +89,7 @@ export default function TraficoPage() {
         setTimeout(() => router.push("/"), 2000);
         return;
       }
+      await loadCampaignDictionary();
       const snap = await getDocs(query(collection(db, "utm_visitas"), orderBy("timestamp", "desc")));
       setVisitas(snap.docs.map(d => ({ id: d.id, ...d.data() } as Visita)));
       setLoading(false);
@@ -81,8 +109,8 @@ export default function TraficoPage() {
     </div>
   );
 
-  const porFuente = agrupar(visitas, "utm_source");
-  const porCampaña = agrupar(visitas, "utm_campaign");
+  const porFuente = agruparNormalizado(visitas, "utm_source", normalizeSource);
+  const porCampaña = agruparNormalizado(visitas, "utm_campaign", formatCampaignName);
   const porMedio = agrupar(visitas, "utm_medium");
   const usuariosUnicos = new Set(visitas.filter(v => v.userId).map(v => v.userId)).size;
 
@@ -202,18 +230,29 @@ export default function TraficoPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {visitas.slice(paginaVisitas * PAGE_SIZE, (paginaVisitas + 1) * PAGE_SIZE).map((v) => (
-                    <tr key={v.id}>
-                      <td className="py-2 pr-4 font-bold text-slate-700">{v.utm_source || "—"}</td>
-                      <td className="py-2 pr-4 text-slate-500">{v.utm_medium || "—"}</td>
-                      <td className="py-2 pr-4 text-slate-500">{v.utm_campaign || "—"}</td>
-                      <td className="py-2 text-slate-400">
-                        {v.timestamp?.toDate
-                          ? v.timestamp.toDate().toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {visitas.slice(paginaVisitas * PAGE_SIZE, (paginaVisitas + 1) * PAGE_SIZE).map((v) => {
+                    const campañaLegible = formatCampaignName(v.utm_campaign);
+                    const mostrarIdCrudo = hasCampaignAlias(v.utm_campaign) && v.utm_campaign;
+                    return (
+                      <tr key={v.id}>
+                        <td className="py-2 pr-4 font-bold text-slate-700">{normalizeSource(v.utm_source)}</td>
+                        <td className="py-2 pr-4 text-slate-500">{v.utm_medium || "—"}</td>
+                        <td className="py-2 pr-4 text-slate-500" title={v.utm_campaign || undefined}>
+                          <div className="font-semibold text-slate-600">{campañaLegible}</div>
+                          {mostrarIdCrudo && (
+                            <div className="text-[10px] text-slate-300 font-mono mt-0.5">
+                              ID: {truncarId(v.utm_campaign)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 text-slate-400">
+                          {v.timestamp?.toDate
+                            ? v.timestamp.toDate().toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })
+                            : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
