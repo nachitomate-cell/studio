@@ -1465,7 +1465,7 @@ export default function ModeradorPage() {
               🔁 Tipo de Comercio por Local
             </CardTitle>
             <p className="text-sm text-slate-500 font-medium mt-1">
-              Cambia el flujo de cualquier local. <strong>Emprendedor</strong> usa handshake en caja; <strong>Asociado</strong> es auto-servicio con monto + boleta; <strong>Membresía</strong> es para gimnasios — el cliente elige el plan (mensual/trimestral/semestral/anual).
+              Cambia el flujo de cualquier local. <strong>Emprendedor</strong> usa handshake en caja; <strong>Asociado</strong> es auto-servicio con monto + boleta; <strong>Membresía</strong> es para gimnasios — el cliente elige el plan (mensual/trimestral/semestral/anual/personalizado).
             </p>
           </CardHeader>
           <CardContent className="p-6 md:p-8 space-y-4 bg-slate-50/20">

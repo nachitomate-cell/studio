@@ -14,13 +14,21 @@ export function calcularSellos(monto: number): number {
 
 // Tier fijo para locales de tipo "membresia" (gimnasios, suscripciones, etc.).
 // El cliente elige el plan al escanear; los sellos no dependen del monto.
-export type MembresiaTier = "mensual" | "trimestral" | "semestral" | "anual";
+export type MembresiaTier =
+  | "mensual"
+  | "trimestral"
+  | "semestral"
+  | "anual"
+  | "personalizado_1m"
+  | "personalizado_3m";
 
 export const TIER_SELLOS: Record<MembresiaTier, number> = {
   mensual: 3,
   trimestral: 10,
   semestral: 15,
   anual: 25,
+  personalizado_1m: 7,
+  personalizado_3m: 20,
 };
 
 export const TIER_LABEL: Record<MembresiaTier, string> = {
@@ -28,10 +36,19 @@ export const TIER_LABEL: Record<MembresiaTier, string> = {
   trimestral: "Trimestral",
   semestral: "Semestral",
   anual: "Anual",
+  personalizado_1m: "Personalizado 1 mes",
+  personalizado_3m: "Personalizado 3 meses",
 };
 
 export function esMembresiaTier(v: unknown): v is MembresiaTier {
-  return v === "mensual" || v === "trimestral" || v === "semestral" || v === "anual";
+  return (
+    v === "mensual" ||
+    v === "trimestral" ||
+    v === "semestral" ||
+    v === "anual" ||
+    v === "personalizado_1m" ||
+    v === "personalizado_3m"
+  );
 }
 
 export function calcularSellosMembresia(tier: MembresiaTier): number {

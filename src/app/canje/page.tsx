@@ -28,7 +28,14 @@ type Phase =
   | "rejected"    // vendedor rechazó
   | "error";      // error genérico
 
-const TIER_ORDER: MembresiaTier[] = ["mensual", "trimestral", "semestral", "anual"];
+const TIER_ORDER: MembresiaTier[] = [
+  "mensual",
+  "trimestral",
+  "semestral",
+  "anual",
+  "personalizado_1m",
+  "personalizado_3m",
+];
 
 // ─── Waiting UI ─────────────────────────────────────────────────────────────
 

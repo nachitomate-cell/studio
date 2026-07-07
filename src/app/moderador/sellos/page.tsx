@@ -53,6 +53,8 @@ const TIER_LABEL_MOD: Record<string, string> = {
   trimestral: "Trimestral",
   semestral: "Semestral",
   anual: "Anual",
+  personalizado_1m: "Personalizado 1 mes",
+  personalizado_3m: "Personalizado 3 meses",
 };
 
 interface VendorInfo {

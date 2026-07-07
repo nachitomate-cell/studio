@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     let tierValidado: MembresiaTier | null = null;
     if (isMembresia) {
       if (!esMembresiaTier(tier)) {
-        return NextResponse.json({ error: "Debes elegir un plan (mensual, trimestral, semestral o anual)." }, { status: 400 });
+        return NextResponse.json({ error: "Debes elegir un plan (mensual, trimestral, semestral, anual o personalizado)." }, { status: 400 });
       }
       tierValidado = tier;
     } else {
