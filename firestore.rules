@@ -110,6 +110,14 @@ service cloud.firestore {
       allow update: if isDirector();
     }
 
+    // ── Categorías de Negocios (taxonomía del directorio) ─────────────────────
+    // Catálogo administrado desde /director. Lectura pública para que el cliente
+    // pueda usarlas como filtros del directorio; escritura solo director/admin.
+    match /categorias_negocios/{categoriaId} {
+      allow read: if true;
+      allow create, update, delete: if isDirector();
+    }
+
     // ── Canjes de Premios ──────────────────────────────────────────────────────
     match /canjes/{canjeId} {
       // CRÍTICA-1: la creación de vouchers es EXCLUSIVAMENTE server-side
