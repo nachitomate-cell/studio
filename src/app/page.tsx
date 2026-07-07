@@ -13,7 +13,7 @@ import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
 import { useUserLocation, haversineKm } from "@/hooks/useUserLocation";
 import { isOpenNow } from "@/lib/horarios";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check, Heart, X, ExternalLink } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check, Heart, X, ExternalLink, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -159,6 +159,7 @@ function HomeContent() {
   const [publicidadLoading, setPublicidadLoading] = useState(false);
   const [streak, setStreak] = useState(0);
   const [ofertasHoy, setOfertasHoy] = useState<any[]>([]);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
   
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -310,6 +311,18 @@ function HomeContent() {
     });
 
     return () => unsubscribeDoc();
+  }, [user]);
+
+  // Contador de mensajes no leídos para el pill de campana en el saludo.
+  // Todas las notifs se crean con leida:false, así que un where directo alcanza.
+  useEffect(() => {
+    if (!user) { setUnreadNotifs(0); return; }
+    const unsub = onSnapshot(
+      query(collection(db, "usuarios", user.uid, "notificaciones"), where("leida", "==", false)),
+      (snap) => setUnreadNotifs(snap.size),
+      () => setUnreadNotifs(0)
+    );
+    return () => unsub();
   }, [user]);
 
   // Routing por rol: en el primer landing de la sesión, el emprendedor/staff entra
@@ -764,6 +777,21 @@ function HomeContent() {
                       Hola, {userData.nombre?.split(" ")[0] || "Club Member"} 👋
                     </p>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => router.push("/mensajes")}
+                        className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-primary hover:border-primary/40 active:scale-90 transition-all shadow-sm"
+                        aria-label={unreadNotifs > 0 ? `${unreadNotifs} mensajes sin leer` : "Ver mensajes del Club"}
+                      >
+                        <Bell className="w-4 h-4" />
+                        {unreadNotifs > 0 && (
+                          <span
+                            className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-black text-white border-2 border-white"
+                            style={{ background: "#ef4444" }}
+                          >
+                            {unreadNotifs > 9 ? "9+" : unreadNotifs}
+                          </span>
+                        )}
+                      </button>
                       <button
                         onClick={() => setShowQRModal(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-[11px] active:scale-90 transition-transform"
