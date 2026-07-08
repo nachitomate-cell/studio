@@ -174,6 +174,9 @@ export default function DirectorPage() {
   const [categoriaForm, setCategoriaForm] = useState({ nombre: "", icono: "🏷️" });
   const [savingCategoria, setSavingCategoria] = useState(false);
   const [seedingCategorias, setSeedingCategorias] = useState(false);
+  const [editandoCatId, setEditandoCatId] = useState<string | null>(null);
+  const [editCatForm, setEditCatForm] = useState({ nombre: "", icono: "" });
+  const [savingEditCat, setSavingEditCat] = useState(false);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
@@ -676,6 +679,38 @@ export default function DirectorPage() {
       toast({ title: "Categoría eliminada" });
     } catch {
       toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la categoría." });
+    }
+  };
+
+  const handleEditCategoriaStart = (cat: any) => {
+    setEditandoCatId(cat.id);
+    setEditCatForm({ nombre: cat.nombre ?? "", icono: cat.icono ?? "🏷️" });
+  };
+
+  const handleEditCategoriaCancel = () => {
+    setEditandoCatId(null);
+    setEditCatForm({ nombre: "", icono: "" });
+  };
+
+  const handleEditCategoriaSave = async (id: string) => {
+    const nombre = editCatForm.nombre.trim();
+    if (!nombre) {
+      toast({ variant: "destructive", title: "Falta el nombre", description: "El nombre no puede estar vacío." });
+      return;
+    }
+    setSavingEditCat(true);
+    try {
+      await updateDoc(doc(db, "categorias_negocios", id), {
+        nombre,
+        icono: editCatForm.icono.trim() || "🏷️",
+      });
+      toast({ title: "Categoría actualizada" });
+      setEditandoCatId(null);
+      setEditCatForm({ nombre: "", icono: "" });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar la categoría." });
+    } finally {
+      setSavingEditCat(false);
     }
   };
 
@@ -1230,26 +1265,84 @@ export default function DirectorPage() {
           {categorias.length > 0 ? (
             <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
               <CardContent className="p-2 divide-y divide-slate-50">
-                {categorias.map((cat) => (
-                  <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors rounded-2xl group">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-xl">
-                        {cat.icono || "🏷️"}
+                {categorias.map((cat) => {
+                  const editando = editandoCatId === cat.id;
+                  if (editando) {
+                    return (
+                      <div key={cat.id} className="p-3 bg-primary/5 rounded-2xl space-y-2">
+                        <div className="grid grid-cols-[56px_1fr] gap-2">
+                          <Input
+                            value={editCatForm.icono}
+                            onChange={(e) => setEditCatForm({ ...editCatForm, icono: e.target.value })}
+                            placeholder="🏷️"
+                            maxLength={4}
+                            className="rounded-xl h-10 text-center text-lg"
+                            aria-label="Ícono"
+                            disabled={savingEditCat}
+                          />
+                          <Input
+                            value={editCatForm.nombre}
+                            onChange={(e) => setEditCatForm({ ...editCatForm, nombre: e.target.value })}
+                            placeholder="Nombre"
+                            maxLength={40}
+                            className="rounded-xl h-10"
+                            aria-label="Nombre"
+                            disabled={savingEditCat}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-slate-400 font-mono truncate">{cat.id}</p>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={handleEditCategoriaCancel}
+                              disabled={savingEditCat}
+                              className="h-8 px-3 rounded-full text-[11px] font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={() => handleEditCategoriaSave(cat.id)}
+                              disabled={savingEditCat || !editCatForm.nombre.trim()}
+                              className="h-8 px-3 rounded-full text-[11px] font-bold bg-primary text-white hover:bg-primary/90 disabled:opacity-40 flex items-center gap-1"
+                            >
+                              {savingEditCat ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                              Guardar
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-800 truncate">{cat.nombre}</p>
-                        <p className="text-[10px] text-slate-400 font-mono truncate">{cat.id}</p>
+                    );
+                  }
+                  return (
+                    <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors rounded-2xl group">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-xl">
+                          {cat.icono || "🏷️"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-800 truncate">{cat.nombre}</p>
+                          <p className="text-[10px] text-slate-400 font-mono truncate">{cat.id}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                          onClick={() => handleEditCategoriaStart(cat)}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-primary hover:bg-primary/10"
+                          aria-label={`Editar ${cat.nombre}`}
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategoria(cat.id, cat.nombre)}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50"
+                          aria-label={`Eliminar ${cat.nombre}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDeleteCategoria(cat.id, cat.nombre)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50"
-                      aria-label={`Eliminar ${cat.nombre}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           ) : (
