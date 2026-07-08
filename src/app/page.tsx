@@ -9,7 +9,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { EntrepreneurCard } from "@/components/directory/EntrepreneurCard";
-import { CATEGORIES, Entrepreneur, PATIO_INFO } from "@/lib/data";
+import { Entrepreneur, PATIO_INFO } from "@/lib/data";
+import { useCategorias } from "@/hooks/useCategorias";
 import { useUserLocation, haversineKm } from "@/hooks/useUserLocation";
 import { isOpenNow } from "@/lib/horarios";
 import { Input } from "@/components/ui/input";
@@ -160,6 +161,7 @@ function HomeContent() {
   const [streak, setStreak] = useState(0);
   const [ofertasHoy, setOfertasHoy] = useState<any[]>([]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const { categorias: dynamicCategorias, categoriasConTodos: dynamicCategoriasConTodos } = useCategorias();
   
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -606,9 +608,9 @@ function HomeContent() {
     !filterAbierto &&
     !filterFavoritos;
 
-  const knownCategoryIds = new Set(CATEGORIES.filter((c) => c.id !== "all").map((c) => c.id));
+  const knownCategoryIds = new Set(dynamicCategorias.map((c) => c.id));
   const categorizedGroups = [
-    ...CATEGORIES.filter((cat) => cat.id !== "all")
+    ...dynamicCategorias
       .map((cat) => ({
         id: cat.id,
         name: cat.name,
@@ -1019,7 +1021,7 @@ function HomeContent() {
 
             <section className="space-y-3">
               <div className="flex gap-2 overflow-x-auto pb-2 px-6 no-scrollbar">
-                {CATEGORIES.map((cat) => {
+                {dynamicCategoriasConTodos.map((cat) => {
                   const CAT_COLORS: Record<string, { bg: string; text: string; light: string; border: string }> = {
                     all:       { bg: "#C9920A", text: "#fff", light: "#FFF8E8", border: "#E8D5A3" },
                     deco:      { bg: "#C2714F", text: "#fff", light: "#FDF3EF", border: "#EDD0C4" },

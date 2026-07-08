@@ -31,6 +31,7 @@ import {
   Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import { ADMIN_EMAIL } from "@/lib/constants";
+import { CATEGORIES_BASE } from "@/lib/data";
 import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
 
 function generarInsightsDirector(
@@ -172,6 +173,7 @@ export default function DirectorPage() {
   const [categorias, setCategorias] = useState<any[]>([]);
   const [categoriaForm, setCategoriaForm] = useState({ nombre: "", icono: "🏷️" });
   const [savingCategoria, setSavingCategoria] = useState(false);
+  const [seedingCategorias, setSeedingCategorias] = useState(false);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
@@ -677,6 +679,39 @@ export default function DirectorPage() {
     }
   };
 
+  // Siembra las 8 categorías base del directorio en Firestore. Idempotente:
+  // solo crea las que faltan (no sobrescribe las que el director ya editó).
+  // Permite que las UIs de vendedor/tienda/directorio empiecen a leer todas
+  // las categorías desde Firestore sin perder las canónicas ni el nombre.
+  const handleSeedCategorias = async () => {
+    const existentes = new Set(categorias.map(c => c.id));
+    const faltantes = CATEGORIES_BASE.filter(c => !existentes.has(c.id));
+    if (faltantes.length === 0) {
+      toast({ title: "Ya están todas", description: "Las categorías base ya están en Firestore." });
+      return;
+    }
+    setSeedingCategorias(true);
+    try {
+      await Promise.all(
+        faltantes.map(cat =>
+          setDoc(doc(db, "categorias_negocios", cat.id), {
+            nombre: cat.name,
+            icono: cat.emoji ?? "🏷️",
+            orden: cat.orden ?? 999,
+            creadoEn: serverTimestamp(),
+            creadoPor: currentUserId,
+            sembrada: true,
+          })
+        )
+      );
+      toast({ title: "Sembradas", description: `Se agregaron ${faltantes.length} categoría(s) base.` });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron sembrar las categorías base." });
+    } finally {
+      setSeedingCategorias(false);
+    }
+  };
+
   const handleTogglePremium = async (id: string, current: boolean) => {
     setSavingPremiumId(id);
     try {
@@ -1173,6 +1208,22 @@ export default function DirectorPage() {
                 {savingCategoria ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 Agregar categoría
               </Button>
+              {(() => {
+                const existentes = new Set(categorias.map(c => c.id));
+                const faltantes = CATEGORIES_BASE.filter(c => !existentes.has(c.id)).length;
+                if (faltantes === 0) return null;
+                return (
+                  <Button
+                    onClick={handleSeedCategorias}
+                    disabled={seedingCategorias}
+                    variant="outline"
+                    className="w-full h-10 rounded-2xl font-bold gap-2 text-xs border-dashed border-slate-300 text-slate-600 hover:bg-slate-50"
+                  >
+                    {seedingCategorias ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Sembrar {faltantes} categoría{faltantes === 1 ? "" : "s"} base del directorio
+                  </Button>
+                );
+              })()}
             </CardContent>
           </Card>
 

@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { CATEGORIES } from "@/lib/data";
+import { useCategorias } from "@/hooks/useCategorias";
 
 import { ADMIN_EMAIL, CANONICAL_BASE_URL } from "@/lib/constants";
 import VendorStampModal from "@/components/VendorStampModal";
@@ -174,6 +174,7 @@ function calcularCRM(ventas: VentaRecord[]) {
 export default function VendedorPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { categorias: dynamicCategorias } = useCategorias();
   const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "clientes">("dashboard");
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -1322,7 +1323,7 @@ export default function VendedorPage() {
                 <div className="space-y-3">
                   <Label className="text-sm font-bold text-slate-700">Categoría de tu emprendimiento</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    {CATEGORIES.filter(c => c.id !== 'all').map((cat) => (
+                    {dynamicCategorias.map((cat) => (
                       <button
                         key={cat.id}
                         type="button"
@@ -1342,7 +1343,7 @@ export default function VendedorPage() {
                       onClick={() => setShopForm({...shopForm, categoria: "otra"})}
                       className={cn(
                         "h-12 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-2",
-                        shopForm.categoria === "otra" || (!CATEGORIES.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")
+                        shopForm.categoria === "otra" || (!dynamicCategorias.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
                       )}
@@ -1350,7 +1351,7 @@ export default function VendedorPage() {
                       Otra…
                     </button>
                   </div>
-                  {(shopForm.categoria === "otra" || (!CATEGORIES.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")) && (
+                  {(shopForm.categoria === "otra" || (!dynamicCategorias.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")) && (
                     <Input
                       placeholder="Escribe tu categoría personalizada..."
                       className="h-11 border-slate-200 focus:border-primary rounded-xl text-sm"

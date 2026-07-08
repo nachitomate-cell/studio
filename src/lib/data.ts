@@ -1,5 +1,5 @@
 
-export type Category = { id: string; name: string; icon: string; };
+export type Category = { id: string; name: string; icon: string; emoji?: string; orden?: number; };
 export type Entrepreneur = {
   id: string;
   name: string;
@@ -34,17 +34,28 @@ export const PATIO_INFO = {
   coordinates: { lat: -33.1316449, lng: -71.564289 }
 };
 
-export const CATEGORIES: Category[] = [
-  { id: 'all', name: 'Todos', icon: 'LayoutGrid' },
-  { id: 'deco', name: 'Deco & Hogar', icon: 'Home' },
-  { id: 'gourmet', name: 'Gourmet & Licores', icon: 'Utensils' },
-  { id: 'joyeria', name: 'Joyería & Accesorios', icon: 'Gem' },
-  { id: 'belleza', name: 'Belleza', icon: 'Sparkles' },
-  { id: 'artesania', name: 'Artesanías', icon: 'Palette' },
-  { id: 'papeleria', name: 'Papelería & Juguetería', icon: 'BookOpen' },
-  { id: 'infantil', name: 'Infantil', icon: 'Baby' },
-  { id: 'vestuario', name: 'Vestuario', icon: 'Shirt' },
+// Filtro sintético "Todos" — nunca vive en Firestore, solo en el cliente
+// para el pill de "sin filtro" en el directorio y la home.
+export const CATEGORY_ALL: Category = { id: 'all', name: 'Todos', icon: 'LayoutGrid', emoji: '🗂️' };
+
+// Base canónica de categorías del directorio. Sirven como piso: siempre
+// disponibles en la UI aunque Firestore esté vacío o el director aún no las
+// haya sembrado. Cuando se siembra o crea desde /director, la versión de
+// Firestore gana por id (permite renombrar/reasignar emoji sin tocar código).
+export const CATEGORIES_BASE: Category[] = [
+  { id: 'deco',      name: 'Deco & Hogar',            icon: 'Home',     emoji: '🏠', orden: 1 },
+  { id: 'gourmet',   name: 'Gourmet & Licores',       icon: 'Utensils', emoji: '🍽️', orden: 2 },
+  { id: 'joyeria',   name: 'Joyería & Accesorios',    icon: 'Gem',      emoji: '💎', orden: 3 },
+  { id: 'belleza',   name: 'Belleza',                 icon: 'Sparkles', emoji: '✨', orden: 4 },
+  { id: 'artesania', name: 'Artesanías',              icon: 'Palette',  emoji: '🎨', orden: 5 },
+  { id: 'papeleria', name: 'Papelería & Juguetería',  icon: 'BookOpen', emoji: '📚', orden: 6 },
+  { id: 'infantil',  name: 'Infantil',                icon: 'Baby',     emoji: '👶', orden: 7 },
+  { id: 'vestuario', name: 'Vestuario',               icon: 'Shirt',    emoji: '👕', orden: 8 },
 ];
+
+// Compat: mantener la exportación histórica (con "Todos" al inicio) para
+// cualquier consumer que aún no migre al hook useCategorias.
+export const CATEGORIES: Category[] = [CATEGORY_ALL, ...CATEGORIES_BASE];
 
 /**
  * Datos de ejemplo enriquecidos para la presentación.

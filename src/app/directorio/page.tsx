@@ -8,7 +8,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth, storage } from "@/lib/firebase";
-import { CATEGORIES } from "@/lib/data";
+import { useCategorias } from "@/hooks/useCategorias";
 import { DIAS_SEMANA, DIAS_SHORT, DIAS_LABEL, HorariosEstructurados, HorarioDia } from "@/lib/horarios";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,11 +84,6 @@ const DEFAULT_FORM: VendorForm = {
   horariosEstructurados: {},
 };
 
-const VENDOR_CATEGORIES = [
-  ...CATEGORIES.filter((c) => c.id !== "all"),
-  { id: "PORTAL", name: "Portal / Directorio", icon: "" },
-];
-
 // Link in Bio (bioo.cl): integración SSO activa. Requiere que /api/bioo esté
 // desplegado y las env BIOO_PROVISION_URL/SECRET configuradas en este proyecto.
 const BIOO_ENABLED = true;
@@ -106,6 +101,14 @@ const ADMIN_ROLES = ["admin", "director", "director_patio", "moderador"];
 export default function DirectorioPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { categorias: dynamicCategorias } = useCategorias();
+
+  // Combinamos las categorías dinámicas con la pseudo-opción "Portal / Directorio"
+  // que solo aplica al selector de vendor (no vive en Firestore).
+  const VENDOR_CATEGORIES = [
+    ...dynamicCategorias,
+    { id: "PORTAL", name: "Portal / Directorio", icon: "" },
+  ];
 
   // Auth
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);

@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
 import { registrarCompra } from "@/lib/puntos";
-import { CATEGORIES } from "@/lib/data";
+import { useCategorias } from "@/hooks/useCategorias";
 
 import { ADMIN_EMAIL as MASTER_EMAIL, ALLOWED_MOD_EMAILS as ALLOWED_EMAILS, canAccessModPanel } from "@/lib/constants";
 
@@ -54,7 +54,8 @@ interface PendingStamp {
 export default function ModeradorPage() {
   const router = useRouter();
   const { toast } = useToast();
-  
+  const { categorias: dynamicCategorias } = useCategorias();
+
   // Estados Generales
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -1146,7 +1147,7 @@ export default function ModeradorPage() {
                   className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:opacity-60"
                 >
                   <option value="" disabled>Selecciona una categoría…</option>
-                  {CATEGORIES.filter((c) => c.id !== "all").map((c) => (
+                  {dynamicCategorias.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>

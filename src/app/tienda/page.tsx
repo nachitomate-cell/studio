@@ -17,13 +17,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { CATEGORIES } from "@/lib/data";
+import { useCategorias } from "@/hooks/useCategorias";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
 
 export default function TiendaPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { categorias: dynamicCategorias } = useCategorias();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(false);
@@ -316,7 +317,7 @@ export default function TiendaPage() {
             <div className="space-y-2">
               <Label className="text-sm font-bold text-slate-700">Categoría</Label>
               <div className="grid grid-cols-2 gap-2">
-                {CATEGORIES.filter(c => c.id !== "all").map((cat) => (
+                {dynamicCategorias.map((cat) => (
                   <button
                     key={cat.id}
                     type="button"
@@ -336,7 +337,7 @@ export default function TiendaPage() {
                   onClick={() => setShopForm({ ...shopForm, categoria: "otra" })}
                   className={cn(
                     "h-11 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center",
-                    shopForm.categoria === "otra" || (!CATEGORIES.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")
+                    shopForm.categoria === "otra" || (!dynamicCategorias.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
                   )}
@@ -344,7 +345,7 @@ export default function TiendaPage() {
                   Otra…
                 </button>
               </div>
-              {(shopForm.categoria === "otra" || (!CATEGORIES.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")) && (
+              {(shopForm.categoria === "otra" || (!dynamicCategorias.some(c => c.id === shopForm.categoria) && shopForm.categoria !== "")) && (
                 <Input
                   placeholder="Escribe tu categoría personalizada..."
                   className="h-11 border-slate-200 focus:border-primary rounded-xl text-sm"
