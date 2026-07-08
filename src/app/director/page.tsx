@@ -95,6 +95,92 @@ function generarInsightsDirector(
 
 const COLORS = ['#D3B673', '#9DCC65', '#6EBBD1', '#BFA05C'];
 
+// Emojis pre-curados por rubro comercial — cubren los tipos de local del Patio.
+// El usuario puede además pegar cualquier otro emoji manualmente en el input.
+const EMOJI_GRUPOS: { label: string; emojis: string[] }[] = [
+  { label: "Hogar y Deco",     emojis: ["🏠", "🛋️", "🪑", "🛏️", "🖼️", "🕯️", "🪴", "🧸", "🪞", "🧺"] },
+  { label: "Comida",           emojis: ["🍽️", "🍴", "🍕", "🍔", "🌮", "🍣", "🍰", "🥐", "🧁", "🥗", "🍎", "🥑"] },
+  { label: "Bebidas y Café",   emojis: ["☕", "🍺", "🍷", "🥂", "🍹", "🥃", "🧋", "🍾"] },
+  { label: "Joyería y Accesorios", emojis: ["💎", "💍", "👜", "🕶️", "👛", "⌚", "🎒", "👒"] },
+  { label: "Belleza y Cuidado", emojis: ["✨", "💄", "💅", "🧴", "🌸", "🌹", "💇‍♀️", "🧖‍♀️"] },
+  { label: "Arte y Artesanía", emojis: ["🎨", "🖌️", "🎭", "🪡", "🧵", "📷", "🖼️"] },
+  { label: "Papelería y Libros", emojis: ["📚", "✏️", "📝", "📎", "🗂️", "🖇️", "📔"] },
+  { label: "Ropa y Moda",      emojis: ["👕", "👔", "👗", "👖", "👟", "👠", "🧢", "🧣"] },
+  { label: "Infantil y Juguetes", emojis: ["👶", "🧸", "🎈", "🎠", "🍭", "🎁"] },
+  { label: "Deporte y Gym",    emojis: ["🏋️", "🧘", "🚴", "⚽", "🎾", "🏀", "🥊", "🤸"] },
+  { label: "Tecnología",       emojis: ["📱", "💻", "🖥️", "🎮", "🎧", "📸"] },
+  { label: "Mascotas",         emojis: ["🐕", "🐈", "🐾", "🦴"] },
+  { label: "Servicios y Otros", emojis: ["🔧", "🛠️", "🔑", "🏷️", "🌟", "⭐", "🎁", "💝"] },
+];
+
+function EmojiPicker({
+  value,
+  onChange,
+  onManualChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (emoji: string) => void;
+  onManualChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <div className="grid grid-cols-[56px_44px] gap-1">
+        <Input
+          value={value}
+          onChange={(e) => onManualChange(e.target.value)}
+          placeholder="🏷️"
+          maxLength={4}
+          className="rounded-xl h-10 text-center text-lg"
+          aria-label="Ícono"
+          disabled={disabled}
+        />
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          disabled={disabled}
+          className="h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 flex items-center justify-center text-xs font-bold disabled:opacity-50"
+          aria-label={open ? "Cerrar selector de emoji" : "Abrir selector de emoji"}
+        >
+          {open ? "×" : "▾"}
+        </button>
+      </div>
+
+      {open && (
+        <>
+          {/* Overlay para cerrar al tocar fuera */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 right-0 top-12 z-50 bg-white rounded-2xl shadow-xl border border-slate-100 p-3 max-h-72 overflow-y-auto w-[280px] max-w-[calc(100vw-2rem)]">
+            {EMOJI_GRUPOS.map(grupo => (
+              <div key={grupo.label} className="mb-3 last:mb-0">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-1">
+                  {grupo.label}
+                </p>
+                <div className="grid grid-cols-8 gap-1">
+                  {grupo.emojis.map(e => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => { onChange(e); setOpen(false); }}
+                      className={`h-8 w-8 rounded-lg text-lg hover:bg-slate-100 active:scale-90 transition-all ${value === e ? "bg-primary/10 ring-2 ring-primary/50" : ""}`}
+                      aria-label={`Elegir ${e}`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function DirectorPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -1217,14 +1303,11 @@ export default function DirectorPage() {
 
           <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
             <CardContent className="p-5 space-y-3">
-              <div className="grid grid-cols-[64px_1fr] gap-2">
-                <Input
+              <div className="grid grid-cols-[104px_1fr] gap-2">
+                <EmojiPicker
                   value={categoriaForm.icono}
-                  onChange={(e) => setCategoriaForm({ ...categoriaForm, icono: e.target.value })}
-                  placeholder="🏷️"
-                  maxLength={4}
-                  className="rounded-xl h-11 text-center text-xl"
-                  aria-label="Ícono"
+                  onChange={(emoji) => setCategoriaForm({ ...categoriaForm, icono: emoji })}
+                  onManualChange={(v) => setCategoriaForm({ ...categoriaForm, icono: v })}
                 />
                 <Input
                   value={categoriaForm.nombre}
@@ -1270,14 +1353,11 @@ export default function DirectorPage() {
                   if (editando) {
                     return (
                       <div key={cat.id} className="p-3 bg-primary/5 rounded-2xl space-y-2">
-                        <div className="grid grid-cols-[56px_1fr] gap-2">
-                          <Input
+                        <div className="grid grid-cols-[104px_1fr] gap-2">
+                          <EmojiPicker
                             value={editCatForm.icono}
-                            onChange={(e) => setEditCatForm({ ...editCatForm, icono: e.target.value })}
-                            placeholder="🏷️"
-                            maxLength={4}
-                            className="rounded-xl h-10 text-center text-lg"
-                            aria-label="Ícono"
+                            onChange={(emoji) => setEditCatForm({ ...editCatForm, icono: emoji })}
+                            onManualChange={(v) => setEditCatForm({ ...editCatForm, icono: v })}
                             disabled={savingEditCat}
                           />
                           <Input
