@@ -496,16 +496,19 @@ export default function ValidarPanel({
     return () => unsub();
   }, [vendorId]);
 
-  // FIX: query solo por vendorId (single-field) — evita requerir índice compuesto.
-  // Filtrado de status se hace client-side en el callback.
   // Sin `tick` en deps — la suscripción es permanente mientras el componente vive.
   useEffect(() => {
     if (!authorized || !vendorId) return;
 
-    // Single-field query: no requiere índice compuesto en Firestore
+    // Dos filtros de igualdad: Firestore los resuelve con índices de campo único
+    // (igual que VendorStampModal, que ya corre esta misma query en producción).
+    // Antes se pedía solo por vendorId y se filtraba el status en el cliente, lo
+    // que descargaba TODO el historial de pending_stamps del local — incluidos
+    // los confirmed/expired/rejected, que nunca se borran.
     const q = query(
       collection(db, "pending_stamps"),
-      where("vendorId", "==", vendorId)
+      where("vendorId", "==", vendorId),
+      where("status", "==", "pending")
     );
 
     const unsub = onSnapshot(
@@ -517,8 +520,8 @@ export default function ValidarPanel({
 
         snapshot.docs.forEach((d) => {
           const data = d.data();
-          // FIX: filtrar status client-side (evita índice compuesto + evita
-          // que Firebase devuelva cache vacío al cambiar deps)
+          // Redundante con el where de la query; se mantiene como defensa ante
+          // documentos servidos desde la caché local antes de reconciliar.
           if (data.status !== "pending") return;
 
           const createdAt: Timestamp | null = data.createdAt ?? null;
@@ -647,12 +650,17 @@ export default function ValidarPanel({
 
     setVerifyingPrize(true);
     try {
+      // Dos filtros de igualdad: Firestore los resuelve con índices de campo
+      // único (sin composite). Antes se descargaban TODOS los canjes del local
+      // y se filtraba por código en el cliente, en cada verificación.
       const q = query(
         collection(db, "canjes"),
-        where("vendorId", "==", vendorId)
+        where("vendorId", "==", vendorId),
+        where("codigo", "==", codigoNormalizado),
+        limit(1)
       );
       const snap = await getDocs(q);
-      const canjeDoc = snap.docs.find((d) => d.data().codigo === codigoNormalizado);
+      const canjeDoc = snap.docs[0];
 
       if (!canjeDoc) {
         toast({ variant: "destructive", title: "Código no encontrado", description: "Verifica el código e intenta de nuevo." });

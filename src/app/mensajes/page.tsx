@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -146,8 +146,11 @@ export default function MensajesPage() {
     if (!user) return;
 
     const notifRef = collection(db, "usuarios", user.uid, "notificaciones");
-    const q = query(notifRef, orderBy("fecha", "desc"));
-    
+    // Sin limit, este listener en tiempo real descargaba el historial completo
+    // de notificaciones en cada apertura. Los crons escriben a diario, así que
+    // crece sin techo. 50 cubre de sobra lo que se llega a mirar.
+    const q = query(notifRef, orderBy("fecha", "desc"), limit(50));
+
     const unsubNotif = onSnapshot(q, (snapshot) => {
       setNotificaciones(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
