@@ -224,7 +224,7 @@ export default function DirectorPage() {
   const [historial, setHistorial] = useState<any[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [profileSearch, setProfileSearch] = useState("");
-  const [vendorList, setVendorList] = useState<{ id: string; nombre: string }[]>([]);
+  const [vendorList, setVendorList] = useState<{ id: string; nombre: string; logoHeader?: string }[]>([]);
   const [premioForm, setPremioForm] = useState<{
     id: string | null;
     nombre: string;
@@ -386,6 +386,7 @@ export default function DirectorPage() {
         profiles.map((p: any) => ({
           id: p.id,
           nombre: p.businessName || p.nombre || p.id.substring(0, 8),
+          logoHeader: typeof p.logoHeader === "string" ? p.logoHeader : "",
         }))
       );
     });
@@ -637,6 +638,9 @@ export default function DirectorPage() {
         icono: premioForm.icono,
         vendorId: premioForm.vendorId || "",
         vendorNombre,
+        // Denormalizado: el catálogo lo lee del premio en vez de hacer un
+        // getDoc por local en cada montaje. Se refresca al reguardar el premio.
+        vendorLogo: vendorInfo?.logoHeader || "",
         esSorteo: premioForm.esSorteo,
         activo: premioForm.activo,
         stock: premioForm.stockIlimitado ? null : Number(premioForm.stock),

@@ -73,6 +73,30 @@ function calcularStreak(logs: { fecha?: string; anulada?: boolean }[]): number {
 // Cache de módulo: persiste mientras la pestaña esté abierta, sobrevive navegaciones entre rutas
 let _entrepreneursCache: Entrepreneur[] | null = null;
 
+// El badge de premios se recalcula con cada cambio de userData (que llega por
+// onSnapshot, o sea con cada sello). Sin este cache, cada sello re-leía la
+// colección completa de premios. El catálogo cambia poco: basta una lectura
+// por pestaña.
+let _premiosCache: any[] | null = null;
+let _premiosPromise: Promise<any[]> | null = null;
+
+function cargarPremiosActivos(): Promise<any[]> {
+  if (_premiosCache !== null) return Promise.resolve(_premiosCache);
+  if (_premiosPromise === null) {
+    _premiosPromise = getDocs(query(collection(db, "premios"), where("activo", "==", true)))
+      .then((snap) => {
+        const lista = snap.docs.map((d) => d.data() as any);
+        _premiosCache = lista;
+        return lista;
+      })
+      .catch(() => {
+        _premiosPromise = null; // permite reintentar en la próxima llamada
+        return [] as any[];
+      });
+  }
+  return _premiosPromise;
+}
+
 const GROUP_META: Record<string, { emoji: string; color: string; light: string }> = {
   deco:      { emoji: "🏠", color: "#C2714F", light: "#FDF3EF" },
   gourmet:   { emoji: "🍷", color: "#4A7C59", light: "#EEF6F1" },
@@ -407,9 +431,10 @@ function HomeContent() {
       return;
     }
     const stampsCount = userData.comprasRealizadas || 0;
-    getDocs(query(collection(db, "premios"), where("activo", "==", true)))
-      .then((snap) => {
-        const todos = snap.docs.map((d) => d.data() as any);
+    let cancelado = false;
+    cargarPremiosActivos()
+      .then((todos) => {
+        if (cancelado) return;
         const puedeCanejear = todos.some(
           (p) => !p.esSorteo && typeof p.sellosRequeridos === "number" && stampsCount >= p.sellosRequeridos
         );
@@ -421,6 +446,7 @@ function HomeContent() {
         setNextPremio(proximos.length > 0 ? { nombre: proximos[0].nombre || "Premio", sellosRequeridos: proximos[0].sellosRequeridos, icono: proximos[0].icono || "🎁" } : null);
       })
       .catch(() => {});
+    return () => { cancelado = true; };
   }, [userData]);
 
   // Carga one-shot del directorio — usa cache de módulo para evitar re-fetch al navegar entre rutas

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { motion, AnimatePresence } from "framer-motion";
-import { collection, query, where, onSnapshot, Timestamp, doc, deleteDoc, getDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, Timestamp, doc, deleteDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { getSafeImageUrl } from "@/lib/utils";
 import { canjearPremioRemoto, verificarCanjesExpirados } from "@/lib/puntos";
@@ -30,6 +30,9 @@ interface Premio {
   icono: string;
   vendorId: string;
   vendorNombre: string;
+  /** Denormalizado desde entrepreneur_profiles.logoHeader al guardar el premio.
+   *  Evita un getDoc por local en cada montaje del catálogo (N+1). */
+  vendorLogo?: string;
   esSorteo: boolean;
   activo: boolean;
   stock: number;
@@ -603,7 +606,7 @@ function PremioShelfCard({ premio, sellos, onClick }: {
 // ─── Estante horizontal por local ─────────────────────────────────────────────
 
 function VendorShelf({ grupo, logo, sellos, onSelect, onVerLocal }: {
-  grupo: { key: string; vendorId: string; vendorName: string; items: Premio[]; canjeables: number };
+  grupo: { key: string; vendorId: string; vendorName: string; vendorLogo: string; items: Premio[]; canjeables: number };
   logo: string;
   sellos: number;
   onSelect: (p: Premio) => void;
@@ -679,8 +682,6 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
   const [premiosLoading, setPremiosLoading] = useState(true);
   const [myCanjes, setMyCanjes] = useState<Canje[]>([]);
   const [canjesLoading, setCanjesLoading] = useState(true);
-  const [vendorLogos, setVendorLogos] = useState<Record<string, string>>({});
-  const fetchedVendorsRef = useRef<Set<string>>(new Set());
   const [filtro, setFiltro] = useState<Filtro>("todos");
 
   const [selectedPremio, setSelectedPremio] = useState<Premio | null>(null);
@@ -844,7 +845,7 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
   // Catálogo agrupado por local. Dentro de cada grupo: primero lo canjeable,
   // luego lo más cercano a alcanzar, y al final lo agotado.
   const grupos = useMemo(() => {
-    const map = new Map<string, { key: string; vendorId: string; vendorName: string; items: Premio[] }>();
+    const map = new Map<string, { key: string; vendorId: string; vendorName: string; vendorLogo: string; items: Premio[] }>();
     premios.forEach((p) => {
       const key = p.vendorId || "__general__";
       if (!map.has(key)) {
@@ -852,10 +853,14 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
           key,
           vendorId: p.vendorId || "",
           vendorName: p.vendorNombre || "Patio Curauma",
+          vendorLogo: p.vendorLogo || "",
           items: [],
         });
       }
-      map.get(key)!.items.push(p);
+      // Un premio del grupo puede traer el logo aunque el primero no lo tenga.
+      const g = map.get(key)!;
+      if (!g.vendorLogo && p.vendorLogo) g.vendorLogo = p.vendorLogo;
+      g.items.push(p);
     });
     return Array.from(map.values()).map((g) => {
       const items = [...g.items].sort((a, b) => {
@@ -867,34 +872,6 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
       return { ...g, items, canjeables: items.filter((p) => rankPremio(p, sellos) === 0).length };
     });
   }, [premios, sellos]);
-
-  // Logo de cada local para el encabezado del grupo (lectura pública)
-  useEffect(() => {
-    const pendientes = grupos
-      .map((g) => g.vendorId)
-      .filter((vid) => vid && !fetchedVendorsRef.current.has(vid));
-    if (pendientes.length === 0) return;
-    pendientes.forEach((vid) => fetchedVendorsRef.current.add(vid));
-
-    let cancelado = false;
-    Promise.all(
-      pendientes.map(async (vid) => {
-        try {
-          const snap = await getDoc(doc(db, "entrepreneur_profiles", vid));
-          const logo = snap.exists() ? (snap.data() as any)?.logoHeader : null;
-          return [vid, typeof logo === "string" ? logo : ""] as const;
-        } catch {
-          return [vid, ""] as const;
-        }
-      })
-    ).then((entries) => {
-      if (cancelado) return;
-      const next: Record<string, string> = {};
-      entries.forEach(([vid, logo]) => { next[vid] = logo; });
-      setVendorLogos((prev) => ({ ...prev, ...next }));
-    });
-    return () => { cancelado = true; };
-  }, [grupos]);
 
   // Contadores por segmento del filtro
   const counts = useMemo<Record<Filtro, number>>(() => ({
@@ -1326,7 +1303,7 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
                   <VendorShelf
                     key={grupo.key}
                     grupo={grupo}
-                    logo={grupo.vendorId ? vendorLogos[grupo.vendorId] || "" : ""}
+                    logo={grupo.vendorLogo}
                     sellos={sellos}
                     onSelect={setSelectedPremio}
                     onVerLocal={(vendorId) => router.push(`/emprendedor/${vendorId}`)}
