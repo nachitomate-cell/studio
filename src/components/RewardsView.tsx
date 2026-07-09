@@ -359,7 +359,134 @@ function rankPremio(p: Premio, sellos: number): 0 | 1 | 2 {
   return sellos >= p.sellosRequeridos ? 0 : 1;
 }
 
-function PremioCard({ premio, sellos, onClick }: {
+type Filtro = "listos" | "cerca" | "todos";
+
+// ─── Hero: el premio que importa ahora ────────────────────────────────────────
+
+function HeroPremio({ premio, sellos, onClick }: {
+  premio: Premio; sellos: number; onClick: () => void;
+}) {
+  const puedeCanjear = rankPremio(premio, sellos) === 0;
+  const faltan = Math.max(premio.sellosRequeridos - sellos, 0);
+  const pct = premio.sellosRequeridos > 0
+    ? Math.min((sellos / premio.sellosRequeridos) * 100, 100)
+    : 100;
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-[1.75rem] overflow-hidden relative active:scale-[0.98] transition-transform"
+      style={{
+        background: "linear-gradient(135deg, #FFFDF6 0%, #FFF6E2 100%)",
+        border: `1.5px solid ${GOLD}59`,
+        boxShadow: "0 8px 28px rgba(201,146,10,0.14)",
+      }}
+    >
+      <div
+        aria-hidden
+        className="absolute -top-14 -right-14 w-44 h-44 rounded-full pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(232,197,71,0.28) 0%, transparent 70%)" }}
+      />
+      <div className="relative p-5 flex items-center gap-4">
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+          style={{ backgroundColor: "rgba(201,146,10,0.12)", border: `1.5px solid ${GOLD}44` }}
+        >
+          {premio.icono || "🎁"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p style={{ fontSize: 9, letterSpacing: "2.4px", color: GOLD, fontWeight: 800, textTransform: "uppercase" }}>
+            {puedeCanjear ? "Tu mejor premio disponible" : "Tu próximo premio"}
+          </p>
+          <p className="text-slate-900 font-black text-base leading-tight line-clamp-2 mt-0.5">
+            {premio.nombre}
+          </p>
+          <p className="text-[11px] text-slate-400 font-semibold truncate">{premio.vendorNombre}</p>
+
+          {puedeCanjear ? (
+            <p className="flex items-center gap-1 text-[11px] font-black text-emerald-600 mt-1.5">
+              <Check className="w-3 h-3" strokeWidth={3} />
+              Listo para canjear · {premio.sellosRequeridos} sellos
+            </p>
+          ) : (
+            <div className="mt-2 space-y-1">
+              <div style={{ height: 4, background: "rgba(201,146,10,0.14)", borderRadius: 10, overflow: "hidden" }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  style={{ height: "100%", background: `linear-gradient(90deg, ${GOLD}, #E8C547)`, borderRadius: 10 }}
+                />
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 tabular-nums">
+                {Math.min(sellos, premio.sellosRequeridos)} / {premio.sellosRequeridos} sellos ·{" "}
+                {faltan === 1 ? "te falta 1" : `te faltan ${faltan}`}
+              </p>
+            </div>
+          )}
+        </div>
+        <ChevronRight className="w-5 h-5 shrink-0" style={{ color: `${GOLD}88` }} />
+      </div>
+    </button>
+  );
+}
+
+// ─── Control segmentado ───────────────────────────────────────────────────────
+
+const SEGMENTOS: { key: Filtro; label: string }[] = [
+  { key: "listos", label: "Listos" },
+  { key: "cerca", label: "Cerca" },
+  { key: "todos", label: "Todos" },
+];
+
+function SegmentedFilter({ value, onChange, counts }: {
+  value: Filtro; onChange: (f: Filtro) => void; counts: Record<Filtro, number>;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Filtrar premios"
+      className="flex p-1 rounded-2xl"
+      style={{ backgroundColor: "rgba(241,245,249,0.85)" }}
+    >
+      {SEGMENTOS.map((s) => {
+        const active = value === s.key;
+        return (
+          <button
+            key={s.key}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(s.key)}
+            className="relative flex-1 h-9 rounded-xl text-xs font-black outline-none"
+          >
+            {active && (
+              <motion.div
+                layoutId="filtro-premios-pill"
+                transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                className="absolute inset-0 rounded-xl bg-white"
+                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.10), 0 1px 1px rgba(0,0,0,0.04)" }}
+              />
+            )}
+            <span
+              className={`relative z-10 flex items-center justify-center gap-1.5 transition-colors ${
+                active ? "text-slate-900" : "text-slate-400"
+              }`}
+            >
+              {s.label}
+              <span className={`tabular-nums text-[10px] font-bold ${active ? "text-slate-400" : "text-slate-300"}`}>
+                {counts[s.key]}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Tarjeta compacta del estante ─────────────────────────────────────────────
+
+function PremioShelfCard({ premio, sellos, onClick }: {
   premio: Premio; sellos: number; onClick: () => void;
 }) {
   const estado = rankPremio(premio, sellos);
@@ -372,96 +499,69 @@ function PremioCard({ premio, sellos, onClick }: {
     ? Math.min((sellos / premio.sellosRequeridos) * 100, 100)
     : 100;
 
-  const cardClass = premio.esSorteo
-    ? "border-yellow-200 bg-yellow-50/40"
-    : puedeCanjear
-    ? "border-transparent bg-gradient-to-br from-[#FFFDF6] to-white"
-    : bloqueado
-    ? "border-slate-100 bg-white hover:border-slate-200"
-    : "border-slate-100 bg-slate-50/60 opacity-70";
-
   return (
-    <Card
+    <button
       onClick={onClick}
-      role="button"
       aria-label={`${premio.nombre} — ${premio.sellosRequeridos} sellos${
         puedeCanjear ? " — listo para canjear" : bloqueado ? ` — te faltan ${faltan}` : " — sin stock"
       }`}
-      className={`border overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 ${cardClass}`}
-      style={
-        puedeCanjear && !premio.esSorteo
-          ? { boxShadow: `0 0 0 2px ${GOLD}55, 0 6px 18px rgba(201,146,10,0.16)` }
-          : undefined
-      }
+      className={`snap-start shrink-0 w-[152px] rounded-3xl border text-left overflow-hidden transition-all active:scale-[0.97] ${
+        premio.esSorteo
+          ? "border-yellow-200 bg-yellow-50/40"
+          : puedeCanjear
+          ? "bg-gradient-to-b from-[#FFFDF6] to-white"
+          : sinStock
+          ? "border-slate-100 bg-slate-50/60 opacity-70"
+          : "border-slate-100 bg-white"
+      }`}
+      style={puedeCanjear && !premio.esSorteo ? { borderColor: `${GOLD}55` } : undefined}
     >
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3">
-          {/* Ícono — tintado según estado; en gris si aún no lo alcanzas */}
+      <div className="p-3 flex flex-col gap-2 h-full">
+        {/* Ícono */}
+        <div className="relative">
           <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 text-2xl"
+            className="w-full aspect-[4/3] rounded-2xl flex items-center justify-center text-4xl"
             style={
               premio.esSorteo
                 ? { backgroundColor: "#FACC15" }
                 : puedeCanjear
-                ? { backgroundColor: "rgba(201,146,10,0.14)", border: `1.5px solid ${GOLD}55` }
-                : { backgroundColor: "#F8FAFC", border: "1.5px solid #F1F5F9" }
+                ? { backgroundColor: "rgba(201,146,10,0.10)" }
+                : { backgroundColor: "#F8FAFC" }
             }
           >
-            <span style={bloqueado ? { filter: "grayscale(0.85)", opacity: 0.6 } : undefined}>
+            <span style={bloqueado ? { filter: "grayscale(0.85)", opacity: 0.55 } : undefined}>
               {premio.icono || "🎁"}
             </span>
           </div>
-
-          {/* Nombre + costo */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="font-bold text-sm text-slate-800 leading-tight truncate">{premio.nombre}</p>
-              {puedeCanjear && !premio.esSorteo && (
-                <span
-                  className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: "rgba(201,146,10,0.14)", color: GOLD }}
-                >
-                  LISTO
-                </span>
-              )}
-            </div>
-            {puedeCanjear ? (
-              <p className="flex items-center gap-1 text-[11px] font-black text-emerald-600 mt-0.5 tabular-nums">
-                <Check className="w-3 h-3" strokeWidth={3} />
-                {premio.sellosRequeridos}/{premio.sellosRequeridos} sellos
-              </p>
-            ) : (
-              <p
-                className="text-[11px] font-black mt-0.5 tabular-nums"
-                style={{ color: sinStock ? "#94A3B8" : GOLD }}
-              >
-                {premio.sellosRequeridos} sellos
-              </p>
-            )}
-          </div>
-
-          {/* CTA */}
-          {puedeCanjear ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); onClick(); }}
-              className="shrink-0 px-4 py-2 rounded-2xl font-black text-xs text-white shadow-md active:scale-95 transition-transform"
-              style={{ backgroundColor: premio.esSorteo ? "#EAB308" : GOLD }}
+          {puedeCanjear && !premio.esSorteo && (
+            <span
+              className="absolute top-1.5 right-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full text-white"
+              style={{ backgroundColor: GOLD }}
             >
-              ¡Canjear!
-            </button>
-          ) : bloqueado ? (
-            <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
-          ) : (
-            <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-red-50 text-red-400">
-              Sin stock
+              LISTO
+            </span>
+          )}
+          {sinStock && (
+            <span className="absolute top-1.5 right-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-500">
+              AGOTADO
             </span>
           )}
         </div>
 
-        {/* Progreso — solo en premios que aún no alcanzas */}
-        {bloqueado && (
-          <div className="mt-3 space-y-1.5">
-            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+        {/* Nombre */}
+        <p className="font-bold text-[13px] leading-tight text-slate-800 line-clamp-2 min-h-[2.1em]">
+          {premio.nombre}
+        </p>
+
+        {/* Estado */}
+        {puedeCanjear ? (
+          <p className="flex items-center gap-1 text-[11px] font-black text-emerald-600 tabular-nums">
+            <Check className="w-3 h-3" strokeWidth={3} />
+            {premio.sellosRequeridos}/{premio.sellosRequeridos}
+          </p>
+        ) : bloqueado ? (
+          <div className="space-y-1">
+            <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${pct}%` }}
@@ -470,18 +570,93 @@ function PremioCard({ premio, sellos, onClick }: {
                 style={{ background: `linear-gradient(90deg, ${GOLD}, #E8C547)` }}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-400 tabular-nums">
-                {Math.min(sellos, premio.sellosRequeridos)} / {premio.sellosRequeridos} sellos
-              </span>
-              <span className="text-[10px] font-black" style={{ color: GOLD }}>
-                {faltan === 1 ? "Te falta 1 sello" : `Te faltan ${faltan} sellos`}
-              </span>
+            <p className="text-[10px] font-black tabular-nums" style={{ color: GOLD }}>
+              {faltan === 1 ? "Te falta 1 sello" : `Te faltan ${faltan}`}
+            </p>
+          </div>
+        ) : (
+          <p className="text-[11px] font-black text-slate-400 tabular-nums">
+            {premio.sellosRequeridos} sellos
+          </p>
+        )}
+
+        {/* CTA (div, no button — la tarjeta entera ya es el botón) */}
+        <div className="mt-auto pt-0.5">
+          {puedeCanjear ? (
+            <div
+              className="h-8 rounded-xl flex items-center justify-center text-[11px] font-black text-white"
+              style={{ backgroundColor: premio.esSorteo ? "#EAB308" : GOLD }}
+            >
+              ¡Canjear!
             </div>
+          ) : (
+            <div className="h-8 rounded-xl flex items-center justify-center text-[11px] font-bold text-slate-400 bg-slate-50">
+              {sinStock ? "Sin stock" : "Ver detalle"}
+            </div>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─── Estante horizontal por local ─────────────────────────────────────────────
+
+function VendorShelf({ grupo, logo, sellos, onSelect, onVerLocal }: {
+  grupo: { key: string; vendorId: string; vendorName: string; items: Premio[]; canjeables: number };
+  logo: string;
+  sellos: number;
+  onSelect: (p: Premio) => void;
+  onVerLocal: (vendorId: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {/* Encabezado del local */}
+      <div className="flex items-center gap-2 px-1">
+        {logo ? (
+          <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 relative bg-white border border-primary/15">
+            <Image src={getSafeImageUrl(logo)} alt="" fill sizes="24px" className="object-cover" />
+          </div>
+        ) : (
+          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+            <Store className="w-3.5 h-3.5 text-primary" />
           </div>
         )}
-      </CardContent>
-    </Card>
+        <p className="text-xs font-black uppercase tracking-widest text-primary truncate">
+          {grupo.vendorName}
+        </p>
+        <div className="flex-1 h-px bg-primary/15" />
+        {grupo.canjeables > 0 && (
+          <span
+            className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0"
+            style={{ backgroundColor: "rgba(201,146,10,0.12)", color: GOLD }}
+          >
+            {grupo.canjeables} {grupo.canjeables === 1 ? "listo" : "listos"}
+          </span>
+        )}
+        {grupo.vendorId && (
+          <button
+            onClick={() => onVerLocal(grupo.vendorId)}
+            className="flex items-center text-[10px] font-black text-slate-400 hover:text-primary transition-colors shrink-0"
+          >
+            Ver todo
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Estante con scroll lateral — sangra hasta el borde de la pantalla */}
+      <div className="flex gap-2.5 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-4 px-4 pb-1">
+        {grupo.items.map((premio) => (
+          <PremioShelfCard
+            key={premio.id}
+            premio={premio}
+            sellos={sellos}
+            onClick={() => onSelect(premio)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -506,6 +681,7 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
   const [canjesLoading, setCanjesLoading] = useState(true);
   const [vendorLogos, setVendorLogos] = useState<Record<string, string>>({});
   const fetchedVendorsRef = useRef<Set<string>>(new Set());
+  const [filtro, setFiltro] = useState<Filtro>("todos");
 
   const [selectedPremio, setSelectedPremio] = useState<Premio | null>(null);
   const [confirmPremio, setConfirmPremio] = useState<Premio | null>(null);
@@ -719,6 +895,41 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
     });
     return () => { cancelado = true; };
   }, [grupos]);
+
+  // Contadores por segmento del filtro
+  const counts = useMemo<Record<Filtro, number>>(() => ({
+    listos: premios.filter((p) => rankPremio(p, sellos) === 0).length,
+    cerca: premios.filter((p) => rankPremio(p, sellos) === 1).length,
+    todos: premios.length,
+  }), [premios, sellos]);
+
+  // Hero: el más cercano de alcanzar; si ya puedes con todos, el de mayor valor.
+  const heroPremio = useMemo(() => {
+    const conStock = premios.filter((p) => rankPremio(p, sellos) !== 2);
+    const bloqueados = conStock.filter((p) => rankPremio(p, sellos) === 1);
+    if (bloqueados.length > 0) {
+      return bloqueados.reduce((a, b) => (a.sellosRequeridos <= b.sellosRequeridos ? a : b));
+    }
+    const listos = conStock.filter((p) => rankPremio(p, sellos) === 0);
+    if (listos.length > 0) {
+      return listos.reduce((a, b) => (a.sellosRequeridos >= b.sellosRequeridos ? a : b));
+    }
+    return null;
+  }, [premios, sellos]);
+
+  // Los "sin stock" solo aparecen en el segmento "Todos".
+  const gruposFiltrados = useMemo(() => {
+    if (filtro === "todos") return grupos;
+    const objetivo = filtro === "listos" ? 0 : 1;
+    return grupos
+      .map((g) => {
+        const items = g.items.filter((p) => rankPremio(p, sellos) === objetivo);
+        // Recontar sobre lo ya filtrado: si no, bajo el filtro "Cerca" el estante
+        // anuncia "3 listos" mientras muestra únicamente premios bloqueados.
+        return { ...g, items, canjeables: items.filter((p) => rankPremio(p, sellos) === 0).length };
+      })
+      .filter((g) => g.items.length > 0);
+  }, [grupos, filtro, sellos]);
 
   const pendingCanjes = myCanjes.filter((c) => c.status === "pending");
   const pastCanjes = myCanjes.filter((c) => c.status !== "pending");
@@ -1086,59 +1297,43 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
             No hay premios disponibles por ahora.
           </div>
         ) : (
-          <div className="space-y-5">
-            {grupos.map((grupo) => {
-              const logo = grupo.vendorId ? vendorLogos[grupo.vendorId] : "";
-              return (
-                <div key={grupo.key} className="space-y-2">
-                  {/* Encabezado del local */}
-                  <div className="flex items-center gap-2 px-1">
-                    {logo ? (
-                      <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 relative bg-white border border-primary/15">
-                        <Image
-                          src={getSafeImageUrl(logo)}
-                          alt=""
-                          fill
-                          sizes="24px"
-                          className="object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                        <Store className="w-3.5 h-3.5 text-primary" />
-                      </div>
-                    )}
-                    <p className="text-xs font-black uppercase tracking-widest text-primary truncate">
-                      {grupo.vendorName}
-                    </p>
-                    <div className="flex-1 h-px bg-primary/15" />
-                    {grupo.canjeables > 0 ? (
-                      <span
-                        className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0"
-                        style={{ backgroundColor: "rgba(201,146,10,0.12)", color: GOLD }}
-                      >
-                        {grupo.canjeables} {grupo.canjeables === 1 ? "listo" : "listos"}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400 shrink-0">
-                        {grupo.items.length} {grupo.items.length === 1 ? "premio" : "premios"}
-                      </span>
-                    )}
-                  </div>
+          <div className="space-y-4">
+            {heroPremio && (
+              <HeroPremio
+                premio={heroPremio}
+                sellos={sellos}
+                onClick={() => setSelectedPremio(heroPremio)}
+              />
+            )}
 
-                  <div className="grid grid-cols-1 gap-2">
-                    {grupo.items.map((premio) => (
-                      <PremioCard
-                        key={premio.id}
-                        premio={premio}
-                        sellos={sellos}
-                        onClick={() => setSelectedPremio(premio)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            <SegmentedFilter value={filtro} onChange={setFiltro} counts={counts} />
+
+            {gruposFiltrados.length === 0 ? (
+              <div className="rounded-3xl border-2 border-dashed border-slate-200 py-10 text-center space-y-2">
+                <Gift className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-sm text-slate-400 font-medium">
+                  {filtro === "listos" ? "Aún no tienes premios listos" : "No hay premios por alcanzar"}
+                </p>
+                <p className="text-xs text-slate-300">
+                  {filtro === "listos"
+                    ? "Suma sellos para desbloquear tu primer premio"
+                    : "Ya puedes canjear todo lo que está disponible"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-5 pt-1">
+                {gruposFiltrados.map((grupo) => (
+                  <VendorShelf
+                    key={grupo.key}
+                    grupo={grupo}
+                    logo={grupo.vendorId ? vendorLogos[grupo.vendorId] || "" : ""}
+                    sellos={sellos}
+                    onSelect={setSelectedPremio}
+                    onVerLocal={(vendorId) => router.push(`/emprendedor/${vendorId}`)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>
