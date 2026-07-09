@@ -9,11 +9,13 @@ import { Button } from "@/components/ui/button";
 import {
   Gift, Loader2, CheckCircle2, XCircle, AlertCircle, Store,
   Clock, HelpCircle, Stamp, WifiOff, X, Star, Check, ScanLine, Lock,
+  ChevronRight,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { motion, AnimatePresence } from "framer-motion";
-import { collection, query, where, onSnapshot, Timestamp, doc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, Timestamp, doc, deleteDoc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import { getSafeImageUrl } from "@/lib/utils";
 import { canjearPremioRemoto, verificarCanjesExpirados } from "@/lib/puntos";
 import { useToast } from "@/hooks/use-toast";
 import { RewardsHelpModal } from "@/components/RewardsHelpModal";
@@ -346,6 +348,143 @@ function SuccessScreen({ data, onVerMisCanjes }: { data: SuccessData; onVerMisCa
   );
 }
 
+// ─── Premio card (catálogo) ───────────────────────────────────────────────────
+
+const GOLD = "#C9920A";
+
+/** Devuelve 0 = canjeable, 1 = bloqueado (faltan sellos), 2 = sin stock. */
+function rankPremio(p: Premio, sellos: number): 0 | 1 | 2 {
+  const stockDisponible = typeof p.stock !== "number" || p.stock > 0;
+  if (!stockDisponible) return 2;
+  return sellos >= p.sellosRequeridos ? 0 : 1;
+}
+
+function PremioCard({ premio, sellos, onClick }: {
+  premio: Premio; sellos: number; onClick: () => void;
+}) {
+  const estado = rankPremio(premio, sellos);
+  const puedeCanjear = estado === 0;
+  const bloqueado = estado === 1;
+  const sinStock = estado === 2;
+
+  const faltan = Math.max(premio.sellosRequeridos - sellos, 0);
+  const pct = premio.sellosRequeridos > 0
+    ? Math.min((sellos / premio.sellosRequeridos) * 100, 100)
+    : 100;
+
+  const cardClass = premio.esSorteo
+    ? "border-yellow-200 bg-yellow-50/40"
+    : puedeCanjear
+    ? "border-transparent bg-gradient-to-br from-[#FFFDF6] to-white"
+    : bloqueado
+    ? "border-slate-100 bg-white hover:border-slate-200"
+    : "border-slate-100 bg-slate-50/60 opacity-70";
+
+  return (
+    <Card
+      onClick={onClick}
+      role="button"
+      aria-label={`${premio.nombre} — ${premio.sellosRequeridos} sellos${
+        puedeCanjear ? " — listo para canjear" : bloqueado ? ` — te faltan ${faltan}` : " — sin stock"
+      }`}
+      className={`border overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 ${cardClass}`}
+      style={
+        puedeCanjear && !premio.esSorteo
+          ? { boxShadow: `0 0 0 2px ${GOLD}55, 0 6px 18px rgba(201,146,10,0.16)` }
+          : undefined
+      }
+    >
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3">
+          {/* Ícono — tintado según estado; en gris si aún no lo alcanzas */}
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 text-2xl"
+            style={
+              premio.esSorteo
+                ? { backgroundColor: "#FACC15" }
+                : puedeCanjear
+                ? { backgroundColor: "rgba(201,146,10,0.14)", border: `1.5px solid ${GOLD}55` }
+                : { backgroundColor: "#F8FAFC", border: "1.5px solid #F1F5F9" }
+            }
+          >
+            <span style={bloqueado ? { filter: "grayscale(0.85)", opacity: 0.6 } : undefined}>
+              {premio.icono || "🎁"}
+            </span>
+          </div>
+
+          {/* Nombre + costo */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="font-bold text-sm text-slate-800 leading-tight truncate">{premio.nombre}</p>
+              {puedeCanjear && !premio.esSorteo && (
+                <span
+                  className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: "rgba(201,146,10,0.14)", color: GOLD }}
+                >
+                  LISTO
+                </span>
+              )}
+            </div>
+            {puedeCanjear ? (
+              <p className="flex items-center gap-1 text-[11px] font-black text-emerald-600 mt-0.5 tabular-nums">
+                <Check className="w-3 h-3" strokeWidth={3} />
+                {premio.sellosRequeridos}/{premio.sellosRequeridos} sellos
+              </p>
+            ) : (
+              <p
+                className="text-[11px] font-black mt-0.5 tabular-nums"
+                style={{ color: sinStock ? "#94A3B8" : GOLD }}
+              >
+                {premio.sellosRequeridos} sellos
+              </p>
+            )}
+          </div>
+
+          {/* CTA */}
+          {puedeCanjear ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="shrink-0 px-4 py-2 rounded-2xl font-black text-xs text-white shadow-md active:scale-95 transition-transform"
+              style={{ backgroundColor: premio.esSorteo ? "#EAB308" : GOLD }}
+            >
+              ¡Canjear!
+            </button>
+          ) : bloqueado ? (
+            <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+          ) : (
+            <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-red-50 text-red-400">
+              Sin stock
+            </span>
+          )}
+        </div>
+
+        {/* Progreso — solo en premios que aún no alcanzas */}
+        {bloqueado && (
+          <div className="mt-3 space-y-1.5">
+            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 0.7, ease: "easeOut" }}
+                className="h-full rounded-full"
+                style={{ background: `linear-gradient(90deg, ${GOLD}, #E8C547)` }}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 tabular-nums">
+                {Math.min(sellos, premio.sellosRequeridos)} / {premio.sellosRequeridos} sellos
+              </span>
+              <span className="text-[10px] font-black" style={{ color: GOLD }}>
+                {faltan === 1 ? "Te falta 1 sello" : `Te faltan ${faltan} sellos`}
+              </span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── RewardsView (componente principal unificado) ─────────────────────────────
 
 export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
@@ -365,6 +504,8 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
   const [premiosLoading, setPremiosLoading] = useState(true);
   const [myCanjes, setMyCanjes] = useState<Canje[]>([]);
   const [canjesLoading, setCanjesLoading] = useState(true);
+  const [vendorLogos, setVendorLogos] = useState<Record<string, string>>({});
+  const fetchedVendorsRef = useRef<Set<string>>(new Set());
 
   const [selectedPremio, setSelectedPremio] = useState<Premio | null>(null);
   const [confirmPremio, setConfirmPremio] = useState<Premio | null>(null);
@@ -523,6 +664,61 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
   // La tarjeta muestra SIEMPRE el conteo real de sellos. La disponibilidad de
   // premio se comunica aparte (badge "premio listo"), sin falsear el progreso.
   const sellosDisplay = sellosEnTarjeta;
+
+  // Catálogo agrupado por local. Dentro de cada grupo: primero lo canjeable,
+  // luego lo más cercano a alcanzar, y al final lo agotado.
+  const grupos = useMemo(() => {
+    const map = new Map<string, { key: string; vendorId: string; vendorName: string; items: Premio[] }>();
+    premios.forEach((p) => {
+      const key = p.vendorId || "__general__";
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          vendorId: p.vendorId || "",
+          vendorName: p.vendorNombre || "Patio Curauma",
+          items: [],
+        });
+      }
+      map.get(key)!.items.push(p);
+    });
+    return Array.from(map.values()).map((g) => {
+      const items = [...g.items].sort((a, b) => {
+        const ra = rankPremio(a, sellos);
+        const rb = rankPremio(b, sellos);
+        if (ra !== rb) return ra - rb;
+        return a.sellosRequeridos - b.sellosRequeridos;
+      });
+      return { ...g, items, canjeables: items.filter((p) => rankPremio(p, sellos) === 0).length };
+    });
+  }, [premios, sellos]);
+
+  // Logo de cada local para el encabezado del grupo (lectura pública)
+  useEffect(() => {
+    const pendientes = grupos
+      .map((g) => g.vendorId)
+      .filter((vid) => vid && !fetchedVendorsRef.current.has(vid));
+    if (pendientes.length === 0) return;
+    pendientes.forEach((vid) => fetchedVendorsRef.current.add(vid));
+
+    let cancelado = false;
+    Promise.all(
+      pendientes.map(async (vid) => {
+        try {
+          const snap = await getDoc(doc(db, "entrepreneur_profiles", vid));
+          const logo = snap.exists() ? (snap.data() as any)?.logoHeader : null;
+          return [vid, typeof logo === "string" ? logo : ""] as const;
+        } catch {
+          return [vid, ""] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelado) return;
+      const next: Record<string, string> = {};
+      entries.forEach(([vid, logo]) => { next[vid] = logo; });
+      setVendorLogos((prev) => ({ ...prev, ...next }));
+    });
+    return () => { cancelado = true; };
+  }, [grupos]);
 
   const pendingCanjes = myCanjes.filter((c) => c.status === "pending");
   const pastCanjes = myCanjes.filter((c) => c.status !== "pending");
@@ -891,80 +1087,58 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
           </div>
         ) : (
           <div className="space-y-5">
-            {(() => {
-              const grupos: Record<string, { vendorName: string; items: Premio[] }> = {};
-              premios.forEach((premio) => {
-                const key = premio.vendorId || "__general__";
-                const vendorName = premio.vendorNombre || "Patio Curauma";
-                if (!grupos[key]) grupos[key] = { vendorName, items: [] };
-                grupos[key].items.push(premio);
-              });
-
-              return Object.entries(grupos).map(([vendorKey, grupo]) => (
-                <div key={vendorKey} className="space-y-2">
+            {grupos.map((grupo) => {
+              const logo = grupo.vendorId ? vendorLogos[grupo.vendorId] : "";
+              return (
+                <div key={grupo.key} className="space-y-2">
                   {/* Encabezado del local */}
                   <div className="flex items-center gap-2 px-1">
-                    <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                      <Store className="w-3.5 h-3.5 text-primary" />
-                    </div>
+                    {logo ? (
+                      <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 relative bg-white border border-primary/15">
+                        <Image
+                          src={getSafeImageUrl(logo)}
+                          alt=""
+                          fill
+                          sizes="24px"
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                        <Store className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                    )}
                     <p className="text-xs font-black uppercase tracking-widest text-primary truncate">
                       {grupo.vendorName}
                     </p>
                     <div className="flex-1 h-px bg-primary/15" />
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0">
-                      {grupo.items.length} {grupo.items.length === 1 ? "premio" : "premios"}
-                    </span>
+                    {grupo.canjeables > 0 ? (
+                      <span
+                        className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0"
+                        style={{ backgroundColor: "rgba(201,146,10,0.12)", color: GOLD }}
+                      >
+                        {grupo.canjeables} {grupo.canjeables === 1 ? "listo" : "listos"}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                        {grupo.items.length} {grupo.items.length === 1 ? "premio" : "premios"}
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 gap-2">
-                    {grupo.items.map((premio) => {
-                      const stockDisponible = typeof premio.stock !== "number" || premio.stock > 0;
-                      const puedeCanjear = sellos >= premio.sellosRequeridos && stockDisponible;
-                      return (
-                        <Card
-                          key={premio.id}
-                          onClick={() => setSelectedPremio(premio)}
-                          className={`border overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 ${
-                            premio.esSorteo
-                              ? "border-yellow-200 bg-yellow-50/30"
-                              : puedeCanjear
-                              ? "border-primary/20 shadow-sm hover:shadow-md hover:border-primary/40"
-                              : "border-slate-100 opacity-80 hover:opacity-100"
-                          }`}
-                        >
-                          <CardContent className="p-4 flex items-center gap-3">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 text-2xl ${premio.esSorteo ? "bg-yellow-400" : "bg-primary/10"}`}>
-                              {premio.icono || "🎁"}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-bold text-sm text-slate-800 leading-tight">{premio.nombre}</p>
-                              <p className="text-[11px] font-black text-primary mt-0.5">{premio.sellosRequeridos} sellos</p>
-                            </div>
-                            {puedeCanjear ? (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setSelectedPremio(premio); }}
-                                className="shrink-0 px-4 py-2 rounded-2xl font-black text-xs text-white shadow-md active:scale-95 transition-transform"
-                                style={{ backgroundColor: premio.esSorteo ? "#EAB308" : "#C9920A" }}
-                              >
-                                ¡Canjear ahora!
-                              </button>
-                            ) : sellos < premio.sellosRequeridos ? (
-                              <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-gray-100 text-gray-500">
-                                Faltan {premio.sellosRequeridos - sellos}
-                              </span>
-                            ) : (
-                              <span className="shrink-0 px-3 py-2 rounded-2xl text-xs font-bold bg-red-50 text-red-400">
-                                Sin stock
-                              </span>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+                    {grupo.items.map((premio) => (
+                      <PremioCard
+                        key={premio.id}
+                        premio={premio}
+                        sellos={sellos}
+                        onClick={() => setSelectedPremio(premio)}
+                      />
+                    ))}
                   </div>
                 </div>
-              ));
-            })()}
+              );
+            })}
           </div>
         )}
       </section>
