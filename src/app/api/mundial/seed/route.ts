@@ -55,21 +55,16 @@ type PartidoSeed = {
 
 const partidosReales: PartidoSeed[] = [
   // ── Octavos de final (Sáb 04-07 → Mar 07-07) ───────────────────────────
-  // Paraguay 0-0 Francia: en entretiempo al momento del seed (04-07).
-  { id: "par-fra-oct", equipoA: "Paraguay",        banderaA: "🇵🇾", equipoB: "Francia",        banderaB: "🇫🇷",                    fase: "Octavos de final", fechaInicio: "2026-07-04T17:00:00-04:00", finalizado: false, enJuego: true, golesA: 0, golesB: 0 },
-  { id: "bra-nor-oct", equipoA: "Brasil",          banderaA: "🇧🇷", equipoB: "Noruega",        banderaB: "🇳🇴",                    fase: "Octavos de final", fechaInicio: "2026-07-05T16:00:00-04:00", finalizado: false },
-  { id: "mex-ing-oct", equipoA: "México",          banderaA: "🇲🇽", equipoB: "Inglaterra",     banderaB: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", fase: "Octavos de final", fechaInicio: "2026-07-05T20:00:00-04:00", finalizado: false },
-  { id: "por-esp-oct", equipoA: "Portugal",        banderaA: "🇵🇹", equipoB: "España",         banderaB: "🇪🇸",                    fase: "Octavos de final", fechaInicio: "2026-07-06T15:00:00-04:00", finalizado: false },
-  { id: "usa-bel-oct", equipoA: "Estados Unidos",  banderaA: "🇺🇸", equipoB: "Bélgica",        banderaB: "🇧🇪",                    fase: "Octavos de final", fechaInicio: "2026-07-06T20:00:00-04:00", finalizado: false },
-  { id: "arg-egi-oct", equipoA: "Argentina",       banderaA: "🇦🇷", equipoB: "Egipto",         banderaB: "🇪🇬",                    fase: "Octavos de final", fechaInicio: "2026-07-07T12:00:00-04:00", finalizado: false },
-  { id: "sui-col-oct", equipoA: "Suiza",           banderaA: "🇨🇭", equipoB: "Colombia",       banderaB: "🇨🇴",                    fase: "Octavos de final", fechaInicio: "2026-07-07T16:00:00-04:00", finalizado: false },
+  // Ya se jugaron/están cerrándose. Se dejan fuera del seed para no revertir
+  // los `finalizado:true` con sus goles reales guardados vía /api/mundial/resolver.
+  // Sus documentos permanecen en Firestore (no se tocan al reejecutar el seed).
 
   // ── Cuartos de final (Jue 09-07 → Sáb 11-07) ───────────────────────────
-  // Marruecos ya clasificó (Canadá 0-x Marruecos ya jugado).
-  { id: "qf-01", equipoA: "A definir", banderaA: "❓", equipoB: "Marruecos", banderaB: "🇲🇦", fase: "Cuartos de final", fechaInicio: "2026-07-09T16:00:00-04:00", finalizado: false },
-  { id: "qf-02", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Cuartos de final", fechaInicio: "2026-07-10T15:00:00-04:00", finalizado: false },
-  { id: "qf-03", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Cuartos de final", fechaInicio: "2026-07-11T17:00:00-04:00", finalizado: false },
-  { id: "qf-04", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Cuartos de final", fechaInicio: "2026-07-11T21:00:00-04:00", finalizado: false },
+  // qf-04 queda "A definir" hasta que se jueguen Argentina-Egipto y Suiza-Colombia.
+  { id: "qf-01", equipoA: "Francia",    banderaA: "🇫🇷", equipoB: "Marruecos",  banderaB: "🇲🇦",                    fase: "Cuartos de final", fechaInicio: "2026-07-09T16:00:00-04:00", finalizado: false },
+  { id: "qf-02", equipoA: "España",     banderaA: "🇪🇸", equipoB: "Bélgica",    banderaB: "🇧🇪",                    fase: "Cuartos de final", fechaInicio: "2026-07-10T15:00:00-04:00", finalizado: false },
+  { id: "qf-03", equipoA: "Noruega",    banderaA: "🇳🇴", equipoB: "Inglaterra", banderaB: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", fase: "Cuartos de final", fechaInicio: "2026-07-11T17:00:00-04:00", finalizado: false },
+  { id: "qf-04", equipoA: "A definir",  banderaA: "❓",  equipoB: "A definir",  banderaB: "❓",                     fase: "Cuartos de final", fechaInicio: "2026-07-11T21:00:00-04:00", finalizado: false },
 
   // ── Semifinales (Mar 14-07 → Mié 15-07) ────────────────────────────────
   { id: "sf-01", equipoA: "A definir", banderaA: "❓", equipoB: "A definir", banderaB: "❓", fase: "Semifinal", fechaInicio: "2026-07-14T15:00:00-04:00", finalizado: false },
