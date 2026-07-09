@@ -16,8 +16,9 @@
  */
 
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import type { Message } from "firebase-admin/messaging";
 import { ADMIN_EMAIL, ALLOWED_MOD_EMAILS } from "@/lib/constants";
 
 const ROLES_PERMITIDOS = ["admin", "director", "director_patio", "moderador"];
@@ -120,6 +121,9 @@ export async function POST(request: Request) {
     };
 
     const stats = { total: 0, exactos: 0, ganador: 0, sinSellos: 0, sellosRepartidos: 0 };
+    // uids que resolvimos en ESTA llamada (para enviar push solo a ellos y no
+    // duplicar avisos si el resolver se reejecuta sobre un partido ya cerrado).
+    const notificarPorUid = new Map<string, number>();
 
     for (const docSnap of pronosticosSnap.docs) {
       const data = docSnap.data();
@@ -136,6 +140,13 @@ export async function POST(request: Request) {
       if (sellosGanados === 8) stats.exactos++;
       else if (sellosGanados === 3) stats.ganador++;
       else stats.sinSellos++;
+
+      if (typeof data.userId === "string" && data.userId) {
+        // Si un usuario tiene más de un pronóstico para el mismo partido
+        // (edge case), nos quedamos con el mejor resultado para el push.
+        const prev = notificarPorUid.get(data.userId) ?? -1;
+        if (sellosGanados > prev) notificarPorUid.set(data.userId, sellosGanados);
+      }
 
       batch.update(docSnap.ref, {
         resuelto: true,
@@ -177,13 +188,166 @@ export async function POST(request: Request) {
 
     await Promise.all(commits);
 
+    // ── Notificaciones push a quienes pronosticaron este partido ─────────────
+    // Se envían tras confirmar los commits, así ningún usuario recibe aviso de
+    // sellos que no le llegaron. Personalizadas según acierto.
+    const pushStats = { destinatarios: 0, ok: 0, fail: 0, sinToken: 0 };
+    try {
+      const partidoData = partidoSnap.data() ?? {};
+      const equipoA: string = partidoData.equipoA ?? "Equipo A";
+      const equipoB: string = partidoData.equipoB ?? "Equipo B";
+      const banderaA: string = partidoData.banderaA ?? "";
+      const banderaB: string = partidoData.banderaB ?? "";
+
+      const titulo = `⚽ Final ${banderaA} ${equipoA} ${golesA}-${golesB} ${equipoB} ${banderaB}`.replace(/\s+/g, " ").trim();
+      const esEmpate = golesA === golesB;
+
+      const cuerpoPor = (sellos: number): string => {
+        if (sellos === 8) return "¡Marcador exacto! Ganaste 8 sellos por acertar el resultado.";
+        if (sellos === 3) {
+          return esEmpate
+            ? "Acertaste el empate. Ganaste 3 sellos."
+            : "Acertaste al ganador. Ganaste 3 sellos.";
+        }
+        return "Esta vez no acertaste. Quedan más partidos para sumar sellos.";
+      };
+
+      const uids = Array.from(notificarPorUid.keys());
+      pushStats.destinatarios = uids.length;
+
+      if (uids.length > 0) {
+        // Firestore Admin `getAll` acepta hasta 500 refs por llamada.
+        const CHUNK = 500;
+        const userDocs: FirebaseFirestore.DocumentSnapshot[] = [];
+        for (let i = 0; i < uids.length; i += CHUNK) {
+          const refs = uids.slice(i, i + CHUNK).map((u) =>
+            adminDb.collection("usuarios").doc(u),
+          );
+          const chunkDocs = await adminDb.getAll(...refs);
+          userDocs.push(...chunkDocs);
+        }
+
+        const messages: Message[] = [];
+        type NotifTarget = { uid: string; token?: string; titulo: string; cuerpo: string; sellos: number };
+        const targets: NotifTarget[] = [];
+
+        for (const snap of userDocs) {
+          if (!snap.exists) continue;
+          const uid = snap.id;
+          const data = snap.data() ?? {};
+          if (data.baneado) continue;
+          const sellos = notificarPorUid.get(uid) ?? 0;
+          const cuerpo = cuerpoPor(sellos);
+          const token: unknown = data.fcmToken;
+          const tokenValido = typeof token === "string" && token.length > 10;
+
+          targets.push({ uid, token: tokenValido ? (token as string) : undefined, titulo, cuerpo, sellos });
+
+          if (!tokenValido) {
+            pushStats.sinToken++;
+            continue;
+          }
+
+          messages.push({
+            token: token as string,
+            notification: { title: titulo, body: cuerpo },
+            android: {
+              priority: "high",
+              notification: {
+                sound: "default",
+                channelId: "club_patio_default",
+                visibility: "public",
+              },
+            },
+            apns: {
+              headers: { "apns-priority": "10", "apns-push-type": "alert" },
+              payload: {
+                aps: {
+                  alert: { title: titulo, body: cuerpo },
+                  sound: "default",
+                  badge: 1,
+                  "content-available": 1,
+                },
+              },
+            },
+            webpush: {
+              headers: { Urgency: "high", TTL: "86400" },
+              notification: {
+                title: titulo,
+                body: cuerpo,
+                icon: "/Logo2.png",
+                badge: "/Logo2.png",
+                // tag por partido: si el resolver se re-ejecuta, el navegador
+                // reemplaza la notificación anterior en vez de apilarla.
+                tag: `club-patio-mundial-${partidoId}`,
+                renotify: false,
+              },
+              fcmOptions: { link: "/mundial" },
+            },
+          });
+        }
+
+        // Envío FCM en lotes de 500 (límite de sendEach).
+        const invalidTokens: string[] = [];
+        for (let i = 0; i < messages.length; i += 500) {
+          const slice = messages.slice(i, i + 500);
+          const result = await adminMessaging.sendEach(slice);
+          pushStats.ok += result.successCount;
+          pushStats.fail += result.failureCount;
+          result.responses.forEach((resp, idx) => {
+            if (!resp.success && resp.error?.code === "messaging/registration-token-not-registered") {
+              // Todos los mensajes de este endpoint se construyen con `token`
+              // (nunca con `topic`/`condition`), así que el cast es seguro.
+              const tok = (slice[idx] as { token?: string }).token;
+              if (tok) invalidTokens.push(tok);
+            }
+          });
+        }
+
+        // Guardar la notificación en la subcolección de cada usuario (500/batch).
+        const now = new Date().toISOString();
+        for (let i = 0; i < targets.length; i += 500) {
+          const chunk = targets.slice(i, i + 500);
+          const nBatch = adminDb.batch();
+          chunk.forEach((t) => {
+            const ref = adminDb.collection("usuarios").doc(t.uid).collection("notificaciones").doc();
+            nBatch.set(ref, {
+              titulo: t.titulo,
+              mensaje: t.cuerpo,
+              leida: false,
+              fecha: now,
+              tipo: "MUNDIAL_RESULTADO",
+              isAI: false,
+              cta: "Ver Mundial",
+              partidoId,
+              sellosGanados: t.sellos,
+            });
+          });
+          await nBatch.commit();
+        }
+
+        // Limpiar tokens inválidos (mismo patrón que el cron diario).
+        if (invalidTokens.length > 0) {
+          const cleanupBatch = adminDb.batch();
+          for (const t of targets) {
+            if (t.token && invalidTokens.includes(t.token)) {
+              cleanupBatch.update(adminDb.collection("usuarios").doc(t.uid), { fcmToken: null });
+            }
+          }
+          await cleanupBatch.commit();
+        }
+      }
+    } catch (e) {
+      console.warn("[mundial/resolver] Envío de notificaciones falló:", e);
+    }
+
     // Log no crítico
     (async () => {
       try {
         await adminDb.collection("system_logs").add({
           usuarioId: decoded.uid,
           usuario: decoded.email ?? "staff",
-          accion: `resolvió partido mundialista ${partidoId} (${golesA}-${golesB}): ${stats.sellosRepartidos} sellos repartidos entre ${stats.exactos + stats.ganador} de ${stats.total} pronósticos`,
+          accion: `resolvió partido mundialista ${partidoId} (${golesA}-${golesB}): ${stats.sellosRepartidos} sellos repartidos entre ${stats.exactos + stats.ganador} de ${stats.total} pronósticos · push: ${pushStats.ok}/${pushStats.destinatarios}`,
           fecha: new Date().toISOString(),
           tipo: "MUNDIAL_RESOLVER",
         });
@@ -192,7 +356,7 @@ export async function POST(request: Request) {
       }
     })();
 
-    return NextResponse.json({ ok: true, partidoId, golesA, golesB, ...stats });
+    return NextResponse.json({ ok: true, partidoId, golesA, golesB, ...stats, push: pushStats });
   } catch (error: any) {
     console.error("[mundial/resolver] Error:", error);
     return NextResponse.json(
