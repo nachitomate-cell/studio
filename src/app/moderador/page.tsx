@@ -80,6 +80,10 @@ export default function ModeradorPage() {
   const [configRecompensaEmp, setConfigRecompensaEmp] = useState<{ activo: boolean; cada: number }>({ activo: false, cada: 5 });
   const [savingRecompensaEmp, setSavingRecompensaEmp] = useState(false);
 
+  // Config escala monto → sellos (desactivada = 1 sello fijo por compra)
+  const [configEscalaMonto, setConfigEscalaMonto] = useState<{ activo: boolean }>({ activo: true });
+  const [savingEscalaMonto, setSavingEscalaMonto] = useState(false);
+
   // Alta rápida de locales
   const [vendorEmail, setVendorEmail] = useState("");
   const [vendorLocal, setVendorLocal] = useState("");
@@ -355,6 +359,8 @@ export default function ModeradorPage() {
         if (data) setConfigBienvenida({ activo: data.activo !== false, cantidad: Number(data.cantidad ?? 1) });
         const rec = snap.data()?.recompensaEmprendedor;
         if (rec) setConfigRecompensaEmp({ activo: rec.activo === true, cada: Math.max(1, Math.min(50, Number(rec.cada ?? 5))) });
+        const escala = snap.data()?.escalaMontoSellos;
+        if (escala) setConfigEscalaMonto({ activo: escala.activo !== false });
       }
     } catch { /* no crítico */ }
   };
@@ -389,6 +395,25 @@ export default function ModeradorPage() {
       toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la configuración." });
     } finally {
       setSavingRecompensaEmp(false);
+    }
+  };
+
+  const saveConfigEscalaMonto = async () => {
+    setSavingEscalaMonto(true);
+    try {
+      await setDoc(doc(db, "configuracion", "general"), {
+        escalaMontoSellos: { activo: configEscalaMonto.activo },
+      }, { merge: true });
+      toast({
+        title: "Configuración guardada",
+        description: configEscalaMonto.activo
+          ? "Escala por monto activa: las compras entregan de 1 a 4 sellos según el monto."
+          : "Escala desactivada: toda compra entrega 1 sello fijo.",
+      });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la configuración." });
+    } finally {
+      setSavingEscalaMonto(false);
     }
   };
 
@@ -2158,6 +2183,66 @@ export default function ModeradorPage() {
                 className="w-full h-11 rounded-xl font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
               >
                 {savingRecompensaEmp ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Gift className="w-4 h-4 mr-2" />}
+                Guardar configuración
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* T5b. ESCALA MONTO → SELLOS */}
+          <Card className="border-none shadow-xl shadow-sky-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-sky-100 md:col-span-2">
+            <div className="bg-sky-50/50 p-6 border-b border-sky-100/50 flex flex-col gap-2">
+              <div className="flex items-center gap-3 text-sky-600">
+                <BarChart2 className="w-5 h-5" />
+                <h3 className="font-bold text-lg">Escala Monto → Sellos</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">
+                Con la escala activa, las compras entregan de 1 a 4 sellos según el monto. Desactivada, toda compra entrega 1 sello fijo. No afecta a las membresías (planes con sellos fijos).
+              </p>
+            </div>
+            <CardContent className="p-6 space-y-5 bg-slate-50/20">
+              {/* Toggle activo/inactivo */}
+              <div className="flex items-center justify-between bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-sm">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Estado</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {configEscalaMonto.activo
+                      ? "Sellos según el monto de la compra (1 a 4)"
+                      : "Toda compra entrega 1 sello fijo"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setConfigEscalaMonto(c => ({ activo: !c.activo }))}
+                  className="shrink-0 transition-transform active:scale-95"
+                  aria-label={configEscalaMonto.activo ? "Desactivar escala" : "Activar escala"}
+                >
+                  {configEscalaMonto.activo
+                    ? <ToggleRight className="w-10 h-10 text-sky-500" />
+                    : <ToggleLeft className="w-10 h-10 text-slate-300" />}
+                </button>
+              </div>
+
+              {/* Tabla de la escala */}
+              <div className={`bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-sm space-y-2 transition-opacity ${!configEscalaMonto.activo ? "opacity-40" : ""}`}>
+                <p className="text-sm font-bold text-slate-800 mb-2">Escala vigente</p>
+                {[
+                  { rango: "$1 – $10.000", sellos: 1 },
+                  { rango: "$10.001 – $25.000", sellos: 2 },
+                  { rango: "$25.001 – $39.999", sellos: 3 },
+                  { rango: "$40.000 – $150.000", sellos: 4 },
+                ].map((t) => (
+                  <div key={t.sellos} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500 font-medium">{t.rango}</span>
+                    <span className="font-black text-slate-800">{t.sellos} {t.sellos === 1 ? "sello" : "sellos"}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={saveConfigEscalaMonto}
+                disabled={savingEscalaMonto}
+                className="w-full h-11 rounded-xl font-bold bg-sky-500 hover:bg-sky-600 text-white shadow-sm"
+              >
+                {savingEscalaMonto ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BarChart2 className="w-4 h-4 mr-2" />}
                 Guardar configuración
               </Button>
             </CardContent>

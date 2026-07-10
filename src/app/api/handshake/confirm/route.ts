@@ -15,13 +15,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
-
-function calcularSellos(monto: number): number {
-  if (monto >= 40_000) return 4;
-  if (monto >= 25_001) return 3;
-  if (monto >= 10_001) return 2;
-  return 1;
-}
+import { calcularSellos } from "@/lib/sellos";
+import { getEscalaMontoActiva } from "@/lib/escalaSellos";
 
 export async function POST(request: Request) {
   try {
@@ -52,6 +47,8 @@ export async function POST(request: Request) {
     if (typeof monto !== "number" || monto <= 0 || monto > 150_000) {
       return NextResponse.json({ error: "El monto de la venta es obligatorio y debe estar entre $1 y $150.000." }, { status: 400 });
     }
+
+    const escalaActiva = await getEscalaMontoActiva();
 
     const pendingRef = adminDb.collection("pending_stamps").doc(pendingId);
     let result: { userId: string; vendorId: string; userName: string; nuevoTotal: number; numSellos: number };
@@ -92,7 +89,7 @@ export async function POST(request: Request) {
       }
 
       const timestamp = new Date().toISOString();
-      const numSellos = calcularSellos(monto);
+      const numSellos = escalaActiva ? calcularSellos(monto) : 1;
       const currentSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
       const nuevoTotal = currentSellos + numSellos;
       console.log(`[DEBUG POLLA] handshake/confirm — uid=${userId} prev=${currentSellos} +${numSellos} new=${nuevoTotal} monto=${monto}`);

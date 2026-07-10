@@ -15,19 +15,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { procesarReferidoPendiente } from "@/lib/referralAdmin";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
-
-const SELLOS_PARA_PREMIO = 5;
-
-/**
- * Devuelve la cantidad de sellos según el monto de la transacción.
- * Tiers ajustables sin redeploy si se mueven a Firestore en el futuro.
- */
-function calcularSellos(monto: number): number {
-  if (monto >= 40_000) return 4;
-  if (monto >= 25_001) return 3;
-  if (monto >= 10_001) return 2;
-  return 1;
-}
+import { calcularSellos, SELLOS_PARA_PREMIO } from "@/lib/sellos";
+import { getEscalaMontoActiva } from "@/lib/escalaSellos";
 
 export async function POST(request: Request) {
   try {
@@ -59,6 +48,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Monto inválido. Debe estar entre $1 y $150.000." }, { status: 400 });
     }
 
+    const escalaActiva = await getEscalaMontoActiva();
+
     const pendingRef = adminDb.collection("pending_stamps").doc(pendingId);
     let result: { userId: string; userName: string; vendorName: string; nuevoTotal: number; numSellos: number; prevSellos: number };
 
@@ -87,7 +78,7 @@ export async function POST(request: Request) {
       }
 
       const prevSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
-      const numSellos = calcularSellos(monto);
+      const numSellos = escalaActiva ? calcularSellos(monto) : 1;
       const nuevoTotal = prevSellos + numSellos;
       const timestamp = new Date().toISOString();
       console.log(`[DEBUG POLLA] handshake/vendor-scan — uid=${userId} prev=${prevSellos} +${numSellos} new=${nuevoTotal} monto=${monto}`);

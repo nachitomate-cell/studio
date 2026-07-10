@@ -31,6 +31,7 @@ import {
 } from "@/lib/sellos";
 import { esAsociado, esMembresia } from "@/lib/tipoComercio";
 import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
+import { getEscalaMontoActiva } from "@/lib/escalaSellos";
 
 // Anti-doble-envío de la misma boleta: 1 boleta por local cada 5 min por usuario.
 const COOLDOWN_MS = 5 * 60 * 1000;
@@ -91,6 +92,8 @@ export async function POST(request: Request) {
       }
     }
 
+    const escalaActiva = await getEscalaMontoActiva();
+
     const userRef = adminDb.collection("usuarios").doc(userId);
     let result: { userId: string; userName: string; nuevoTotal: number; numSellos: number; prevSellos: number };
 
@@ -107,7 +110,9 @@ export async function POST(request: Request) {
         throw new Error("Ya registraste una compra en este local hace poco. Intenta más tarde.");
       }
 
-      const numSellos = tierValidado ? calcularSellosMembresia(tierValidado) : calcularSellos(monto);
+      const numSellos = tierValidado
+        ? calcularSellosMembresia(tierValidado)
+        : escalaActiva ? calcularSellos(monto) : 1;
       const prevSellos = u.comprasRealizadas || 0;
       const nuevoTotal = prevSellos + numSellos;
       const timestamp = new Date().toISOString();
