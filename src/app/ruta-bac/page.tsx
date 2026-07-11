@@ -12,7 +12,9 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, HelpCircle, Loader2, MapPin, ExternalLink, X, Share2, Wine, Navigation,
   Album, Map as MapIcon, Zap, LocateFixed, CheckCircle2, Footprints, CloudOff, Stamp, Cloud,
+  Bell,
 } from "lucide-react";
+import { registerFcmToken } from "@/lib/fcmTokenManager";
 import { useBacOfflineSync } from "@/hooks/useBacOfflineSync";
 import { BacLeaderboardModal } from "@/components/bac/BacLeaderboardModal";
 import { BacExpressReview } from "@/components/bac/BacExpressReview";
@@ -72,6 +74,102 @@ function getStampState(n: number): StampState {
   if (n <= 0) return "inactive";
   if (n >= 3) return "frequent";
   return "active";
+}
+
+// ── Push notifications banner ────────────────────────────────────────────────
+const NOTIF_BANNER_OFF_KEY = "bac_notif_banner_off";
+
+function NotifBanner() {
+  const { toast } = useToast();
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "default") return;
+    try {
+      if (window.localStorage.getItem(NOTIF_BANNER_OFF_KEY) === "1") return;
+    } catch {}
+    setVisible(true);
+  }, []);
+
+  const activate = async () => {
+    if (busy) return;
+    setBusy(true);
+    const res = await registerFcmToken();
+    setBusy(false);
+    if (res.ok) {
+      toast({
+        title: "¡Notificaciones activadas! 🔔",
+        description: "Te avisaremos de nuevas promos y premios de la ruta.",
+      });
+      setVisible(false);
+    } else if (res.reason === "denied") {
+      toast({
+        title: "Permiso denegado",
+        description: "Puedes activarlas luego desde la configuración del navegador.",
+        variant: "destructive",
+      });
+      setVisible(false);
+    } else {
+      toast({
+        title: "No se pudo activar",
+        description: "En iPhone, instala la app en tu pantalla de inicio e intenta de nuevo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const dismiss = () => {
+    setVisible(false);
+    try {
+      window.localStorage.setItem(NOTIF_BANNER_OFF_KEY, "1");
+    } catch {}
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div
+      className="flex items-center gap-3 rounded-2xl px-4 py-3 animate-in fade-in slide-in-from-top-2 duration-300"
+      style={{
+        background: NIGHT_CARD,
+        border: `2px solid ${YELLOW}`,
+        boxShadow: `0 4px 18px rgba(255,216,77,0.25)`,
+      }}
+    >
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: `${YELLOW}22`, border: `1px solid ${YELLOW}66` }}
+      >
+        <Bell style={{ color: YELLOW, width: 18, height: 18 }} />
+      </div>
+      <p className="flex-1 text-[11px] font-bold leading-snug" style={{ color: CREAM }}>
+        Activa las notificaciones y entérate de{" "}
+        <span style={{ color: YELLOW }}>nuevas promos y premios</span> de la ruta
+      </p>
+      <button
+        onClick={activate}
+        disabled={busy}
+        className="shrink-0 px-3.5 h-9 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-60"
+        style={{
+          background: `linear-gradient(135deg, ${YELLOW}, #E5A800)`,
+          color: NIGHT,
+          fontFamily: FONT_DISPLAY,
+        }}
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Activar"}
+      </button>
+      <button
+        onClick={dismiss}
+        className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
+        style={{ background: "rgba(253,241,214,0.08)", color: CREAM }}
+        aria-label="Cerrar aviso de notificaciones"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
 }
 
 // ── Ticket-style promo banner ────────────────────────────────────────────────
@@ -203,7 +301,7 @@ function ProgressBar({ visited, total }: { visited: number; total: number }) {
   );
 }
 
-// ── Initial avatar (no images available) ─────────────────────────────────────
+// ── Initials fallback (used when the IG photo fails to load) ─────────────────
 function InitialAvatar({ nombre, active }: { nombre: string; active: boolean }) {
   const initials = localInitials(nombre);
   return (
@@ -226,6 +324,29 @@ function InitialAvatar({ nombre, active }: { nombre: string; active: boolean }) 
       >
         {initials}
       </span>
+    </div>
+  );
+}
+
+// ── Local avatar: IG profile photo, grayscale until stamped ─────────────────
+function LocalAvatar({ local, active }: { local: LocalBac; active: boolean }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  if (imgFailed) return <InitialAvatar nombre={local.nombre} active={active} />;
+  return (
+    <div className="w-full h-full relative">
+      <Image
+        src={`/bac/logos/${local.id}.jpg`}
+        alt={local.nombre}
+        fill
+        sizes="120px"
+        onError={() => setImgFailed(true)}
+        style={{
+          objectFit: "cover",
+          filter: active ? "none" : "grayscale(1) brightness(0.55)",
+          opacity: active ? 1 : 0.8,
+          transition: "filter 0.5s ease, opacity 0.5s ease",
+        }}
+      />
     </div>
   );
 }
@@ -261,7 +382,7 @@ function StampCell({
         }}
       >
         <div className="absolute inset-1.5 rounded-xl overflow-hidden">
-          <InitialAvatar nombre={local.nombre} active={!isInactive} />
+          <LocalAvatar local={local} active={!isInactive} />
         </div>
 
         {!isInactive && (
@@ -880,6 +1001,9 @@ export default function RutaBacPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-5 py-6 space-y-6">
+        {/* Push notifications opt-in */}
+        <NotifBanner />
+
         {/* Hero logo — wrapped in soft gradient "sticker" container */}
         <div
           className="relative w-full flex justify-center p-3 rounded-3xl"
@@ -1231,7 +1355,7 @@ export default function RutaBacPage() {
               <div className="flex gap-3">
                 <span className="text-xl shrink-0 mt-0.5">⭐</span>
                 <p className="text-sm leading-relaxed" style={{ color: "rgba(253,241,214,0.85)" }}>
-                  Cada vez que consumes la promo <span className="font-bold" style={{ color: PINK }}>1 Tapa + 1 Cóctel</span> en un local participante y escaneas su QR, su estampilla se ilumina en rosa neón.
+                  Visita un local participante y escanea el QR del mostrador: su estampilla se ilumina en rosa neón. <span className="font-bold" style={{ color: PINK }}>Sellar es gratis</span>, solo por visitar.
                 </p>
               </div>
               <div className="flex gap-3">
@@ -1289,7 +1413,7 @@ export default function RutaBacPage() {
                   boxShadow: `0 0 18px ${PINK}55`,
                 }}
               >
-                <InitialAvatar nombre={selectedLocal.nombre} active={true} />
+                <LocalAvatar local={selectedLocal} active={true} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: PINK }}>
@@ -1325,7 +1449,7 @@ export default function RutaBacPage() {
               <p className="text-sm font-medium leading-relaxed" style={{ color: "rgba(253,241,214,0.7)" }}>
                 Aún no has sellado este local.{" "}
                 <span className="font-black" style={{ color: CREAM }}>
-                  Escanea el QR del mostrador tras consumir la promo para desbloquear la estampilla.
+                  Visítalo y escanea el QR del mostrador para desbloquear la estampilla.
                 </span>
               </p>
             ) : (
