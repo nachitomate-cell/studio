@@ -1399,7 +1399,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             {/* Acceso directo a paneles de gestión (admin/director) */}
             {(isAdmin || isDirector) && (
               <div className="flex flex-wrap gap-2 mt-4">
-                {isAdmin && (
+                {/* El director tiene las mismas facultades que admin en /moderador
+                    (ver canAccessModPanel + ROLES_STAFF_PANEL); requiere su PIN. */}
+                {(isAdmin || isDirector) && (
                   <Link
                     href="/moderador"
                     className="flex-1 min-w-[140px] flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-sm active:scale-[0.98] transition-all"
