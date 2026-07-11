@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, updateDoc, doc, limit, orderBy, getDoc, setDoc, writeBatch, increment, addDoc, Timestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -51,6 +51,57 @@ interface PendingStamp {
   createdAt: number | null;
 }
 
+// ─── Navegación por pestañas (móvil) ──────────────────────────────────────────
+// El panel apilaba 17 bloques en un solo scroll. Se agrupan en 6 pestañas; solo
+// una se renderiza a la vez. Funciona igual en desktop (los grids conservan sus
+// breakpoints md:).
+const MOD_TABS = [
+  { id: "datos",   emoji: "📊", label: "Datos" },
+  { id: "atajos",  emoji: "🧭", label: "Atajos" },
+  { id: "locales", emoji: "🏪", label: "Locales" },
+  { id: "ajustes", emoji: "🎛️", label: "Ajustes" },
+  { id: "roles",   emoji: "👤", label: "Roles" },
+  { id: "mundial", emoji: "🏆", label: "Mundial" },
+] as const;
+type ModTab = typeof MOD_TABS[number]["id"];
+
+/** Renderiza sus hijos solo cuando su pestaña está activa. */
+function TabPanel({ id, active, className, children }: {
+  id: ModTab; active: ModTab; className?: string; children: ReactNode;
+}) {
+  if (id !== active) return null;
+  return <div className={className}>{children}</div>;
+}
+
+/** Control segmentado sticky con scroll horizontal. */
+function ModTabBar({ active, onChange }: { active: ModTab; onChange: (t: ModTab) => void }) {
+  return (
+    <div className="sticky top-0 z-20 -mx-6 md:-mx-12 px-6 md:px-12 py-3 bg-slate-50/85 backdrop-blur-md border-b border-slate-100">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        {MOD_TABS.map((t) => {
+          const on = t.id === active;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onChange(t.id)}
+              aria-pressed={on}
+              className={`shrink-0 flex items-center gap-1.5 px-4 h-10 rounded-2xl text-sm font-black transition-all active:scale-[0.97] ${
+                on
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <span className="text-base leading-none">{t.emoji}</span>
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ModeradorPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -59,6 +110,7 @@ export default function ModeradorPage() {
   // Estados Generales
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [modTab, setModTab] = useState<ModTab>("datos");
   
   // Estados Tabla de Clientes
   const [loadingData, setLoadingData] = useState(true);
@@ -1039,7 +1091,10 @@ export default function ModeradorPage() {
           </div>
         </div>
 
-        {/* NAVEGACIÓN RÁPIDA */}
+        <ModTabBar active={modTab} onChange={setModTab} />
+
+        {/* NAVEGACIÓN RÁPIDA — atajos a sub-páginas */}
+        <TabPanel id="atajos" active={modTab}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
@@ -1108,7 +1163,10 @@ export default function ModeradorPage() {
           ))}
         </div>
 
+        </TabPanel>
+
         {/* SEMBRADO DEL CALENDARIO MUNDIALISTA */}
+        <TabPanel id="mundial" active={modTab}>
         <div className="flex justify-end">
           <button
             type="button"
@@ -1129,7 +1187,10 @@ export default function ModeradorPage() {
           </button>
         </div>
 
+        </TabPanel>
+
         {/* ALTA RÁPIDA DE LOCALES */}
+        <TabPanel id="locales" active={modTab} className="space-y-10">
         <Card className="border-none shadow-xl shadow-emerald-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-emerald-100">
           <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
             <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -1245,7 +1306,10 @@ export default function ModeradorPage() {
           </CardContent>
         </Card>
 
-        {/* CREAR NUEVO PARTIDO (MUNDIAL) */}
+        </TabPanel>
+
+        {/* CREAR + RESOLVER PARTIDOS (MUNDIAL) */}
+        <TabPanel id="mundial" active={modTab} className="space-y-10">
         <Card className="border-none shadow-xl shadow-yellow-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-yellow-100">
           <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
             <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -1484,7 +1548,10 @@ export default function ModeradorPage() {
           </CardContent>
         </Card>
 
+        </TabPanel>
+
         {/* TIPO DE COMERCIO POR LOCAL */}
+        <TabPanel id="locales" active={modTab} className="space-y-10">
         <Card className="border-none shadow-xl shadow-violet-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-violet-100">
           <CardHeader className="bg-slate-50/80 pb-6 pt-8 px-8 border-b border-slate-100">
             <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -1559,7 +1626,10 @@ export default function ModeradorPage() {
           </CardContent>
         </Card>
 
-        {/* METRICAS (TARJETAS SUPERIORES) */}
+        </TabPanel>
+
+        {/* METRICAS + TABLA DE CLIENTES (datos) */}
+        <TabPanel id="datos" active={modTab} className="space-y-10">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card className="border-none shadow-lg rounded-3xl bg-white overflow-hidden relative">
             <div className="absolute top-0 left-0 h-full w-2 bg-primary" />
@@ -1767,8 +1837,10 @@ export default function ModeradorPage() {
           </div>
         </Card>
 
-        {/* PANELES DE HERRAMIENTAS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t-2 border-slate-100 border-dashed mt-8">
+        </TabPanel>
+
+        {/* HERRAMIENTAS · Roles */}
+        <TabPanel id="roles" active={modTab}>
 
           {/* T2. GESTION DE ROLES */}
           <Card className="border-none shadow-xl shadow-primary/5 rounded-3xl bg-white overflow-hidden outline outline-1 outline-primary/10">
@@ -1852,6 +1924,10 @@ export default function ModeradorPage() {
             </CardContent>
           </Card>
 
+        </TabPanel>
+
+        {/* HERRAMIENTAS · Datos (monitoreo) */}
+        <TabPanel id="datos" active={modTab} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* T3. DETECCION DE ANOMALIAS */}
           <Card className="border-none shadow-xl shadow-amber-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-amber-100">
             <div className="bg-amber-50/50 p-6 border-b border-amber-100/50 flex flex-col gap-2">
@@ -2073,6 +2149,10 @@ export default function ModeradorPage() {
             </CardContent>
           </Card>
 
+        </TabPanel>
+
+        {/* HERRAMIENTAS · Ajustes (toggles) */}
+        <TabPanel id="ajustes" active={modTab} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* T4. SELLO DE BIENVENIDA */}
           <Card className="border-none shadow-xl shadow-emerald-500/10 rounded-3xl bg-white overflow-hidden outline outline-1 outline-emerald-100 md:col-span-2">
             <div className="bg-emerald-50/50 p-6 border-b border-emerald-100/50 flex flex-col gap-2">
@@ -2360,7 +2440,7 @@ export default function ModeradorPage() {
             </CardContent>
           </Card>
 
-        </div>
+        </TabPanel>
       </div>
 
     </main>
