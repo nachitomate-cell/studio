@@ -348,14 +348,18 @@ export default function DirectorioPage() {
       }
 
       // ── 2. Subir imagen si se seleccionó una ─────────────────────────
+      // Pasamos contentType explícito porque en algunos navegadores móviles /
+      // PWAs File.type viene vacío y la regla de Storage `isValidImage()` falla
+      // al evaluar `contentType.matches('image/.*')` con null.
       let imageUrl = form.imageUrl;
       if (pendingImageFile) {
         setUploadingImage(true);
+        const contentType = pendingImageFile.type || "image/jpeg";
         const storageRef = ref(
           storage,
           `entrepreneur_photos/${vendorId}/profile_${Date.now()}`
         );
-        await uploadBytes(storageRef, pendingImageFile);
+        await uploadBytes(storageRef, pendingImageFile, { contentType });
         imageUrl = await getDownloadURL(storageRef);
         setUploadingImage(false);
       }
@@ -401,10 +405,11 @@ export default function DirectorioPage() {
       });
       setShowForm(false);
     } catch (err: any) {
+      const code = err?.code ? ` (${err.code})` : "";
       toast({
         variant: "destructive",
         title: "Error al guardar",
-        description: err.message ?? "Intenta de nuevo.",
+        description: `${err?.message ?? "Intenta de nuevo."}${code}`,
       });
     } finally {
       setSavingForm(false);
