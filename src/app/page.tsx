@@ -750,36 +750,6 @@ function HomeContent() {
             {/* Saludo + tarjeta de progreso + QR */}
             {user && userData && (
               <div style={{ marginTop: "20px", marginBottom: "4px" }}>
-                {/* Banner: Polla del Patio (Mundial) — inmersivo con imagen */}
-                <Link
-                  href="/mundial"
-                  className="relative w-[calc(100%-3rem)] mx-6 mb-3 block rounded-2xl overflow-hidden shadow-lg border border-yellow-500/20 transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                  style={{
-                    backgroundImage: "url('/promo-mundial.png')",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                >
-                  {/* Overlay: más oscuro a la izquierda para legibilidad del texto */}
-                  <div className="absolute inset-0 bg-black/60 bg-gradient-to-r from-black/90 via-black/70 to-transparent z-0" />
-
-                  <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 sm:p-6 gap-4">
-                    <div className="min-w-0">
-                      <p className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-500 tracking-tight leading-tight">
-                        🏆 La Polla del Patio
-                      </p>
-                      <p className="text-sm sm:text-base text-gray-200 mt-1 leading-snug">
-                        Pronostica los partidos y gana hasta{" "}
-                        <span className="text-yellow-400 font-bold">8 sellos</span>{" "}
-                        diarios.
-                      </p>
-                    </div>
-                    <span className="shrink-0 whitespace-nowrap px-6 py-2.5 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-black uppercase text-sm rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.5)] animate-pulse self-stretch sm:self-auto text-center">
-                      Jugar ahora ⚽
-                    </span>
-                  </div>
-                </Link>
-
                 {/* Banner: premio disponible */}
                 {premiosBadge && (
                   <button

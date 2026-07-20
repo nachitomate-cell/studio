@@ -274,25 +274,10 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
-    // ── Mundial: partidos y pronósticos ───────────────────────────────────────
-    // Toda escritura pasa estrictamente por endpoints server-side (Admin SDK):
-    //   /api/mundial/unlock      - cobra el paywall
-    //   /api/mundial/pronosticar - guarda pronóstico del usuario
-    //   /api/mundial/resolver    - staff cierra el partido y reparte sellos
-    // El cliente solo lee — nunca escribe — estas colecciones.
-    match /mundial_partidos/{partidoId} {
-      // Partidos son públicos para todo signed-in (feed del /mundial).
-      allow read: if isSignedIn();
-      allow write: if false;
-    }
-    match /mundial_pronosticos/{pronosticoId} {
-      // Cada usuario solo puede leer sus propios pronósticos. El staff los revisa
-      // vía Admin SDK (que ignora estas reglas) — no necesita acceso client-side.
-      // La cláusula `resource == null` cubre el caso de queries vacías / lookups
-      // por ID inexistente. El cliente DEBE filtrar por `where('userId','==',uid)`
-      // para que el `list` pase (ver /mundial/page.tsx).
-      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid);
-      allow write: if false;
-    }
+    // ── Mundial (retirado tras el torneo 2026) ────────────────────────────────
+    // Las colecciones `mundial_partidos` y `mundial_pronosticos` se conservan
+    // como archivo histórico, pero ya no tienen reglas: sin un match explícito
+    // Firestore deniega todo acceso del cliente. Solo el Admin SDK (que ignora
+    // las reglas) puede leerlas si alguna vez hay que consultarlas o revivirlas.
   }
 }
