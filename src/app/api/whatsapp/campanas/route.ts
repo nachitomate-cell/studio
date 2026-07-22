@@ -16,7 +16,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { verificarModerador } from "@/lib/waModAuth";
 import {
-  CANDADOS, SEGMENTOS, enSegmento, normalizarTelefono,
+  CANDADOS, SEGMENTOS, SEGMENTO_EXCEL, MAX_LISTA_EXCEL, enSegmento, normalizarTelefono,
   type SegmentoId,
 } from "@/lib/waMarketing";
 
@@ -44,6 +44,44 @@ async function calcularAudiencia(segmento: SegmentoId) {
     audiencia.push({ uid: doc.id, nombre: String(d.nombre || "").trim() || "socio", telefono: tel, sellos });
   });
   return audiencia;
+}
+
+/**
+ * Audiencia desde una lista Excel/CSV subida por el moderador.
+ * MISMOS candados que los segmentos: teléfono chileno normalizado, sin
+ * opt-outs, dedup. Si el teléfono corresponde a un socio, se usan sus sellos
+ * reales (y su nombre como fallback) para que {sellos}/{faltan} rendericen bien.
+ */
+async function audienciaDesdeLista(clientes: { nombre?: unknown; telefono?: unknown }[]) {
+  const [usuariosSnap, optoutsSnap] = await Promise.all([
+    adminDb.collection("usuarios").get(),
+    adminDb.collection("wa_optouts").get(),
+  ]);
+  const optouts = new Set(optoutsSnap.docs.map(d => d.id));
+  const socioPorTel = new Map<string, { nombre: string; sellos: number }>();
+  usuariosSnap.forEach(doc => {
+    const d = doc.data();
+    const tel = normalizarTelefono(d.telefono);
+    if (tel && !socioPorTel.has(tel)) {
+      socioPorTel.set(tel, { nombre: String(d.nombre || "").trim(), sellos: Number(d.sellos) || 0 });
+    }
+  });
+
+  const audiencia: { uid: string; nombre: string; telefono: string; sellos: number }[] = [];
+  const vistos = new Set<string>();
+  let descartados = 0;
+  for (const c of clientes.slice(0, MAX_LISTA_EXCEL)) {
+    const tel = normalizarTelefono(String(c?.telefono ?? ""));
+    if (!tel || optouts.has(tel) || vistos.has(tel)) { descartados++; continue; }
+    const socio = socioPorTel.get(tel);
+    const nombre = String(c?.nombre ?? "").trim() || socio?.nombre || "socio";
+    vistos.add(tel);
+    // uid = teléfono: la lista externa no tiene uid de Firebase y el docId de
+    // envios/ solo necesita ser único dentro de la campaña.
+    audiencia.push({ uid: tel, nombre, telefono: tel, sellos: socio?.sellos || 0 });
+  }
+  descartados += Math.max(0, clientes.length - MAX_LISTA_EXCEL);
+  return { audiencia, descartados };
 }
 
 export async function GET(request: Request) {
@@ -84,15 +122,24 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const segmento = String(body.segmento || "todos") as SegmentoId;
-  if (!SEGMENTOS.some(s => s.id === segmento)) {
+  const esExcel = segmento === SEGMENTO_EXCEL.id;
+  if (!esExcel && !SEGMENTOS.some(s => s.id === segmento)) {
     return NextResponse.json({ error: "Segmento inválido" }, { status: 400 });
   }
 
-  const audiencia = await calcularAudiencia(segmento);
+  let audiencia: { uid: string; nombre: string; telefono: string; sellos: number }[];
+  let descartados = 0;
+  if (esExcel) {
+    const clientes = Array.isArray(body.clientes) ? body.clientes : [];
+    if (!clientes.length) return NextResponse.json({ error: "La lista Excel llegó vacía." }, { status: 400 });
+    ({ audiencia, descartados } = await audienciaDesdeLista(clientes));
+  } else {
+    audiencia = await calcularAudiencia(segmento);
+  }
 
   // Preview: solo el tamaño, sin crear nada.
   if (body.dryRun === true) {
-    return NextResponse.json({ audiencia: audiencia.length });
+    return NextResponse.json({ audiencia: audiencia.length, descartados });
   }
 
   const nombre = String(body.nombre || "").trim().slice(0, 80);

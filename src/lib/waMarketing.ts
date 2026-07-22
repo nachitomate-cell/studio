@@ -24,7 +24,7 @@ export const CANDADOS = {
   MAX_PLANTILLAS: 3,
 } as const;
 
-export type SegmentoId = "todos" | "vip" | "cerca_premio" | "sin_sellos";
+export type SegmentoId = "todos" | "vip" | "cerca_premio" | "sin_sellos" | "excel";
 
 export const SEGMENTOS: { id: SegmentoId; label: string; desc: string }[] = [
   { id: "todos",        label: "Todos los socios",     desc: "Todo socio con teléfono registrado (sin opt-out)." },
@@ -32,6 +32,15 @@ export const SEGMENTOS: { id: SegmentoId; label: string; desc: string }[] = [
   { id: "cerca_premio", label: "A 1–3 sellos del premio", desc: "Máxima urgencia: les falta poquito para canjear." },
   { id: "sin_sellos",   label: "Sin sellos aún",       desc: "Se registraron pero no han estrenado el club." },
 ];
+
+/** Origen alternativo: lista propia subida en Excel/CSV (no es un card de SEGMENTOS). */
+export const SEGMENTO_EXCEL = { id: "excel" as const, label: "Lista Excel", desc: "Contactos subidos desde un archivo Excel o CSV." };
+export const MAX_LISTA_EXCEL = 2000;   // filas máx. por campaña (sanidad del request)
+
+export function segmentoLabel(id: string): string {
+  if (id === SEGMENTO_EXCEL.id) return SEGMENTO_EXCEL.label;
+  return SEGMENTOS.find(s => s.id === id)?.label || id;
+}
 
 /** Sellos que faltan para completar el ciclo de 10 (0 sellos → faltan 10). */
 export function sellosFaltantes(sellos: number): number {
@@ -48,6 +57,7 @@ export function enSegmento(segmento: SegmentoId, sellos: number): boolean {
     case "vip":          return s >= 10;
     case "cerca_premio": return s > 0 && faltan >= 1 && faltan <= 3;
     case "sin_sellos":   return s === 0;
+    case "excel":        return false; // la audiencia excel no se calcula por sellos
   }
 }
 

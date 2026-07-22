@@ -24,9 +24,54 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, MessageCircle, QrCode, Send, Pause, Play, Users,
-  ShieldCheck, Clock, RefreshCw, Plug, PlugZap,
+  ShieldCheck, Clock, RefreshCw, Plug, PlugZap, FileSpreadsheet,
 } from "lucide-react";
-import { CANDADOS, SEGMENTOS, type SegmentoId, type CampanaResumen, renderPlantilla, PIE_OPT_OUT } from "@/lib/waMarketing";
+import {
+  CANDADOS, SEGMENTOS, SEGMENTO_EXCEL, MAX_LISTA_EXCEL, segmentoLabel,
+  type SegmentoId, type CampanaResumen, renderPlantilla, PIE_OPT_OUT,
+} from "@/lib/waMarketing";
+
+type ContactoExcel = { nombre: string; telefono: string };
+
+/**
+ * Parsea un Excel/CSV a [{nombre, telefono}]. Detecta las columnas por
+ * encabezado (tel/fono/celular/whatsapp · nombre/cliente) y, si no hay
+ * encabezados, busca la columna con más valores con pinta de teléfono.
+ * La normalización dura (formato chileno, dedup, opt-outs) la hace el server.
+ */
+async function parseArchivoContactos(file: File): Promise<ContactoExcel[]> {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(await file.arrayBuffer());
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) return [];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as unknown[][];
+  if (!rows.length) return [];
+  const norm = (v: unknown) => String(v ?? "").trim();
+
+  const header = (rows[0] || []).map(v => norm(v).toLowerCase());
+  let colTel = header.findIndex(h => /tel|fono|celu|whats|m[oó]vil|phone/.test(h));
+  const colNomHeader = header.findIndex(h => /nombre|name|cliente|socio/.test(h));
+  const conEncabezado = colTel >= 0 || colNomHeader >= 0;
+  const dataRows = conEncabezado ? rows.slice(1) : rows;
+
+  if (colTel < 0) {
+    const nCols = Math.max(0, ...dataRows.map(r => r.length));
+    let mejores = 0;
+    for (let c = 0; c < nCols; c++) {
+      const hits = dataRows.filter(r => {
+        const v = norm(r[c]);
+        return /^[\d\s()+.-]{8,16}$/.test(v) && v.replace(/\D/g, "").length >= 8;
+      }).length;
+      if (hits > mejores) { mejores = hits; colTel = c; }
+    }
+  }
+  if (colTel < 0) return [];
+  const colNom = colNomHeader >= 0 ? colNomHeader : (colTel === 0 ? 1 : 0);
+
+  return dataRows
+    .map(r => ({ nombre: norm(r[colNom]), telefono: norm(r[colTel]) }))
+    .filter(x => x.telefono);
+}
 
 type Conexion = "connected" | "qr" | "disconnected" | "cargando";
 
@@ -54,7 +99,36 @@ export default function WhatsAppMarketingPage() {
   const [segmento, setSegmento] = useState<SegmentoId>("todos");
   const [plantillas, setPlantillas] = useState<string[]>([PLANTILLA_EJEMPLO]);
   const [audiencia, setAudiencia] = useState<number | null>(null);
+  const [descartados, setDescartados] = useState(0);
   const [creando, setCreando] = useState(false);
+
+  // ── Lista propia (Excel/CSV) ──
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [listaExcel, setListaExcel] = useState<ContactoExcel[] | null>(null);
+  const [archivoNombre, setArchivoNombre] = useState("");
+
+  const onArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a elegir el mismo archivo
+    if (!file) return;
+    try {
+      const contactos = await parseArchivoContactos(file);
+      if (!contactos.length) {
+        toast({ title: "No encontré teléfonos en el archivo", description: "Revisa que tenga una columna de teléfonos (y opcionalmente una de nombres).", variant: "destructive" });
+        return;
+      }
+      setListaExcel(contactos.slice(0, MAX_LISTA_EXCEL));
+      setArchivoNombre(file.name);
+      setSegmento(SEGMENTO_EXCEL.id);
+      setAudiencia(null);
+      setDescartados(0);
+      if (contactos.length > MAX_LISTA_EXCEL) {
+        toast({ title: `Lista recortada a ${MAX_LISTA_EXCEL} contactos`, description: "Divide el archivo si necesitas más." });
+      }
+    } catch {
+      toast({ title: "No pude leer el archivo", description: "Usa formato .xlsx, .xls o .csv.", variant: "destructive" });
+    }
+  };
 
   // ── Auth gate (mismo criterio que /moderador: allowlist o rol staff) ──
   useEffect(() => {
@@ -129,25 +203,43 @@ export default function WhatsAppMarketingPage() {
   useEffect(() => detenerPoll, []);
 
   // ── Campañas ──
+  const esExcel = segmento === SEGMENTO_EXCEL.id;
+
   const previewAudiencia = async () => {
+    if (esExcel && !listaExcel?.length) {
+      toast({ title: "Sube primero el archivo", description: "La audiencia Excel sale del archivo que cargues.", variant: "destructive" });
+      return;
+    }
     setAudiencia(null);
     try {
-      const d = await api("/api/whatsapp/campanas", { method: "POST", body: JSON.stringify({ segmento, dryRun: true }) });
+      const d = await api("/api/whatsapp/campanas", {
+        method: "POST",
+        body: JSON.stringify({ segmento, dryRun: true, ...(esExcel ? { clientes: listaExcel } : {}) }),
+      });
       setAudiencia(d.audiencia);
+      setDescartados(d.descartados || 0);
     } catch (e) {
       toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
     }
   };
 
   const crearCampana = async () => {
+    if (esExcel && !listaExcel?.length) {
+      toast({ title: "Sube primero el archivo", description: "La audiencia Excel sale del archivo que cargues.", variant: "destructive" });
+      return;
+    }
     setCreando(true);
     try {
       const d = await api("/api/whatsapp/campanas", {
         method: "POST",
-        body: JSON.stringify({ nombre, segmento, plantillas: plantillas.filter(p => p.trim()) }),
+        body: JSON.stringify({
+          nombre, segmento, plantillas: plantillas.filter(p => p.trim()),
+          ...(esExcel ? { clientes: listaExcel } : {}),
+        }),
       });
-      toast({ title: "🚀 Campaña creada", description: `${d.audiencia} socios en cola. Sale sola dentro de la ventana horaria.` });
-      setNombre(""); setPlantillas([PLANTILLA_EJEMPLO]); setAudiencia(null);
+      toast({ title: "🚀 Campaña creada", description: `${d.audiencia} contactos en cola. Sale sola dentro de la ventana horaria.` });
+      setNombre(""); setPlantillas([PLANTILLA_EJEMPLO]); setAudiencia(null); setDescartados(0);
+      setListaExcel(null); setArchivoNombre("");
       void cargarTodo();
     } catch (e) {
       toast({ title: "No se pudo crear", description: (e as Error).message, variant: "destructive" });
@@ -252,17 +344,54 @@ export default function WhatsAppMarketingPage() {
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => { setSegmento(s.id); setAudiencia(null); }}
+                  onClick={() => { setSegmento(s.id); setAudiencia(null); setDescartados(0); }}
                   className={`rounded-xl border p-3 text-left transition-colors ${segmento === s.id ? "border-green-600 bg-green-500/10" : "hover:bg-muted/50"}`}
                 >
                   <p className="text-sm font-semibold">{s.label}</p>
                   <p className="text-xs text-muted-foreground">{s.desc}</p>
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  if (listaExcel?.length) { setSegmento(SEGMENTO_EXCEL.id); setAudiencia(null); setDescartados(0); }
+                  else fileRef.current?.click();
+                }}
+                className={`rounded-xl border p-3 text-left transition-colors sm:col-span-2 ${esExcel ? "border-green-600 bg-green-500/10" : "hover:bg-muted/50"}`}
+              >
+                <p className="flex items-center gap-1.5 text-sm font-semibold">
+                  <FileSpreadsheet className="h-4 w-4" /> Lista propia (Excel / CSV)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {listaExcel?.length
+                    ? `${archivoNombre} · ${listaExcel.length} contactos leídos — toca de nuevo para usarla`
+                    : "Sube un archivo con una columna de teléfonos (y opcionalmente nombres). Pasa por los mismos candados: opt-outs, tope diario y pausas."}
+                </p>
+                {listaExcel?.length ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(ev) => { ev.stopPropagation(); fileRef.current?.click(); }}
+                    onKeyDown={(ev) => { if (ev.key === "Enter") { ev.stopPropagation(); fileRef.current?.click(); } }}
+                    className="mt-1 inline-block text-xs font-semibold text-green-600 underline-offset-2 hover:underline"
+                  >
+                    Cambiar archivo
+                  </span>
+                ) : null}
+              </button>
             </div>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onArchivo} />
+            {esExcel && (
+              <p className="mt-2 text-xs text-amber-600">
+                Ojo: si un contacto de la lista no es socio del club, <code>{"{sellos}"}</code> será 0 y <code>{"{faltan}"}</code> 10 —
+                para listas externas usa <code>{"{nombre}"}</code> o texto sin variables.
+              </p>
+            )}
             <Button variant="outline" size="sm" className="mt-2" onClick={previewAudiencia}>
               <Users className="mr-1.5 h-3.5 w-3.5" />
-              {audiencia === null ? "Ver tamaño de la audiencia" : `${audiencia} socios elegibles`}
+              {audiencia === null
+                ? "Ver tamaño de la audiencia"
+                : `${audiencia} elegibles${descartados ? ` · ${descartados} descartados (inválidos, repetidos u opt-out)` : ""}`}
             </Button>
           </div>
 
@@ -298,9 +427,13 @@ export default function WhatsAppMarketingPage() {
             </div>
           )}
 
-          <Button onClick={crearCampana} disabled={creando || conexion !== "connected"} className="w-full">
+          <Button onClick={crearCampana} disabled={creando || conexion !== "connected" || (esExcel && !listaExcel?.length)} className="w-full">
             {creando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            {conexion !== "connected" ? "Conecta el WhatsApp primero" : "Crear campaña (sale sola, con candados)"}
+            {conexion !== "connected"
+              ? "Conecta el WhatsApp primero"
+              : esExcel && !listaExcel?.length
+                ? "Sube el archivo de la lista primero"
+                : "Crear campaña (sale sola, con candados)"}
           </Button>
         </CardContent>
       </Card>
@@ -323,8 +456,9 @@ export default function WhatsAppMarketingPage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{c.nombre}</p>
                     <p className="text-xs text-muted-foreground">
-                      {SEGMENTOS.find(s => s.id === c.segmento)?.label || c.segmento} · {c.enviados}/{c.total} enviados
+                      {segmentoLabel(c.segmento)} · {c.enviados}/{c.total} enviados
                       {c.fallidos > 0 ? ` · ${c.fallidos} fallidos` : ""}
+                      {c.optouts > 0 ? ` · ${c.optouts} opt-out` : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
