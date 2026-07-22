@@ -61,6 +61,7 @@ export async function GET(request: Request) {
       total: x.total || 0,
       enviados: x.enviados || 0,
       fallidos: x.fallidos || 0,
+      optouts: x.optouts || 0,
       creadaEn: x.creadaEn?.toDate?.()?.toISOString() || null,
     };
   });

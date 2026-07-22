@@ -34,9 +34,11 @@ function fechaChile(): string {
 }
 
 export async function GET(request: Request) {
+  // Fail-closed: sin CRON_SECRET configurado el endpoint NO despacha nada
+  // (un cron de envíos abierto al público sería invocable por cualquiera).
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -119,6 +121,7 @@ export async function GET(request: Request) {
     campRef.set({
       enviados: FieldValue.increment(enviados),
       fallidos: FieldValue.increment(fallidos),
+      optouts: FieldValue.increment(optouts),
     }, { merge: true }),
     estadoRef.set({ contadorDia: { fecha: hoy, enviados: enviadosHoy } }, { merge: true }),
   ]);
