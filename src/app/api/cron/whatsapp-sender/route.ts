@@ -63,12 +63,18 @@ export async function GET(request: Request) {
   }
 
   // ── Campaña activa más antigua ──
+  // OJO: sin orderBy en la query — estado+creadaEn exigiría un índice
+  // compuesto y su ausencia tumbaba el cron con 500 (caso real 2026-07-22:
+  // "CAMPAÑA PRUEBA" 0/117 sin enviar). Las campañas son pocas: equality
+  // simple (índice automático) y se ordena en memoria.
   const campSnap = await adminDb.collection("wa_campanas")
-    .where("estado", "==", "activa").orderBy("creadaEn", "asc").limit(1).get();
+    .where("estado", "==", "activa").get();
   if (campSnap.empty) return NextResponse.json({ skip: "sin campañas activas" });
 
-  const campRef = campSnap.docs[0].ref;
-  const camp = campSnap.docs[0].data();
+  const porAntiguedad = campSnap.docs.slice().sort((a, b) =>
+    (a.data().creadaEn?.toMillis?.() || 0) - (b.data().creadaEn?.toMillis?.() || 0));
+  const campRef = porAntiguedad[0].ref;
+  const camp = porAntiguedad[0].data();
   const plantillas: string[] = camp.plantillas || [];
 
   const lote = Math.min(CANDADOS.LOTE_POR_CICLO, CANDADOS.CAP_DIARIO - enviadosHoy);
