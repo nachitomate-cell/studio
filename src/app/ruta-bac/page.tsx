@@ -1458,6 +1458,24 @@ export default function RutaBacPage() {
               </div>
             </div>
 
+            <div
+              className="rounded-2xl px-4 py-3.5"
+              style={{
+                background: "rgba(255,75,145,0.08)",
+                border: "1px dashed rgba(255,75,145,0.35)",
+              }}
+            >
+              <p
+                className="text-[9px] font-black uppercase tracking-[0.22em] mb-1.5"
+                style={{ color: PINK }}
+              >
+                Sobre el local
+              </p>
+              <p className="text-[12px] leading-relaxed" style={{ color: CREAM, opacity: 0.85 }}>
+                {selectedLocal.descripcion}
+              </p>
+            </div>
+
             {(sellosBac[selectedLocal.id] || 0) === 0 ? (
               <p className="text-sm font-medium leading-relaxed" style={{ color: "rgba(253,241,214,0.7)" }}>
                 Aún no has sellado este local.{" "}

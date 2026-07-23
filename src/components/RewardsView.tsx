@@ -1265,6 +1265,26 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
           <Gift className="w-4 h-4 text-primary" /> Catálogo de Beneficios
         </h2>
 
+        <div
+          className="mx-1 rounded-2xl px-4 py-3 flex items-start gap-3"
+          style={{
+            background: "linear-gradient(135deg, #FFF7DC 0%, #FFE9B0 100%)",
+            border: "1.5px solid #E5A800",
+          }}
+          role="note"
+          aria-label="Norma de canjes"
+        >
+          <span className="text-lg leading-none shrink-0" aria-hidden>📅</span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#9A6B00" }}>
+              Norma de canjes
+            </p>
+            <p className="text-[12px] font-bold leading-snug mt-0.5" style={{ color: "#5C3D00" }}>
+              Máximo <strong>2 premios por día</strong> en <strong>2 locales distintos</strong>. Solo <strong>1 premio por día</strong> por cada local. Los tickets de sorteo no cuentan.
+            </p>
+          </div>
+        </div>
+
         {premiosLoading ? (
           <div className="py-10 flex justify-center">
             <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#D3B673" }} />
