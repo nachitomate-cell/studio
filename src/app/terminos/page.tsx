@@ -105,6 +105,13 @@ export default function TerminosPage() {
               <strong>Validación:</strong> El beneficio se considera entregado una vez que
               el locatario valida el ticket en el sistema.
             </li>
+            <li>
+              <strong>Límite Diario de Canjes:</strong> Cada usuario podrá canjear un
+              máximo de <strong>2 premios por día</strong>, siempre que provengan de
+              <strong> 2 locales distintos</strong>. No se permite canjear más de{" "}
+              <strong>1 premio por día en un mismo local</strong>. Los tickets de sorteo
+              no cuentan para este límite.
+            </li>
           </ul>
         </Section>
 

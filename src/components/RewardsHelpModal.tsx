@@ -22,6 +22,12 @@ const GUIDE_ITEMS = [
     color: "#9DCC65",
   },
   {
+    icon: "📅",
+    label: "Límite Diario",
+    desc: "Puedes canjear hasta 2 premios por día, siempre en 2 locales distintos. Solo se permite 1 premio por día en un mismo local. Los tickets de sorteo no cuentan.",
+    color: "#E76F51",
+  },
+  {
     icon: "📲",
     label: "Tu Código QR",
     desc: "Es tu identificador único en el Patio. Solo debes mostrarlo al momento de pagar.",

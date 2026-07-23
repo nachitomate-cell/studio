@@ -28,6 +28,18 @@ function generarCodigoUnico(premioNombre: string): string {
   return `${prefijo}-${ts}${rnd}`;
 }
 
+/** "YYYY-MM-DD" en America/Santiago para agrupar canjes por día local. */
+function todayKeyChile(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+const MAX_CANJES_POR_DIA = 2;
+
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
@@ -107,6 +119,23 @@ export async function POST(request: Request) {
         throw new Error("Lo sentimos, este premio se ha agotado.");
       }
 
+      // ── Regla de canjes por día ──────────────────────────────────────────────
+      // Máximo 2 premios por cliente al día (de 2 locales distintos) y máximo 1
+      // premio al día por local. Sorteos quedan fuera de esta regla.
+      const dayKey = todayKeyChile();
+      const canjesHoy = (u.canjesHoy || {}) as { dayKey?: string; vendors?: string[] };
+      const vendorsHoy: string[] = canjesHoy.dayKey === dayKey ? canjesHoy.vendors ?? [] : [];
+      const vendorKey = p.vendorId || "__patio__";
+
+      if (vendorsHoy.includes(vendorKey)) {
+        throw new Error("Ya canjeaste un premio de este local hoy. Vuelve mañana.");
+      }
+      if (vendorsHoy.length >= MAX_CANJES_POR_DIA) {
+        throw new Error(
+          `Alcanzaste el máximo de ${MAX_CANJES_POR_DIA} premios por día. Vuelve mañana para canjear más.`
+        );
+      }
+
       const canjeRef = adminDb.collection("canjes").doc();
       tx.set(canjeRef, {
         clienteId: userId,
@@ -128,6 +157,7 @@ export async function POST(request: Request) {
         recompensaDisponible: sellosActuales - costo >= 5,
         totalCanjesHistoricos: FieldValue.increment(1),
         lastCanjeAt: new Date().toISOString(),
+        canjesHoy: { dayKey, vendors: [...vendorsHoy, vendorKey] },
       });
 
       if (typeof p.stock === "number") {
