@@ -76,8 +76,9 @@ function getStampState(n: number): StampState {
   return "active";
 }
 
-// ── Push notifications banner ────────────────────────────────────────────────
+// ── Local storage keys ──────────────────────────────────────────────────────
 const NOTIF_BANNER_OFF_KEY = "bac_notif_banner_off";
+const DEMO_SELLOS_KEY = "bac_demo_sellos";
 
 function NotifBanner() {
   const { toast } = useToast();
@@ -742,27 +743,39 @@ export default function RutaBacPage() {
 
   const { sellosBac: remoteSellosBac, hasSynapTechStamp, hasSynapTechShared } = useSellosBac(userId);
   const offline = useBacOfflineSync(userId);
+  const [demoSellos, setDemoSellos] = useState<Record<string, number>>({});
 
-  // Optimistic merge: Firestore truth + pending queue counts.
+  // Load demo stamps from localStorage for anonymous sessions.
+  useEffect(() => {
+    if (userId) return;
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(DEMO_SELLOS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        setDemoSellos(parsed as Record<string, number>);
+      }
+    } catch {}
+  }, [userId]);
+
+  // Optimistic merge: Firestore truth + pending queue counts (or demo store when anonymous).
   const sellosBac = useMemo(() => {
+    if (!userId) return demoSellos;
     const merged: Record<string, number> = { ...remoteSellosBac };
     for (const id of offline.pending) {
       merged[id] = (merged[id] || 0) + 1;
     }
     return merged;
-  }, [remoteSellosBac, offline.pending]);
+  }, [userId, remoteSellosBac, offline.pending, demoSellos]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        router.push("/?login=true&redirect=/ruta-bac");
-        return;
-      }
-      setUserId(user.uid);
+      setUserId(user ? user.uid : null);
       setLoading(false);
     });
     return () => unsub();
-  }, [router]);
+  }, []);
 
   const visitedBacCount = useMemo(
     () => LOCALES_BAC.filter((l) => (sellosBac[l.id] || 0) > 0).length,
@@ -869,11 +882,26 @@ export default function RutaBacPage() {
   };
 
   const handleRegisterStamp = async (local: LocalBac) => {
-    if (!userId) return;
     const finish = () => {
       setSelectedLocal(null);
       setShowReviewForLocal(local);
     };
+
+    if (!userId) {
+      setDemoSellos((prev) => {
+        const next = { ...prev, [local.id]: (prev[local.id] || 0) + 1 };
+        try {
+          window.localStorage.setItem(DEMO_SELLOS_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      toast({
+        title: `¡Sello agregado! ${local.nombre}`,
+        description: "1 Tapa + 1 Cóctel — registrada en el pasaporte (demo).",
+      });
+      finish();
+      return;
+    }
     const offlineToast = () =>
       toast({
         title: "⚡ Sello guardado en el teléfono",
@@ -1227,7 +1255,7 @@ export default function RutaBacPage() {
             </p>
           </div>
 
-          <ProgressBar visited={visitedCount} total={LOCALES_BAC.length + 1} />
+          <ProgressBar visited={visitedBacCount} total={LOCALES_BAC.length} />
         </div>
 
         {/* Rewards teaser */}
@@ -1303,21 +1331,6 @@ export default function RutaBacPage() {
               onTap={() => setSelectedLocal(local)}
             />
           ))}
-
-          {cerroFilter === "todos" && (
-            <SynapTechStampCell
-              collected={hasSynapTechStamp}
-              shared={hasSynapTechShared}
-              onTap={() => {
-                if (hasSynapTechStamp) {
-                  setShowLogoRain(true);
-                  setShowSynapModal("thanks");
-                } else {
-                  setShowSynapModal("invite");
-                }
-              }}
-            />
-          )}
         </div>
           </>
         )}
