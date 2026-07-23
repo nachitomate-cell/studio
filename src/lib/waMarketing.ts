@@ -77,14 +77,20 @@ export interface DatosSocio {
   sellos: number;
 }
 
-/** Renderiza una plantilla con las variables del socio. */
+/** Renderiza una plantilla con las variables del socio.
+ *  Tolerante a cómo las escriba el moderador: {nombre}/{Nombre}/{NOMBRE},
+ *  [nombre], con o sin espacios internos — caso real 2026-07-22: una campaña
+ *  salió con "{Nombre}" literal porque el reemplazo era case-sensitive. */
 export function renderPlantilla(plantilla: string, socio: DatosSocio): string {
   const s = Number(socio.sellos) || 0;
   const primerNombre = String(socio.nombre || "").trim().split(/\s+/)[0] || "socio";
-  return plantilla
-    .replaceAll("{nombre}", primerNombre)
-    .replaceAll("{sellos}", String(s))
-    .replaceAll("{faltan}", String(sellosFaltantes(s)));
+  const reemplazar = (texto: string, variable: string, valor: string) =>
+    texto.replace(new RegExp(`[{\\[]\\s*${variable}\\s*[}\\]]`, "gi"), valor);
+  let out = plantilla;
+  out = reemplazar(out, "nombre", primerNombre);
+  out = reemplazar(out, "sellos", String(s));
+  out = reemplazar(out, "faltan", String(sellosFaltantes(s)));
+  return out;
 }
 
 /** Pie obligatorio de todo mensaje de marketing: la salida siempre visible. */
