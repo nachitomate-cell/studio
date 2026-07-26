@@ -16,7 +16,7 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getMessaging, type Messaging } from "firebase-admin/messaging";
 import { getStorage, type Storage } from "firebase-admin/storage";
 
-const STORAGE_BUCKET = "studio-7914495232-557f1.firebasestorage.app";
+export const STORAGE_BUCKET = "studio-7914495232-557f1.firebasestorage.app";
 
 function createAdminApp(): App {
   // Evita re-inicialización en Fast Refresh (dev) y en Workers concurrentes

@@ -23,8 +23,8 @@ import {
   arrayUnion, setDoc, serverTimestamp
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { db, auth, storage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, auth } from "@/lib/firebase";
+import { uploadImagenAdmin } from "@/lib/uploadImagenAdmin";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -867,9 +867,7 @@ export default function DirectorPage() {
   const handleImageUpload = async (vendorId: string, file: File) => {
     setUploadingImageId(vendorId);
     try {
-      const storageRef = ref(storage, `entrepreneur_photos/${vendorId}/profile_${Date.now()}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const url = await uploadImagenAdmin(file, { tipo: "local", vendorId });
       const profileSnap = await getDoc(doc(db, "entrepreneur_profiles", vendorId));
       const existing: string[] = profileSnap.data()?.imageUrls || [];
       const imageUrls = [url, ...existing.filter((u) => u !== url)].slice(0, 5);
@@ -890,9 +888,7 @@ export default function DirectorPage() {
   const handlePublicidadUpload = async (file: File) => {
     setUploadingPublicidad(true);
     try {
-      const storageRef = ref(storage, `publicidad/afiche_${Date.now()}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const url = await uploadImagenAdmin(file, { tipo: "publicidad" });
 
       // Cerrar campaña anterior
       if (campanaActualId) {

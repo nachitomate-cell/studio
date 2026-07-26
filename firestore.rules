@@ -22,21 +22,37 @@ service cloud.firestore {
       return /databases/$(database)/documents/usuarios/$(request.auth.uid);
     }
 
+    // Se usa .get("rol", "") y no .data.rol: leer un campo ausente ABORTA la
+    // evaluación y deniega la petición. Un director guardado solo con el array
+    // `roles` (sin el campo legacy `rol`) hacía fallar TODAS las reglas.
     function getUserRol() {
       return isSignedIn() && exists(userDoc())
-        ? get(userDoc()).data.rol
+        ? get(userDoc()).data.get("rol", "")
         : "";
     }
 
+    // El modelo de roles de la app acepta las dos formas — `rol` (string legacy)
+    // y `roles` (array actual), ver src/lib/roles.ts. Las reglas deben aceptar
+    // ambas o el usuario entra al panel pero no puede escribir nada.
+    function getUserRoles() {
+      return isSignedIn() && exists(userDoc())
+        ? get(userDoc()).data.get("roles", [])
+        : [];
+    }
+
+    function hasAnyRol(roles) {
+      return getUserRol() in roles || getUserRoles().hasAny(roles);
+    }
+
     function isStaff() {
-      return isSignedIn() && getUserRol() in ["moderador", "director_patio", "director", "admin"];
+      return isSignedIn() && hasAnyRol(["moderador", "director_patio", "director", "admin"]);
     }
 
     // El rol "director" tiene las mismas facultades que "admin" — la única
     // restricción del admin es el acceso al panel /superadmin, que se gatea
     // por email (SUPERADMIN_EMAIL) en el cliente, no por estas reglas.
     function isDirector() {
-      return isSignedIn() && getUserRol() in ["director_patio", "director", "admin"];
+      return isSignedIn() && hasAnyRol(["director_patio", "director", "admin"]);
     }
 
     // ── Usuarios ──────────────────────────────────────────────────────────────

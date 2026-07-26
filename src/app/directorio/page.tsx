@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import {
   collection, onSnapshot, doc, updateDoc, addDoc, getDoc,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
-import { db, auth, storage } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
+import { uploadImagenAdmin } from "@/lib/uploadImagenAdmin";
 import { useCategorias } from "@/hooks/useCategorias";
 import { DIAS_SEMANA, DIAS_SHORT, DIAS_LABEL, HorariosEstructurados, HorarioDia } from "@/lib/horarios";
 import { Card, CardContent } from "@/components/ui/card";
@@ -348,20 +348,17 @@ export default function DirectorioPage() {
       }
 
       // ── 2. Subir imagen si se seleccionó una ─────────────────────────
-      // Pasamos contentType explícito porque en algunos navegadores móviles /
-      // PWAs File.type viene vacío y la regla de Storage `isValidImage()` falla
-      // al evaluar `contentType.matches('image/.*')` con null.
+      // Vía Admin SDK (/api/admin/upload-imagen): el staff sube fotos de locales
+      // ajenos y esa rama de las Storage Rules depende de un firestore.get()
+      // cross-service que falla para varios directores.
       let imageUrl = form.imageUrl;
       if (pendingImageFile) {
         setUploadingImage(true);
-        const contentType = pendingImageFile.type || "image/jpeg";
-        const storageRef = ref(
-          storage,
-          `entrepreneur_photos/${vendorId}/profile_${Date.now()}`
-        );
-        await uploadBytes(storageRef, pendingImageFile, { contentType });
-        imageUrl = await getDownloadURL(storageRef);
-        setUploadingImage(false);
+        try {
+          imageUrl = await uploadImagenAdmin(pendingImageFile, { tipo: "local", vendorId });
+        } finally {
+          setUploadingImage(false);
+        }
       }
 
       // ── 3. Actualizar todos los campos ───────────────────────────────

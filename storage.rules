@@ -7,15 +7,35 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // OJO: firestore.get() sobre un documento inexistente ABORTA la evaluación de
+    // la regla (no devuelve null), así que la petición se deniega aunque el resto
+    // de la condición fuera verdadera. Por eso siempre se consulta exists() antes.
+    // Aun con esta guarda, la lectura cross-service falla para algunos directores
+    // en producción: los paneles de staff suben imágenes por
+    // /api/admin/upload-imagen (Admin SDK), no por el SDK del navegador.
+    function userDocExists() {
+      return firestore.exists(
+        /databases/(default)/documents/usuarios/$(request.auth.uid)
+      );
+    }
+
+    function userData() {
+      return firestore.get(
+        /databases/(default)/documents/usuarios/$(request.auth.uid)
+      ).data;
+    }
+
+    function hasAnyRole(roles) {
+      return userDocExists() && (
+        userData().get("rol", "") in roles ||
+        userData().get("roles", []).hasAny(roles)
+      );
+    }
+
     function isDirectorOrAdmin() {
       return isSignedIn() && (
         request.auth.token.email == "ignaciiio.mate@gmail.com" ||
-        firestore.get(
-          /databases/(default)/documents/usuarios/$(request.auth.uid)
-        ).data.get("rol", "") in ["director", "director_patio", "admin"] ||
-        firestore.get(
-          /databases/(default)/documents/usuarios/$(request.auth.uid)
-        ).data.get("roles", []).hasAny(["director", "director_patio", "admin"])
+        hasAnyRole(["director", "director_patio", "admin"])
       );
     }
 
@@ -29,12 +49,7 @@ service firebase.storage {
     function isStaffStorage() {
       return isSignedIn() && (
         request.auth.token.email == "ignaciiio.mate@gmail.com" ||
-        firestore.get(
-          /databases/(default)/documents/usuarios/$(request.auth.uid)
-        ).data.get("rol", "") in ["moderador", "director", "director_patio", "admin"] ||
-        firestore.get(
-          /databases/(default)/documents/usuarios/$(request.auth.uid)
-        ).data.get("roles", []).hasAny(["moderador", "director", "director_patio", "admin"])
+        hasAnyRole(["moderador", "director", "director_patio", "admin"])
       );
     }
 
