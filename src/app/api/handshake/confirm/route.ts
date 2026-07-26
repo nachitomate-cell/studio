@@ -17,6 +17,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
 import { calcularSellos } from "@/lib/sellos";
 import { getEscalaMontoActiva } from "@/lib/escalaSellos";
+import { assertFueraDeCooldown } from "@/lib/cooldownSello";
 
 export async function POST(request: Request) {
   try {
@@ -87,6 +88,11 @@ export async function POST(request: Request) {
       if (userSnap.exists && userSnap.data()!.baneado) {
         throw new Error("Usuario baneado — no se puede otorgar el sello.");
       }
+
+      // Red de seguridad contra ráfagas: no acreditar dos sellos seguidos del
+      // mismo local al mismo cliente. Va dentro de la transacción para que dos
+      // confirmaciones simultáneas no se cuelen las dos.
+      assertFueraDeCooldown(userSnap.exists ? userSnap.data() : null, vendorId);
 
       const timestamp = new Date().toISOString();
       const numSellos = escalaActiva ? calcularSellos(monto) : 1;

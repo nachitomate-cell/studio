@@ -178,9 +178,19 @@ service cloud.firestore {
       );
       // Cualquier usuario autenticado puede crear una solicitud de sello
       allow create: if isSignedIn();
-      // Solo el vendedor (o staff) puede actualizar el estado (confirmar/rechazar)
+      // El vendedor (o staff) actualiza el estado: confirmar/rechazar/expirar.
+      // El cliente puede reiniciar SU PROPIA solicitud: como el id del documento
+      // ahora es determinista (uid_local), volver a entrar a /canje reescribe el
+      // mismo doc en vez de crear uno nuevo. Sin esta rama el segundo escaneo
+      // fallaría con permission-denied. No es un permiso nuevo en la práctica:
+      // el cliente ya podía borrar el suyo y crear otro — de hecho eso es lo que
+      // produjo las 84 solicitudes del 26-07-2026.
       allow update: if isSignedIn() && (
-        resource.data.vendorId == request.auth.uid || isStaff()
+        resource.data.vendorId == request.auth.uid ||
+        isStaff() ||
+        (resource.data.userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == "pending")
       );
       // El cliente puede cancelar su propia solicitud; el staff también
       allow delete: if isSignedIn() && (

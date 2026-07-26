@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db, storage } from "@/lib/firebase";
-import { doc, onSnapshot, collection, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { ref as storageRef, uploadBytes } from "firebase/storage";
 import { cancelarPendingStamp } from "@/lib/puntos";
 import { esAsociado, esMembresia } from "@/lib/tipoComercio";
@@ -565,13 +565,15 @@ function CanjeContent() {
     });
   }, []);
 
-  // ── Limpiar pending al desmontar si sigue en espera ─────────────────────
+  // ── Limpiar timer al desmontar ──────────────────────────────────────────
+  // NO se borra el pending aquí. Con el ID determinista el documento es el mismo
+  // en cada montaje, así que un borrado de la instancia que se va llegaría tarde
+  // y se llevaría por delante la solicitud que acaba de crear la instancia nueva.
+  // Ya no hace falta limpiar: no se acumulan documentos, y el que quede huérfano
+  // expira solo a los 5 minutos. El cancelar explícito (handleCancel) sí borra.
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (pendingIdRef.current) {
-        cancelarPendingStamp(db, pendingIdRef.current).catch(() => {});
-      }
     };
   }, []);
 
@@ -790,8 +792,14 @@ function CanjeContent() {
     if (cachedName) setVendorName(cachedName);
 
     // ── 2. Pre-generar ref local (sin red) y registrar pendingId ───────────
+    // ID DETERMINISTA (cliente + local), no aleatorio. Con addDoc, cada montaje
+    // de esta pantalla creaba una solicitud nueva: el 26-07-2026 se generaron 84
+    // en 2m33s hacia el mismo local y el vendedor confirmó 9 sin querer. El único
+    // candado era processingRef, un useRef que se pierde en cada remontaje.
+    // Con un ID fijo, N montajes escriben el MISMO documento: siempre hay como
+    // máximo una solicitud viva por par cliente-local.
     console.time("2-create-pending-stamp");
-    const pendingRef = doc(collection(db, "pending_stamps"));
+    const pendingRef = doc(db, "pending_stamps", `${userId}_${vendorId}`);
     const pendingId = pendingRef.id;
     pendingIdRef.current = pendingId;
     setPendingId(pendingId);

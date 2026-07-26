@@ -17,6 +17,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { aplicarEntregaConRecompensa } from "@/lib/recompensaEmprendedor";
 import { calcularSellos, SELLOS_PARA_PREMIO } from "@/lib/sellos";
 import { getEscalaMontoActiva } from "@/lib/escalaSellos";
+import { assertFueraDeCooldown } from "@/lib/cooldownSello";
 
 export async function POST(request: Request) {
   try {
@@ -76,6 +77,10 @@ export async function POST(request: Request) {
       if (userSnap.exists && userSnap.data()!.baneado) {
         throw new Error("Usuario baneado — no se puede otorgar el sello.");
       }
+
+      // Misma red de seguridad que en handshake/confirm: nada de dos sellos
+      // seguidos del mismo local al mismo cliente.
+      assertFueraDeCooldown(userSnap.exists ? userSnap.data() : null, vendorId);
 
       const prevSellos = userSnap.exists ? (userSnap.data()!.comprasRealizadas || 0) : 0;
       const numSellos = escalaActiva ? calcularSellos(monto) : 1;

@@ -1,7 +1,20 @@
+/**
+ * POST /api/admin/anular-sello
+ *
+ * Revierte por completo un sello ya acreditado. "Por completo" es literal: al
+ * otorgar un sello se tocan SEIS cosas (saldo, histórico, puntos, sellos por
+ * local, contadores del local y la venta registrada), asi que anularlo debe
+ * deshacer las seis. Antes solo deshacia el saldo y el historico, y el resto
+ * quedaba inflado en silencio: los puntos no bajaban, el local seguia contando
+ * la entrega en su ranking mensual y la venta seguia sumando al reporte.
+ *
+ * Headers: Authorization: Bearer <idToken>
+ * Body:    { logId: string }
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-
-const ALLOWED_ROLES = ["admin", "moderador", "director", "director_patio"];
+import { ALLOWED_MOD_EMAILS, ROLES_STAFF_PANEL, PUNTOS_POR_COMPRA } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   // ── 1. Autenticación ────────────────────────────────────────────────────────
@@ -11,17 +24,29 @@ export async function POST(req: NextRequest) {
   }
 
   let callerUid: string;
+  let callerEmail: string;
   try {
     const decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
     callerUid = decoded.uid;
+    callerEmail = (decoded.email ?? "").trim().toLowerCase();
   } catch {
     return NextResponse.json({ error: "Token inválido" }, { status: 401 });
   }
 
-  // ── 2. Autorización por rol ─────────────────────────────────────────────────
-  const callerSnap = await adminDb.collection("usuarios").doc(callerUid).get();
-  const callerRol = callerSnap.data()?.rol as string | undefined;
-  if (!callerSnap.exists || !callerRol || !ALLOWED_ROLES.includes(callerRol)) {
+  // ── 2. Autorización ─────────────────────────────────────────────────────────
+  // Acepta el campo legacy `rol` y el array `roles` — un moderador guardado solo
+  // con el array recibia 403 aunque tuviera el permiso.
+  let autorizado = ALLOWED_MOD_EMAILS.includes(callerEmail);
+  if (!autorizado) {
+    const callerSnap = await adminDb.collection("usuarios").doc(callerUid).get();
+    const callerData = callerSnap.exists ? callerSnap.data()! : null;
+    const callerRol: string = callerData?.rol ?? "";
+    const callerRoles: string[] = Array.isArray(callerData?.roles) ? callerData.roles : [];
+    autorizado =
+      ROLES_STAFF_PANEL.includes(callerRol) ||
+      callerRoles.some((r) => ROLES_STAFF_PANEL.includes(r));
+  }
+  if (!autorizado) {
     return NextResponse.json({ error: "Permiso insuficiente" }, { status: 403 });
   }
 
@@ -59,22 +84,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Registro sin usuarioId" }, { status: 400 });
   }
 
+  // El log y la venta se escriben con el MISMO timestamp en todos los flujos de
+  // sello (handshake/confirm, vendor-scan, boleta-scan y registrarCompra), asi
+  // que `fecha` es la llave para reencontrar la venta que hay que borrar.
+  const fechaLog: string = logData.fecha ?? "";
+  const mesLog = fechaLog.substring(0, 7); // YYYY-MM
+
   // ── 5. Transacción atómica ──────────────────────────────────────────────────
   let nuevoTotal: number;
+  let ventasBorradas = 0;
   try {
-    nuevoTotal = await adminDb.runTransaction(async (tx) => {
+    const resultado = await adminDb.runTransaction(async (tx) => {
       const userRef = adminDb.collection("usuarios").doc(usuarioId);
-      const vendorRef = (vendedorId && vendedorId !== "simulacion")
+      const vendorRef = (vendedorId && vendedorId !== "simulacion" && vendedorId !== "MODERADOR")
         ? adminDb.collection("usuarios").doc(vendedorId)
         : null;
 
       // ── Todas las lecturas primero ────────────────────────────────────────
-      const reads = await Promise.all([
+      const ventasQuery = (vendorRef && fechaLog)
+        ? vendorRef.collection("ventas_registradas")
+            .where("clienteId", "==", usuarioId)
+            .where("fecha", "==", fechaLog)
+        : null;
+
+      const [userSnap, vendorSnap, ventasSnap] = await Promise.all([
         tx.get(userRef),
         vendorRef ? tx.get(vendorRef) : Promise.resolve(null),
+        ventasQuery ? tx.get(ventasQuery) : Promise.resolve(null),
       ]);
-      const userSnap = reads[0];
-      const vendorSnap = reads[1];
 
       if (!userSnap.exists) throw new Error("Usuario no encontrado");
 
@@ -91,17 +128,45 @@ export async function POST(req: NextRequest) {
       const nuevoSellos = Math.max(0, sellosActuales - n);
 
       // ── Todas las escrituras después ──────────────────────────────────────
-      tx.update(userRef, {
+      const updateUsuario: Record<string, any> = {
         comprasRealizadas: nuevoSellos,
         sellosHistoricos: Math.max(0, sellosHistoricos - n),
         recompensaDisponible: nuevoSellos >= 5,
-      });
+        // Cada sello acredita PUNTOS_POR_COMPRA; anularlo debe devolverlos.
+        puntos: Math.max(0, (data.puntos ?? 0) - PUNTOS_POR_COMPRA * n),
+      };
+
+      // Sellos acumulados por local (alimenta el detalle del cliente por comercio)
+      if (vendedorId && data.sellosLocales?.[vendedorId] != null) {
+        updateUsuario[`sellosLocales.${vendedorId}`] =
+          Math.max(0, Number(data.sellosLocales[vendedorId]) - n);
+      }
+
+      tx.update(userRef, updateUsuario);
 
       if (vendorRef && vendorSnap?.exists) {
-        const entregados: number = vendorSnap.data()!.sellosEntregadosHistorico ?? 0;
-        tx.update(vendorRef, {
+        const vData = vendorSnap.data()!;
+        const entregados: number = vData.sellosEntregadosHistorico ?? 0;
+        const updateVendor: Record<string, any> = {
           sellosEntregadosHistorico: Math.max(0, entregados - n),
-        });
+        };
+        // El contador mensual alimenta el ranking del panel directivo: si no se
+        // descuenta, el local queda premiado por una entrega que ya no existe.
+        if (mesLog && vData.sellosEntregadosMensual?.[mesLog] != null) {
+          updateVendor[`sellosEntregadosMensual.${mesLog}`] =
+            Math.max(0, Number(vData.sellosEntregadosMensual[mesLog]) - n);
+        }
+        tx.update(vendorRef, updateVendor);
+      }
+
+      // La venta no ocurrió: se elimina del registro operativo del local. La
+      // auditoría se conserva en system_logs, que queda marcado como anulado.
+      let borradas = 0;
+      if (ventasSnap) {
+        for (const d of ventasSnap.docs) {
+          tx.delete(d.ref);
+          borradas++;
+        }
       }
 
       // Marcar el log como anulado (conservar como auditoría). Se limpia la
@@ -114,8 +179,10 @@ export async function POST(req: NextRequest) {
         boletaUrl: null,
       });
 
-      return nuevoSellos;
+      return { nuevoSellos, borradas };
     });
+    nuevoTotal = resultado.nuevoSellos;
+    ventasBorradas = resultado.borradas;
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "Error en transacción" }, { status: 400 });
   }
@@ -131,5 +198,5 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({ userId: usuarioId, stampsCount: nuevoTotal }),
   }).catch((e) => console.warn("[anular-sello] Wallet sync falló (no crítico):", e));
 
-  return NextResponse.json({ ok: true, nuevoTotal });
+  return NextResponse.json({ ok: true, nuevoTotal, ventasBorradas });
 }
