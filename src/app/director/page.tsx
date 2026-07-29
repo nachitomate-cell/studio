@@ -1749,6 +1749,7 @@ export default function DirectorPage() {
                       const destinoLabel: Record<string, string> = {
                         todos: "Todos",
                         emprendedor: "Emprendedores",
+                        vip: "VIP 10+ sellos",
                         cerca_de_premio: "4+ sellos",
                         inactivos: "Inactivos",
                         activos_recientes: "Activos",
@@ -1842,6 +1843,7 @@ export default function DirectorPage() {
               >
                 <option value="todos" className="text-slate-800">Todos los socios</option>
                 <option value="emprendedor" className="text-slate-800">Solo Emprendedores</option>
+                <option value="vip" className="text-slate-800">VIP · los más fieles (10+ sellos) 🏆</option>
                 <option value="cerca_de_premio" className="text-slate-800">Cerca de su premio (4+ sellos)</option>
                 <option value="inactivos" className="text-slate-800">Inactivos (+30 días sin compras)</option>
                 <option value="activos_recientes" className="text-slate-800">Activos en los últimos 30 días</option>
@@ -1995,6 +1997,7 @@ export default function DirectorPage() {
                 const labels: Record<string, string> = {
                   todos: "todos los socios",
                   emprendedor: "emprendedores",
+                  vip: "socios VIP (10+ sellos) 🏆",
                   cerca_de_premio: "socios con 4+ sellos",
                   inactivos: "socios inactivos (+30 días)",
                   activos_recientes: "socios activos en 30 días",

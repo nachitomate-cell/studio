@@ -381,7 +381,12 @@ async function executeBroadcast(
   } else {
     const snap = await db.collection("usuarios").get();
     const notBanned = snap.docs.filter(d => d.data().baneado !== true);
-    if (destino === "cerca_de_premio") {
+    if (destino === "vip") {
+      // Los socios de mayor valor del Club. Se mide por saldo de sellos, igual
+      // que cerca_de_premio, porque es el campo que el panel muestra como
+      // "sellos" y el unico poblado de forma confiable en todos los usuarios.
+      docs = notBanned.filter(d => (d.data().comprasRealizadas ?? 0) >= 10);
+    } else if (destino === "cerca_de_premio") {
       docs = notBanned.filter(d => (d.data().comprasRealizadas ?? 0) >= 4);
     } else if (destino === "inactivos") {
       docs = notBanned.filter(d => {
