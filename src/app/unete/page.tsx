@@ -29,6 +29,7 @@ import TermsModal from "@/components/TermsModal";
 import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
+import { ActivarNotificaciones } from "@/components/ActivarNotificaciones";
 
 import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
@@ -393,6 +394,13 @@ export default function UnetePage() {
                 </div>
                 <p style={{ fontSize: 12, color: "#6b7280", marginTop: 10, fontWeight: 600 }}>1 de 10 sellos obtenido</p>
               </div>
+
+              {/* Pedido de notificaciones — va ANTES del botón de salida a
+                  propósito: es el momento de máxima intención y el último punto
+                  del flujo donde la persona todavía está mirando. Si queda
+                  debajo del CTA, la mayoría se va sin verlo. */}
+              <ActivarNotificaciones />
+
               <Button
                 onClick={() => {
                   const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
