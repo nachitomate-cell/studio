@@ -160,7 +160,14 @@ export default function SorteoCampanaPage() {
     }
   };
 
-  const urlQR = `${CANONICAL_BASE_URL}/scan?ref=${localId.trim() || "<ID-DEL-LOCAL>"}&evento=${campana.trim().toLowerCase()}`;
+  // Apunta a /unete, no a /scan ni /canje: en un evento lo que se busca son
+  // registros nuevos. /canje manda al handshake (esperar que un vendedor
+  // confirme una venta) y sin sesión rebota a /?login=true. /unete abre el
+  // formulario directo. El ref del local es opcional y solo sirve para
+  // atribuirle el sello a un local; sin él se entrega el de bienvenida.
+  const urlQR =
+    `${CANONICAL_BASE_URL}/unete?evento=${campana.trim().toLowerCase()}` +
+    (localId.trim() ? `&ref=${localId.trim()}` : "");
   const conPush = participantes.filter((p) => p.push).length;
   const conCorreo = participantes.filter((p) => p.correo).length;
 
@@ -194,7 +201,7 @@ export default function SorteoCampanaPage() {
           <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 pt-1">
             <QrCode className="w-3 h-3" /> URL para el QR del mostrador
           </label>
-          <Input value={localId} onChange={(e) => setLocalId(e.target.value)} placeholder="ID del local (del panel de locales)" className="h-10 rounded-xl text-xs" />
+          <Input value={localId} onChange={(e) => setLocalId(e.target.value)} placeholder="ID del local (opcional, para atribuir el sello)" className="h-10 rounded-xl text-xs" />
           <div className="bg-slate-50 rounded-xl p-3 flex items-start gap-2">
             <code className="text-[10px] text-slate-600 break-all flex-1 leading-relaxed">{urlQR}</code>
             <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0"
@@ -203,7 +210,9 @@ export default function SorteoCampanaPage() {
             </Button>
           </div>
           <p className="text-[10px] text-slate-400 leading-relaxed">
-            Quien se inscriba desde ese QR queda marcado en esta campaña y entra al sorteo.
+            Abre el registro directo. Quien se inscriba desde ese QR queda marcado
+            en esta campaña y entra al sorteo. Deja el ID del local vacío si el
+            sello de bienvenida no debe atribuirse a ningún local.
           </p>
         </section>
 

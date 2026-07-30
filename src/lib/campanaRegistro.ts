@@ -20,6 +20,13 @@
 
 const CLAVE = "campana_registro";
 
+/**
+ * Vencimiento de la atribución. Sin esto, quien abre el QR de una feria y se
+ * registra tres días después quedaría contado como asistente del evento —
+ * y entraría a un sorteo en el que no estuvo.
+ */
+const VIGENCIA_MS = 24 * 60 * 60 * 1000;
+
 /** Normaliza a un slug corto y seguro para usar como valor de campaña. */
 function normalizar(valor: string): string {
   return valor
@@ -42,7 +49,7 @@ export function capturarCampana(): string | null {
     const crudo = params.get("evento") || params.get("utm_campaign") || "";
     const campana = normalizar(crudo);
     if (!campana) return leerCampana();
-    localStorage.setItem(CLAVE, campana);
+    localStorage.setItem(CLAVE, JSON.stringify({ campana, ts: Date.now() }));
     return campana;
   } catch {
     return null;
@@ -52,8 +59,15 @@ export function capturarCampana(): string | null {
 export function leerCampana(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem(CLAVE) || null;
+    const crudo = localStorage.getItem(CLAVE);
+    if (!crudo) return null;
+    const { campana, ts } = JSON.parse(crudo) as { campana?: string; ts?: number };
+    if (!campana || typeof ts !== "number") { limpiarCampana(); return null; }
+    if (Date.now() - ts > VIGENCIA_MS) { limpiarCampana(); return null; }
+    return campana;
   } catch {
+    // Formato viejo o corrupto: se descarta en vez de atribuir mal.
+    limpiarCampana();
     return null;
   }
 }

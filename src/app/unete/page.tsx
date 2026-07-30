@@ -30,7 +30,7 @@ import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import { ActivarNotificaciones } from "@/components/ActivarNotificaciones";
-import { capturarCampana, leerCampana, limpiarCampana } from "@/lib/campanaRegistro";
+import { leerCampana, limpiarCampana } from "@/lib/campanaRegistro";
 
 import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
@@ -102,9 +102,6 @@ export default function UnetePage() {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get("ref");
       if (ref) localStorage.setItem("referral_local_id", ref);
-      // Persistir la campaña: el query string no sobrevive los redirects de
-      // /scan, así que se guarda en cuanto se toca cualquier puerta de entrada.
-      capturarCampana();
       const utm = captureUTMParams() ?? {
         utm_source: "qr",
         utm_medium: "qr",
