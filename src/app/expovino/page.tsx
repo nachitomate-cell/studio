@@ -139,9 +139,9 @@ export default function ExpovinoPage() {
             </p>
           </div>
           <p style={{ fontSize: 12.5, color: "#94a3b8", margin: "0 0 14px", lineHeight: 1.55 }}>
-            {EXPOSITORES.filter((e) => e.tipo === "vina").length} viñas y{" "}
-            {EXPOSITORES.filter((e) => e.tipo === "gastronomia").length} restaurantes.
-            Búscalos por nombre y mira el plano del recinto.
+            {EXPOSITORES.filter((e) => e.tipo === "vina").length} viñas, restaurantes,
+            destilados, cervecerías y tiendas gourmet — {EXPOSITORES.length} expositores
+            en total. Búscalos por nombre y mira el plano del recinto.
           </p>
           <Button onClick={() => router.push("/expovino/expositores")}
             className="w-full h-12 rounded-2xl font-black text-sm"

@@ -13,9 +13,27 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { EXPOSITORES, urlBusqueda, type TipoExpositor } from "@/lib/expositoresExpovino";
+import {
+  EXPOSITORES, ETIQUETA_TIPO, urlBusqueda, esLocalDelClub, type TipoExpositor,
+} from "@/lib/expositoresExpovino";
 import { CAMPANAS } from "@/lib/campanas";
-import { ArrowLeft, Search, ExternalLink, Wine, UtensilsCrossed, Map as MapIcon, X } from "lucide-react";
+import {
+  ArrowLeft, Search, ExternalLink, Wine, UtensilsCrossed, Map as MapIcon, X,
+  Martini, Beer, Coffee, ShoppingBag, Cookie, Ham, Palette, BadgeCheck,
+} from "lucide-react";
+
+/** Ícono y color por categoría. Un vistazo tiene que bastar para ubicarse. */
+const ESTILO_TIPO: Record<TipoExpositor, { icono: typeof Wine; color: string; fondo: string }> = {
+  vina:           { icono: Wine,            color: "#E9AFC0", fondo: "rgba(123,30,58,0.4)" },
+  restaurante:    { icono: UtensilsCrossed, color: "#9DCC65", fondo: "rgba(157,204,101,0.18)" },
+  destilados:     { icono: Martini,         color: "#D3B673", fondo: "rgba(211,182,115,0.18)" },
+  cerveceria:     { icono: Beer,            color: "#F0B429", fondo: "rgba(240,180,41,0.16)" },
+  cafeteria:      { icono: Coffee,          color: "#C79A6B", fondo: "rgba(199,154,107,0.18)" },
+  tienda:         { icono: ShoppingBag,     color: "#8FB8DE", fondo: "rgba(143,184,222,0.16)" },
+  tienda_gourmet: { icono: Ham,             color: "#E58F8F", fondo: "rgba(229,143,143,0.16)" },
+  tienda_dulce:   { icono: Cookie,          color: "#EFB8D6", fondo: "rgba(239,184,214,0.16)" },
+  artesania:      { icono: Palette,         color: "#A5D6C4", fondo: "rgba(165,214,196,0.16)" },
+};
 
 const CAMPANA = CAMPANAS.expovino;
 const RUTA_PLANO = "/expovino-plano.jpg";
@@ -33,11 +51,12 @@ export default function ExpositoresPage() {
   const [planoAbierto, setPlanoAbierto] = useState(false);
   const [hayPlano, setHayPlano] = useState(true);
 
-  const totales = useMemo(() => ({
-    todos: EXPOSITORES.length,
-    vina: EXPOSITORES.filter((e) => e.tipo === "vina").length,
-    gastronomia: EXPOSITORES.filter((e) => e.tipo === "gastronomia").length,
-  }), []);
+  // Categorías presentes, ordenadas por cantidad: las grandes primero.
+  const categorias = useMemo(() => {
+    const cuenta = new Map<TipoExpositor, number>();
+    for (const e of EXPOSITORES) cuenta.set(e.tipo, (cuenta.get(e.tipo) ?? 0) + 1);
+    return [...cuenta.entries()].sort((a, b) => b[1] - a[1]);
+  }, []);
 
   const listado = useMemo(() => {
     const q = normalizar(busqueda.trim());
@@ -48,9 +67,8 @@ export default function ExpositoresPage() {
   }, [busqueda, filtro]);
 
   const pestanas: { id: Filtro; texto: string; n: number }[] = [
-    { id: "todos", texto: "Todos", n: totales.todos },
-    { id: "vina", texto: "Viñas", n: totales.vina },
-    { id: "gastronomia", texto: "Gastronomía", n: totales.gastronomia },
+    { id: "todos", texto: "Todos", n: EXPOSITORES.length },
+    ...categorias.map(([tipo, n]) => ({ id: tipo as Filtro, texto: ETIQUETA_TIPO[tipo], n })),
   ];
 
   return (
@@ -70,7 +88,7 @@ export default function ExpositoresPage() {
                 Expositores {CAMPANA.emoji}
               </h1>
               <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>
-                {totales.vina} viñas y {totales.gastronomia} restaurantes
+                {EXPOSITORES.length} confirmados · {categorias.length} categorías
               </p>
             </div>
             {hayPlano && (
@@ -99,16 +117,17 @@ export default function ExpositoresPage() {
             )}
           </div>
 
-          <div className="flex gap-2 mt-3">
+          {/* Nueve categorías no caben repartidas: fila que se desliza */}
+          <div className="flex gap-2 mt-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
             {pestanas.map((p) => {
               const activa = filtro === p.id;
               return (
                 <button key={p.id} onClick={() => setFiltro(p.id)}
-                  className="flex-1 h-9 rounded-xl transition-colors"
+                  className="h-9 px-3.5 rounded-xl transition-colors shrink-0"
                   style={{
                     background: activa ? CAMPANA.colorPrimario : "rgba(255,255,255,0.06)",
                     color: activa ? CAMPANA.colorTexto : "#94a3b8",
-                    fontSize: 12, fontWeight: 800,
+                    fontSize: 12, fontWeight: 800, whiteSpace: "nowrap",
                     border: `1px solid ${activa ? CAMPANA.colorPrimario : "rgba(255,255,255,0.1)"}`,
                   }}>
                   {p.texto} · {p.n}
@@ -127,35 +146,46 @@ export default function ExpositoresPage() {
               No hay expositores que coincidan con “{busqueda}”.
             </p>
           ) : (
-            listado.map((e) => (
-              <a
-                key={e.nombre}
-                href={urlBusqueda(e)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 p-3.5 rounded-2xl transition-transform active:scale-[0.99]"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}
-              >
-                <span
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: e.tipo === "vina" ? "rgba(123,30,58,0.4)" : "rgba(157,204,101,0.18)" }}
+            listado.map((e) => {
+              const est = ESTILO_TIPO[e.tipo];
+              const Icono = est.icono;
+              const delClub = esLocalDelClub(e);
+              return (
+                <a
+                  key={e.nombre}
+                  href={urlBusqueda(e)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3.5 rounded-2xl transition-transform active:scale-[0.99]"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: `1px solid ${delClub ? "rgba(157,204,101,0.35)" : "rgba(255,255,255,0.09)"}`,
+                  }}
                 >
-                  {e.tipo === "vina"
-                    ? <Wine className="w-4 h-4" style={{ color: "#E9AFC0" }} />
-                    : <UtensilsCrossed className="w-4 h-4" style={{ color: "#9DCC65" }} />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", margin: 0, lineHeight: 1.3 }}>
-                    {e.nombre}
-                  </p>
-                  <p style={{ fontSize: 11, color: "#94a3b8", margin: 0, lineHeight: 1.4 }}>
-                    {e.tipo === "vina" ? "Viña" : "Gastronomía"}
-                    {e.contacto ? ` · ${e.contacto}` : ""}
-                  </p>
-                </div>
-                <ExternalLink className="w-3.5 h-3.5 shrink-0" style={{ color: "#64748b" }} />
-              </a>
-            ))
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: est.fondo }}>
+                    <Icono className="w-4 h-4" style={{ color: est.color }} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", margin: 0, lineHeight: 1.3 }}>
+                        {e.nombre}
+                      </p>
+                      {delClub && (
+                        <BadgeCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#9DCC65" }}
+                          aria-label="Local del Club Patio" />
+                      )}
+                    </div>
+                    <p style={{ fontSize: 11, color: "#94a3b8", margin: 0, lineHeight: 1.4 }}>
+                      {ETIQUETA_TIPO[e.tipo]}
+                      {delClub ? " · Local del Club Patio" : ""}
+                      {e.contacto ? ` · ${e.contacto}` : ""}
+                    </p>
+                  </div>
+                  <ExternalLink className="w-3.5 h-3.5 shrink-0" style={{ color: "#64748b" }} />
+                </a>
+              );
+            })
           )}
         </div>
       </div>
