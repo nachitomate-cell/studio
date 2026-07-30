@@ -1,16 +1,19 @@
 "use client";
 
 /**
- * Pantalla del stand — para proyectar en la LED durante la feria.
+ * Pantalla del stand — tótem LED vertical de 195×65 cm, 256×768 píxeles.
  *
- * Se diseña para leerse a 4 metros y sin que nadie la toque: tipografía enorme,
- * contraste alto y todo en una sola vista. No hay navegación ni botones.
+ * El diseño se dibuja sobre un lienzo FIJO de 256×768 y después se escala para
+ * calzar en la ventana. Así lo que se ve en el notebook es exactamente lo que
+ * va a salir en el tótem, y no depende de unidades relativas que en un lienzo
+ * tan angosto se descontrolan.
  *
- * El objetivo no es decorar: es que un expositor que pasa caminando vea un
- * número subiendo y pregunte qué es. Eso abre la conversación mejor que
- * cualquier folleto.
+ * Las restricciones mandan sobre el diseño:
+ *  · 256 px de ancho: caben pocas palabras por línea, así que casi no hay texto.
+ *  · Paso de píxel de ~2,5 mm: los detalles finos desaparecen; todo grueso.
+ *  · Nadie la toca: sin navegación, sin botones, todo en una vista.
  *
- * Uso: abrir /expovino/pantalla?campana=expovino en pantalla completa (F11).
+ * Uso: abrir en pantalla completa (F11) en la salida conectada al tótem.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -21,6 +24,10 @@ import { CANONICAL_BASE_URL } from "@/lib/constants";
 const CAMPANA = CAMPANAS.expovino;
 const REFRESCO_MS = 5000;
 
+// Lienzo real del tótem. Todo se dibuja contra estas medidas.
+const ANCHO = 256;
+const ALTO = 768;
+
 type Datos = {
   total: number;
   ultimos: string[];
@@ -30,11 +37,20 @@ type Datos = {
 export default function PantallaExpovino() {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [campana, setCampana] = useState(CAMPANA.slug);
+  const [escala, setEscala] = useState(1);
   const [subio, setSubio] = useState(false);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("campana");
     if (p) setCampana(p.trim().toLowerCase());
+  }, []);
+
+  // Escalar el lienzo para llenar la ventana sin deformarlo
+  useEffect(() => {
+    const ajustar = () => setEscala(Math.min(window.innerWidth / ANCHO, window.innerHeight / ALTO));
+    ajustar();
+    window.addEventListener("resize", ajustar);
+    return () => window.removeEventListener("resize", ajustar);
   }, []);
 
   const cargar = useCallback(async () => {
@@ -43,15 +59,13 @@ export default function PantallaExpovino() {
       if (!r.ok) return;
       const d: Datos = await r.json();
       setDatos((prev) => {
-        // Destello cuando entra alguien nuevo: es lo que hace que la pantalla
-        // se sienta viva y que la gente se quede mirando.
         if (prev && d.total > prev.total) {
           setSubio(true);
-          setTimeout(() => setSubio(false), 1800);
+          setTimeout(() => setSubio(false), 2000);
         }
         return d;
       });
-    } catch { /* la feria tiene mala red; se reintenta al siguiente ciclo */ }
+    } catch { /* la red de una feria se cae; se reintenta al siguiente ciclo */ }
   }, [campana]);
 
   useEffect(() => {
@@ -60,126 +74,123 @@ export default function PantallaExpovino() {
     return () => clearInterval(t);
   }, [cargar]);
 
-  const urlRegistro = `${CANONICAL_BASE_URL}/unete?evento=${campana}`;
+  // El QR apunta al atajo /e, no a la URL larga: menos módulos, más gruesos,
+  // que es lo que permite leerlo en un LED de paso grueso.
+  const urlQR = `${CANONICAL_BASE_URL}/e`;
   const total = datos?.total ?? 0;
+
+  // Tres dígitos a 132px ocupan ~215px de los 256 disponibles; cuatro no caben.
+  const tamNumero = total >= 1000 ? 104 : 132;
 
   return (
     <main style={{
-      minHeight: "100vh", width: "100%", overflow: "hidden",
-      background: "linear-gradient(140deg,#0B0407 0%,#2A0D1B 50%,#0B0407 100%)",
-      color: "#fff", display: "flex", flexDirection: "column",
-      fontFamily: "var(--font-montserrat), Montserrat, sans-serif",
+      width: "100vw", height: "100vh", overflow: "hidden", background: "#000",
+      display: "flex", alignItems: "center", justifyContent: "center",
     }}>
-      {/* Marca */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3vh 4vw 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1.2vw" }}>
-          <img src="/Logo2.png" alt="" style={{ height: "6vh", objectFit: "contain" }} />
-          <div>
-            <p style={{ margin: 0, fontSize: "1.9vh", fontWeight: 900, letterSpacing: "0.3vh" }}>CLUB PATIO CURAUMA</p>
-            <p style={{ margin: 0, fontSize: "1.5vh", color: "#94a3b8", letterSpacing: "0.2vh" }}>
-              por SynapTech
-            </p>
-          </div>
-        </div>
-        <div style={{
-          padding: "1vh 2vw", borderRadius: 999,
-          background: CAMPANA.colorPrimario, color: CAMPANA.colorTexto,
-          fontSize: "1.9vh", fontWeight: 900, letterSpacing: "0.3vh",
-        }}>
-          {CAMPANA.emoji} EXPOVINO 2026
-        </div>
-      </header>
+      <div style={{
+        width: ANCHO, height: ALTO, flexShrink: 0,
+        transform: `scale(${escala})`, transformOrigin: "center center",
+        background: "linear-gradient(160deg,#0B0407 0%,#2A0D1B 55%,#0B0407 100%)",
+        color: "#fff", position: "relative",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        fontFamily: "var(--font-montserrat), Montserrat, sans-serif",
+        padding: "18px 14px",
+      }}>
 
-      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4vw", padding: "0 4vw" }}>
+        {/* Marca */}
+        <img src="/Logo2.png" alt="" style={{ height: 44, objectFit: "contain" }} />
+        <p style={{ margin: "6px 0 0", fontSize: 13, fontWeight: 900, letterSpacing: 1.6, textAlign: "center" }}>
+          CLUB PATIO CURAUMA
+        </p>
+        <div style={{
+          marginTop: 8, padding: "5px 14px", borderRadius: 999,
+          background: CAMPANA.colorPrimario, color: CAMPANA.colorTexto,
+          fontSize: 12, fontWeight: 900, letterSpacing: 1.2,
+        }}>
+          {CAMPANA.emoji} EXPOVINO
+        </div>
 
         {/* Contador */}
-        <section style={{ flex: 1.2, textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: "2.4vh", fontWeight: 800, color: "#94a3b8", letterSpacing: "0.5vh" }}>
-            SOCIOS INSCRITOS ESTA NOCHE
-          </p>
-          <p style={{
-            margin: "1vh 0 0",
-            fontSize: "26vh", fontWeight: 900, lineHeight: 0.9,
-            color: subio ? "#9DCC65" : "#fff",
-            textShadow: subio ? "0 0 6vh rgba(157,204,101,0.55)" : "none",
-            transition: "color .5s ease, text-shadow .5s ease",
-            fontVariantNumeric: "tabular-nums",
-          }}>
-            {total}
-          </p>
-          <p style={{ margin: "1.5vh 0 0", fontSize: "2.6vh", color: "#cbd5e1", fontWeight: 600 }}>
-            participando por el premio de la noche
-          </p>
-
-          {/* Últimos en llegar */}
-          {datos && datos.ultimos.length > 0 && (
-            <div style={{ marginTop: "4vh" }}>
-              <p style={{ margin: "0 0 1.5vh", fontSize: "1.8vh", fontWeight: 800, color: "#64748b", letterSpacing: "0.4vh" }}>
-                RECIÉN INSCRITOS
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "1vh", justifyContent: "center" }}>
-                {datos.ultimos.map((n, i) => (
-                  <span key={`${n}-${i}`} style={{
-                    padding: "0.9vh 1.8vw", borderRadius: 999,
-                    background: i === 0 ? "rgba(157,204,101,0.2)" : "rgba(255,255,255,0.07)",
-                    border: `1px solid ${i === 0 ? "rgba(157,204,101,0.5)" : "rgba(255,255,255,0.12)"}`,
-                    fontSize: "2.2vh", fontWeight: 700,
-                    color: i === 0 ? "#9DCC65" : "#cbd5e1",
-                  }}>
-                    {n}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Llamada a la acción */}
-        <section style={{
-          flex: 0.8, textAlign: "center",
-          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.14)",
-          borderRadius: "3vh", padding: "4vh 3vw",
+        <p style={{ margin: "26px 0 0", fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: 1.4 }}>
+          YA SE INSCRIBIERON
+        </p>
+        <p style={{
+          margin: "2px 0 0", fontSize: tamNumero, fontWeight: 900, lineHeight: 0.92,
+          fontVariantNumeric: "tabular-nums",
+          color: subio ? "#9DCC65" : "#fff",
+          textShadow: subio ? "0 0 26px rgba(157,204,101,0.7)" : "none",
+          transition: "color .5s ease, text-shadow .5s ease",
         }}>
-          <p style={{ margin: 0, fontSize: "3.6vh", fontWeight: 900, lineHeight: 1.15 }}>
-            Escanea y participa
-          </p>
-          <p style={{ margin: "1.2vh 0 3vh", fontSize: "2.2vh", color: "#94a3b8", lineHeight: 1.4 }}>
-            Te inscribes en 30 segundos y entras al sorteo
-          </p>
-          <div style={{ background: "#fff", padding: "2.2vh", borderRadius: "2vh", display: "inline-block" }}>
-            <QRCode value={urlRegistro} size={256} style={{ width: "26vh", height: "26vh" }} />
-          </div>
-          <p style={{ margin: "2.5vh 0 0", fontSize: "1.7vh", color: "#64748b", wordBreak: "break-all" }}>
-            {urlRegistro.replace(/^https?:\/\//, "")}
-          </p>
-        </section>
-      </div>
+          {total}
+        </p>
+        <p style={{ margin: "4px 0 0", fontSize: 14, fontWeight: 700, color: "#cbd5e1", textAlign: "center", lineHeight: 1.3 }}>
+          y participan por el<br />premio de la noche
+        </p>
 
-      {/* Ganador: ocupa la pantalla completa cuando ya se sorteó */}
-      {datos?.ganador && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 10,
-          background: "linear-gradient(140deg,#2A0D1B 0%,#7B1E3A 55%,#2A0D1B 100%)",
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          textAlign: "center", padding: "0 6vw",
-        }}>
-          <p style={{ margin: 0, fontSize: "12vh" }}>🏆</p>
-          <p style={{ margin: "1vh 0 0", fontSize: "3vh", fontWeight: 800, color: CAMPANA.colorTexto, letterSpacing: "0.6vh" }}>
-            GANADOR DE LA NOCHE
-          </p>
-          <p style={{ margin: "2vh 0 0", fontSize: "16vh", fontWeight: 900, lineHeight: 1, color: "#fff" }}>
-            {datos.ganador.nombre}
-          </p>
-          {datos.ganador.premio && (
-            <p style={{ margin: "3vh 0 0", fontSize: "4vh", fontWeight: 700, color: "#FFD84D" }}>
-              {datos.ganador.premio}
+        {/* Recién inscritos: tres alcanzan, más no se lee */}
+        {datos && datos.ultimos.length > 0 && (
+          <div style={{ marginTop: 20, width: "100%" }}>
+            <p style={{ margin: "0 0 7px", fontSize: 10, fontWeight: 800, color: "#64748b", letterSpacing: 1.4, textAlign: "center" }}>
+              RECIÉN LLEGARON
             </p>
-          )}
-          <p style={{ margin: "4vh 0 0", fontSize: "2.6vh", color: "rgba(255,255,255,0.75)" }}>
-            Acércate al mostrador del Club Patio Curauma
+            <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "center" }}>
+              {datos.ultimos.slice(0, 3).map((n, i) => (
+                <span key={`${n}-${i}`} style={{
+                  padding: "5px 14px", borderRadius: 999, maxWidth: "100%",
+                  background: i === 0 ? "rgba(157,204,101,0.2)" : "rgba(255,255,255,0.07)",
+                  border: `1px solid ${i === 0 ? "rgba(157,204,101,0.5)" : "rgba(255,255,255,0.12)"}`,
+                  fontSize: 16, fontWeight: 800, color: i === 0 ? "#9DCC65" : "#cbd5e1",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {n}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Llamada a la acción, abajo: es donde queda a la altura de la vista */}
+        <div style={{ marginTop: "auto", width: "100%", textAlign: "center" }}>
+          <p style={{ margin: "0 0 10px", fontSize: 19, fontWeight: 900, lineHeight: 1.15 }}>
+            Escanea<br />y participa
+          </p>
+          <div style={{ background: "#fff", padding: 10, borderRadius: 10, display: "inline-block" }}>
+            <QRCode value={urlQR} size={168} />
+          </div>
+          <p style={{ margin: "9px 0 0", fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>
+            30 segundos y estás dentro
           </p>
         </div>
-      )}
+
+        {/* Ganador: tapa todo cuando ya se sorteó */}
+        {datos?.ganador && (
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "linear-gradient(160deg,#2A0D1B 0%,#7B1E3A 55%,#2A0D1B 100%)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            textAlign: "center", padding: "0 16px",
+          }}>
+            <p style={{ margin: 0, fontSize: 72, lineHeight: 1 }}>🏆</p>
+            <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 900, color: CAMPANA.colorTexto, letterSpacing: 2 }}>
+              GANADOR
+            </p>
+            <p style={{
+              margin: "10px 0 0", fontSize: 46, fontWeight: 900, lineHeight: 1.05, color: "#fff",
+              wordBreak: "break-word",
+            }}>
+              {datos.ganador.nombre}
+            </p>
+            {datos.ganador.premio && (
+              <p style={{ margin: "16px 0 0", fontSize: 19, fontWeight: 800, color: "#FFD84D", lineHeight: 1.25 }}>
+                {datos.ganador.premio}
+              </p>
+            )}
+            <p style={{ margin: "22px 0 0", fontSize: 14, color: "rgba(255,255,255,0.8)", lineHeight: 1.35 }}>
+              Acércate al mostrador<br />del Club Patio
+            </p>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
