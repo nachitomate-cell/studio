@@ -30,6 +30,7 @@ import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import { ActivarNotificaciones } from "@/components/ActivarNotificaciones";
+import { capturarCampana, leerCampana, limpiarCampana } from "@/lib/campanaRegistro";
 
 import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
@@ -101,6 +102,9 @@ export default function UnetePage() {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get("ref");
       if (ref) localStorage.setItem("referral_local_id", ref);
+      // Persistir la campaña: el query string no sobrevive los redirects de
+      // /scan, así que se guarda en cuanto se toca cualquier puerta de entrada.
+      capturarCampana();
       const utm = captureUTMParams() ?? {
         utm_source: "qr",
         utm_medium: "qr",
@@ -199,6 +203,9 @@ export default function UnetePage() {
         const timestamp = new Date().toISOString();
         const miCodigo = generarCodigoReferido(nombre);
         const referralLocalId = typeof window !== "undefined" ? localStorage.getItem("referral_local_id") : null;
+        // Campaña de origen (QR de un evento, link de una promo). Queda en el
+        // documento del socio para poder responder "quiénes se inscribieron acá".
+        const campanaRegistro = leerCampana();
 
         const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
         const dispositivo = /android/i.test(ua) ? "android" : /iphone|ipad|ipod/i.test(ua) ? "ios" : "web";
@@ -240,6 +247,7 @@ export default function UnetePage() {
             dispositivo,
             ...(comoNosConocio ? { comoNosConocio } : {}),
             ...(referralLocalId ? { referredByLocal: referralLocalId } : {}),
+            ...(campanaRegistro ? { campanaRegistro, campanaRegistroEn: timestamp } : {}),
           }),
           setDoc(doc(db, "codigos_referido", miCodigo), { userId: newUser.uid, creadoEn: timestamp }),
           setDoc(doc(db, "leads_marketing", newUser.uid), {
@@ -258,6 +266,10 @@ export default function UnetePage() {
             ...(comoNosConocio ? { comoNosConocio } : {}),
           }),
         ]);
+
+        // La campaña ya quedó en el documento: se limpia para que la próxima
+        // cuenta creada en este teléfono (mostrador con cola) no la herede.
+        limpiarCampana();
 
         if (referralLocalId) {
           try {

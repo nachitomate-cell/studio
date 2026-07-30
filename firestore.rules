@@ -275,6 +275,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Sorteos de campaña (eventos, ferias) ──────────────────────────────────
+    // Solo los escribe el Admin SDK (/api/admin/campana/sortear), que ignora
+    // estas reglas. El cliente jamás escribe: si pudiera, podría fabricarse un
+    // premio. El staff lee para mostrar el historial en el panel.
+    match /sorteos/{sorteoId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     // ── Configuración Global (publicidad, etc.) ────────────────────────────────
     // Lectura pública: el afiche se muestra a cualquier visitante, autenticado o no.
     // Escritura restringida a directores/admins.

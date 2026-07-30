@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { capturarCampana } from "@/lib/campanaRegistro";
 import {
   ArrowLeft, Camera, Loader2,
   WifiOff, ScanLine, ShieldAlert
@@ -103,6 +104,10 @@ export default function ClientScannerPage() {
 
   // ── Lógica de entrada ──────────────────────────────────────────────────────
   useEffect(() => {
+    // Guardar la campaña ANTES de cualquier redirect: /scan reenvía a /unete o
+    // /canje y el query string se pierde en el camino.
+    capturarCampana();
+
     const ref = typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("ref")
       : null;
