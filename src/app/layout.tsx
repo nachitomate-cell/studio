@@ -59,6 +59,14 @@ export default function RootLayout({
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Firebase: al entrar por QR o NFC, la primera llamada de auth paga
+            DNS + TCP + TLS contra estos hosts. Abriendo la conexión mientras
+            se descarga el JS se ahorran unos cientos de ms — en la red saturada
+            de una feria es la diferencia entre "instantáneo" y "se quedó pegado". */}
+        <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://securetoken.googleapis.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://firestore.googleapis.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://firebaseinstallations.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96x96.png" />
