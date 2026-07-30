@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, Loader2, Trophy, Users, Mail, Bell, Send, RefreshCw, QrCode, Copy, Gift,
-  UserMinus, Trash2, Undo2,
+  UserMinus, Trash2, Undo2, Tv, ExternalLink,
 } from "lucide-react";
 
 type Participante = { uid: string; nombre: string; correo: string; push: boolean; fecha: string };
@@ -232,6 +232,28 @@ export default function SorteoCampanaPage() {
       </header>
 
       <div className="p-4 space-y-4 max-w-2xl mx-auto">
+
+        {/* Acceso a la pantalla del stand. Abre en otra pestaña para no perder
+            este panel: durante el evento se opera desde acá y se proyecta allá. */}
+        <a
+          href={`/expovino/pantalla?campana=${encodeURIComponent(campana.trim().toLowerCase())}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 p-4 rounded-2xl border transition-colors hover:bg-slate-800"
+          style={{ background: "#1a1a2e", borderColor: "rgba(255,255,255,0.12)" }}
+        >
+          <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "rgba(211,182,115,0.18)" }}>
+            <Tv className="w-5 h-5" style={{ color: "#D3B673" }} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black text-white leading-tight">Abrir pantalla del stand</p>
+            <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+              Contador en vivo y QR · pulsa F11 para pantalla completa
+            </p>
+          </div>
+          <ExternalLink className="w-4 h-4 shrink-0 text-slate-500" />
+        </a>
 
         {/* Campaña + QR */}
         <section className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">

@@ -97,21 +97,18 @@ export default function PantallaExpovino() {
         padding: "18px 14px",
       }}>
 
-        {/* Marca */}
-        <img src="/Logo2.png" alt="" style={{ height: 44, objectFit: "contain" }} />
-        <p style={{ margin: "6px 0 0", fontSize: 13, fontWeight: 900, letterSpacing: 1.6, textAlign: "center" }}>
-          CLUB PATIO CURAUMA
-        </p>
+        {/* Cabecera: solo el evento. El tótem está en el stand de SynapTech,
+            así que la marca que firma abajo es esa, no la del recinto. */}
         <div style={{
-          marginTop: 8, padding: "5px 14px", borderRadius: 999,
+          padding: "8px 20px", borderRadius: 999,
           background: CAMPANA.colorPrimario, color: CAMPANA.colorTexto,
-          fontSize: 12, fontWeight: 900, letterSpacing: 1.2,
+          fontSize: 15, fontWeight: 900, letterSpacing: 1.6,
         }}>
-          {CAMPANA.emoji} EXPOVINO
+          {CAMPANA.emoji} EXPOVINO 2026
         </div>
 
         {/* Contador */}
-        <p style={{ margin: "26px 0 0", fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: 1.4 }}>
+        <p style={{ margin: "30px 0 0", fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: 1.4 }}>
           YA SE INSCRIBIERON
         </p>
         <p style={{
@@ -160,6 +157,20 @@ export default function PantallaExpovino() {
           <p style={{ margin: "9px 0 0", fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>
             30 segundos y estás dentro
           </p>
+        </div>
+
+        {/* Firma. Discreta a propósito: el protagonista es el número que sube,
+            pero quien pregunte "¿quién hizo esto?" tiene la respuesta a la vista. */}
+        <div style={{ marginTop: 16, width: "100%", textAlign: "center" }}>
+          <div style={{
+            height: 1, width: "60%", margin: "0 auto 10px",
+            background: "linear-gradient(90deg, transparent, rgba(250,243,224,0.28), transparent)",
+          }} />
+          <p style={{ margin: "0 0 5px", fontSize: 9, fontWeight: 700, color: "rgba(250,243,224,0.4)", letterSpacing: 1.6 }}>
+            DESARROLLADO POR
+          </p>
+          <img src="/logo-synaptech-claro.png" alt="SynapTech"
+            style={{ height: 22, objectFit: "contain", opacity: 0.9 }} />
         </div>
 
         {/* Ganador: tapa todo cuando ya se sorteó */}
