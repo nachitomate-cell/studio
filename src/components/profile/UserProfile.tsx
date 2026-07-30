@@ -55,6 +55,7 @@ import {
 import { hasRole } from "@/lib/roles";
 import { type AIInsight } from "@/components/SynapTechAI";
 import { AIAssistantModal } from "@/components/ai/AIAssistantModal";
+import { BadgeCampana } from "@/components/BadgeCampana";
 
 function generarInsightosSocio(data: any): AIInsight[] {
   if (!data) return [];
@@ -1381,7 +1382,9 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
               </div>
             </div>
             
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-3 items-center">
+              {/* Evento por el que entró al Club (ferias, activaciones) */}
+              <BadgeCampana campana={userData?.campanaRegistro} />
               {isAdmin && <Badge className="bg-red-500 hover:bg-red-600 rounded-lg py-1 px-3 shadow-sm border-none">Master Admin</Badge>}
               {isDirector && <Badge className="bg-indigo-600 hover:bg-indigo-700 rounded-lg py-1 px-3 shadow-sm border-none">Director</Badge>}
               {isEntrepreneur && <Badge className="bg-primary hover:bg-primary/90 rounded-lg py-1 px-3 shadow-sm border-none">Emprendedor</Badge>}

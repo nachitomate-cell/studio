@@ -16,6 +16,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { canAccessModPanel, CANONICAL_BASE_URL } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
+import { BadgeCampana } from "@/components/BadgeCampana";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -275,7 +276,8 @@ export default function SorteoCampanaPage() {
               <Trophy className="w-7 h-7 mx-auto text-amber-600 mb-1.5" />
               <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Ganador</p>
               <p className="text-lg font-black text-slate-800 leading-tight">{ganador.nombre}</p>
-              <p className="text-[11px] text-slate-500">{ganador.correo}</p>
+              <p className="text-[11px] text-slate-500 mb-2">{ganador.correo}</p>
+              <BadgeCampana campana={campana.trim().toLowerCase()} tamano="chico" />
             </div>
           )}
         </section>

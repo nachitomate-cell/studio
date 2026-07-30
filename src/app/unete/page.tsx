@@ -30,7 +30,8 @@ import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import { ActivarNotificaciones } from "@/components/ActivarNotificaciones";
-import { leerCampana, limpiarCampana } from "@/lib/campanaRegistro";
+import { capturarCampana, leerCampana, limpiarCampana } from "@/lib/campanaRegistro";
+import { campanaPorSlug, type Campana } from "@/lib/campanas";
 
 import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
@@ -70,6 +71,9 @@ export default function UnetePage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  // Campaña de evento activa. Acorta el formulario, cambia la marca de la
+  // pantalla y define a dónde se va la persona después de inscribirse.
+  const [campanaActiva, setCampanaActiva] = useState<Campana | null>(null);
   const [showTerms, setShowTerms] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -102,6 +106,10 @@ export default function UnetePage() {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get("ref");
       if (ref) localStorage.setItem("referral_local_id", ref);
+      // Se captura acá y no solo en Providers por un tema de orden: React corre
+      // los efectos del hijo antes que los del padre, así que leer sin capturar
+      // primero devolvería null en la primera carga con ?evento=.
+      setCampanaActiva(campanaPorSlug(capturarCampana()));
       const utm = captureUTMParams() ?? {
         utm_source: "qr",
         utm_medium: "qr",
@@ -335,13 +343,19 @@ export default function UnetePage() {
       if (!nombre.trim()) { setError("Ingresa tu nombre completo."); return; }
       if (!email.trim()) { setError("Ingresa tu correo electrónico."); return; }
       if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
-      if (!comunaSeleccionada) { setError("Selecciona tu comuna o ciudad."); return; }
+      // En un evento la gente se inscribe de pie y con cola detrás: se piden
+      // solo los datos sin los que no se puede operar el Club. Comuna y fecha
+      // de nacimiento quedan fuera; el teléfono se mantiene porque es el canal
+      // de mayor alcance para contactarlos después.
+      if (!campanaActiva && !comunaSeleccionada) { setError("Selecciona tu comuna o ciudad."); return; }
       if (!phone.trim()) { setError("Ingresa tu número de teléfono."); return; }
       if (!/^\+?56\s?9\s?\d{4}\s?\d{4}$/.test(phone.replace(/\s/g, ""))) {
         setError("Teléfono inválido. Usa formato +56 9 XXXX XXXX."); return;
       }
-      if (!diaNac || !mesNac || !anioNac) { setError("Ingresa tu fecha de nacimiento."); return; }
-      if (!fechaNacimientoValida) { setError("La fecha de nacimiento no es válida. Revisa día, mes y año."); return; }
+      if (!campanaActiva) {
+        if (!diaNac || !mesNac || !anioNac) { setError("Ingresa tu fecha de nacimiento."); return; }
+        if (!fechaNacimientoValida) { setError("La fecha de nacimiento no es válida. Revisa día, mes y año."); return; }
+      }
       if (!aceptaTerminos) { setError("Debes aceptar los términos de uso para continuar."); return; }
     }
     handleAuth(e);
@@ -414,7 +428,9 @@ export default function UnetePage() {
                 onClick={() => {
                   const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
                   if (retorno) localStorage.removeItem("url_retorno");
-                  router.replace(retorno || "/premios");
+                  // La pantalla del evento gana sobre el retorno guardado: quien
+                  // se inscribió desde el QR de la feria tiene que aterrizar ahí.
+                  router.replace(campanaActiva?.destino || retorno || "/premios");
                 }}
                 style={{
                   width: "100%", height: 52, borderRadius: 16,
@@ -482,12 +498,30 @@ export default function UnetePage() {
               <div className="u-logo-wrap">
                 <img src="/Logo3.webp" alt="Club Patio Curauma" className="u-logo" />
               </div>
+              {campanaActiva && !isLogin && (
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 7,
+                  padding: "6px 14px", borderRadius: 999, marginBottom: 12,
+                  background: campanaActiva.colorPrimario, color: campanaActiva.colorTexto,
+                  fontSize: 11.5, fontWeight: 800, letterSpacing: "0.5px",
+                }}>
+                  <span aria-hidden style={{ fontSize: 14 }}>{campanaActiva.emoji}</span>
+                  {campanaActiva.nombre.toUpperCase()}
+                </div>
+              )}
               <h1 className="u-title">
                 {isLogin
                   ? "Bienvenido de vuelta"
-                  : <><span className="u-accent">¡Únete al Club</span> y gana tu primer sello gratis! 🎁</>
+                  : campanaActiva
+                    ? <><span className="u-accent">¡Únete al Club</span> y participa del sorteo! {campanaActiva.emoji}</>
+                    : <><span className="u-accent">¡Únete al Club</span> y gana tu primer sello gratis! 🎁</>
                 }
               </h1>
+              {campanaActiva && !isLogin && (
+                <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 8, lineHeight: 1.5 }}>
+                  {campanaActiva.gancho}
+                </p>
+              )}
             </header>
 
             {/* Card */}
@@ -555,8 +589,8 @@ export default function UnetePage() {
                   </div>
                 </div>
 
-                {/* Comuna (obligatoria, solo registro) */}
-                {!isLogin && (
+                {/* Comuna (obligatoria, salvo en modo evento) */}
+                {!isLogin && !campanaActiva && (
                   <div className="u-field">
                     <Label htmlFor="u-comuna" className="u-label">
                       <MapPin className="u-label-icon" /> Comuna <span style={{ color: "#ef4444" }}>*</span>
@@ -618,8 +652,8 @@ export default function UnetePage() {
                   </div>
                 )}
 
-                {/* Fecha de nacimiento (obligatoria, solo registro) */}
-                {!isLogin && (
+                {/* Fecha de nacimiento (obligatoria, salvo en modo evento) */}
+                {!isLogin && !campanaActiva && (
                   <div className="u-field">
                     <Label htmlFor="u-bday-d" className="u-label">
                       <Calendar className="u-label-icon" /> Fecha de nacimiento <span style={{ color: "#ef4444" }}>*</span>
