@@ -30,6 +30,7 @@ import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
 import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import { ActivarNotificaciones } from "@/components/ActivarNotificaciones";
+import { PaseEvento } from "@/components/PaseEvento";
 import { capturarCampana, leerCampana, limpiarCampana } from "@/lib/campanaRegistro";
 import { campanaPorSlug, type Campana } from "@/lib/campanas";
 
@@ -391,32 +392,48 @@ export default function UnetePage() {
                 <Gift style={{ width: 40, height: 40, color: "white" }} />
               </div>
               <h2 style={{ fontSize: 26, fontWeight: 900, color: "#f8fafc", margin: "0 0 8px" }}>
-                ¡Bienvenido al Club! 🎉
+                {campanaActiva ? "¡Estás dentro del sorteo! 🎉" : "¡Bienvenido al Club! 🎉"}
               </h2>
               <p style={{ fontSize: 14, color: "#94a3b8", marginBottom: 20, lineHeight: 1.6 }}>
-                Club Patio Curauma te regala tu primera estampilla de cortesía.
+                {campanaActiva
+                  ? "Ya quedaste inscrito. Además te regalamos tu primer sello del Club."
+                  : "Club Patio Curauma te regala tu primera estampilla de cortesía."}
               </p>
-              <div style={{
-                background: "linear-gradient(135deg, rgba(157,204,101,0.12), rgba(157,204,101,0.06))",
-                borderRadius: 20, padding: "16px 20px", marginBottom: 20,
-                border: "1px solid rgba(157,204,101,0.25)",
-              }}>
-                <p style={{ fontSize: 10, fontWeight: 800, color: "#9DCC65", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>
-                  Tu sello de cortesía ✓
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <img src="/Logo2.png" alt=""
-                        style={i === 0
-                          ? { width: "100%", height: "100%", objectFit: "contain" }
-                          : { width: "100%", height: "100%", objectFit: "contain", filter: "grayscale(100%) opacity(20%)" }}
-                      />
-                    </div>
-                  ))}
+              {/* La grilla de sellos es del programa de fidelidad. En un evento
+                  ocupa media pantalla contando algo que no es el punto, y empuja
+                  el pase fuera de la vista. */}
+              {!campanaActiva && (
+                <div style={{
+                  background: "linear-gradient(135deg, rgba(157,204,101,0.12), rgba(157,204,101,0.06))",
+                  borderRadius: 20, padding: "16px 20px", marginBottom: 20,
+                  border: "1px solid rgba(157,204,101,0.25)",
+                }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: "#9DCC65", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>
+                    Tu sello de cortesía ✓
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div key={i} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <img src="/Logo2.png" alt=""
+                          style={i === 0
+                            ? { width: "100%", height: "100%", objectFit: "contain" }
+                            : { width: "100%", height: "100%", objectFit: "contain", filter: "grayscale(100%) opacity(20%)" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 10, fontWeight: 600 }}>1 de 10 sellos obtenido</p>
                 </div>
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 10, fontWeight: 600 }}>1 de 10 sellos obtenido</p>
-              </div>
+              )}
+
+              {/* En un evento el pase es LA acción: va primero y solo. Se pide
+                  al montar, así que para cuando la persona termina de leer ya
+                  está listo y el toque es instantáneo. */}
+              {campanaActiva && (
+                <div style={{ marginBottom: 16 }}>
+                  <PaseEvento />
+                </div>
+              )}
 
               {/* Pedido de notificaciones — va ANTES del botón de salida a
                   propósito: es el momento de máxima intención y el último punto
