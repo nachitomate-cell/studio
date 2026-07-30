@@ -1,5 +1,4 @@
 import type {Metadata, Viewport} from 'next';
-import Link from 'next/link';
 import { Montserrat } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -9,6 +8,7 @@ import { NotificationSystem } from "@/components/NotificationSystem";
 import { Providers } from "@/components/Providers";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { SwUpdateReloader } from "@/components/SwUpdateReloader";
+import { HeaderGlobal } from "@/components/HeaderGlobal";
 
 const montserrat = Montserrat({
   subsets: ['latin'],
@@ -65,16 +65,8 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72x72.png" />
       </head>
       <body className="font-body antialiased selection:bg-accent selection:text-accent-foreground overflow-x-hidden h-full flex flex-col bg-white">
-        {/* Header fijo con logo optimizado y manejo de safe area superior */}
-        <header className="bg-white/95 backdrop-blur-sm shadow-sm py-3 flex flex-col items-center justify-center w-full sticky top-0 z-50 pt-safe border-b border-slate-100">
-          <Link
-            href="/"
-            className="flex flex-col items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <img src="/Logo2.png" alt="Patio" className="h-10 object-contain" />
-            <span style={{ fontSize: "10px", letterSpacing: "2px", color: "#666", fontWeight: 600, marginTop: "2px" }}>PATIO CURAUMA</span>
-          </Link>
-        </header>
+        {/* Header fijo con logo. Se oculta solo en pantallas de proyección. */}
+        <HeaderGlobal />
 
         <Providers>
           <div className="flex-1">

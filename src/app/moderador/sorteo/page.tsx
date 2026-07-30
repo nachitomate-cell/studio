@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, Loader2, Trophy, Users, Mail, Bell, Send, RefreshCw, QrCode, Copy, Gift,
+  UserMinus, Trash2, Undo2,
 } from "lucide-react";
 
 type Participante = { uid: string; nombre: string; correo: string; push: boolean; fecha: string };
@@ -127,6 +128,49 @@ export default function SorteoCampanaPage() {
       toast({ variant: "destructive", title: "Error en el sorteo", description: e?.message });
     } finally {
       setSorteando(false);
+    }
+  };
+
+  // ── Anular sorteos ────────────────────────────────────────────────────────
+  const anularSorteos = async () => {
+    if (!confirm("¿Anular todos los sorteos de esta campaña? La pantalla del stand vuelve a mostrar el contador.")) return;
+    try {
+      const res = await fetch("/api/admin/campana/sortear", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({ campana: campana.trim().toLowerCase() }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "No se pudo anular");
+      setGanador(null);
+      toast({ title: "Sorteos anulados", description: `${d.anulados} registro(s) eliminado(s).` });
+      void cargar();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e?.message });
+    }
+  };
+
+  // ── Quitar participantes ──────────────────────────────────────────────────
+  const quitarParticipante = async (p: Participante, eliminarCuenta: boolean) => {
+    const aviso = eliminarCuenta
+      ? `¿Eliminar la CUENTA de ${p.nombre}? Se borra el perfil y el acceso. No se puede deshacer.`
+      : `¿Sacar a ${p.nombre} de la campaña? La cuenta queda intacta, solo deja de participar.`;
+    if (!confirm(aviso)) return;
+    try {
+      const res = await fetch("/api/admin/campana/participante", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({ uid: p.uid, campana: campana.trim().toLowerCase(), eliminarCuenta }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "No se pudo quitar");
+      toast({
+        title: eliminarCuenta ? "Cuenta eliminada" : "Sacado de la campaña",
+        description: d.aviso ?? `${p.nombre} ya no participa.`,
+      });
+      void cargar();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e?.message });
     }
   };
 
@@ -244,11 +288,21 @@ export default function SorteoCampanaPage() {
             <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
               {participantes.map((p) => (
                 <div key={p.uid} className="py-2 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-slate-700 truncate">{p.nombre}</p>
                     <p className="text-[10px] text-slate-400 truncate">{p.correo || "sin correo"}</p>
                   </div>
                   {p.push && <Bell className="w-3 h-3 text-amber-500 shrink-0" />}
+                  <button onClick={() => quitarParticipante(p, false)}
+                    title="Sacar de la campaña (la cuenta queda)"
+                    className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100">
+                    <UserMinus className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => quitarParticipante(p, true)}
+                    title="Eliminar la cuenta por completo"
+                    className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-50">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -309,7 +363,13 @@ export default function SorteoCampanaPage() {
         {/* Historial */}
         {historial.length > 0 && (
           <section className="bg-white rounded-2xl border border-slate-200 p-4">
-            <h2 className="text-sm font-black text-slate-800 mb-2">Sorteos anteriores</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-black text-slate-800">Sorteos anteriores</h2>
+              <button onClick={anularSorteos}
+                className="text-[11px] font-bold text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+                <Undo2 className="w-3 h-3" /> Anular todos
+              </button>
+            </div>
             <div className="divide-y divide-slate-100">
               {historial.map((s) => (
                 <div key={s.id} className="py-2">

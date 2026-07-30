@@ -18,31 +18,81 @@ import { randomInt } from "crypto";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { ALLOWED_MOD_EMAILS, ROLES_STAFF_PANEL } from "@/lib/constants";
 
-export async function POST(request: Request) {
+/** Autenticación + rol staff. Devuelve el uid y el email del que llama. */
+async function verificarStaff(request: Request) {
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { ok: false as const, error: "No autorizado", status: 401 };
+  }
+  let decoded;
   try {
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-    let decoded;
-    try {
-      decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
-    } catch {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
+  } catch {
+    return { ok: false as const, error: "Token inválido", status: 401 };
+  }
+  const callerEmail = (decoded.email ?? "").trim().toLowerCase();
+  let autorizado = ALLOWED_MOD_EMAILS.includes(callerEmail);
+  if (!autorizado) {
+    const snap = await adminDb.collection("usuarios").doc(decoded.uid).get();
+    const d = snap.exists ? snap.data()! : null;
+    const rol: string = d?.rol ?? "";
+    const roles: string[] = Array.isArray(d?.roles) ? d.roles : [];
+    autorizado = ROLES_STAFF_PANEL.includes(rol) || roles.some((r) => ROLES_STAFF_PANEL.includes(r));
+  }
+  if (!autorizado) return { ok: false as const, error: "Sin permisos de staff", status: 403 };
+  return { ok: true as const, uid: decoded.uid, email: callerEmail };
+}
+
+/**
+ * DELETE — anula un sorteo.
+ *
+ * Con `sorteoId` borra ese registro; sin él, borra TODOS los de la campaña.
+ * Sirve para dejar la campaña limpia mientras se prueba: al no quedar registro,
+ * la persona vuelve a entrar al bombo y la pantalla del stand deja de mostrar
+ * un ganador.
+ *
+ * Body: { campana: string, sorteoId?: string }
+ */
+export async function DELETE(request: Request) {
+  try {
+    const auth = await verificarStaff(request);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+    const body = await request.json();
+    const campana = String(body.campana ?? "").trim().toLowerCase();
+    const sorteoId = String(body.sorteoId ?? "").trim();
+    if (!campana) return NextResponse.json({ error: "Falta la campaña" }, { status: 400 });
+
+    if (sorteoId) {
+      const ref = adminDb.collection("sorteos").doc(sorteoId);
+      const snap = await ref.get();
+      if (!snap.exists) return NextResponse.json({ error: "Ese sorteo no existe" }, { status: 404 });
+      // Que el id no permita borrar sorteos de otra campaña por equivocación.
+      if (snap.data()!.campana !== campana) {
+        return NextResponse.json({ error: "El sorteo no pertenece a esa campaña" }, { status: 400 });
+      }
+      await ref.delete();
+      return NextResponse.json({ ok: true, anulados: 1 });
     }
 
-    const callerEmail = (decoded.email ?? "").trim().toLowerCase();
-    let autorizado = ALLOWED_MOD_EMAILS.includes(callerEmail);
-    if (!autorizado) {
-      const snap = await adminDb.collection("usuarios").doc(decoded.uid).get();
-      const d = snap.exists ? snap.data()! : null;
-      const rol: string = d?.rol ?? "";
-      const roles: string[] = Array.isArray(d?.roles) ? d.roles : [];
-      autorizado = ROLES_STAFF_PANEL.includes(rol) || roles.some((r) => ROLES_STAFF_PANEL.includes(r));
-    }
-    if (!autorizado) {
-      return NextResponse.json({ error: "Sin permisos de staff" }, { status: 403 });
-    }
+    const todos = await adminDb.collection("sorteos").where("campana", "==", campana).get();
+    if (todos.empty) return NextResponse.json({ ok: true, anulados: 0 });
+    const batch = adminDb.batch();
+    todos.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    return NextResponse.json({ ok: true, anulados: todos.size });
+  } catch (error: any) {
+    console.error("[campana/sortear DELETE] Error:", error);
+    return NextResponse.json({ error: error?.message ?? "Error interno" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const auth = await verificarStaff(request);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const decoded = { uid: auth.uid };
+    const callerEmail = auth.email;
 
     const body = await request.json();
     const campana = String(body.campana ?? "").trim();

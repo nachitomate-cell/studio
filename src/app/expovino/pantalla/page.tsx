@@ -174,9 +174,15 @@ export default function PantallaExpovino() {
             <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 900, color: CAMPANA.colorTexto, letterSpacing: 2 }}>
               GANADOR
             </p>
+            {/* El tamaño baja con el largo del nombre: a 256 px de ancho un
+                "Bernardita" a 46px se parte en dos y se lee pésimo. */}
             <p style={{
-              margin: "10px 0 0", fontSize: 46, fontWeight: 900, lineHeight: 1.05, color: "#fff",
-              wordBreak: "break-word",
+              margin: "10px 0 0", fontWeight: 900, lineHeight: 1.05, color: "#fff",
+              fontSize: datos.ganador.nombre.length <= 6 ? 52
+                : datos.ganador.nombre.length <= 9 ? 40
+                : datos.ganador.nombre.length <= 12 ? 32 : 26,
+              hyphens: "none", wordBreak: "keep-all", whiteSpace: "nowrap",
+              maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis",
             }}>
               {datos.ganador.nombre}
             </p>
