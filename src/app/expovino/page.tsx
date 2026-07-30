@@ -19,9 +19,10 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { CAMPANAS } from "@/lib/campanas";
 import { ActivarNotificaciones } from "@/components/ActivarNotificaciones";
+import { TarjetaWallet } from "@/components/TarjetaWallet";
 import { Button } from "@/components/ui/button";
 import { EXPOSITORES } from "@/lib/expositoresExpovino";
-import { Loader2, Trophy, Ticket, Store, CheckCircle2, Wine } from "lucide-react";
+import { Loader2, Trophy, Ticket, Store, CheckCircle2, Wine, Wallet } from "lucide-react";
 
 const CAMPANA = CAMPANAS.expovino;
 
@@ -124,6 +125,26 @@ export default function ExpovinoPage() {
               titulo={CAMPANA.avisoTitulo}
               descripcion={CAMPANA.avisoTexto}
             />
+          </section>
+        )}
+
+        {/* Tarjeta en el wallet del teléfono */}
+        {participa && (
+          <section style={{
+            borderRadius: 22, padding: "18px 20px",
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <Wallet style={{ width: 18, height: 18, color: "#8FB8DE" }} />
+              <p style={{ fontSize: 14, fontWeight: 900, color: "#fff", margin: 0 }}>
+                Lleva tu tarjeta en el celular
+              </p>
+            </div>
+            <p style={{ fontSize: 12.5, color: "#94a3b8", margin: "0 0 14px", lineHeight: 1.55 }}>
+              Tus sellos en la pantalla de bloqueo, sin abrir la app y sin
+              instalar nada.
+            </p>
+            <TarjetaWallet />
           </section>
         )}
 
