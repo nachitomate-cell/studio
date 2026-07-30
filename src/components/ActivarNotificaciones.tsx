@@ -21,7 +21,17 @@ import { estadoPush, type EstadoPush } from "@/lib/pushSoporte";
 const ORO = "#D3B673";
 const VERDE = "#9DCC65";
 
-export function ActivarNotificaciones({ onListo }: { onListo?: () => void }) {
+export function ActivarNotificaciones({
+  onListo,
+  titulo,
+  descripcion,
+}: {
+  onListo?: () => void;
+  /** Título en contexto. Si se omite, se usa el genérico del Club. */
+  titulo?: string;
+  /** Debe decir qué se pierde si NO las activa: es lo que convence. */
+  descripcion?: string;
+}) {
   const [estado, setEstado] = useState<EstadoPush | null>(null);
   const [cargando, setCargando] = useState(false);
   const [falloTecnico, setFalloTecnico] = useState(false);
@@ -73,8 +83,9 @@ export function ActivarNotificaciones({ onListo }: { onListo?: () => void }) {
         display: "flex", alignItems: "center", gap: 10,
       }}>
         <BellRing style={{ width: 20, height: 20, color: VERDE, flexShrink: 0 }} />
-        <p style={{ fontSize: 12.5, color: "#cbd5e1", margin: 0, fontWeight: 600, lineHeight: 1.4 }}>
-          Notificaciones activadas. Te avisamos cuando tengas un premio listo.
+        <p style={{ fontSize: 12.5, color: "#cbd5e1", margin: 0, fontWeight: 600, lineHeight: 1.45 }}>
+          Listo, los avisos están activados. Te llegará una alerta a este
+          teléfono si ganas o si tienes un premio para canjear.
         </p>
       </div>
     );
@@ -140,13 +151,14 @@ export function ActivarNotificaciones({ onListo }: { onListo?: () => void }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <Bell style={{ width: 18, height: 18, color: ORO, flexShrink: 0 }} />
-        <p style={{ fontSize: 13.5, fontWeight: 800, color: "#f8fafc", margin: 0 }}>
-          No te pierdas tus premios
+        <p style={{ fontSize: 14, fontWeight: 800, color: "#f8fafc", margin: 0 }}>
+          {titulo ?? "¿Cómo te avisamos si ganas?"}
         </p>
       </div>
-      <p style={{ fontSize: 11.5, color: "#94a3b8", margin: "0 0 12px", lineHeight: 1.5 }}>
-        Activa los avisos y te escribimos cuando tengas un premio listo para
-        canjear o si ganas un sorteo.
+      <p style={{ fontSize: 12.5, color: "#cbd5e1", margin: "0 0 12px", lineHeight: 1.55 }}>
+        {descripcion ??
+          "Con los avisos activados te llega una alerta al teléfono apenas tengas " +
+          "un premio listo o salgas sorteado. Sin ellos, solo te enteras si entras a la app."}
       </p>
       {falloTecnico && (
         <p style={{ fontSize: 11, color: "#fca5a5", margin: "0 0 10px", lineHeight: 1.4 }}>
@@ -168,7 +180,7 @@ export function ActivarNotificaciones({ onListo }: { onListo?: () => void }) {
         className="transition-all hover:opacity-90 active:scale-[0.98]"
       >
         <Bell style={{ width: 15, height: 15 }} />
-        {cargando ? "Activando…" : "Activar notificaciones"}
+        {cargando ? "Activando…" : "Activar avisos en mi teléfono"}
       </button>
     </div>
   );

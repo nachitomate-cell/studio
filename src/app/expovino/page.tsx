@@ -116,10 +116,13 @@ export default function ExpovinoPage() {
               </p>
             </div>
             <p style={{ fontSize: 12.5, color: "#94a3b8", margin: "0 0 14px", lineHeight: 1.55 }}>
-              Te avisamos por correo y en la app. Activa las notificaciones para
-              enterarte al instante, sin tener que estar revisando.
+              Al ganador le avisamos por tres vías: un correo, un mensaje dentro
+              de la app y una alerta en el teléfono.
             </p>
-            <ActivarNotificaciones />
+            <ActivarNotificaciones
+              titulo={CAMPANA.avisoTitulo}
+              descripcion={CAMPANA.avisoTexto}
+            />
           </section>
         )}
 

@@ -422,7 +422,10 @@ export default function UnetePage() {
                   propósito: es el momento de máxima intención y el último punto
                   del flujo donde la persona todavía está mirando. Si queda
                   debajo del CTA, la mayoría se va sin verlo. */}
-              <ActivarNotificaciones />
+              <ActivarNotificaciones
+                titulo={campanaActiva?.avisoTitulo}
+                descripcion={campanaActiva?.avisoTexto}
+              />
 
               <Button
                 onClick={() => {

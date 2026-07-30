@@ -23,6 +23,10 @@ export type Campana = {
   destino: string;
   /** Frase corta bajo el título del formulario. */
   gancho: string;
+  /** Título del pedido de notificaciones, en contexto del evento. */
+  avisoTitulo: string;
+  /** Explicación de qué se pierde si no las activa. */
+  avisoTexto: string;
   colorPrimario: string;
   colorTexto: string;
 };
@@ -35,6 +39,10 @@ export const CAMPANAS: Record<string, Campana> = {
     emoji: "🍷",
     destino: "/expovino",
     gancho: "Inscríbete y participa por el premio que sorteamos al final de la noche.",
+    avisoTitulo: "El sorteo es esta noche 🍷",
+    avisoTexto:
+      "Si sales ganador, te avisamos al instante en tu teléfono. Si no activas " +
+      "los avisos, tendrías que ir revisando la app para enterarte.",
     colorPrimario: "#7B1E3A",
     colorTexto: "#F3D9E1",
   },
