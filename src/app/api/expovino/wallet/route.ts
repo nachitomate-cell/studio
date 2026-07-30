@@ -20,6 +20,7 @@
 
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { campanaPorSlug } from "@/lib/campanas";
 
 const WALLO_URL =
   process.env.WALLO_REGISTRO_URL ??
@@ -27,12 +28,6 @@ const WALLO_URL =
 
 export async function POST(request: Request) {
   try {
-    const tenantId = (process.env.WALLO_TENANT_ID ?? "").trim();
-    if (!tenantId) {
-      // Sin tenant configurado la sección simplemente no se ofrece.
-      return NextResponse.json({ error: "Wallet no configurado" }, { status: 503 });
-    }
-
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -48,6 +43,17 @@ export async function POST(request: Request) {
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: "Perfil no encontrado" }, { status: 404 });
     const u = snap.data()!;
+
+    // El tenant sale de la campaña por la que entró el socio, no de una
+    // variable global: el pase lleva la marca del evento, y uno de Ruta BAC no
+    // puede recibir una tarjeta que diga Expovino. La variable de entorno queda
+    // como respaldo para campañas antiguas sin tenant declarado.
+    const campana = campanaPorSlug(u.campanaRegistro);
+    const tenantId = (campana?.walloTenant ?? process.env.WALLO_TENANT_ID ?? "").trim();
+    if (!tenantId) {
+      // Campaña sin tarjeta propia: la sección no se ofrece.
+      return NextResponse.json({ error: "Wallet no configurado" }, { status: 503 });
+    }
 
     // Ya emitidas: se devuelven tal cual. Wallo es idempotente por correo, pero
     // no tiene sentido salir a la red cada vez que alguien abre la pantalla.

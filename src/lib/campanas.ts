@@ -29,6 +29,14 @@ export type Campana = {
   avisoTexto: string;
   colorPrimario: string;
   colorTexto: string;
+  /**
+   * Tenant de Wallo que emite el pase de esta campaña.
+   *
+   * Va por campaña y no global porque el pase lleva la marca del evento: sin
+   * esto, alguien inscrito en Ruta BAC recibiría una tarjeta que dice Expovino.
+   * Sin tenant no se ofrece pase, que es preferible a ofrecer el equivocado.
+   */
+  walloTenant?: string;
 };
 
 export const CAMPANAS: Record<string, Campana> = {
@@ -45,6 +53,25 @@ export const CAMPANAS: Record<string, Campana> = {
       "los avisos, tendrías que ir revisando la app para enterarte.",
     colorPrimario: "#7B1E3A",
     colorTexto: "#F3D9E1",
+    walloTenant: "clubpatio",
+  },
+
+  rutabac: {
+    slug: "rutabac",
+    nombre: "Ruta BAC",
+    etiqueta: "Socio desde Ruta BAC",
+    emoji: "🍸",
+    destino: "/ruta-bac",
+    gancho: "Inscríbete y empieza a juntar sellos en los 26 locales de la ruta.",
+    avisoTitulo: "No te pierdas tus canjes 🍸",
+    avisoTexto:
+      "Te avisamos apenas tengas un premio listo para canjear en la ruta. " +
+      "Sin los avisos, solo te enteras si entras a la app.",
+    // Paleta de /ruta-bac: azul noche con magenta y crema.
+    colorPrimario: "#FF4B91",
+    colorTexto: "#FDF1D6",
+    // Sin tenant de Wallo todavía: la ruta no tiene tarjeta propia emitida, y
+    // es mejor no ofrecer pase que entregar uno con la marca de otro evento.
   },
 };
 
