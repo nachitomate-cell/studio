@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import QRCode from "react-qr-code";
 import { CAMPANAS } from "@/lib/campanas";
 import { CANONICAL_BASE_URL } from "@/lib/constants";
+import { RuletaSorteo } from "@/components/RuletaSorteo";
 
 const CAMPANA = CAMPANAS.expovino;
 const REFRESCO_MS = 5000;
@@ -32,6 +33,9 @@ const ALTO = 768;
 type Datos = {
   total: number;
   ultimos: string[];
+  nombresRuleta: string[];
+  premiosDisponibles: number;
+  sorteoId: string | null;
   ganador: { nombre: string; premio: string | null } | null;
 };
 
@@ -112,6 +116,8 @@ export default function PantallaExpovino() {
   const [subio, setSubio] = useState(false);
   const [paso, setPaso] = useState(0);
   const [visible, setVisible] = useState(true);
+  // Ruleta: se dispara al aparecer un sorteo que la pantalla no había mostrado.
+  const [ruletaDe, setRuletaDe] = useState<string | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("campana");
@@ -145,6 +151,12 @@ export default function PantallaExpovino() {
         if (prev && d.total > prev.total) {
           setSubio(true);
           setTimeout(() => setSubio(false), 2000);
+        }
+        // Sorteo nuevo → gira la ruleta antes de revelar. En la primera carga
+        // (prev null) no se gira: si la pantalla se reinicia a mitad del evento
+        // no tiene por qué re-sortear algo que ya pasó.
+        if (prev && d.sorteoId && d.sorteoId !== prev.sorteoId) {
+          setRuletaDe(d.sorteoId);
         }
         return d;
       });
@@ -323,8 +335,24 @@ export default function PantallaExpovino() {
           </div>
         )}
 
+        {/* Ruleta: se antepone al ganador mientras dura el giro */}
+        {ruletaDe && datos?.ganador && (
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 6,
+            background: "linear-gradient(160deg,#12060B 0%,#2A0D1B 55%,#12060B 100%)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            padding: "0 12px",
+          }}>
+            <RuletaSorteo
+              nombres={datos.nombresRuleta ?? []}
+              ganador={datos.ganador.nombre}
+              onTerminar={() => setRuletaDe(null)}
+            />
+          </div>
+        )}
+
         {/* Ganador: tapa todo, sin importar en qué escena vaya la rotación */}
-        {datos?.ganador && (
+        {datos?.ganador && !ruletaDe && (
           <div style={{
             position: "absolute", inset: 0, zIndex: 5,
             background: "linear-gradient(160deg,#2A0D1B 0%,#7B1E3A 55%,#2A0D1B 100%)",

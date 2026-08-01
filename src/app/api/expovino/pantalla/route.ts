@@ -29,9 +29,12 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const campana = (url.searchParams.get("campana") || "expovino").trim().toLowerCase();
 
-    const [socios, sorteos] = await Promise.all([
+    const [socios, sorteos, premios] = await Promise.all([
       adminDb.collection("usuarios").where("campanaRegistro", "==", campana).get(),
       adminDb.collection("sorteos").where("campana", "==", campana).get(),
+      adminDb.collection("premios_campana")
+        .where("campana", "==", campana)
+        .where("estado", "==", "disponible").get(),
     ]);
 
     const inscritos = socios.docs
@@ -48,17 +51,29 @@ export async function GET(request: Request) {
       .map((x) => x.nombre);
 
     // El último sorteo realizado, si ya hubo
-    const ganador = sorteos.docs
-      .map((d) => d.data())
+    const ultimoSorteo = sorteos.docs
+      .map((d) => ({ id: d.id, ...(d.data() as any) }))
       .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))[0];
+
+    // Nombres para la ruleta. Se manda una muestra y no los cientos que puede
+    // haber: la rueda solo tiene que verse llena mientras gira.
+    const nombresRuleta = inscritos
+      .map((x) => x.nombre)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 12);
 
     return NextResponse.json(
       {
         campana,
         total: inscritos.length,
         ultimos,
-        ganador: ganador
-          ? { nombre: nombrePila(ganador.ganadorNombre), premio: ganador.premio ?? null }
+        nombresRuleta,
+        premiosDisponibles: premios.size,
+        // El id permite a la pantalla distinguir un sorteo NUEVO de uno que ya
+        // mostró, que es lo que dispara la animación de la ruleta.
+        sorteoId: ultimoSorteo?.id ?? null,
+        ganador: ultimoSorteo
+          ? { nombre: nombrePila(ultimoSorteo.ganadorNombre), premio: ultimoSorteo.premio ?? null }
           : null,
       },
       // Sin caché: la gracia de la pantalla es que el número suba en vivo.

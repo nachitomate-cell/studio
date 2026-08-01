@@ -22,11 +22,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, Loader2, Trophy, Users, Mail, Bell, Send, RefreshCw, QrCode, Copy, Gift,
-  UserMinus, Trash2, Undo2, Tv, ExternalLink,
+  UserMinus, Trash2, Undo2, Tv, ExternalLink, Plus,
 } from "lucide-react";
 
 type Participante = { uid: string; nombre: string; correo: string; push: boolean; fecha: string };
 type Sorteo = { id: string; ganadorNombre: string; ganadorUid: string; premio: string | null; fecha: string; totalParticipantes: number };
+type PremioCampana = {
+  id: string; nombre: string; estado: "disponible" | "entregado";
+  ganadorNombre?: string; entregadoEn?: string;
+};
 
 export default function SorteoCampanaPage() {
   const router = useRouter();
@@ -44,6 +48,9 @@ export default function SorteoCampanaPage() {
   const [premio, setPremio] = useState("");
   const [titulo, setTitulo] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [premios, setPremios] = useState<PremioCampana[]>([]);
+  const [premioNombre, setPremioNombre] = useState("");
+  const [premioCantidad, setPremioCantidad] = useState(1);
 
   // ── Auth gate ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -118,16 +125,74 @@ export default function SorteoCampanaPage() {
       if (!res.ok) throw new Error(data.error || "No se pudo sortear");
       setGanador(data.ganador);
       setTitulo("¡Ganaste! 🎉");
+      // El premio puede venir de la cola, no solo del campo escrito a mano.
+      const ganado: string = data.premio ?? "";
       setMensaje(
-        `Felicitaciones ${data.ganador.nombre}: saliste sorteado${premio.trim() ? ` y te ganaste ${premio.trim()}` : ""}. ` +
+        `Felicitaciones ${data.ganador.nombre}: saliste sorteado${ganado ? ` y te ganaste ${ganado}` : ""}. ` +
         `Acércate al mostrador del Club Patio Curauma para retirar tu premio.`,
       );
-      toast({ title: "Ganador seleccionado 🏆", description: `${data.ganador.nombre} entre ${data.totalParticipantes} participantes.` });
+      toast({
+        title: "Ganador seleccionado 🏆",
+        description: `${data.ganador.nombre} entre ${data.totalParticipantes}` + (ganado ? ` · ${ganado}` : ""),
+      });
+      setPremio("");
       void cargar();
+      void cargarPremios();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error en el sorteo", description: e?.message });
     } finally {
       setSorteando(false);
+    }
+  };
+
+  // ── Premios del momento ───────────────────────────────────────────────────
+  const cargarPremios = useCallback(async () => {
+    const slug = campana.trim().toLowerCase();
+    if (!slug || !autorizado) return;
+    try {
+      const r = await fetch(`/api/admin/campana/premios?campana=${encodeURIComponent(slug)}`, {
+        headers: { Authorization: `Bearer ${await token()}` },
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      setPremios(d.premios ?? []);
+    } catch { /* no crítico */ }
+  }, [campana, autorizado]);
+
+  useEffect(() => { void cargarPremios(); }, [cargarPremios]);
+
+  const agregarPremio = async () => {
+    const nombre = premioNombre.trim();
+    if (!nombre) { toast({ variant: "destructive", title: "Escribe el nombre del premio" }); return; }
+    try {
+      const r = await fetch("/api/admin/campana/premios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({ campana: campana.trim().toLowerCase(), nombre, cantidad: premioCantidad }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "No se pudo agregar");
+      toast({ title: "Premio agregado", description: `${d.agregados} unidad(es) de "${nombre}".` });
+      setPremioNombre("");
+      setPremioCantidad(1);
+      void cargarPremios();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e?.message });
+    }
+  };
+
+  const borrarPremio = async (id: string) => {
+    try {
+      const r = await fetch("/api/admin/campana/premios", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({ campana: campana.trim().toLowerCase(), id }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "No se pudo borrar");
+      void cargarPremios();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e?.message });
     }
   };
 
@@ -331,13 +396,67 @@ export default function SorteoCampanaPage() {
           )}
         </section>
 
+        {/* Premios del momento */}
+        <section className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Gift className="w-4 h-4 text-slate-400" />
+              <h2 className="text-sm font-black text-slate-800">Premios del momento</h2>
+            </div>
+            <span className="text-xs font-black text-emerald-600">
+              {premios.filter((p) => p.estado === "disponible").length} por entregar
+            </span>
+          </div>
+
+          <div className="flex gap-2">
+            <Input value={premioNombre} onChange={(e) => setPremioNombre(e.target.value)}
+              placeholder="Ej. Caja de vinos" className="h-11 rounded-xl flex-1" />
+            <Input type="number" min={1} max={50} value={premioCantidad}
+              onChange={(e) => setPremioCantidad(Math.max(1, Number(e.target.value) || 1))}
+              className="h-11 rounded-xl w-16 text-center" />
+            <Button onClick={agregarPremio} className="h-11 rounded-xl px-4 font-bold"
+              style={{ backgroundColor: "#9DCC65" }}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            Cada sorteo consume el premio más antiguo de la cola. Se van quemando
+            solos: no hay que llevar la cuenta a mano.
+          </p>
+
+          {premios.length > 0 && (
+            <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
+              {premios.map((p) => (
+                <div key={p.id} className="py-2 flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${p.estado === "disponible" ? "bg-emerald-500" : "bg-slate-300"}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-xs font-bold truncate ${p.estado === "disponible" ? "text-slate-700" : "text-slate-400 line-through"}`}>
+                      {p.nombre}
+                    </p>
+                    {p.estado === "entregado" && (
+                      <p className="text-[10px] text-slate-400 truncate">🏆 {p.ganadorNombre}</p>
+                    )}
+                  </div>
+                  {p.estado === "disponible" && (
+                    <button onClick={() => borrarPremio(p.id)}
+                      className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Sorteo */}
         <section className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-500" />
             <h2 className="text-sm font-black text-slate-800">Sortear ganador</h2>
           </div>
-          <Input value={premio} onChange={(e) => setPremio(e.target.value)} placeholder="Premio (opcional): ej. Caja de vinos" className="h-11 rounded-xl" />
+          <Input value={premio} onChange={(e) => setPremio(e.target.value)}
+            placeholder="Dejar vacío para tomar el siguiente de la cola" className="h-11 rounded-xl" />
           <Button onClick={sortear} disabled={sorteando || participantes.length === 0}
             className="w-full h-12 rounded-xl font-black gap-2" style={{ backgroundColor: "#D3B673" }}>
             {sorteando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}

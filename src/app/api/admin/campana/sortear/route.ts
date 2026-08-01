@@ -126,9 +126,41 @@ export async function POST(request: Request) {
     // randomInt del módulo crypto: aleatoriedad criptográfica, no Math.random.
     const ganador = participantes[randomInt(participantes.length)];
 
+    // ── Consumir un premio de la cola ────────────────────────────────────────
+    // Va en transacción para que dos sorteos disparados a la vez —dos personas
+    // tocando el botón, o un doble toque en un celular— no entreguen la misma
+    // caja de vino dos veces.
+    let premioEntregado: string | null = premio;
+    let premioId: string | null = null;
+    if (!premio) {
+      const cola = adminDb.collection("premios_campana")
+        .where("campana", "==", campana)
+        .where("estado", "==", "disponible");
+      try {
+        const asignado = await adminDb.runTransaction(async (tx) => {
+          const snap = await tx.get(cola);
+          if (snap.empty) return null;
+          // El más antiguo primero: la cola se respeta en el orden en que se cargó.
+          const doc = snap.docs.sort((a, b) =>
+            String(a.data().creadoEn).localeCompare(String(b.data().creadoEn)))[0];
+          tx.update(doc.ref, {
+            estado: "entregado",
+            ganadorUid: ganador.uid,
+            ganadorNombre: ganador.nombre,
+            entregadoEn: new Date().toISOString(),
+          });
+          return { id: doc.id, nombre: String(doc.data().nombre) };
+        });
+        if (asignado) { premioEntregado = asignado.nombre; premioId = asignado.id; }
+      } catch (e) {
+        console.warn("[campana/sortear] no se pudo consumir premio de la cola:", e);
+      }
+    }
+
     const registro = await adminDb.collection("sorteos").add({
       campana,
-      premio,
+      premio: premioEntregado,
+      premioId,
       ganadorUid: ganador.uid,
       ganadorNombre: ganador.nombre,
       ganadorCorreo: ganador.correo,
@@ -143,6 +175,7 @@ export async function POST(request: Request) {
       ok: true,
       sorteoId: registro.id,
       ganador,
+      premio: premioEntregado,
       totalParticipantes: participantes.length,
     });
   } catch (error: any) {
