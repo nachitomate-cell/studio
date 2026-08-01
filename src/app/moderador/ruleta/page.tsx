@@ -27,6 +27,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { canAccessModPanel } from "@/lib/constants";
 import { habilitarSonido, sonarArranque, sonarGiro, sonarGanador } from "@/lib/sonidoRuleta";
+import { Confeti } from "@/components/Confeti";
 import { Loader2, Volume2, Settings, Plus, Trash2, X, RotateCcw, Monitor, Smartphone } from "lucide-react";
 
 /**
@@ -149,6 +150,8 @@ export default function RuletaPage() {
   const [girando, setGirando] = useState(false);
   const [premio, setPremio] = useState<Bloque | null>(null);
   const [revelado, setRevelado] = useState(false);
+  /** Sube en cada premio. Sirve de `key` para relanzar las animaciones. */
+  const [celebracion, setCelebracion] = useState(0);
   const [audioTocado, setAudioTocado] = useState(false);
   const [editando, setEditando] = useState(false);
   /** Espejo del estado para el atajo de teclado, que se registra una sola vez. */
@@ -256,6 +259,7 @@ export default function RuletaPage() {
       setGirando(false);
       setPremio(actuales[idx]);
       setRevelado(true);
+      setCelebracion((c) => c + 1);
       sonarGanador();
       // Se puede volver a girar apenas se revela: con fila esperando, obligar a
       // aguantar los segundos del premio anterior frena la atracción entera.
@@ -326,6 +330,13 @@ export default function RuletaPage() {
   const k = Math.max(0.75, Math.min(D / 244, 3.4));
   const px = (v: number) => Math.round(v * k);
 
+  // El confeti estalla desde el centro real de la rueda, que se mueve según el
+  // formato. En apaisado la rueda está a la izquierda; reventar siempre al
+  // medio de la pantalla dejaría el estallido despegado de la ruleta.
+  const origenConfeti = apaisado
+    ? { x: (lienzo.w / 2 - (D + px(30)) / 2 + D / 2) / vista.w, y: 0.5 }
+    : { x: 0.5, y: 0.42 };
+
   return (
     <main style={{
       width: "100vw", height: "100vh", overflow: "hidden", background: "#000",
@@ -374,6 +385,44 @@ export default function RuletaPage() {
             transition: "opacity .6s ease",
             animation: girando ? "latido 1.1s ease-in-out infinite" : "none",
           }} />
+
+          {/* Onda expansiva al salir el premio. La `key` la remonta en cada
+              giro: sin eso la animación solo correría la primera vez. */}
+          {celebracion > 0 && (
+            <div key={`onda-${celebracion}`} style={{
+              position: "absolute", inset: 0, borderRadius: "50%",
+              border: `${px(3)}px solid #FFD84D`,
+              animation: "onda 900ms ease-out forwards",
+              pointerEvents: "none", zIndex: 5,
+            }} />
+          )}
+
+          {/* Ampolletas del borde, como una rueda de feria. Van en una capa
+              APARTE que no rota: si giraran con la rueda, el destello se
+              confundiría con el movimiento y dejaría de leerse como luces. */}
+          <svg
+            width={D + px(18)} height={D + px(18)}
+            viewBox="0 0 262 262"
+            style={{ position: "absolute", inset: -px(9), zIndex: 3, pointerEvents: "none" }}
+          >
+            {Array.from({ length: 24 }).map((_, i) => {
+              const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+              const cx = 131 + 127 * Math.cos(a);
+              const cy = 131 + 127 * Math.sin(a);
+              return (
+                <circle
+                  key={i} cx={cx} cy={cy} r={4} fill="#FFD84D"
+                  style={{
+                    // El retraso negativo escalonado convierte el parpadeo en
+                    // una ola que recorre el borde.
+                    animation: `ampolleta ${girando ? 0.5 : 1.5}s linear infinite`,
+                    animationDelay: `-${(i / 24) * (girando ? 0.5 : 1.5)}s`,
+                    filter: "drop-shadow(0 0 4px rgba(255,216,77,0.9))",
+                  }}
+                />
+              );
+            })}
+          </svg>
 
           <div style={{
             position: "absolute", top: -px(12), left: "50%", transform: "translateX(-50%)",
@@ -503,11 +552,22 @@ export default function RuletaPage() {
             {premio && (
               <>
                 <div style={{
+                  position: "relative", overflow: "hidden",
                   width: "100%", borderRadius: px(18), padding: `${px(16)}px ${px(12)}px`,
-                  background: "linear-gradient(150deg, rgba(212,175,55,0.22), rgba(123,30,58,0.3))",
-                  border: "1px solid rgba(212,175,55,0.55)",
+                  background: "linear-gradient(150deg, rgba(212,175,55,0.28), rgba(123,30,58,0.34))",
+                  border: `${px(2)}px solid rgba(212,175,55,0.75)`,
+                  boxShadow: `0 0 ${px(34)}px rgba(212,175,55,0.4)`,
                 }}>
-                  <p style={{ margin: 0, fontSize: px(10), fontWeight: 900, color: "#D4AF37", letterSpacing: 2 * k }}>
+                  {/* Barrido de luz sobre la tarjeta, como metal pulido. Se
+                      repite en bucle para que el premio no se quede inerte
+                      mientras la persona lo lee. */}
+                  <div style={{
+                    position: "absolute", top: 0, bottom: 0, width: "45%",
+                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent)",
+                    animation: "brillo 2.6s ease-in-out infinite",
+                    pointerEvents: "none",
+                  }} />
+                  <p style={{ margin: 0, fontSize: px(10), fontWeight: 900, color: "#FFD84D", letterSpacing: 2 * k }}>
                     GANASTE
                   </p>
                   <p style={{
@@ -553,6 +613,16 @@ export default function RuletaPage() {
           </button>
         )}
 
+        {/* Fogonazo dorado en el instante del premio. Cubre todo el lienzo y se
+            apaga solo; va sobre la rueda pero bajo el confeti. */}
+        {celebracion > 0 && (
+          <div key={`destello-${celebracion}`} style={{
+            position: "absolute", inset: 0, zIndex: 6, pointerEvents: "none",
+            background: "radial-gradient(circle at 50% 42%, rgba(255,216,77,0.85) 0%, rgba(212,175,55,0.35) 35%, transparent 70%)",
+            animation: "fogonazo 780ms ease-out forwards",
+          }} />
+        )}
+
         <style>{`
           @keyframes latido {
             0%, 100% { opacity: .55; transform: scale(1); }
@@ -562,8 +632,32 @@ export default function RuletaPage() {
             0%, 100% { opacity: .72; transform: scale(1); }
             50%      { opacity: 1;   transform: scale(1.045); }
           }
+          @keyframes ampolleta {
+            0%, 45%   { opacity: .18; }
+            50%, 60%  { opacity: 1; }
+            65%, 100% { opacity: .18; }
+          }
+          @keyframes onda {
+            0%   { transform: scale(.82); opacity: .95; }
+            100% { transform: scale(1.9); opacity: 0; }
+          }
+          @keyframes fogonazo {
+            0%   { opacity: 0; }
+            12%  { opacity: 1; }
+            100% { opacity: 0; }
+          }
+          @keyframes brillo {
+            0%   { transform: translateX(-130%) skewX(-18deg); }
+            55%  { transform: translateX(130%)  skewX(-18deg); }
+            100% { transform: translateX(130%)  skewX(-18deg); }
+          }
         `}</style>
       </div>
+
+      {/* El confeti va fuera del lienzo escalado: en modo tótem el `scale`
+          también encogería las partículas y el estallido perdería la mitad de
+          su fuerza justo cuando más se mira. */}
+      <Confeti disparo={celebracion} origen={origenConfeti} />
 
       {/* Engranaje: discreto y fuera del lienzo escalado, para que no cambie de
           tamaño con la pantalla y para que nadie del público lo apriete

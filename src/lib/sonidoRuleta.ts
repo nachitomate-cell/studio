@@ -90,6 +90,7 @@ function nota(cuando: number, hz: number, dur: number, volumen: number) {
  */
 export function sonarGiro(duracionMs: number, segmentos: number) {
   if (!sonidoListo()) return;
+  redoble(duracionMs);
   const total = Math.max(20, Math.min(48, segmentos * 6));
   for (let i = 1; i <= total; i++) {
     const p = i / total;
@@ -100,13 +101,84 @@ export function sonarGiro(duracionMs: number, segmentos: number) {
   }
 }
 
-/** Fanfarria del ganador: arpegio ascendente y acorde final. */
+/**
+ * Zumbido de tensión que sube durante todo el giro.
+ *
+ * Es lo que sostiene la expectativa: los ticks marcan el frenado, pero solos
+ * dejan un vacío que se siente como que no pasa nada. El barrido va contra el
+ * frenado —sube mientras la rueda baja— y ahí es donde aprieta.
+ */
+function redoble(duracionMs: number) {
+  const c = contexto();
+  if (!c) return;
+  const t = c.currentTime;
+  const dur = duracionMs / 1000;
+
+  const o = c.createOscillator();
+  const g = c.createGain();
+  const filtro = c.createBiquadFilter();
+  filtro.type = "bandpass";
+  filtro.Q.value = 6;
+
+  o.type = "sawtooth";
+  o.frequency.setValueAtTime(55, t);
+  o.frequency.exponentialRampToValueAtTime(150, t + dur * 0.92);
+  filtro.frequency.setValueAtTime(220, t);
+  filtro.frequency.exponentialRampToValueAtTime(1900, t + dur * 0.92);
+
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.09, t + dur * 0.55);
+  g.gain.exponentialRampToValueAtTime(0.14, t + dur * 0.9);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+  o.connect(filtro); filtro.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
+/** Golpe grave que aterriza junto con el premio. */
+function golpe(cuando: number) {
+  const c = contexto();
+  if (!c) return;
+  const t = c.currentTime + cuando;
+  const o = c.createOscillator();
+  const g = c.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(150, t);
+  o.frequency.exponentialRampToValueAtTime(42, t + 0.32);
+  g.gain.setValueAtTime(0.4, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+  o.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t + 0.52);
+}
+
+/** Destellos agudos que caen sobre la fanfarria, como chispas. */
+function chispas() {
+  const c = contexto();
+  if (!c) return;
+  for (let i = 0; i < 14; i++) {
+    const t = c.currentTime + 0.12 + Math.random() * 1.1;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(1600 + Math.random() * 2400, t);
+    g.gain.setValueAtTime(0.075, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.17);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + 0.19);
+  }
+}
+
+/** Fanfarria del ganador: golpe, arpegio, acorde mayor y chispas. */
 export function sonarGanador() {
   if (!sonidoListo()) return;
-  const arpegio = [523.25, 659.25, 783.99, 1046.5];   // do mi sol do
-  arpegio.forEach((hz, i) => nota(i * 0.1, hz, 0.32, 0.2));
-  // Acorde sostenido para cerrar
-  [523.25, 659.25, 783.99].forEach((hz) => nota(0.42, hz, 1.1, 0.15));
+  golpe(0);
+  // Do mayor subiendo dos octavas: la escala más obvia que existe, que es
+  // exactamente lo que se quiere cuando el mensaje es "ganaste".
+  const arpegio = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+  arpegio.forEach((hz, i) => nota(0.05 + i * 0.085, hz, 0.34, 0.19));
+  // Acorde ancho para cerrar, con la fundamental grave sosteniendo.
+  [261.63, 523.25, 659.25, 783.99, 1046.5].forEach((hz) => nota(0.5, hz, 1.5, 0.13));
+  chispas();
 }
 
 /** Sonido corto al arrancar el giro. */
