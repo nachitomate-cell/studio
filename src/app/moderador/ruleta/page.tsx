@@ -23,7 +23,8 @@ import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { canAccessModPanel } from "@/lib/constants";
-import { Loader2 } from "lucide-react";
+import { habilitarSonido, sonarArranque, sonarGiro, sonarGanador } from "@/lib/sonidoRuleta";
+import { Loader2, Volume2 } from "lucide-react";
 
 const ANCHO = 256;
 const ALTO = 768;
@@ -90,6 +91,7 @@ export default function RuletaPage() {
   const [angulo, setAngulo] = useState(0);
   const [girando, setGirando] = useState(false);
   const [revelado, setRevelado] = useState(false);
+  const [audioTocado, setAudioTocado] = useState(false);
   const ultimoGiro = useRef<string | null>(null);
   /** Si ya se recibió el primer snapshot, exista o no el documento. */
   const sincronizado = useRef(false);
@@ -148,6 +150,8 @@ export default function RuletaPage() {
       // Se acumula sobre el ángulo actual para que nunca gire hacia atrás.
       setRevelado(false);
       setGirando(true);
+      sonarArranque();
+      sonarGiro(GIRO_MS, d.segmentos.length);
       setAngulo((prev) => {
         const base = Math.ceil(prev / 360) * 360;
         // Centro del segmento ganador bajo la aguja (arriba), con un pequeño
@@ -155,7 +159,11 @@ export default function RuletaPage() {
         const desvio = (Math.random() - 0.5) * paso * 0.5;
         return base + VUELTAS * 360 - (d.indiceGanador * paso + paso / 2) - desvio;
       });
-      setTimeout(() => { setGirando(false); setRevelado(true); }, REVELAR_MS);
+      setTimeout(() => {
+        setGirando(false);
+        setRevelado(true);
+        sonarGanador();
+      }, REVELAR_MS);
     });
     return () => unsub();
   }, [autorizado, campana]);
@@ -284,6 +292,34 @@ export default function RuletaPage() {
             <circle cx={r} cy={r} r={7} fill="#D4AF37" />
           </svg>
         </div>
+
+        {/* Habilitación del sonido. Los navegadores no dejan sonar nada hasta
+            que alguien toca la página, y el tótem no se toca: hay que hacerlo
+            una vez al montar. Desaparece apenas se activa.
+
+            Se cierra con el toque AUNQUE el audio falle: si el navegador del
+            tótem no soporta Web Audio, un overlay que no se va dejaría la
+            pantalla tapada toda la tarde. Sin sonido se puede vivir; con la
+            ruleta oculta, no. */}
+        {!audioTocado && (
+          <button
+            onClick={async () => { setAudioTocado(true); await habilitarSonido(); }}
+            style={{
+              position: "absolute", inset: 0, zIndex: 8, border: "none",
+              background: "rgba(5,2,3,0.92)", color: "#D4AF37", cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", gap: 14, padding: "0 24px",
+            }}
+          >
+            <Volume2 style={{ width: 54, height: 54 }} />
+            <span style={{ fontSize: 21, fontWeight: 900, letterSpacing: 1 }}>
+              Toca para activar el sonido
+            </span>
+            <span style={{ fontSize: 13, color: "rgba(250,243,224,0.55)", lineHeight: 1.5, textAlign: "center" }}>
+              Una sola vez, antes de empezar.<br />Después no hay que tocar nada más.
+            </span>
+          </button>
+        )}
 
         {/* ── Resultado ── */}
         <div style={{
