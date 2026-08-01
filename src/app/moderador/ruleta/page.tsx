@@ -177,7 +177,11 @@ export default function RuletaPage() {
             style={{
               position: "relative", zIndex: 2,
               transform: `rotate(${angulo}deg)`,
-              transition: girando ? `transform ${GIRO_MS}ms cubic-bezier(.09,.72,.06,1)` : "none",
+              // La transición va SIEMPRE puesta, no condicionada a `girando`.
+              // Si se activa en el mismo render en que cambia el transform, el
+              // navegador aplica el giro de golpe: la transición no estaba
+              // vigente cuando el valor cambió, así que no hay nada que animar.
+              transition: `transform ${GIRO_MS}ms cubic-bezier(.09,.72,.06,1)`,
               filter: "drop-shadow(0 6px 22px rgba(0,0,0,0.6))",
             }}
           >

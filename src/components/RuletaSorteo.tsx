@@ -80,7 +80,10 @@ export function RuletaSorteo({
           viewBox={`0 0 ${DIAMETRO} ${DIAMETRO}`}
           style={{
             transform: `rotate(${girando ? anguloFinal : 0}deg)`,
-            transition: girando ? `transform ${DURACION_MS}ms cubic-bezier(.12,.72,.11,1)` : "none",
+            // Siempre puesta: activar la transición en el mismo render en que
+            // cambia el transform hace que el navegador salte al valor final
+            // sin animar. Por eso el arranque va con un setTimeout aparte.
+            transition: `transform ${DURACION_MS}ms cubic-bezier(.12,.72,.11,1)`,
           }}
         >
           {segmentos.map((nombre, i) => {
