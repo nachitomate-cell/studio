@@ -20,14 +20,14 @@
  * Se dibuja sobre el lienzo fijo de 256×768 del tótem y se escala a la ventana.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { canAccessModPanel } from "@/lib/constants";
 import { habilitarSonido, sonarArranque, sonarGiro, sonarGanador } from "@/lib/sonidoRuleta";
-import { Loader2, Volume2, Settings, Plus, Trash2, X, RotateCcw } from "lucide-react";
+import { Loader2, Volume2, Settings, Plus, Trash2, X, RotateCcw, Monitor, Smartphone } from "lucide-react";
 
 /**
  * Lienzo del tótem LED vertical (195×65 cm reales). Ya no es el formato por
@@ -72,6 +72,28 @@ const COLORES = ["#7B1E3A", "#1E1033", "#9E2A4C", "#0F1B4C", "#5B1230", "#2A0D1B
 function clave(campana: string) {
   return `ruleta_bloques_v1_${campana}`;
 }
+
+/** El formato elegido se recuerda: al reiniciar el equipo vuelve como estaba. */
+const CLAVE_FORMATO = "ruleta_formato_v1";
+
+/** Estilo de las dos opciones de formato: la vigente va destacada. */
+function opcionFormato(activo: boolean): CSSProperties {
+  return {
+    flex: 1, padding: "10px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 800,
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+    background: activo ? "rgba(212,175,55,0.2)" : "rgba(0,0,0,0.3)",
+    border: `1px solid ${activo ? "rgba(212,175,55,0.6)" : "rgba(255,255,255,0.12)"}`,
+    color: activo ? "#D4AF37" : "rgba(250,243,224,0.55)",
+  };
+}
+
+/** Botones discretos de la esquina — mismo aspecto para los dos. */
+const BOTON_ESQUINA: CSSProperties = {
+  width: 34, height: 34, borderRadius: 10, cursor: "pointer",
+  background: "rgba(255,255,255,0.07)", border: "1px solid rgba(212,175,55,0.28)",
+  color: "rgba(212,175,55,0.6)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+};
 
 /**
  * Texto claro u oscuro según el fondo que eligió el operador.
@@ -141,8 +163,19 @@ export default function RuletaPage() {
     const q = new URLSearchParams(window.location.search);
     const p = q.get("campana");
     if (p) setCampana(p.trim().toLowerCase());
-    setTotem(q.get("totem") === "1");
+    // El parámetro de la URL manda —sirve para forzar un formato desde un
+    // acceso directo—; si no viene, se respeta lo último que se eligió acá.
+    if (q.has("totem")) setTotem(q.get("totem") === "1");
+    else {
+      try { setTotem(localStorage.getItem(CLAVE_FORMATO) === "totem"); } catch { /* sin acceso */ }
+    }
   }, []);
+
+  const cambiarFormato = () => {
+    const nuevo = !totem;
+    setTotem(nuevo);
+    try { localStorage.setItem(CLAVE_FORMATO, nuevo ? "totem" : "completa"); } catch { /* sin acceso */ }
+  };
 
   useEffect(() => {
     const ajustar = () => setVista({ w: window.innerWidth, h: window.innerHeight });
@@ -536,18 +569,24 @@ export default function RuletaPage() {
           tamaño con la pantalla y para que nadie del público lo apriete
           buscando el botón de girar. */}
       {!editando && audioTocado && (
-        <button
-          onClick={() => setEditando(true)}
-          title="Editar los bloques de la ruleta"
-          style={{
-            position: "fixed", top: 10, left: 10, zIndex: 20,
-            width: 34, height: 34, borderRadius: 10, cursor: "pointer",
-            background: "rgba(255,255,255,0.07)", border: "1px solid rgba(212,175,55,0.28)",
-            color: "rgba(212,175,55,0.6)", display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          <Settings style={{ width: 17, height: 17 }} />
-        </button>
+        <div style={{ position: "fixed", top: 10, left: 10, zIndex: 20, display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setEditando(true)}
+            title="Editar los bloques de la ruleta"
+            style={BOTON_ESQUINA}
+          >
+            <Settings style={{ width: 17, height: 17 }} />
+          </button>
+          <button
+            onClick={cambiarFormato}
+            title={totem ? "Cambiar a pantalla completa" : "Cambiar al formato alargado del tótem"}
+            style={BOTON_ESQUINA}
+          >
+            {totem
+              ? <Monitor style={{ width: 17, height: 17 }} />
+              : <Smartphone style={{ width: 17, height: 17 }} />}
+          </button>
+        </div>
       )}
 
       {editando && (
@@ -555,6 +594,8 @@ export default function RuletaPage() {
           bloques={bloques}
           onCambiar={setBloques}
           onCerrar={() => setEditando(false)}
+          totem={totem}
+          onCambiarFormato={cambiarFormato}
         />
       )}
     </main>
@@ -570,11 +611,13 @@ export default function RuletaPage() {
  * lo usa una persona en un navegador normal.
  */
 function EditorBloques({
-  bloques, onCambiar, onCerrar,
+  bloques, onCambiar, onCerrar, totem, onCambiarFormato,
 }: {
   bloques: Bloque[];
   onCambiar: (b: Bloque[]) => void;
   onCerrar: () => void;
+  totem: boolean;
+  onCambiarFormato: () => void;
 }) {
   const nuevoId = () => `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -689,6 +732,38 @@ function EditorBloques({
             cuesta leerlo desde lejos en la pantalla.
           </p>
         )}
+
+        {/* Formato de la pantalla. Va rotulado acá además del icono de la
+            esquina: en una pantalla táctil no hay tooltip que lo explique. */}
+        <div style={{
+          marginTop: 22, borderRadius: 13, padding: "13px 14px",
+          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+        }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#fff" }}>
+            Formato de la pantalla
+          </p>
+          <p style={{ margin: "3px 0 11px", fontSize: 12, color: "rgba(250,243,224,0.5)", lineHeight: 1.45 }}>
+            {totem
+              ? "Alargado, para el tótem LED vertical (256×768)."
+              : "Pantalla completa, se adapta al monitor."}
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => { if (totem) onCambiarFormato(); }}
+              style={opcionFormato(!totem)}
+            >
+              <Monitor style={{ width: 15, height: 15 }} />
+              Completa
+            </button>
+            <button
+              onClick={() => { if (!totem) onCambiarFormato(); }}
+              style={opcionFormato(totem)}
+            >
+              <Smartphone style={{ width: 15, height: 15 }} />
+              Alargada
+            </button>
+          </div>
+        </div>
 
         <button
           onClick={() => { if (confirm("¿Volver a los bloques originales?")) onCambiar(BLOQUES_INICIALES); }}
