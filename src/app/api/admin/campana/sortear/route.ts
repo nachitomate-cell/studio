@@ -81,21 +81,36 @@ export async function DELETE(request: Request) {
       }
     }
 
-    let devueltos = 0;
     const batch = adminDb.batch();
-    for (const s of aAnular) {
-      const premioId = s.data()?.premioId;
-      if (premioId) {
-        batch.update(adminDb.collection("premios_campana").doc(String(premioId)), {
-          estado: "disponible",
-          ganadorUid: FieldValue.delete(),
-          ganadorNombre: FieldValue.delete(),
-          entregadoEn: FieldValue.delete(),
-        });
-        devueltos++;
+    const limpio = {
+      estado: "disponible",
+      ganadorUid: FieldValue.delete(),
+      ganadorNombre: FieldValue.delete(),
+      entregadoEn: FieldValue.delete(),
+    };
+    let devueltos = 0;
+
+    if (reiniciarTodo) {
+      // Se reponen TODOS los premios de la campaña, no solo los que tienen un
+      // sorteo apuntándolos. Si un sorteo se borró antes, su premio quedó
+      // huérfano —entregado y sin registro— y recorrer sorteos jamás lo
+      // alcanzaría. Reiniciar significa dejar todo como nuevo.
+      const todosLosPremios = await adminDb.collection("premios_campana")
+        .where("campana", "==", campana).get();
+      todosLosPremios.docs
+        .filter((d) => d.data().estado !== "disponible")
+        .forEach((d) => { batch.update(d.ref, limpio); devueltos++; });
+    } else {
+      for (const s of aAnular) {
+        const premioId = s.data()?.premioId;
+        if (premioId) {
+          batch.update(adminDb.collection("premios_campana").doc(String(premioId)), limpio);
+          devueltos++;
+        }
       }
-      batch.delete(s.ref);
     }
+
+    aAnular.forEach((s) => batch.delete(s.ref));
 
     // Reinicio completo: además se limpia lo que la pantalla está mostrando.
     if (reiniciarTodo) batch.delete(adminDb.collection("ruleta").doc(campana));
