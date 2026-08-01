@@ -275,6 +275,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Estado de la ruleta ───────────────────────────────────────────────────
+    // La pantalla del stand lo escucha en vivo para saber cuándo girar. Solo lo
+    // escribe el Admin SDK (/api/admin/campana/girar): si el cliente pudiera,
+    // cualquiera con la consola abierta se declararía ganador en pantalla.
+    match /ruleta/{campana} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     // ── Sorteos de campaña (eventos, ferias) ──────────────────────────────────
     // Solo los escribe el Admin SDK (/api/admin/campana/sortear), que ignora
     // estas reglas. El cliente jamás escribe: si pudiera, podría fabricarse un
