@@ -11,8 +11,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-/** Rutas que se muestran sin cabecera (proyección, kiosco). */
-const SIN_CABECERA = ["/expovino/pantalla"];
+/**
+ * Rutas que se muestran sin cabecera: las que se proyectan y las que se operan
+ * a pantalla completa. En un tótem a oscuras la franja blanca encandila, y en
+ * el mando la cabecera solo roba espacio al botón.
+ */
+const SIN_CABECERA = [
+  "/expovino/pantalla",
+  "/moderador/ruleta",
+  "/moderador/boton",
+];
 
 export function HeaderGlobal() {
   const pathname = usePathname();
