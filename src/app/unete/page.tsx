@@ -444,6 +444,26 @@ export default function UnetePage() {
                 descripcion={campanaActiva?.avisoTexto}
               />
 
+              {/* Atajo al directorio del evento. Va ARRIBA del botón de salida
+                  y con el color de la campaña: quien se acaba de inscribir está
+                  parado en la feria y lo que necesita es saber a qué stand ir.
+                  Pasando por la pantalla del evento son dos toques, y ahí se
+                  pierde la mayoría. */}
+              {campanaActiva?.directorio && (
+                <Button
+                  onClick={() => router.replace(campanaActiva.directorio!)}
+                  style={{
+                    width: "100%", height: 52, borderRadius: 16, marginBottom: 10,
+                    background: campanaActiva.colorPrimario,
+                    color: campanaActiva.colorTexto,
+                    fontWeight: 900, fontSize: 15, border: "none",
+                  }}
+                  className="shadow-lg transition-all hover:opacity-90 active:scale-[0.98]"
+                >
+                  {campanaActiva.directorioTexto || "Ver expositores"}
+                </Button>
+              )}
+
               <Button
                 onClick={() => {
                   const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
@@ -454,12 +474,15 @@ export default function UnetePage() {
                 }}
                 style={{
                   width: "100%", height: 52, borderRadius: 16,
-                  background: "linear-gradient(135deg, #9DCC65, #7ab84e)",
-                  color: "white", fontWeight: 900, fontSize: 15, border: "none",
+                  background: campanaActiva?.directorio
+                    ? "rgba(255,255,255,0.08)"
+                    : "linear-gradient(135deg, #9DCC65, #7ab84e)",
+                  color: "white", fontWeight: 900, fontSize: 15,
+                  border: campanaActiva?.directorio ? "1px solid rgba(255,255,255,0.16)" : "none",
                 }}
                 className="shadow-lg transition-all hover:opacity-90 active:scale-[0.98]"
               >
-                Ver mi tarjeta de sellos →
+                {campanaActiva ? "Ir al Club Patio →" : "Ver mi tarjeta de sellos →"}
               </Button>
             </div>
 

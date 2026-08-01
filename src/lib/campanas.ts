@@ -37,6 +37,17 @@ export type Campana = {
    * Sin tenant no se ofrece pase, que es preferible a ofrecer el equivocado.
    */
   walloTenant?: string;
+  /**
+   * Directorio de expositores del evento, si lo tiene.
+   *
+   * Se ofrece como atajo apenas termina el registro: recién inscrito, de pie en
+   * la feria, lo que la persona quiere es saber a qué stand ir. Dejarlo a dos
+   * toques de distancia —pasando por la pantalla del evento— hace que la
+   * mayoría no llegue nunca.
+   */
+  directorio?: string;
+  /** Texto del atajo al directorio. */
+  directorioTexto?: string;
 };
 
 export const CAMPANAS: Record<string, Campana> = {
@@ -54,6 +65,8 @@ export const CAMPANAS: Record<string, Campana> = {
     colorPrimario: "#7B1E3A",
     colorTexto: "#F3D9E1",
     walloTenant: "clubpatio",
+    directorio: "/expovino/expositores",
+    directorioTexto: "Ver las viñas y el plano 🍷",
   },
 
   rutabac: {
