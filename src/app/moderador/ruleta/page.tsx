@@ -27,7 +27,7 @@ import { Loader2 } from "lucide-react";
 
 const ANCHO = 256;
 const ALTO = 768;
-const DIAMETRO = 236;
+const DIAMETRO = 244;   // 244 + 2x6 de padding = 256, el ancho exacto del totem
 const VUELTAS = 6;
 const GIRO_MS = 5200;
 const REVELAR_MS = GIRO_MS + 700;
@@ -40,6 +40,30 @@ type Estado = {
   quedan: number;
   iniciadoEn: string;
 };
+
+/**
+ * Corta el nombre del premio en como mucho dos líneas.
+ *
+ * A lo largo del radio caben unos 18 caracteres por línea: el resto del espacio
+ * se lo comen el borde y el eje central. Con dos líneas entran nombres como
+ * "Café + 10% dcto en Pomarus" completos; lo que no entra se recorta, porque un
+ * nombre pisando el borde se lee peor que uno truncado.
+ */
+const MAX_LINEA = 18;
+function partirEnDos(texto: string): string[] {
+  if (texto.length <= MAX_LINEA) return [texto];
+  const palabras = texto.split(" ");
+  let a = "";
+  let i = 0;
+  while (i < palabras.length && (a + palabras[i]).length <= MAX_LINEA) {
+    a += (a ? " " : "") + palabras[i];
+    i++;
+  }
+  let b = palabras.slice(i).join(" ");
+  if (!a) { a = texto.slice(0, MAX_LINEA); b = texto.slice(MAX_LINEA); }
+  if (b.length > MAX_LINEA) b = `${b.slice(0, MAX_LINEA - 1)}…`;
+  return b ? [a, b] : [a];
+}
 
 const PALETA = [
   { fondo: "#7B1E3A", texto: "#FFF3E2" },
@@ -142,7 +166,7 @@ export default function RuletaPage() {
         color: "#fff", position: "relative", overflow: "hidden",
         display: "flex", flexDirection: "column", alignItems: "center",
         fontFamily: "var(--font-montserrat), Montserrat, sans-serif",
-        padding: "22px 14px",
+        padding: "22px 6px",
       }}>
 
         <p style={{ margin: 0, fontSize: 12, fontWeight: 900, color: "#D4AF37", letterSpacing: 2.4 }}>
@@ -153,7 +177,7 @@ export default function RuletaPage() {
         </p>
 
         {/* ── Rueda ── */}
-        <div style={{ position: "relative", width: DIAMETRO, height: DIAMETRO, marginTop: 26 }}>
+        <div style={{ position: "relative", width: DIAMETRO, height: DIAMETRO, marginTop: 22 }}>
           {/* Halo que late mientras gira */}
           <div style={{
             position: "absolute", inset: -14, borderRadius: "50%",
@@ -192,22 +216,37 @@ export default function RuletaPage() {
               const x1 = r + r * Math.cos(a1), y1 = r + r * Math.sin(a1);
               const grande = paso > 180 ? 1 : 0;
               const c = PALETA[i % PALETA.length];
-              const medio = i * paso + paso / 2;
+
+              // Ángulo del centro de ESTA porción en coordenadas SVG (0 = a la
+              // derecha). El -90 es el mismo desfase con que se dibuja el path:
+              // sin él, el texto queda una porción corrida y en las de la
+              // izquierda sale de cabeza.
+              const centro = i * paso + paso / 2 - 90;
+              const norm = ((centro % 360) + 360) % 360;
+              // En la mitad izquierda se voltea el texto para que nunca se lea
+              // al revés; el ancla cambia para que siga arrancando en el borde.
+              const volteado = norm > 90 && norm < 270;
+              const lineas = partirEnDos(nombre);
+
               return (
                 <g key={`${nombre}-${i}`}>
                   <path
                     d={`M ${r} ${r} L ${x0} ${y0} A ${r} ${r} 0 ${grande} 1 ${x1} ${y1} Z`}
-                    fill={c.fondo} stroke="rgba(212,175,55,0.5)" strokeWidth={1.4}
+                    fill={c.fondo} stroke="rgba(212,175,55,0.55)" strokeWidth={1.6}
                   />
-                  {/* Texto radial: se lee siguiendo el radio, que es lo único
-                      que permite meter un nombre largo en una porción angosta. */}
                   <text
-                    fill={c.texto} fontSize={10.5} fontWeight={800}
-                    textAnchor="end" dominantBaseline="middle"
-                    transform={`rotate(${medio} ${r} ${r})`}
-                    x={r + r - 12} y={r}
+                    fill={c.texto} fontSize={11} fontWeight={800}
+                    textAnchor={volteado ? "start" : "end"}
+                    transform={`rotate(${volteado ? centro + 180 : centro} ${r} ${r})`}
+                    x={volteado ? 14 : 2 * r - 14}
+                    y={r}
+                    style={{ letterSpacing: "-0.2px" }}
                   >
-                    {nombre.length > 22 ? `${nombre.slice(0, 21)}…` : nombre}
+                    {lineas.map((l, k) => (
+                      <tspan key={k} x={volteado ? 14 : 2 * r - 14} dy={k === 0 ? (lineas.length > 1 ? -6 : 4) : 13}>
+                        {l}
+                      </tspan>
+                    ))}
                   </text>
                 </g>
               );
