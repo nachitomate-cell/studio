@@ -16,6 +16,13 @@ import { adminDb } from "@/lib/firebaseAdmin";
 
 const ULTIMOS = 10;
 
+/**
+ * Cuánto se queda el cartel del ganador antes de devolver la pantalla a la
+ * rotación. Suficiente para que la sala lo vea y se saque la foto, y no tanto
+ * como para que el tótem quede congelado el resto de la noche.
+ */
+const VIGENCIA_GANADOR_MS = 90 * 1000;
+
 /** Solo el nombre de pila, capitalizado. Nunca el apellido. */
 function nombrePila(completo: unknown): string {
   const s = String(completo ?? "").trim();
@@ -72,7 +79,10 @@ export async function GET(request: Request) {
         // El id permite a la pantalla distinguir un sorteo NUEVO de uno que ya
         // mostró, que es lo que dispara la animación de la ruleta.
         sorteoId: ultimoSorteo?.id ?? null,
-        ganador: ultimoSorteo
+        // El cartel del ganador CADUCA. Sin esto, con un sorteo registrado la
+        // pantalla quedaba tapada de forma permanente y dejaba de rotar — en un
+        // evento con 11 premios eso es la mayor parte de la noche.
+        ganador: ultimoSorteo && Date.now() - Date.parse(ultimoSorteo.fecha) < VIGENCIA_GANADOR_MS
           ? { nombre: nombrePila(ultimoSorteo.ganadorNombre), premio: ultimoSorteo.premio ?? null }
           : null,
       },

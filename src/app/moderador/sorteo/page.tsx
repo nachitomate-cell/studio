@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, Loader2, Trophy, Users, Mail, Bell, Send, RefreshCw, QrCode, Copy, Gift,
-  UserMinus, Trash2, Undo2, Tv, ExternalLink, Plus,
+  UserMinus, Trash2, Undo2, Tv, ExternalLink, Plus, RotateCcw,
 } from "lucide-react";
 
 type Participante = { uid: string; nombre: string; correo: string; push: boolean; fecha: string };
@@ -196,20 +196,27 @@ export default function SorteoCampanaPage() {
     }
   };
 
-  // ── Anular sorteos ────────────────────────────────────────────────────────
-  const anularSorteos = async () => {
-    if (!confirm("¿Anular todos los sorteos de esta campaña? La pantalla del stand vuelve a mostrar el contador.")) return;
+  // ── Anular sorteos / reiniciar la ruleta ──────────────────────────────────
+  const anularSorteos = async (reiniciarTodo = false) => {
+    const aviso = reiniciarTodo
+      ? "¿Reiniciar la ruleta? Se borran todos los sorteos, los premios vuelven a estar disponibles y la pantalla queda limpia."
+      : "¿Anular todos los sorteos? Los premios entregados vuelven a la cola.";
+    if (!confirm(aviso)) return;
     try {
       const res = await fetch("/api/admin/campana/sortear", {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ campana: campana.trim().toLowerCase() }),
+        body: JSON.stringify({ campana: campana.trim().toLowerCase(), reiniciarTodo }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "No se pudo anular");
       setGanador(null);
-      toast({ title: "Sorteos anulados", description: `${d.anulados} registro(s) eliminado(s).` });
+      toast({
+        title: reiniciarTodo ? "Ruleta reiniciada" : "Sorteos anulados",
+        description: `${d.anulados} sorteo(s) · ${d.premiosDevueltos} premio(s) devuelto(s) a la cola.`,
+      });
       void cargar();
+      void cargarPremios();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e?.message });
     }
@@ -420,9 +427,18 @@ export default function SorteoCampanaPage() {
             </Button>
           </div>
           <p className="text-[10px] text-slate-400 leading-relaxed">
-            Cada sorteo consume el premio más antiguo de la cola. Se van quemando
-            solos: no hay que llevar la cuenta a mano.
+            Cada sorteo consume un premio. Desde la ruleta se elige al azar entre
+            los disponibles; desde el botón de abajo, el más antiguo de la cola.
           </p>
+
+          {/* Reinicio: lo que se usa para dejar todo limpio antes del evento */}
+          <button
+            onClick={() => anularSorteos(true)}
+            className="w-full h-11 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reiniciar ruleta — devuelve todos los premios
+          </button>
 
           {premios.length > 0 && (
             <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
@@ -506,7 +522,7 @@ export default function SorteoCampanaPage() {
           <section className="bg-white rounded-2xl border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-black text-slate-800">Sorteos anteriores</h2>
-              <button onClick={anularSorteos}
+              <button onClick={() => anularSorteos(false)}
                 className="text-[11px] font-bold text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg flex items-center gap-1">
                 <Undo2 className="w-3 h-3" /> Anular todos
               </button>

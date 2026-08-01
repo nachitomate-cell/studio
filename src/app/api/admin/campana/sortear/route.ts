@@ -15,6 +15,7 @@
 
 import { NextResponse } from "next/server";
 import { randomInt } from "crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { ALLOWED_MOD_EMAILS, ROLES_STAFF_PANEL } from "@/lib/constants";
 
@@ -44,14 +45,18 @@ async function verificarStaff(request: Request) {
 }
 
 /**
- * DELETE — anula un sorteo.
+ * DELETE — anula sorteos y DEVUELVE sus premios a la cola.
  *
- * Con `sorteoId` borra ese registro; sin él, borra TODOS los de la campaña.
- * Sirve para dejar la campaña limpia mientras se prueba: al no quedar registro,
- * la persona vuelve a entrar al bombo y la pantalla del stand deja de mostrar
- * un ganador.
+ * Devolver el premio no es un extra, es parte de anular: sin eso el premio
+ * quedaba quemado para siempre y la cuenta dejaba de cuadrar. Pasó de verdad
+ * probando —6 premios entregados contra 4 sorteos— porque anular borraba el
+ * registro y dejaba huérfano el consumo.
  *
- * Body: { campana: string, sorteoId?: string }
+ * Con `sorteoId` anula ese; sin él, todos los de la campaña. Con
+ * `reiniciarTodo` además borra el estado de la ruleta, dejándola como recién
+ * instalada.
+ *
+ * Body: { campana: string, sorteoId?: string, reiniciarTodo?: boolean }
  */
 export async function DELETE(request: Request) {
   try {
@@ -61,26 +66,43 @@ export async function DELETE(request: Request) {
     const body = await request.json();
     const campana = String(body.campana ?? "").trim().toLowerCase();
     const sorteoId = String(body.sorteoId ?? "").trim();
+    const reiniciarTodo = body.reiniciarTodo === true;
     if (!campana) return NextResponse.json({ error: "Falta la campaña" }, { status: 400 });
 
+    const aAnular = sorteoId
+      ? [await adminDb.collection("sorteos").doc(sorteoId).get()].filter((s) => s.exists)
+      : (await adminDb.collection("sorteos").where("campana", "==", campana).get()).docs;
+
     if (sorteoId) {
-      const ref = adminDb.collection("sorteos").doc(sorteoId);
-      const snap = await ref.get();
-      if (!snap.exists) return NextResponse.json({ error: "Ese sorteo no existe" }, { status: 404 });
-      // Que el id no permita borrar sorteos de otra campaña por equivocación.
-      if (snap.data()!.campana !== campana) {
+      if (!aAnular.length) return NextResponse.json({ error: "Ese sorteo no existe" }, { status: 404 });
+      // Que un id mal copiado no borre el sorteo de otra campaña.
+      if (aAnular[0].data()!.campana !== campana) {
         return NextResponse.json({ error: "El sorteo no pertenece a esa campaña" }, { status: 400 });
       }
-      await ref.delete();
-      return NextResponse.json({ ok: true, anulados: 1 });
     }
 
-    const todos = await adminDb.collection("sorteos").where("campana", "==", campana).get();
-    if (todos.empty) return NextResponse.json({ ok: true, anulados: 0 });
+    let devueltos = 0;
     const batch = adminDb.batch();
-    todos.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-    return NextResponse.json({ ok: true, anulados: todos.size });
+    for (const s of aAnular) {
+      const premioId = s.data()?.premioId;
+      if (premioId) {
+        batch.update(adminDb.collection("premios_campana").doc(String(premioId)), {
+          estado: "disponible",
+          ganadorUid: FieldValue.delete(),
+          ganadorNombre: FieldValue.delete(),
+          entregadoEn: FieldValue.delete(),
+        });
+        devueltos++;
+      }
+      batch.delete(s.ref);
+    }
+
+    // Reinicio completo: además se limpia lo que la pantalla está mostrando.
+    if (reiniciarTodo) batch.delete(adminDb.collection("ruleta").doc(campana));
+
+    if (aAnular.length || reiniciarTodo) await batch.commit();
+
+    return NextResponse.json({ ok: true, anulados: aAnular.length, premiosDevueltos: devueltos });
   } catch (error: any) {
     console.error("[campana/sortear DELETE] Error:", error);
     return NextResponse.json({ error: error?.message ?? "Error interno" }, { status: 500 });
