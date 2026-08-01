@@ -22,6 +22,7 @@ import { NextResponse } from "next/server";
 import { randomInt } from "crypto";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { ALLOWED_MOD_EMAILS, ROLES_STAFF_PANEL } from "@/lib/constants";
+import { avisarGanador } from "@/lib/avisarGanador";
 
 /**
  * Segmentos de la rueda. Con 10 cada porción es de 36°: el nombre queda tan
@@ -147,12 +148,26 @@ export async function POST(request: Request) {
       iniciadoEn: ahora,
     });
 
+    // ── Avisar al ganador ───────────────────────────────────────────────────
+    // Va acá y no en una llamada aparte: la ruleta sortea sola y no hay nadie
+    // escribiendo un mensaje. Sin esto el premio quedaba entregado en silencio.
+    // Se hace DESPUÉS de escribir el estado para no retrasar el giro, y nunca
+    // puede tumbar la entrega: avisarGanador no lanza.
+    const aviso = await avisarGanador({
+      uid: ganador.uid,
+      nombre: ganador.nombre,
+      correo: ganador.correo,
+      premio: elegido.nombre,
+    });
+    if (aviso.detalle) console.warn("[campana/girar] aviso parcial:", aviso.detalle);
+
     return NextResponse.json({
       ok: true,
       sorteoId: sorteo.id,
       ganador,
       premio: elegido.nombre,
       quedan: disponibles.length - 1,
+      aviso,
     });
   } catch (error: any) {
     console.error("[campana/girar] Error:", error);

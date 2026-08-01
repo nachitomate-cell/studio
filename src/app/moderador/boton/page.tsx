@@ -31,7 +31,10 @@ export default function BotonRuletaPage() {
   const [campana, setCampana] = useState("expovino");
   const [girando, setGirando] = useState(false);
   const [quedan, setQuedan] = useState<number | null>(null);
-  const [ultimo, setUltimo] = useState<{ nombre: string; premio: string } | null>(null);
+  const [ultimo, setUltimo] = useState<{
+    nombre: string; premio: string;
+    aviso?: { bandeja: boolean; push: boolean; correo: boolean };
+  } | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("campana");
@@ -84,7 +87,7 @@ export default function BotonRuletaPage() {
       // responder el servidor le arruinaba la sorpresa justo a quien tiene el
       // teléfono en la mano y está anunciando frente a la gente.
       setTimeout(() => {
-        setUltimo({ nombre: d.ganador.nombre, premio: d.premio });
+        setUltimo({ nombre: d.ganador.nombre, premio: d.premio, aviso: d.aviso });
         setGirando(false);
       }, BLOQUEO_MS);
     } catch (e: any) {
@@ -187,6 +190,17 @@ export default function BotonRuletaPage() {
             <p style={{ margin: "4px 0 0", fontSize: 14, fontWeight: 700, color: "#FFD84D", lineHeight: 1.35 }}>
               {ultimo.premio}
             </p>
+            {/* Por dónde se le avisó: si el correo falló hay que decírselo a
+                viva voz, y esto lo dice sin tener que ir a revisar nada. */}
+            {ultimo.aviso && (
+              <p style={{ margin: "10px 0 0", fontSize: 11, color: "rgba(250,243,224,0.65)" }}>
+                {ultimo.aviso.correo ? "✓ correo" : "✗ correo"}
+                {" · "}
+                {ultimo.aviso.bandeja ? "✓ app" : "✗ app"}
+                {" · "}
+                {ultimo.aviso.push ? "✓ push" : "— sin push"}
+              </p>
+            )}
           </div>
         )}
 
