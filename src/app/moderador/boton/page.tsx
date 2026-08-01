@@ -79,10 +79,14 @@ export default function BotonRuletaPage() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "No se pudo girar");
-      setUltimo({ nombre: d.ganador.nombre, premio: d.premio });
       setQuedan(d.quedan);
-      // El bloqueo dura lo que la pantalla tarda en girar y revelar.
-      setTimeout(() => setGirando(false), BLOQUEO_MS);
+      // El ganador se revela recién cuando la rueda frena. Mostrarlo al
+      // responder el servidor le arruinaba la sorpresa justo a quien tiene el
+      // teléfono en la mano y está anunciando frente a la gente.
+      setTimeout(() => {
+        setUltimo({ nombre: d.ganador.nombre, premio: d.premio });
+        setGirando(false);
+      }, BLOQUEO_MS);
     } catch (e: any) {
       toast({ variant: "destructive", title: "No se pudo girar", description: e?.message });
       setGirando(false);

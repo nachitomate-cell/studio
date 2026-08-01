@@ -42,27 +42,34 @@ type Estado = {
 };
 
 /**
- * Corta el nombre del premio en como mucho dos líneas.
+ * Corta el nombre del premio en como mucho tres líneas cortas.
  *
- * A lo largo del radio caben unos 18 caracteres por línea: el resto del espacio
- * se lo comen el borde y el eje central. Con dos líneas entran nombres como
- * "Café + 10% dcto en Pomarus" completos; lo que no entra se recorta, porque un
- * nombre pisando el borde se lee peor que uno truncado.
+ * El texto va TANGENCIAL —perpendicular al radio, como en las ruletas de feria—
+ * y no a lo largo del radio. Radialmente solo hay ~100 px útiles antes de topar
+ * con el eje, así que un nombre de 18 caracteres cruzaba el centro y se salía
+ * por el borde. Tangencialmente el ancho disponible es el arco de la porción, y
+ * se puede apilar en varias líneas hacia adentro.
  */
-const MAX_LINEA = 18;
-function partirEnDos(texto: string): string[] {
-  if (texto.length <= MAX_LINEA) return [texto];
-  const palabras = texto.split(" ");
-  let a = "";
-  let i = 0;
-  while (i < palabras.length && (a + palabras[i]).length <= MAX_LINEA) {
-    a += (a ? " " : "") + palabras[i];
-    i++;
+const MAX_LINEA = 13;
+const MAX_LINEAS = 3;
+function partirTexto(texto: string): string[] {
+  const palabras = texto.replace(/\s*·\s*/g, " ").split(/\s+/);
+  const lineas: string[] = [];
+  let actual = "";
+  for (const p of palabras) {
+    const cand = actual ? `${actual} ${p}` : p;
+    if (cand.length <= MAX_LINEA) { actual = cand; continue; }
+    if (actual) lineas.push(actual);
+    actual = p.length > MAX_LINEA ? `${p.slice(0, MAX_LINEA - 1)}…` : p;
+    if (lineas.length === MAX_LINEAS) break;
   }
-  let b = palabras.slice(i).join(" ");
-  if (!a) { a = texto.slice(0, MAX_LINEA); b = texto.slice(MAX_LINEA); }
-  if (b.length > MAX_LINEA) b = `${b.slice(0, MAX_LINEA - 1)}…`;
-  return b ? [a, b] : [a];
+  if (actual && lineas.length < MAX_LINEAS) lineas.push(actual);
+  // Si sobró texto, se marca en la última línea en vez de cortar en seco.
+  const usadas = lineas.join(" ").replace(/…$/, "").length;
+  if (usadas < texto.replace(/\s*·\s*/g, " ").length - 1 && lineas.length === MAX_LINEAS) {
+    lineas[MAX_LINEAS - 1] = `${lineas[MAX_LINEAS - 1].slice(0, MAX_LINEA - 1)}…`;
+  }
+  return lineas;
 }
 
 const PALETA = [
@@ -84,6 +91,8 @@ export default function RuletaPage() {
   const [girando, setGirando] = useState(false);
   const [revelado, setRevelado] = useState(false);
   const ultimoGiro = useRef<string | null>(null);
+  /** Si ya se recibió el primer snapshot, exista o no el documento. */
+  const sincronizado = useRef(false);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("campana");
@@ -114,14 +123,24 @@ export default function RuletaPage() {
   useEffect(() => {
     if (!autorizado) return;
     const unsub = onSnapshot(doc(db, "ruleta", campana), (snap) => {
-      if (!snap.exists()) return;
+      // La sincronización inicial se marca SIEMPRE, exista o no el documento.
+      // Antes solo se marcaba si existía: tras un reinicio el doc no está, el
+      // primer snapshot salía por acá sin marcar nada, y el primer giro real se
+      // confundía con la carga inicial y no giraba. Pasaba solo la primera vez.
+      if (!snap.exists()) { sincronizado.current = true; return; }
+
       const d = snap.data() as Estado;
       setEstado(d);
 
-      // Cada iniciadoEn distinto es una orden de girar. Al cargar la página se
-      // registra el actual sin girar: si la pantalla se reinicia, no repite un
-      // giro que ya pasó.
-      if (ultimoGiro.current === null) { ultimoGiro.current = d.iniciadoEn; setRevelado(true); return; }
+      // Cada iniciadoEn distinto es una orden de girar. Si al cargar ya había un
+      // giro hecho, se registra sin repetirlo: una pantalla que se reinicia a
+      // mitad del evento no tiene por qué re-sortear algo que ya pasó.
+      if (!sincronizado.current) {
+        sincronizado.current = true;
+        ultimoGiro.current = d.iniciadoEn;
+        setRevelado(true);
+        return;
+      }
       if (d.iniciadoEn === ultimoGiro.current) return;
       ultimoGiro.current = d.iniciadoEn;
 
@@ -217,16 +236,27 @@ export default function RuletaPage() {
               const grande = paso > 180 ? 1 : 0;
               const c = PALETA[i % PALETA.length];
 
-              // Ángulo del centro de ESTA porción en coordenadas SVG (0 = a la
-              // derecha). El -90 es el mismo desfase con que se dibuja el path:
-              // sin él, el texto queda una porción corrida y en las de la
-              // izquierda sale de cabeza.
+              // Centro de ESTA porción en coordenadas SVG (0 = a la derecha).
+              // El -90 es el mismo desfase con que se dibuja el path.
               const centro = i * paso + paso / 2 - 90;
               const norm = ((centro % 360) + 360) % 360;
-              // En la mitad izquierda se voltea el texto para que nunca se lea
-              // al revés; el ancla cambia para que siga arrancando en el borde.
-              const volteado = norm > 90 && norm < 270;
-              const lineas = partirEnDos(nombre);
+              // Centro del texto: coordenadas ABSOLUTAS sobre el radio medio.
+              // Se calculan aparte de la rotación porque `rotate` sobre el
+              // centro controlaría a la vez posición y orientación, y acá hacen
+              // falta distintas: ubicado en su porción, pero girado tangencial.
+              const radioTexto = r * 0.64;
+              const rad = (centro * Math.PI) / 180;
+              const cx = r + radioTexto * Math.cos(rad);
+              const cy = r + radioTexto * Math.sin(rad);
+
+              // Tangencial = perpendicular al radio. Si queda de cabeza se le
+              // suman 180°, que en una tangente sigue siendo tangente.
+              let giro = centro + 90;
+              const giroNorm = ((giro % 360) + 360) % 360;
+              if (giroNorm > 90 && giroNorm < 270) giro += 180;
+
+              const lineas = partirTexto(nombre);
+              const alto = 12.5;
 
               return (
                 <g key={`${nombre}-${i}`}>
@@ -235,15 +265,13 @@ export default function RuletaPage() {
                     fill={c.fondo} stroke="rgba(212,175,55,0.55)" strokeWidth={1.6}
                   />
                   <text
-                    fill={c.texto} fontSize={11} fontWeight={800}
-                    textAnchor={volteado ? "start" : "end"}
-                    transform={`rotate(${volteado ? centro + 180 : centro} ${r} ${r})`}
-                    x={volteado ? 14 : 2 * r - 14}
-                    y={r}
+                    fill={c.texto} fontSize={11.5} fontWeight={800}
+                    textAnchor="middle" dominantBaseline="middle"
+                    transform={`translate(${cx} ${cy}) rotate(${giro})`}
                     style={{ letterSpacing: "-0.2px" }}
                   >
                     {lineas.map((l, k) => (
-                      <tspan key={k} x={volteado ? 14 : 2 * r - 14} dy={k === 0 ? (lineas.length > 1 ? -6 : 4) : 13}>
+                      <tspan key={k} x={0} y={(k - (lineas.length - 1) / 2) * alto}>
                         {l}
                       </tspan>
                     ))}

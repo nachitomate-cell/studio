@@ -23,8 +23,12 @@ import { randomInt } from "crypto";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { ALLOWED_MOD_EMAILS, ROLES_STAFF_PANEL } from "@/lib/constants";
 
-/** Máximo de segmentos en la rueda: más allá no se distingue ninguno. */
-const MAX_SEGMENTOS = 10;
+/**
+ * Segmentos de la rueda. Con 10 cada porción es de 36°: el nombre queda tan
+ * angosto que hay que partirlo en trozos ilegibles. Con 6 la porción es de 60°
+ * y el premio entra completo, que es lo que la gente tiene que poder leer.
+ */
+const MAX_SEGMENTOS = 6;
 
 export async function POST(request: Request) {
   try {
