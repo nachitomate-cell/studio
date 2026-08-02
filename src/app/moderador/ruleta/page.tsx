@@ -1,23 +1,25 @@
 "use client";
 
 /**
- * Ruleta de premios del stand.
+ * Ruleta de sorteo entre los inscritos de la campaña.
  *
- * Funciona SOLA, sin base de datos: quien aprieta gira, y se lleva en el
- * momento lo que salga. Los premios no se consumen — la misma rueda sirve toda
- * la tarde para toda la gente que pase. Lo que limita la entrega es el stock
- * físico del mostrador, no un contador en Firestore.
+ * El operador arma la rueda con los premios que va a entregar (nombre y color,
+ * desde el engranaje) y cada giro sortea uno entre quienes se registraron por
+ * el QR del evento y todavía no han ganado nada.
  *
- * Esto es deliberado y no una simplificación: la versión anterior sorteaba
- * entre socios registrados y quemaba el premio, lo que obligaba a tener
- * servidor, sesión y red viva en cada giro. Como atracción de stand eso solo
- * agrega maneras de fallar frente a una fila de gente esperando.
+ * QUIÉN gana y EN QUÉ segmento cae lo decide el servidor antes de que la rueda
+ * se mueva. La animación es puesta en escena de un resultado ya escrito: si
+ * decidiera la animación, el ganador dependería de dónde frena un navegador,
+ * imposible de auditar y trivial de manipular.
  *
- * Los bloques (nombre y color) los edita el operador desde el engranaje y
- * quedan guardados en el navegador del tótem. Sin backend: la configuración
- * pertenece al equipo que está mostrando la rueda, no a la cuenta.
+ * Al ganador se le avisa solo, por push, correo y bandeja de la app, con el
+ * lugar de retiro y un plazo. Nadie está anotando nombres a mano en la feria.
  *
- * Se dibuja sobre el lienzo fijo de 256×768 del tótem y se escala a la ventana.
+ * La configuración de la rueda vive en el navegador del equipo que la muestra,
+ * no en Firestore: es utilería del operador, no un dato del negocio.
+ *
+ * Ocupa la pantalla completa. El lienzo de 256×768 del tótem LED se conserva y
+ * se activa con `?totem=1` o desde el botón de formato.
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
@@ -53,6 +55,22 @@ const REVELAR_MS = GIRO_MS + 700;
 const OCULTAR_MS = 9000;
 
 type Bloque = { id: string; nombre: string; color: string };
+
+/** Lo que devuelve el servidor al sortear. El ganador ya está escrito y avisado. */
+type Resultado = {
+  sorteoId: string;
+  indiceGanador: number;
+  premio: string;
+  ganador: { nombre: string; pila: string; correo: string };
+  participantes: number;
+  quedan: number;
+  minutos: number;
+  expiraEn: string;
+  aviso: { bandeja: boolean; push: boolean; correo: boolean };
+};
+
+/** Plazo por defecto para retirar el premio en el stand. */
+const MINUTOS_POR_DEFECTO = 30;
 
 /**
  * Punto de partida: los premios reales de la Expovino. Es solo el valor
@@ -148,8 +166,13 @@ export default function RuletaPage() {
   const [cargado, setCargado] = useState(false);
   const [angulo, setAngulo] = useState(0);
   const [girando, setGirando] = useState(false);
-  const [premio, setPremio] = useState<Bloque | null>(null);
+  const [consultando, setConsultando] = useState(false);
+  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [revelado, setRevelado] = useState(false);
+  /** Si cada premio se entrega una sola vez y sale de la rueda al ganarse. */
+  const [unico, setUnico] = useState(true);
+  const [minutos, setMinutos] = useState(MINUTOS_POR_DEFECTO);
   /** Sube en cada premio. Sirve de `key` para relanzar las animaciones. */
   const [celebracion, setCelebracion] = useState(0);
   const [audioTocado, setAudioTocado] = useState(false);
@@ -159,6 +182,14 @@ export default function RuletaPage() {
   /** Los bloques vigentes, para leerlos dentro del giro sin re-crear el handler. */
   const bloquesRef = useRef<Bloque[]>(bloques);
   bloquesRef.current = bloques;
+  // Lo mismo para el resto de lo que lee el giro: se registra una sola vez y no
+  // puede depender de valores capturados en el primer render.
+  const campanaRef = useRef(campana);
+  campanaRef.current = campana;
+  const minutosRef = useRef(minutos);
+  minutosRef.current = minutos;
+  const unicoRef = useRef(unico);
+  unicoRef.current = unico;
   /** Temporizadores del giro en curso, para cancelarlos si se gira de nuevo. */
   const temporizadores = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -211,7 +242,15 @@ export default function RuletaPage() {
       const crudo = localStorage.getItem(clave(campana));
       if (crudo) {
         const d = JSON.parse(crudo);
-        if (Array.isArray(d) && d.length) setBloques(d);
+        // Las primeras versiones guardaban solo el arreglo de bloques. Se sigue
+        // aceptando para no borrarle la configuración a quien ya la tenía.
+        if (Array.isArray(d)) {
+          if (d.length) setBloques(d);
+        } else if (d && typeof d === "object") {
+          if (Array.isArray(d.bloques) && d.bloques.length) setBloques(d.bloques);
+          if (typeof d.unico === "boolean") setUnico(d.unico);
+          if (Number.isFinite(d.minutos)) setMinutos(d.minutos);
+        }
       }
     } catch { /* configuración corrupta: se sigue con la inicial */ }
     setCargado(true);
@@ -220,27 +259,59 @@ export default function RuletaPage() {
   useEffect(() => {
     // No se guarda antes de leer, o el primer render pisaría lo configurado.
     if (!cargado) return;
-    try { localStorage.setItem(clave(campana), JSON.stringify(bloques)); } catch { /* cuota llena */ }
-  }, [bloques, campana, cargado]);
+    try {
+      localStorage.setItem(clave(campana), JSON.stringify({ bloques, unico, minutos }));
+    } catch { /* cuota llena */ }
+  }, [bloques, unico, minutos, campana, cargado]);
 
   // ── El giro ───────────────────────────────────────────────────────────────
-  const girar = useCallback(() => {
+  const girar = useCallback(async () => {
     if (!puedeGirar.current) return;
     puedeGirar.current = false;
 
-    // Los bloques se leen de una referencia y no del actualizador de estado:
-    // React puede invocar un actualizador más de una vez, y acá adentro hay
-    // efectos —sonido y temporizadores— que se dispararían duplicados.
-    // Si se gira sobre un premio que todavía está en pantalla, los
+    // Si se gira sobre un resultado que todavía está en pantalla, los
     // temporizadores del giro anterior siguen pendientes y ocultarían el
     // resultado nuevo a destiempo.
     temporizadores.current.forEach(clearTimeout);
     temporizadores.current = [];
 
+    // Los bloques se leen de una referencia y no del actualizador de estado:
+    // React puede invocar un actualizador más de una vez, y acá adentro hay
+    // efectos —red, sonido y temporizadores— que se dispararían duplicados.
     const actuales = bloquesRef.current;
+    setError(null);
+    setConsultando(true);
+
+    // El servidor decide ANTES de que la rueda se mueva. Animar primero y
+    // preguntar después obligaría a corregir el aterrizaje a mitad de camino, o
+    // a dejar la rueda girando en el vacío si la petición falla.
+    let d: Resultado;
+    try {
+      const u = auth.currentUser;
+      if (!u) throw new Error("Sesión cerrada. Vuelve a entrar.");
+      const res = await fetch("/api/admin/campana/girar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await u.getIdToken()}` },
+        body: JSON.stringify({
+          campana: campanaRef.current,
+          bloques: actuales.map((b) => b.nombre),
+          minutos: minutosRef.current,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "No se pudo sortear");
+      d = json as Resultado;
+    } catch (e: any) {
+      setError(e?.message ?? "No se pudo sortear");
+      setConsultando(false);
+      puedeGirar.current = true;
+      return;
+    }
+    setConsultando(false);
+
     const n = actuales.length;
     const paso = 360 / n;
-    const idx = Math.floor(Math.random() * n);
+    const idx = d.indiceGanador;
 
     setRevelado(false);
     setGirando(true);
@@ -257,16 +328,19 @@ export default function RuletaPage() {
 
     temporizadores.current.push(setTimeout(() => {
       setGirando(false);
-      setPremio(actuales[idx]);
+      setResultado(d);
       setRevelado(true);
       setCelebracion((c) => c + 1);
       sonarGanador();
-      // Se puede volver a girar apenas se revela: con fila esperando, obligar a
-      // aguantar los segundos del premio anterior frena la atracción entera.
+      // Si cada premio se entrega una sola vez, el bloque sale de la rueda
+      // recién ahora: quitarlo antes delataría el resultado durante el giro.
+      if (unicoRef.current) {
+        setBloques((bs) => (bs.length > 2 ? bs.filter((b) => b.id !== actuales[idx].id) : bs));
+      }
       puedeGirar.current = true;
     }, REVELAR_MS));
 
-    // Si nadie gira, el premio se retira solo y vuelve la invitación.
+    // Si no se vuelve a girar, el resultado se retira y vuelve la invitación.
     temporizadores.current.push(setTimeout(() => setRevelado(false), REVELAR_MS + OCULTAR_MS));
   }, []);
 
@@ -274,8 +348,8 @@ export default function RuletaPage() {
   // no estar editando ni girando. Mostrando un premio SÍ se puede girar: el
   // toque del siguiente en la fila arranca su tirada de inmediato.
   useEffect(() => {
-    puedeGirar.current = audioTocado && !editando && !girando && bloques.length >= 2;
-  }, [audioTocado, editando, girando, bloques.length]);
+    puedeGirar.current = audioTocado && !editando && !girando && !consultando && bloques.length >= 2;
+  }, [audioTocado, editando, girando, consultando, bloques.length]);
 
   // Teclado: además del toque, un presentador inalámbrico (que el sistema ve
   // como teclado) permite girar a distancia sin tocar el tótem.
@@ -367,7 +441,7 @@ export default function RuletaPage() {
         {!apaisado && (
           <div style={{ textAlign: "center", flexShrink: 0 }}>
             <p style={{ margin: 0, fontSize: px(12), fontWeight: 900, color: "#D4AF37", letterSpacing: 2.4 * k }}>
-              GIRA Y GANA
+              SORTEO EXPOVINO
             </p>
             <p style={{ margin: `${px(5)}px 0 0`, fontSize: px(11), color: "rgba(250,243,224,0.5)" }}>
               Club Patio Curauma
@@ -531,36 +605,48 @@ export default function RuletaPage() {
             <p style={{
               margin: 0, fontSize: px(27), fontWeight: 900, color: "#D4AF37",
               letterSpacing: k, lineHeight: 1.1,
-              animation: "respira 1.8s ease-in-out infinite",
+              animation: consultando ? "none" : "respira 1.8s ease-in-out infinite",
             }}>
-              TOCA PARA GIRAR
+              {consultando ? "SORTEANDO…" : "TOCA PARA SORTEAR"}
             </p>
             <p style={{ margin: 0, fontSize: px(12), color: "rgba(255,255,255,0.55)", lineHeight: 1.45 }}>
-              Todos ganan algo<br />Retíralo en el mostrador
+              {error
+                ? ""
+                : <>Entre todos los inscritos<br />de Expovino</>}
             </p>
+            {/* El error se muestra acá y no en un aviso flotante: es la misma
+                pantalla que está mirando el operador, y un toast se pierde. */}
+            {error && (
+              <p style={{
+                margin: `${px(4)}px 0 0`, fontSize: px(12), fontWeight: 700, lineHeight: 1.45,
+                color: "#FCA5A5", maxWidth: px(300),
+              }}>
+                {error}
+              </p>
+            )}
           </div>
 
-          {/* Premio */}
+          {/* Ganador */}
           <div style={{
             position: "absolute", inset: 0, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", textAlign: "center",
-            opacity: revelado && premio ? 1 : 0,
+            opacity: revelado && resultado ? 1 : 0,
             transform: revelado ? "translateY(0) scale(1)" : `translateY(${px(14)}px) scale(.96)`,
             transition: "opacity .5s ease, transform .5s cubic-bezier(.34,1.56,.64,1)",
             pointerEvents: "none",
           }}>
-            {premio && (
+            {resultado && (
               <>
                 <div style={{
                   position: "relative", overflow: "hidden",
-                  width: "100%", borderRadius: px(18), padding: `${px(16)}px ${px(12)}px`,
+                  width: "100%", borderRadius: px(18), padding: `${px(14)}px ${px(12)}px`,
                   background: "linear-gradient(150deg, rgba(212,175,55,0.28), rgba(123,30,58,0.34))",
                   border: `${px(2)}px solid rgba(212,175,55,0.75)`,
                   boxShadow: `0 0 ${px(34)}px rgba(212,175,55,0.4)`,
                 }}>
                   {/* Barrido de luz sobre la tarjeta, como metal pulido. Se
-                      repite en bucle para que el premio no se quede inerte
-                      mientras la persona lo lee. */}
+                      repite en bucle para que no se quede inerte mientras la
+                      sala busca a la persona que salió sorteada. */}
                   <div style={{
                     position: "absolute", top: 0, bottom: 0, width: "45%",
                     background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent)",
@@ -568,17 +654,32 @@ export default function RuletaPage() {
                     pointerEvents: "none",
                   }} />
                   <p style={{ margin: 0, fontSize: px(10), fontWeight: 900, color: "#FFD84D", letterSpacing: 2 * k }}>
-                    GANASTE
+                    GANA
                   </p>
+                  {/* El NOMBRE manda sobre el premio: es lo que la gente está
+                      esperando escuchar, y lo que hace que alguien se dé por
+                      aludido en medio del ruido de la feria. */}
                   <p style={{
-                    margin: `${px(8)}px 0 0`, fontWeight: 900, lineHeight: 1.12, color: "#fff",
-                    fontSize: px(premio.nombre.length <= 14 ? 27 : premio.nombre.length <= 22 ? 22 : 18),
+                    margin: `${px(6)}px 0 0`, fontWeight: 900, lineHeight: 1.08, color: "#fff",
+                    fontSize: px(resultado.ganador.pila.length <= 8 ? 34
+                      : resultado.ganador.pila.length <= 12 ? 27 : 22),
                   }}>
-                    {premio.nombre}
+                    {resultado.ganador.pila}
+                  </p>
+                  <div style={{ height: 1, margin: `${px(9)}px auto`, width: "70%", background: "rgba(212,175,55,0.45)" }} />
+                  <p style={{
+                    margin: 0, fontWeight: 800, lineHeight: 1.2, color: "#FFD84D",
+                    fontSize: px(resultado.premio.length <= 18 ? 16 : 13),
+                  }}>
+                    {resultado.premio}
                   </p>
                 </div>
-                <p style={{ margin: `${px(11)}px 0 0`, fontSize: px(11), color: "rgba(255,255,255,0.6)", lineHeight: 1.4 }}>
-                  Retíralo en el mostrador<br />del Club Patio Curauma
+                <p style={{ margin: `${px(10)}px 0 0`, fontSize: px(11), color: "rgba(255,255,255,0.72)", lineHeight: 1.45 }}>
+                  Acércate al <strong>stand de Club Patio</strong><br />
+                  cerca de la entrada del evento
+                </p>
+                <p style={{ margin: `${px(5)}px 0 0`, fontSize: px(11), fontWeight: 800, color: "#FCA5A5", lineHeight: 1.4 }}>
+                  Tienes {resultado.minutos} min o pierdes el premio
                 </p>
               </>
             )}
@@ -680,6 +781,30 @@ export default function RuletaPage() {
               ? <Monitor style={{ width: 17, height: 17 }} />
               : <Smartphone style={{ width: 17, height: 17 }} />}
           </button>
+
+          {/* Por dónde le llegó el aviso al último ganador. Va acá, chico y en
+              la esquina, y NO en la tarjeta grande: esa la está mirando toda la
+              sala y un «✗ correo» ahí no le dice nada a nadie salvo al
+              operador, que es quien tiene que decidir si lo llama a viva voz. */}
+          {resultado && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 7, padding: "0 10px",
+              height: 34, borderRadius: 10, fontSize: 11, fontWeight: 700,
+              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+              color: "rgba(250,243,224,0.5)", whiteSpace: "nowrap",
+            }}>
+              <span style={{ color: resultado.aviso.push ? "#86EFAC" : "#FCA5A5" }}>
+                {resultado.aviso.push ? "✓" : "✗"} push
+              </span>
+              <span style={{ color: resultado.aviso.correo ? "#86EFAC" : "#FCA5A5" }}>
+                {resultado.aviso.correo ? "✓" : "✗"} correo
+              </span>
+              <span style={{ color: resultado.aviso.bandeja ? "#86EFAC" : "#FCA5A5" }}>
+                {resultado.aviso.bandeja ? "✓" : "✗"} app
+              </span>
+              <span style={{ opacity: 0.6 }}>· quedan {resultado.quedan}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -690,6 +815,10 @@ export default function RuletaPage() {
           onCerrar={() => setEditando(false)}
           totem={totem}
           onCambiarFormato={cambiarFormato}
+          unico={unico}
+          onCambiarUnico={setUnico}
+          minutos={minutos}
+          onCambiarMinutos={setMinutos}
         />
       )}
     </main>
@@ -706,12 +835,17 @@ export default function RuletaPage() {
  */
 function EditorBloques({
   bloques, onCambiar, onCerrar, totem, onCambiarFormato,
+  unico, onCambiarUnico, minutos, onCambiarMinutos,
 }: {
   bloques: Bloque[];
   onCambiar: (b: Bloque[]) => void;
   onCerrar: () => void;
   totem: boolean;
   onCambiarFormato: () => void;
+  unico: boolean;
+  onCambiarUnico: (v: boolean) => void;
+  minutos: number;
+  onCambiarMinutos: (v: number) => void;
 }) {
   const nuevoId = () => `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -752,8 +886,8 @@ function EditorBloques({
           </button>
         </div>
         <p style={{ margin: "0 0 16px", fontSize: 12, color: "rgba(250,243,224,0.5)", lineHeight: 1.5 }}>
-          Se guardan en este equipo y se aplican al instante. Los premios no se
-          gastan: la rueda sirve para toda la gente que pase.
+          Estos son los premios que se sortean. Se guardan en este equipo y se
+          aplican al instante.
         </p>
 
         {bloques.map((b, i) => (
@@ -826,6 +960,54 @@ function EditorBloques({
             cuesta leerlo desde lejos en la pantalla.
           </p>
         )}
+
+        {/* ── Reglas del sorteo ── */}
+        <div style={{
+          marginTop: 22, borderRadius: 13, padding: "13px 14px",
+          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+        }}>
+          <p style={{ margin: "0 0 11px", fontSize: 13, fontWeight: 800, color: "#fff" }}>
+            Reglas del sorteo
+          </p>
+
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", marginBottom: 14 }}>
+            <input
+              type="checkbox"
+              checked={unico}
+              onChange={(e) => onCambiarUnico(e.target.checked)}
+              style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0, accentColor: "#D4AF37", cursor: "pointer" }}
+            />
+            <span>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                Cada premio se entrega una sola vez
+              </span>
+              <span style={{ display: "block", fontSize: 12, color: "rgba(250,243,224,0.5)", lineHeight: 1.45, marginTop: 2 }}>
+                El bloque sale de la rueda al ganarse. Desmárcalo solo si tienes
+                varias unidades del mismo premio.
+              </span>
+            </span>
+          </label>
+
+          <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: "#fff" }}>
+            Plazo para retirar en el stand
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <input
+              type="number" min={5} max={240} step={5}
+              value={minutos}
+              onChange={(e) => onCambiarMinutos(Math.max(5, Math.min(240, Number(e.target.value) || 30)))}
+              style={{
+                width: 88, padding: "9px 11px", borderRadius: 9, fontSize: 14,
+                background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.14)", color: "#fff",
+              }}
+            />
+            <span style={{ fontSize: 13, color: "rgba(250,243,224,0.55)" }}>minutos</span>
+          </div>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "rgba(250,243,224,0.5)", lineHeight: 1.45 }}>
+            Va en el push, el correo y la app: «acércate al stand de Club Patio,
+            cerca de la entrada del evento» con la hora tope.
+          </p>
+        </div>
 
         {/* Formato de la pantalla. Va rotulado acá además del icono de la
             esquina: en una pantalla táctil no hay tooltip que lo explique. */}

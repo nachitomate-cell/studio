@@ -26,7 +26,13 @@ export type ResultadoAviso = {
   detalle?: string;
 };
 
-function plantilla(nombre: string, premio: string, url: string): string {
+/**
+ * Dónde y hasta cuándo se retira. Es lo único que el ganador tiene que
+ * accionar, así que va literal en los tres canales y en el mismo orden.
+ */
+export const LUGAR_RETIRO = "stand de Club Patio, cerca de la entrada del evento";
+
+function plantilla(nombre: string, premio: string, url: string, minutos: number, hasta: string): string {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
@@ -41,9 +47,15 @@ function plantilla(nombre: string, premio: string, url: string): string {
     <div style="background:#faf4e6;border:1px solid #e8dcc0;border-radius:14px;padding:18px;text-align:center;margin-bottom:24px;">
       <p style="margin:0;font-size:19px;font-weight:800;color:#7B1E3A;">${esc(premio)}</p>
     </div>
-    <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 26px;">
-      Acércate al <strong>mostrador del Club Patio Curauma</strong> para retirarlo.
-    </p>
+    <div style="background:#fff4e5;border:1px solid #f5c98a;border-radius:14px;padding:18px;margin-bottom:24px;">
+      <p style="color:#7c4a03;font-size:15px;line-height:1.6;margin:0 0 8px;font-weight:700;">
+        Acércate al ${LUGAR_RETIRO} para retirarlo.
+      </p>
+      <p style="color:#9a5b06;font-size:14px;line-height:1.6;margin:0;">
+        Tienes <strong>${minutos} minutos</strong> (hasta las ${esc(hasta)}). Pasado ese
+        plazo el premio se vuelve a sortear entre los demás inscritos.
+      </p>
+    </div>
     <div style="text-align:center;">
       <a href="${url}" style="display:inline-block;background:#9DCC65;color:#fff;text-decoration:none;padding:14px 30px;border-radius:12px;font-weight:bold;font-size:15px;">Abrir Club Patio</a>
     </div>
@@ -56,12 +68,22 @@ export async function avisarGanador(opts: {
   nombre: string;
   correo: string;
   premio: string;
+  /** Minutos para retirar antes de perder el premio. */
+  minutos?: number;
+  /** Momento exacto en que caduca, en ISO. */
+  expiraEn?: string;
 }): Promise<ResultadoAviso> {
-  const { uid, nombre, correo, premio } = opts;
+  const { uid, nombre, correo, premio, minutos = 30, expiraEn } = opts;
   const pila = nombre.split(/\s+/)[0] || nombre;
+
+  // Hora local de Chile: el ganador está parado en la feria y lo que necesita
+  // es una hora del reloj, no una cuenta regresiva que tenga que calcular.
+  const hasta = new Date(expiraEn ?? Date.now() + minutos * 60_000)
+    .toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", timeZone: "America/Santiago" });
+
   const titulo = "¡Ganaste! 🏆";
   const mensaje = `Felicitaciones ${pila}: saliste sorteado y te ganaste ${premio}. ` +
-    `Acércate al mostrador del Club Patio Curauma para retirarlo.`;
+    `Acércate al ${LUGAR_RETIRO} antes de las ${hasta} (${minutos} min) o pierdes el premio.`;
   const url = `${CANONICAL_BASE_URL}/expovino`;
   const r: ResultadoAviso = { bandeja: false, push: false, correo: false };
 
@@ -103,8 +125,8 @@ export async function avisarGanador(opts: {
       const { error } = await resend.emails.send({
         from: "Club Patio Curauma <soporte@synaptechspa.cl>",
         to: correo,
-        subject: `¡Ganaste! ${premio}`,
-        html: plantilla(pila, premio, url),
+        subject: `¡Ganaste! ${premio} — retíralo antes de las ${hasta}`,
+        html: plantilla(pila, premio, url, minutos, hasta),
       });
       if (error) throw new Error(String((error as any)?.message ?? error));
       r.correo = true;
