@@ -30,7 +30,7 @@ import { auth, db } from "@/lib/firebase";
 import { canAccessModPanel } from "@/lib/constants";
 import { habilitarSonido, sonarArranque, sonarGiro, sonarGanador } from "@/lib/sonidoRuleta";
 import { Confeti } from "@/components/Confeti";
-import { Loader2, Volume2, Settings, Plus, Trash2, X, RotateCcw, Monitor, Smartphone } from "lucide-react";
+import { Loader2, Volume2, Settings, Plus, Trash2, X, RotateCcw, Monitor, Smartphone, Mail } from "lucide-react";
 
 /**
  * Lienzo del tótem LED vertical (195×65 cm reales). Ya no es el formato por
@@ -71,6 +71,32 @@ type Resultado = {
 
 /** Plazo por defecto para retirar el premio en el stand. */
 const MINUTOS_POR_DEFECTO = 30;
+
+/**
+ * Nombre de pila más el primer apellido.
+ *
+ * Solo el nombre de pila no sirve para identificar a nadie: entre los inscritos
+ * de Expovino hay cuatro Paulinas, dos Camilas y dos Katherines. Gritar
+ * "Paulina" frente a la feria hace que se acerquen cuatro personas y tres se
+ * vayan decepcionadas.
+ *
+ * Tampoco va el nombre completo: hay registros de cinco palabras que en pantalla
+ * quedarían en un tamaño que no se lee desde lejos, que es justo lo contrario de
+ * lo que hace falta.
+ */
+function nombreVisible(completo: string): string {
+  const partes = String(completo ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return "socio";
+  // Las partículas de apellido ("de", "del", "de los") van pegadas a lo que
+  // sigue, si no "María de los Ángeles" se corta en "María de".
+  const PARTICULAS = new Set(["de", "del", "la", "las", "los", "san", "santa", "da", "van", "von"]);
+  const salida = [partes[0]];
+  for (let i = 1; i < partes.length; i++) {
+    salida.push(partes[i]);
+    if (!PARTICULAS.has(partes[i].toLowerCase())) break;
+  }
+  return salida.join(" ");
+}
 
 /**
  * Punto de partida: los premios reales de la Expovino. Es solo el valor
@@ -177,6 +203,8 @@ export default function RuletaPage() {
   const [celebracion, setCelebracion] = useState(0);
   const [audioTocado, setAudioTocado] = useState(false);
   const [editando, setEditando] = useState(false);
+  /** Correo del ganador a la vista. Se apaga solo y en cada giro nuevo. */
+  const [verCorreo, setVerCorreo] = useState(false);
   /** Espejo del estado para el atajo de teclado, que se registra una sola vez. */
   const puedeGirar = useRef(false);
   /** Los bloques vigentes, para leerlos dentro del giro sin re-crear el handler. */
@@ -280,6 +308,7 @@ export default function RuletaPage() {
     // efectos —red, sonido y temporizadores— que se dispararían duplicados.
     const actuales = bloquesRef.current;
     setError(null);
+    setVerCorreo(false);
     setConsultando(true);
 
     // El servidor decide ANTES de que la rueda se mueva. Animar primero y
@@ -365,6 +394,14 @@ export default function RuletaPage() {
   }, [girar]);
 
   useEffect(() => () => { temporizadores.current.forEach(clearTimeout); }, []);
+
+  // El correo se retira solo. Dejarlo puesto significaría tener el dato de una
+  // persona en pantalla durante todo lo que queda de feria.
+  useEffect(() => {
+    if (!verCorreo) return;
+    const t = setTimeout(() => setVerCorreo(false), 30_000);
+    return () => clearTimeout(t);
+  }, [verCorreo]);
 
   if (autorizado === null) {
     return (
@@ -666,13 +703,24 @@ export default function RuletaPage() {
                   {/* El NOMBRE manda sobre el premio: es lo que la gente está
                       esperando escuchar, y lo que hace que alguien se dé por
                       aludido en medio del ruido de la feria. */}
-                  <p style={{
-                    margin: `${px(6)}px 0 0`, fontWeight: 900, lineHeight: 1.08, color: "#fff",
-                    fontSize: px(resultado.ganador.pila.length <= 8 ? 31
-                      : resultado.ganador.pila.length <= 12 ? 25 : 21),
-                  }}>
-                    {resultado.ganador.pila}
-                  </p>
+                  {/* El tamaño baja por tramos según el largo real del texto.
+                      Un tamaño fijo se sale de la tarjeta con
+                      "Jean-Christophe Ravanal" y se ve ridículo con "Ana Paz". */}
+                  {(() => {
+                    const visible = nombreVisible(resultado.ganador.nombre);
+                    const tam = visible.length <= 10 ? 32
+                      : visible.length <= 14 ? 27
+                      : visible.length <= 19 ? 22
+                      : visible.length <= 25 ? 18 : 15;
+                    return (
+                      <p style={{
+                        margin: `${px(6)}px 0 0`, fontWeight: 900, lineHeight: 1.12,
+                        color: "#fff", fontSize: px(tam),
+                      }}>
+                        {visible}
+                      </p>
+                    );
+                  })()}
                   <div style={{ height: 1, margin: `${px(9)}px auto`, width: "70%", background: "rgba(212,175,55,0.45)" }} />
                   {/* El premio es el otro dato que importa y estaba quedando
                       tres veces más chico que el nombre. Puede ocupar dos
@@ -804,23 +852,52 @@ export default function RuletaPage() {
               sala y un «✗ correo» ahí no le dice nada a nadie salvo al
               operador, que es quien tiene que decidir si lo llama a viva voz. */}
           {resultado && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 7, padding: "0 10px",
-              height: 34, borderRadius: 10, fontSize: 11, fontWeight: 700,
-              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(250,243,224,0.5)", whiteSpace: "nowrap",
-            }}>
-              <span style={{ color: resultado.aviso.push ? "#86EFAC" : "#FCA5A5" }}>
-                {resultado.aviso.push ? "✓" : "✗"} push
-              </span>
-              <span style={{ color: resultado.aviso.correo ? "#86EFAC" : "#FCA5A5" }}>
-                {resultado.aviso.correo ? "✓" : "✗"} correo
-              </span>
-              <span style={{ color: resultado.aviso.bandeja ? "#86EFAC" : "#FCA5A5" }}>
-                {resultado.aviso.bandeja ? "✓" : "✗"} app
-              </span>
-              <span style={{ opacity: 0.6 }}>· quedan {resultado.quedan}</span>
-            </div>
+            <>
+              {/* Identificar al ganador cuando el nombre no basta. El correo va
+                  ACÁ y no en la tarjeta grande porque esa pantalla la mira toda
+                  la feria, y el correo es dato personal de un tercero: al
+                  operador, que está al lado, le alcanza este tamaño. Se oculta
+                  solo para no dejarlo expuesto el resto de la noche. */}
+              <button
+                onClick={() => setVerCorreo((v) => !v)}
+                title="Ver el correo del ganador para confirmar quién es"
+                style={{ ...BOTON_ESQUINA, width: "auto", padding: "0 10px", gap: 6 }}
+              >
+                <Mail style={{ width: 15, height: 15 }} />
+                <span style={{ fontSize: 11, fontWeight: 800 }}>
+                  {verCorreo ? "ocultar" : "ver correo"}
+                </span>
+              </button>
+
+              {verCorreo && (
+                <div style={{
+                  display: "flex", alignItems: "center", padding: "0 10px",
+                  height: 34, borderRadius: 10, fontSize: 12, fontWeight: 700,
+                  background: "rgba(212,175,55,0.14)", border: "1px solid rgba(212,175,55,0.4)",
+                  color: "#FFD84D", whiteSpace: "nowrap", maxWidth: "42vw", overflow: "hidden",
+                }}>
+                  {resultado.ganador.nombre} · {resultado.ganador.correo}
+                </div>
+              )}
+
+              <div style={{
+                display: "flex", alignItems: "center", gap: 7, padding: "0 10px",
+                height: 34, borderRadius: 10, fontSize: 11, fontWeight: 700,
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                color: "rgba(250,243,224,0.5)", whiteSpace: "nowrap",
+              }}>
+                <span style={{ color: resultado.aviso.push ? "#86EFAC" : "#FCA5A5" }}>
+                  {resultado.aviso.push ? "✓" : "✗"} push
+                </span>
+                <span style={{ color: resultado.aviso.correo ? "#86EFAC" : "#FCA5A5" }}>
+                  {resultado.aviso.correo ? "✓" : "✗"} correo
+                </span>
+                <span style={{ color: resultado.aviso.bandeja ? "#86EFAC" : "#FCA5A5" }}>
+                  {resultado.aviso.bandeja ? "✓" : "✗"} app
+                </span>
+                <span style={{ opacity: 0.6 }}>· quedan {resultado.quedan}</span>
+              </div>
+            </>
           )}
         </div>
       )}
