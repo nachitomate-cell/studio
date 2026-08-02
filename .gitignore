@@ -49,3 +49,6 @@ firestore-debug.log
 *-debug.log
 .emulator-data/
 .claude/
+
+.vercel
+.env*

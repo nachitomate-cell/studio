@@ -117,22 +117,67 @@ export async function avisarGanador(opts: {
     r.detalle = `${r.detalle ?? ""} push: ${e?.message}`.trim();
   }
 
-  // 3. Correo — el que de verdad alcanza al ganador
-  try {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (apiKey && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) {
-      const resend = new Resend(apiKey);
-      const { error } = await resend.emails.send({
-        from: "Club Patio Curauma <soporte@synaptechspa.cl>",
-        to: correo,
-        subject: `¡Ganaste! ${premio} — retíralo antes de las ${hasta}`,
-        html: plantilla(pila, premio, url, minutos, hasta),
-      });
-      if (error) throw new Error(String((error as any)?.message ?? error));
-      r.correo = true;
+  // 3. Correo — el que de verdad alcanza al ganador.
+  //
+  // Se intenta Brevo primero y Resend después. No es preferencia técnica: el
+  // 2026-08-01, en plena Expovino, la cuota diaria de Resend (100) se agotó a
+  // media noche y los avisos de ganador se habrían ido en silencio. Con dos
+  // proveedores, que uno se quede sin cupo deja de ser un evento que apaga el
+  // único canal que alcanza a todos los inscritos.
+  const asunto = `¡Ganaste! ${premio} — retíralo antes de las ${hasta}`;
+  const html = plantilla(pila, premio, url, minutos, hasta);
+  const correoValido = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo);
+
+  if (correoValido) {
+    const fallos: string[] = [];
+
+    // ── Brevo ───────────────────────────────────────────────────────────────
+    if (!r.correo && process.env.BREVO_API_KEY) {
+      try {
+        // El remitente tiene que estar verificado en Brevo o rechaza el envío.
+        const desde = process.env.BREVO_SENDER_EMAIL || "nachitomate@gmail.com";
+        const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "api-key": process.env.BREVO_API_KEY,
+          },
+          body: JSON.stringify({
+            sender: { name: "Club Patio Curauma", email: desde },
+            to: [{ email: correo, name: nombre }],
+            subject: asunto,
+            htmlContent: html,
+          }),
+        });
+        if (!res.ok) throw new Error(`brevo ${res.status}: ${(await res.text()).slice(0, 160)}`);
+        r.correo = true;
+      } catch (e: any) {
+        fallos.push(`brevo: ${e?.message}`);
+      }
     }
-  } catch (e: any) {
-    r.detalle = `${r.detalle ?? ""} correo: ${e?.message}`.trim();
+
+    // ── Resend ──────────────────────────────────────────────────────────────
+    if (!r.correo && process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const { error } = await resend.emails.send({
+          from: "Club Patio Curauma <soporte@synaptechspa.cl>",
+          to: correo,
+          subject: asunto,
+          html,
+        });
+        if (error) throw new Error(String((error as any)?.message ?? error));
+        r.correo = true;
+      } catch (e: any) {
+        fallos.push(`resend: ${e?.message}`);
+      }
+    }
+
+    // Solo se reporta el fallo si NINGUNO logró enviar: que el primero falle y
+    // el segundo salve el aviso no es un problema que haya que mostrar.
+    if (!r.correo && fallos.length) {
+      r.detalle = `${r.detalle ?? ""} correo → ${fallos.join(" | ")}`.trim();
+    }
   }
 
   return r;
