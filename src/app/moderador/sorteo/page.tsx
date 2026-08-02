@@ -5,8 +5,13 @@
  * en medio de un evento — por eso todo está en una pantalla y sin pasos ocultos.
  *
  * Flujo: se elige la campaña (los socios se marcan al inscribirse desde el QR del
- * evento), se ve quiénes participan, se puede avisarles a todos, y al final se
- * extrae un ganador y se le notifica por bandeja, push y correo.
+ * evento), se ve quiénes participan, se administran los premios y se extrae un
+ * ganador, a quien se le avisa solo por bandeja, push y correo.
+ *
+ * Ya no incluye el envío de avisos libres a toda la campaña: escribir un
+ * comunicado a cientos de personas desde un teléfono, en medio de un evento y
+ * sin previsualización ni forma de deshacerlo, es el peor momento posible para
+ * hacerlo.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -19,9 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { BadgeCampana } from "@/components/BadgeCampana";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, Loader2, Trophy, Users, Mail, Bell, Send, RefreshCw, QrCode, Copy, Gift,
+  ArrowLeft, Loader2, Trophy, Users, Mail, Bell, RefreshCw, QrCode, Copy, Gift,
   UserMinus, Trash2, Undo2, Tv, ExternalLink, Plus, RotateCcw,
 } from "lucide-react";
 
@@ -43,11 +47,8 @@ export default function SorteoCampanaPage() {
   const [historial, setHistorial] = useState<Sorteo[]>([]);
   const [cargando, setCargando] = useState(false);
   const [sorteando, setSorteando] = useState(false);
-  const [enviando, setEnviando] = useState(false);
   const [ganador, setGanador] = useState<{ uid: string; nombre: string; correo: string } | null>(null);
   const [premio, setPremio] = useState("");
-  const [titulo, setTitulo] = useState("");
-  const [mensaje, setMensaje] = useState("");
   const [premios, setPremios] = useState<PremioCampana[]>([]);
   const [premioNombre, setPremioNombre] = useState("");
   const [premioCantidad, setPremioCantidad] = useState(1);
@@ -124,13 +125,8 @@ export default function SorteoCampanaPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "No se pudo sortear");
       setGanador(data.ganador);
-      setTitulo("¡Ganaste! 🎉");
       // El premio puede venir de la cola, no solo del campo escrito a mano.
       const ganado: string = data.premio ?? "";
-      setMensaje(
-        `Felicitaciones ${data.ganador.nombre}: saliste sorteado${ganado ? ` y te ganaste ${ganado}` : ""}. ` +
-        `Acércate al mostrador del Club Patio Curauma para retirar tu premio.`,
-      );
       toast({
         title: "Ganador seleccionado 🏆",
         description: `${data.ganador.nombre} entre ${data.totalParticipantes}` + (ganado ? ` · ${ganado}` : ""),
@@ -243,37 +239,6 @@ export default function SorteoCampanaPage() {
       void cargar();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e?.message });
-    }
-  };
-
-  // ── Notificar ─────────────────────────────────────────────────────────────
-  const notificar = async (soloGanador: boolean) => {
-    if (!titulo.trim() || !mensaje.trim()) {
-      toast({ variant: "destructive", title: "Falta contenido", description: "Escribe el título y el mensaje." });
-      return;
-    }
-    setEnviando(true);
-    try {
-      const res = await fetch("/api/admin/campana/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({
-          campana: campana.trim().toLowerCase(),
-          titulo: titulo.trim(),
-          mensaje: mensaje.trim(),
-          ...(soloGanador && ganador ? { userIds: [ganador.uid] } : {}),
-        }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "No se pudo enviar");
-      toast({
-        title: "Aviso enviado ✅",
-        description: `${d.bandeja} en la app · ${d.pushEnviados} push · ${d.correosEnviados} correos.`,
-      });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error al enviar", description: e?.message });
-    } finally {
-      setEnviando(false);
     }
   };
 
@@ -491,30 +456,6 @@ export default function SorteoCampanaPage() {
               <BadgeCampana campana={campana.trim().toLowerCase()} tamano="chico" />
             </div>
           )}
-        </section>
-
-        {/* Aviso */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Send className="w-4 h-4 text-slate-400" />
-            <h2 className="text-sm font-black text-slate-800">Enviar aviso</h2>
-          </div>
-          <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título" className="h-11 rounded-xl" />
-          <Textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje" rows={3} className="rounded-xl" />
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => notificar(true)} disabled={enviando || !ganador} variant="outline" className="h-11 rounded-xl font-bold text-xs gap-1">
-              {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trophy className="w-3.5 h-3.5" />}
-              Solo al ganador
-            </Button>
-            <Button onClick={() => notificar(false)} disabled={enviando || participantes.length === 0}
-              className="h-11 rounded-xl font-bold text-xs gap-1" style={{ backgroundColor: "#9DCC65" }}>
-              {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              A todos ({participantes.length})
-            </Button>
-          </div>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
-            Se envía por los tres canales: bandeja de la app (llega a todos), push (solo quien lo activó) y correo.
-          </p>
         </section>
 
         {/* Historial */}

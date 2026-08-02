@@ -30,7 +30,21 @@ import { auth, db } from "@/lib/firebase";
 import { canAccessModPanel } from "@/lib/constants";
 import { habilitarSonido, sonarArranque, sonarGiro, sonarGanador } from "@/lib/sonidoRuleta";
 import { Confeti } from "@/components/Confeti";
-import { Loader2, Volume2, Settings, Plus, Trash2, X, RotateCcw, Monitor, Smartphone, Mail } from "lucide-react";
+import { Loader2, Volume2, Settings, Plus, Trash2, X, RotateCcw, Monitor, Smartphone, Mail, Trophy } from "lucide-react";
+
+/**
+ * Interruptor de la ruleta entre eventos.
+ *
+ * En `false` la pantalla queda en reposo y NO se puede sortear. Es un único
+ * valor a propósito: la ruleta completa —sonido, confeti, bloques, sorteo— se
+ * conserva intacta y volver a encenderla para el próximo evento es cambiar esto
+ * a `true`, sin recuperar código ni rearmar nada.
+ *
+ * Va acá y no en una variable de entorno porque quien la reactiva es quien
+ * edita el proyecto, y una variable en Vercel exige un despliegue aparte y se
+ * olvida entre un evento y el siguiente.
+ */
+const RULETA_ACTIVA = false;
 
 /**
  * Lienzo del tótem LED vertical (195×65 cm reales). Ya no es el formato por
@@ -411,6 +425,42 @@ export default function RuletaPage() {
     );
   }
   if (!autorizado) return null;
+
+  // Pantalla en reposo entre eventos. Se corta acá, después de la autorización
+  // y antes de dibujar nada: así ni siquiera existe una rueda que alguien pueda
+  // hacer girar por accidente sobre la base de inscritos del evento pasado.
+  if (!RULETA_ACTIVA) {
+    return (
+      <main style={{
+        minHeight: "100vh", padding: "32px 24px",
+        background: "radial-gradient(120% 60% at 50% 0%, #3A0E1D 0%, #12060B 62%, #050203 100%)",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        textAlign: "center", color: "#fff",
+        fontFamily: "var(--font-montserrat), Montserrat, sans-serif",
+      }}>
+        <Trophy style={{ width: 54, height: 54, color: "#D4AF37", marginBottom: 20 }} />
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 900, color: "#D4AF37", letterSpacing: 2.4 }}>
+          RULETA DE PREMIOS
+        </p>
+        <h1 style={{ margin: "12px 0 0", fontSize: 27, fontWeight: 900, lineHeight: 1.2, maxWidth: 420 }}>
+          Sin sorteo en curso
+        </h1>
+        <p style={{
+          margin: "14px 0 0", fontSize: 15, lineHeight: 1.6, maxWidth: 400,
+          color: "rgba(250,243,224,0.7)",
+        }}>
+          La ruleta se vuelve a activar para el próximo evento, con sus premios
+          y sus inscritos.
+        </p>
+        <p style={{
+          margin: "26px 0 0", fontSize: 12, lineHeight: 1.6, maxWidth: 400,
+          color: "rgba(250,243,224,0.38)",
+        }}>
+          Expovino 2026 · 23 premios entregados
+        </p>
+      </main>
+    );
+  }
 
   const r = DIAMETRO / 2;
   const n = bloques.length;
