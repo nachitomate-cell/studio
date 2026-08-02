@@ -585,7 +585,11 @@ export default function RuletaPage() {
           position: "relative",
           width: apaisado ? Math.min(lienzo.w - D - px(70), px(330)) : "100%",
           maxWidth: apaisado ? undefined : px(330),
-          height: apaisado ? D * 0.8 : px(168),
+          // Alto suficiente para la tarjeta completa MÁS las dos líneas de
+          // instrucciones. Con 168 la tarjeta se encogía por debajo de su
+          // contenido —es un ítem flex— y su overflow:hidden, que existe para
+          // el barrido de luz, le cortaba el nombre del premio por la mitad.
+          height: apaisado ? Math.min(D * 0.92, lienzo.h - px(60)) : px(232),
           flexShrink: 0,
         }}>
 
@@ -639,6 +643,9 @@ export default function RuletaPage() {
               <>
                 <div style={{
                   position: "relative", overflow: "hidden",
+                  // Sin esto la tarjeta se encoge y el overflow le come el
+                  // premio: es justo el dato que la persona necesita leer.
+                  flexShrink: 0,
                   width: "100%", borderRadius: px(18), padding: `${px(14)}px ${px(12)}px`,
                   background: "linear-gradient(150deg, rgba(212,175,55,0.28), rgba(123,30,58,0.34))",
                   border: `${px(2)}px solid rgba(212,175,55,0.75)`,
@@ -661,24 +668,34 @@ export default function RuletaPage() {
                       aludido en medio del ruido de la feria. */}
                   <p style={{
                     margin: `${px(6)}px 0 0`, fontWeight: 900, lineHeight: 1.08, color: "#fff",
-                    fontSize: px(resultado.ganador.pila.length <= 8 ? 34
-                      : resultado.ganador.pila.length <= 12 ? 27 : 22),
+                    fontSize: px(resultado.ganador.pila.length <= 8 ? 31
+                      : resultado.ganador.pila.length <= 12 ? 25 : 21),
                   }}>
                     {resultado.ganador.pila}
                   </p>
                   <div style={{ height: 1, margin: `${px(9)}px auto`, width: "70%", background: "rgba(212,175,55,0.45)" }} />
+                  {/* El premio es el otro dato que importa y estaba quedando
+                      tres veces más chico que el nombre. Puede ocupar dos
+                      líneas: cortarlo para que quepa en una no es una opción. */}
                   <p style={{
-                    margin: 0, fontWeight: 800, lineHeight: 1.2, color: "#FFD84D",
-                    fontSize: px(resultado.premio.length <= 18 ? 16 : 13),
+                    margin: 0, fontWeight: 800, lineHeight: 1.22, color: "#FFD84D",
+                    fontSize: px(resultado.premio.length <= 16 ? 20
+                      : resultado.premio.length <= 26 ? 17 : 14),
                   }}>
                     {resultado.premio}
                   </p>
                 </div>
-                <p style={{ margin: `${px(10)}px 0 0`, fontSize: px(11), color: "rgba(255,255,255,0.72)", lineHeight: 1.45 }}>
+                <p style={{
+                  margin: `${px(10)}px 0 0`, fontSize: px(11), lineHeight: 1.45,
+                  color: "rgba(255,255,255,0.72)", flexShrink: 0,
+                }}>
                   Acércate al <strong>stand de Club Patio</strong><br />
                   cerca de la entrada del evento
                 </p>
-                <p style={{ margin: `${px(5)}px 0 0`, fontSize: px(11), fontWeight: 800, color: "#FCA5A5", lineHeight: 1.4 }}>
+                <p style={{
+                  margin: `${px(5)}px 0 0`, fontSize: px(11), fontWeight: 800,
+                  color: "#FCA5A5", lineHeight: 1.4, flexShrink: 0,
+                }}>
                   Tienes {resultado.minutos} min o pierdes el premio
                 </p>
               </>
