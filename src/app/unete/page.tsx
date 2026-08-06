@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AvisoError, type AccionAviso } from "@/components/AvisoError";
 import {
   LogIn, UserPlus, AlertCircle, Phone, Sparkles,
   User as UserIcon, Calendar, Loader2, Gift,
@@ -70,6 +71,13 @@ export default function UnetePage() {
   const [aceptaMarketing, setAceptaMarketing] = useState(false);
   const [aceptaPromoLocales, setAceptaPromoLocales] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Error de servidor, en modal. Separado de `error` a propósito: ese sigue
+   * siendo para la validación de campos, que en línea se lee mejor y no
+   * interrumpe. Un modal por cada "ingresa tu nombre" molestaría más de lo que
+   * ayuda; uno por un registro que no se pudo completar, no.
+   */
+  const [errorModal, setErrorModal] = useState<{ mensaje: string; accion?: AccionAviso } | null>(null);
   const [loading, setLoading] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   // Campaña de evento activa. Acorta el formulario, cambia la marca de la
@@ -157,6 +165,7 @@ export default function UnetePage() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorModal(null);
     setLoading(true);
     let createdAuthUser: User | null = null;
 
@@ -326,6 +335,7 @@ export default function UnetePage() {
     } catch (err: any) {
       const raw: string = err?.message || "";
       let message = getFriendlyErrorMessage(err);
+      const codigo: string = err?.code ?? "";
 
       // Si la cuenta de Auth alcanzó a crearse pero el registro no terminó, hay
       // que deshacerla SIEMPRE, no solo en un caso puntual. Una cuenta a medias
@@ -341,7 +351,27 @@ export default function UnetePage() {
       if (err?.code === "unavailable" || raw.includes("IndexedDB") || raw.includes("AbortError")) {
         message = "Tu navegador bloqueó el almacenamiento local. Abre esta página en una ventana normal (no privada) e inténtalo de nuevo.";
       }
-      setError(message);
+
+      // Los fallos de servidor van al modal, no a la línea sobre el formulario:
+      // ahí quedaban fuera de vista de quien estaba escribiendo más abajo, que
+      // es exactamente cómo se perdió el error que reportó un cliente.
+      setError(null);
+      setErrorModal({
+        mensaje: message,
+        // Quien ya tiene cuenta e intenta registrarse no necesita entender el
+        // error: necesita pasar a iniciar sesión. Se le deja el botón hecho, con
+        // el correo ya escrito, en vez de pedirle que lo busque solo.
+        accion: codigo === "auth/email-already-in-use"
+          ? {
+              texto: "Iniciar sesión",
+              onClick: () => {
+                setIsLogin(true);
+                setPassword("");
+                setError(null);
+              },
+            }
+          : undefined,
+      });
     } finally {
       setLoading(false);
     }
@@ -595,7 +625,9 @@ export default function UnetePage() {
 
               <form onSubmit={handleFormSubmit} noValidate className="u-form">
 
-                {/* Error */}
+                {/* Error de validación de campos. Los fallos del servidor no
+                    salen acá sino en el modal: en línea quedaban fuera de vista
+                    de quien estaba escribiendo más abajo. */}
                 {error && (
                   <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 text-red-400 py-2 px-3">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
@@ -877,6 +909,13 @@ export default function UnetePage() {
       </div>
 
       {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
+
+      <AvisoError
+        mensaje={errorModal?.mensaje ?? null}
+        titulo={isLogin ? "No pudimos iniciar sesión" : "No pudimos crear tu cuenta"}
+        accion={errorModal?.accion}
+        onCerrar={() => setErrorModal(null)}
+      />
 
       <style jsx>{`
         /* ── Page ── */

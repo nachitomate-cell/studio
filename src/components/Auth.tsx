@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc, updateDoc, increment, addDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { getFriendlyErrorMessage } from "@/lib/firebaseErrors";
+import { AvisoError, type AccionAviso } from "@/components/AvisoError";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,12 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aceptaMarketing, setAceptaMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Fallos de servidor, en modal. `error` sigue siendo para la validación de
+   * campos: en línea se lee mejor y no interrumpe. El modal es para lo que de
+   * verdad detiene a la persona.
+   */
+  const [errorModal, setErrorModal] = useState<{ mensaje: string; accion?: AccionAviso } | null>(null);
   const [loading, setLoading] = useState(false);
   const [isRedirectingPendingStamp, setIsRedirectingPendingStamp] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -129,6 +136,7 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorModal(null);
     setLoading(true);
     // Cuenta de Auth creada en este intento, para poder deshacerla si el
     // registro no llega a completarse. Ver el catch.
@@ -338,7 +346,15 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
       if (cuentaCreada) {
         try { await cuentaCreada.delete(); } catch { /* el reintento lo evidenciará */ }
       }
-      setError(getFriendlyErrorMessage(err));
+      setError(null);
+      setErrorModal({
+        mensaje: getFriendlyErrorMessage(err),
+        // Con cuenta ya creada, lo útil no es explicar el error sino ofrecer la
+        // salida: pasar a iniciar sesión, con el correo ya escrito.
+        accion: err?.code === "auth/email-already-in-use"
+          ? { texto: "Iniciar sesión", onClick: () => { setIsLogin(true); setPassword(""); } }
+          : undefined,
+      });
     } finally {
       setLoading(false);
     }
@@ -666,6 +682,13 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
       </Card>
 
       {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
+
+      <AvisoError
+        mensaje={errorModal?.mensaje ?? null}
+        titulo={isLogin ? "No pudimos iniciar sesión" : "No pudimos crear tu cuenta"}
+        accion={errorModal?.accion}
+        onCerrar={() => setErrorModal(null)}
+      />
     </>
   );
 }
