@@ -326,9 +326,19 @@ export default function UnetePage() {
     } catch (err: any) {
       const raw: string = err?.message || "";
       let message = getFriendlyErrorMessage(err);
+
+      // Si la cuenta de Auth alcanzó a crearse pero el registro no terminó, hay
+      // que deshacerla SIEMPRE, no solo en un caso puntual. Una cuenta a medias
+      // deja a la persona encerrada: al reintentar le dice que el correo ya está
+      // en uso, y como no tiene documento en Firestore tampoco puede entrar. El
+      // borrado va antes de mostrar el mensaje para que "inténtalo de nuevo" sea
+      // verdad y no una instrucción que no lleva a ninguna parte.
+      if (createdAuthUser) {
+        try { await createdAuthUser.delete(); } catch { /* si no se puede, el reintento avisará */ }
+      }
+
       // Caso especial (no es de Auth): el navegador bloqueó IndexedDB (modo privado, etc.).
       if (err?.code === "unavailable" || raw.includes("IndexedDB") || raw.includes("AbortError")) {
-        if (createdAuthUser) { try { await createdAuthUser.delete(); } catch {} }
         message = "Tu navegador bloqueó el almacenamiento local. Abre esta página en una ventana normal (no privada) e inténtalo de nuevo.";
       }
       setError(message);

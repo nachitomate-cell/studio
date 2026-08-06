@@ -130,6 +130,9 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    // Cuenta de Auth creada en este intento, para poder deshacerla si el
+    // registro no llega a completarse. Ver el catch.
+    let cuentaCreada: import("firebase/auth").User | null = null;
 
     try {
       preventAutoRedirect.current = true;
@@ -213,6 +216,7 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
+        cuentaCreada = newUser;
         const emailLimpio = email.toLowerCase().trim();
 
         await updateProfile(newUser, { displayName: nombre.trim() });
@@ -328,6 +332,12 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
         return;
       }
     } catch (err: any) {
+      // Una cuenta de Auth sin su documento en Firestore deja a la persona
+      // encerrada: al reintentar le dirá que el correo ya está en uso, y sin
+      // documento tampoco puede entrar. Se deshace para que reintentar sirva.
+      if (cuentaCreada) {
+        try { await cuentaCreada.delete(); } catch { /* el reintento lo evidenciará */ }
+      }
       setError(getFriendlyErrorMessage(err));
     } finally {
       setLoading(false);
