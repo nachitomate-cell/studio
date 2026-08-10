@@ -921,8 +921,15 @@ export default function VendedorPage() {
   }
 
   if (view === "informes") {
+    // La fila entera abre el informe: en un celular el título necesita el ancho
+    // completo — con un botón al lado los tres informes se leían "Informe
+    // semanal · ..." y no se distinguía una semana de otra.
     const itemInforme = (informe: Informe, general: boolean) => (
-      <Card key={informe.id} className="border-none shadow-sm rounded-2xl bg-white">
+      <Card
+        key={informe.id}
+        onClick={() => abrirInforme(informe)}
+        className="border-none shadow-sm rounded-2xl bg-white cursor-pointer active:scale-[0.98] transition-transform"
+      >
         <CardContent className="p-4 flex items-center gap-3">
           <div
             className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
@@ -933,22 +940,16 @@ export default function VendedorPage() {
               : <FileText className="w-5 h-5" style={{ color: "#C9920A" }} />}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-slate-800 truncate">{informe.titulo}</p>
-            <p className="text-[11px] text-slate-400 font-medium">
+            <p className="text-sm font-bold text-slate-800 leading-snug">{informe.titulo}</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
               {formatearFechaInforme(informe.creadoEn)} · {formatearPeso(informe.tamanoBytes)}
             </p>
           </div>
-          <Button
-            onClick={() => abrirInforme(informe)}
-            disabled={abriendoInforme === informe.id}
-            className="rounded-xl font-bold gap-2 h-10 px-4 shrink-0"
-            style={{ backgroundColor: "#D3B673", color: "#fff" }}
-          >
+          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#D3B673" }}>
             {abriendoInforme === informe.id
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <ExternalLink className="w-4 h-4" />}
-            Abrir
-          </Button>
+              ? <Loader2 className="w-4 h-4 animate-spin text-white" />
+              : <ExternalLink className="w-4 h-4 text-white" />}
+          </div>
         </CardContent>
       </Card>
     );
