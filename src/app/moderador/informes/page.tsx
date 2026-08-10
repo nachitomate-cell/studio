@@ -19,7 +19,7 @@ import {
   INFORMES_COLLECTION, MAX_INFORME_BYTES, formatearPeso, formatearFechaInforme,
   type AlcanceInforme, type Informe,
 } from "@/lib/informes";
-import { ADMIN_EMAIL, ROLES_STAFF_PANEL } from "@/lib/constants";
+import { canAccessModPanel } from "@/lib/constants";
 
 type Comercio = { id: string; nombre: string };
 
@@ -54,15 +54,12 @@ export default function ModeradorInformesPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { setAuthLoading(false); router.replace("/"); return; }
-      if (user.email === ADMIN_EMAIL) {
-        setAuthorized(true); setAuthLoading(false); return;
-      }
       try {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
-        const data = snap.exists() ? snap.data() : null;
-        const rol: string = data?.rol ?? "";
-        const roles: string[] = Array.isArray(data?.roles) ? data.roles : [];
-        if (ROLES_STAFF_PANEL.includes(rol) || roles.some((r) => ROLES_STAFF_PANEL.includes(r))) {
+        // Mismo criterio que /api/admin/informes (allowlist de correo O rol):
+        // si la pantalla exigiera solo el rol, alguien de la allowlist podria
+        // quedar fuera del panel mientras la API le sigue aceptando la subida.
+        if (canAccessModPanel(user.email, snap.exists() ? (snap.data() as any) : null)) {
           setAuthorized(true);
         } else {
           router.replace("/");
