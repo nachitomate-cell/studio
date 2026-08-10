@@ -884,6 +884,14 @@ export default function ModeradorPage() {
               bg: "#C9920A12",
             },
             {
+              href: "/moderador/informes",
+              emoji: "📄",
+              titulo: "Informes de Comercios",
+              desc: "Publicar PDF · Lo ven en su app · Avisa al comercio",
+              color: "#f97316",
+              bg: "#f9731612",
+            },
+            {
               href: "/moderador/plantillas",
               emoji: "🔔",
               titulo: "Plantillas de Notificación",

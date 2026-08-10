@@ -16,6 +16,7 @@ import {
   X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
   DollarSign, BarChart2, RefreshCw, FileDown, HelpCircle,
   CheckCircle2, User, MessageCircle, CalendarDays, Star,
+  FileText, ExternalLink, Globe,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -28,6 +29,9 @@ import { cn } from "@/lib/utils";
 import { useCategorias } from "@/hooks/useCategorias";
 
 import { ADMIN_EMAIL, CANONICAL_BASE_URL } from "@/lib/constants";
+import {
+  INFORMES_COLLECTION, formatearPeso, formatearFechaInforme, type Informe,
+} from "@/lib/informes";
 import VendorStampModal from "@/components/VendorStampModal";
 import { BiooPromoCard } from "@/components/BiooPromoCard";
 import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
@@ -175,7 +179,7 @@ export default function VendedorPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { categorias: dynamicCategorias } = useCategorias();
-  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "clientes">("dashboard");
+  const [view, setView] = useState<"dashboard" | "scanner" | "profile" | "myqr" | "clientes" | "informes">("dashboard");
   const [loading, setLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
@@ -217,6 +221,10 @@ export default function VendedorPage() {
   const [savingOferta, setSavingOferta] = useState(false);
   const [vendorAvgRating, setVendorAvgRating] = useState<number | null>(null);
   const [vendorReviewCount, setVendorReviewCount] = useState(0);
+  // Informes que publica el club (uno general + uno propio por semana)
+  const [informesGenerales, setInformesGenerales] = useState<Informe[]>([]);
+  const [informesPropios, setInformesPropios] = useState<Informe[]>([]);
+  const [abriendoInforme, setAbriendoInforme] = useState<string | null>(null);
   // Link in Bio premium (bioo.cl)
   const [biooInfo, setBiooInfo] = useState<{ handle?: string; claimUrl?: string; publicUrl?: string }>({});
   const [biooBusy, setBiooBusy] = useState(false);
@@ -385,6 +393,36 @@ export default function VendedorPage() {
     );
     return () => unsub();
   }, [vendorUid]);
+
+  // Informes: dos consultas separadas porque las reglas de Firestore autorizan
+  // por igualdad (alcance == "general" / vendorId == uid). Un OR no se puede
+  // demostrar seguro en una sola query y Firestore la rechazaría entera.
+  useEffect(() => {
+    if (!vendorUid) return;
+    const ordenar = (a: Informe, b: Informe) => b.creadoEn.localeCompare(a.creadoEn);
+    const mapear = (snap: any) =>
+      snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Informe)).sort(ordenar);
+
+    const unsubGeneral = onSnapshot(
+      query(collection(db, INFORMES_COLLECTION), where("alcance", "==", "general")),
+      (snap) => setInformesGenerales(mapear(snap)),
+      (e) => console.warn("[vendedor] informes generales:", e),
+    );
+    const unsubPropios = onSnapshot(
+      query(collection(db, INFORMES_COLLECTION), where("vendorId", "==", vendorUid)),
+      (snap) => setInformesPropios(mapear(snap)),
+      (e) => console.warn("[vendedor] informes propios:", e),
+    );
+    return () => { unsubGeneral(); unsubPropios(); };
+  }, [vendorUid]);
+
+  // Llegada desde la notificación del informe. Se lee de window.location en vez
+  // de useSearchParams para no obligar a envolver la página en un <Suspense>.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("vista") === "informes") {
+      setView("informes");
+    }
+  }, []);
 
   // Auto-load CRM when entering the clientes view
   useEffect(() => {
@@ -839,6 +877,31 @@ export default function VendedorPage() {
     }
   };
 
+  // El PDF no tiene URL fija: se pide una firmada cada vez que se abre, para que
+  // un informe reenviado por WhatsApp deje de servir a los pocos minutos.
+  const abrirInforme = async (informe: Informe) => {
+    setAbriendoInforme(informe.id);
+    try {
+      const idToken = await auth.currentUser!.getIdToken();
+      const res = await fetch("/api/informes/url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ id: informe.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Error HTTP ${res.status}`);
+
+      // En la app de Android el visor embebido no renderiza PDF: abrir en una
+      // ventana aparte deja que se encargue el visor del teléfono.
+      const abierta = window.open(data.url, "_blank", "noopener,noreferrer");
+      if (!abierta) window.location.href = data.url;
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "No se pudo abrir el informe", description: err?.message });
+    } finally {
+      setAbriendoInforme(null);
+    }
+  };
+
   const handleEliminarOferta = async () => {
     if (!ofertaHoy?.id) return;
     try {
@@ -854,6 +917,85 @@ export default function VendedorPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (view === "informes") {
+    const itemInforme = (informe: Informe, general: boolean) => (
+      <Card key={informe.id} className="border-none shadow-sm rounded-2xl bg-white">
+        <CardContent className="p-4 flex items-center gap-3">
+          <div
+            className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: general ? "#6366f115" : "#D3B67318" }}
+          >
+            {general
+              ? <Globe className="w-5 h-5 text-indigo-500" />
+              : <FileText className="w-5 h-5" style={{ color: "#C9920A" }} />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-800 truncate">{informe.titulo}</p>
+            <p className="text-[11px] text-slate-400 font-medium">
+              {formatearFechaInforme(informe.creadoEn)} · {formatearPeso(informe.tamanoBytes)}
+            </p>
+          </div>
+          <Button
+            onClick={() => abrirInforme(informe)}
+            disabled={abriendoInforme === informe.id}
+            className="rounded-xl font-bold gap-2 h-10 px-4 shrink-0"
+            style={{ backgroundColor: "#D3B673", color: "#fff" }}
+          >
+            {abriendoInforme === informe.id
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <ExternalLink className="w-4 h-4" />}
+            Abrir
+          </Button>
+        </CardContent>
+      </Card>
+    );
+
+    return (
+      <main className="min-h-screen bg-slate-50/50 pb-20 font-sans animate-in slide-in-from-right duration-300">
+        <div className="bg-white border-b border-slate-200 p-6 sticky top-0 z-10 flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setView("dashboard")} className="text-slate-400">
+            <ArrowLeft className="w-6 h-6" />
+          </Button>
+          <h1 className="text-xl font-bold text-slate-800">Mis Informes</h1>
+        </div>
+
+        <div className="max-w-lg mx-auto p-6 space-y-6">
+          {informesGenerales.length === 0 && informesPropios.length === 0 ? (
+            <Card className="border-none shadow-sm rounded-3xl bg-white">
+              <CardContent className="p-10 text-center">
+                <FileText className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <p className="text-sm font-bold text-slate-500 mb-1">Todavía no hay informes</p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Cuando el club publique uno, te llega un aviso y queda guardado aquí para que lo revises cuando quieras.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {informesGenerales.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">
+                    Del club
+                  </h2>
+                  {informesGenerales.map((i) => itemInforme(i, true))}
+                </section>
+              )}
+
+              {informesPropios.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">
+                    De mi local
+                  </h2>
+                  {informesPropios.map((i) => itemInforme(i, false))}
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </main>
     );
   }
 
@@ -1626,6 +1768,19 @@ export default function VendedorPage() {
               >
                 <span className="text-lg">🛠️</span>
                 Panel de Validación (Caja)
+              </Button>
+              <Button
+                onClick={() => setView("informes")}
+                variant="outline"
+                className="w-full h-16 rounded-2xl font-bold text-base gap-3 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.97] transition-transform"
+              >
+                <FileText className="w-5 h-5" style={{ color: "#C9920A" }} />
+                Mis Informes
+                {informesGenerales.length + informesPropios.length > 0 && (
+                  <span className="ml-1 rounded-full px-2.5 py-0.5 text-xs font-black" style={{ backgroundColor: "#C9920A18", color: "#C9920A" }}>
+                    {informesGenerales.length + informesPropios.length}
+                  </span>
+                )}
               </Button>
               <div className="grid grid-cols-3 gap-3">
                 <Button

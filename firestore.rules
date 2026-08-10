@@ -55,6 +55,16 @@ service cloud.firestore {
       return isSignedIn() && hasAnyRol(["director_patio", "director", "admin"]);
     }
 
+    // Tiene local en el club. La ficha manda sobre el rol: un comercio siempre
+    // tiene documento en entrepreneur_profiles, pero varios quedaron sin el
+    // campo `rol` cuando se cargaron por script.
+    function esComercio() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/entrepreneur_profiles/$(request.auth.uid)) ||
+        hasAnyRol(["emprendedor"])
+      );
+    }
+
     // ── Usuarios ──────────────────────────────────────────────────────────────
     match /usuarios/{userId} {
       // Lectura individual: solo el propio usuario o staff.
@@ -275,6 +285,21 @@ service cloud.firestore {
         && request.resource.data.rating <= 5;
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isStaff());
+    }
+
+    // ── Informes semanales por comercio ───────────────────────────────────────
+    // Solo los escribe el Admin SDK (/api/admin/informes). Un informe trae las
+    // ventas de un local, así que cada comercio ve el suyo y los generales del
+    // club, nunca el del vecino. Este documento son solo los metadatos: el PDF
+    // vive en Storage sin lectura pública y se pide por /api/informes/url.
+    match /informes/{informeId} {
+      allow read: if isStaff() || (isSignedIn() && (
+        // El general lo ve quien tiene local, no cualquier socio con sesión:
+        // hasta el título ("Informe del club · agosto") es información interna.
+        (resource.data.alcance == "general" && esComercio()) ||
+        resource.data.vendorId == request.auth.uid
+      ));
+      allow write: if false;
     }
 
     // ── Solicitudes de membresía al club ──────────────────────────────────────
