@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { extraerCoords, esEnlaceCorto, urlMapa, type Coords } from "@/lib/geoLink";
 import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs, getDoc, addDoc, deleteDoc, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase";
@@ -16,7 +17,7 @@ import {
   X, Store, Save, ImagePlus, UserCircle, Upload, Copy, Download,
   DollarSign, BarChart2, RefreshCw, FileDown, HelpCircle,
   CheckCircle2, User, MessageCircle, CalendarDays, Star,
-  FileText, ExternalLink, Globe,
+  FileText, ExternalLink, Globe, MapPin,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import QRCode from "react-qr-code";
@@ -203,10 +204,73 @@ export default function VendedorPage() {
     whatsapp: "+56",
     instagram: "",
     ubicacion: "",
+    mapsLink: "",
     horario: "",
     promoText: "",
     isPremium: false,
   });
+  // Coordenadas del local. Se recalculan cada vez que cambia lo pegado en el
+  // campo; los enlaces cortos de la app de Maps se resuelven en el servidor.
+  const [coordsLocal, setCoordsLocal] = useState<Coords | null>(null);
+  const [geoEstado, setGeoEstado] = useState<"vacio" | "buscando" | "ok" | "error">("vacio");
+
+  useEffect(() => {
+    const texto = shopForm.mapsLink.trim();
+    if (!texto) { setCoordsLocal(null); setGeoEstado("vacio"); return; }
+
+    const directo = extraerCoords(texto);
+    if (directo) { setCoordsLocal(directo); setGeoEstado("ok"); return; }
+
+    if (!esEnlaceCorto(texto)) { setCoordsLocal(null); setGeoEstado("error"); return; }
+
+    // Enlace corto: lo resuelve el servidor. Se espera un momento por si sigue
+    // escribiendo, y se descarta la respuesta si el texto cambió mientras tanto.
+    let vigente = true;
+    setGeoEstado("buscando");
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch("/api/geo/resolver", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: texto }),
+        });
+        const data = await r.json();
+        if (!vigente) return;
+        if (r.ok && typeof data.lat === "number") {
+          setCoordsLocal({ lat: data.lat, lng: data.lng });
+          setGeoEstado("ok");
+        } else {
+          setCoordsLocal(null);
+          setGeoEstado("error");
+        }
+      } catch {
+        if (vigente) { setCoordsLocal(null); setGeoEstado("error"); }
+      }
+    }, 600);
+    return () => { vigente = false; clearTimeout(t); };
+  }, [shopForm.mapsLink]);
+
+  /** Toma la ubicación del propio dispositivo, para quien está parado en su local. */
+  const usarMiUbicacion = () => {
+    if (!navigator.geolocation) {
+      toast({ variant: "destructive", title: "Sin GPS", description: "Este dispositivo no permite obtener la ubicación." });
+      return;
+    }
+    setGeoEstado("buscando");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setShopForm((f) => ({ ...f, mapsLink: `${lat}, ${lng}` }));
+      },
+      () => {
+        setGeoEstado("error");
+        toast({ variant: "destructive", title: "No se pudo obtener la ubicación", description: "Revisa que le hayas dado permiso de ubicación al navegador." });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [vendorSaleTarget, setVendorSaleTarget] = useState<{ clientId: string; clientName: string } | null>(null);
   const [vendorSalePendingId, setVendorSalePendingId] = useState<string | null>(null);
@@ -304,6 +368,7 @@ export default function VendedorPage() {
               whatsapp: data.whatsapp || data.contactPhone || "+56",
               instagram: data.instagram ? data.instagram.replace('@', '') : "",
               ubicacion: data.ubicacionTienda || data.address || "",
+              mapsLink: data.mapsLink || (data.lat != null && data.lng != null ? `${data.lat}, ${data.lng}` : ""),
               horario: data.operatingHours || data.horario || "",
               promoText: data.promoText || "",
               isPremium: data.isPremium === true,
@@ -635,6 +700,9 @@ export default function VendedorPage() {
         whatsapp: waClean || null,
         instagram: shopForm.instagram.replace('@', '').trim() || null,
         ubicacionTienda: shopForm.ubicacion.trim() || null,
+        mapsLink: shopForm.mapsLink.trim() || null,
+        lat: coordsLocal?.lat ?? null,
+        lng: coordsLocal?.lng ?? null,
         operatingHours: shopForm.horario.trim() || null,
         promoText: shopForm.promoText.trim() || null,
         isPremium: shopForm.isPremium,
@@ -1618,6 +1686,50 @@ export default function VendedorPage() {
                     <option value="Tienda Patio Curauma (Avenida Universidad 134, Local 1)" />
                     <option value="Patio Curauma Villa Alemana (Manuel Montt #1561, Villa Alemana)" />
                   </datalist>
+                </div>
+
+                {/* Punto en el mapa */}
+                <div className="space-y-3">
+                  <Label htmlFor="mapsLink" className="text-sm font-bold text-slate-700">
+                    Ubicación en el mapa
+                  </Label>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Abre tu local en Google Maps, toca <b>Compartir</b> y pega el enlace aquí.
+                    Así los socios pueden llegar con un toque desde tu perfil.
+                  </p>
+                  <Input
+                    id="mapsLink"
+                    placeholder="Pega aquí el enlace de Google Maps..."
+                    className="h-12 border-slate-200 focus:border-primary rounded-lg text-base"
+                    value={shopForm.mapsLink}
+                    onChange={(e) => setShopForm({ ...shopForm, mapsLink: e.target.value })}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button" variant="outline"
+                      onClick={usarMiUbicacion}
+                      className="h-10 rounded-lg font-bold border-slate-200 gap-2"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Estoy en mi local
+                    </Button>
+                    {geoEstado === "buscando" && (
+                      <span className="text-xs font-medium text-slate-500">Buscando la ubicación...</span>
+                    )}
+                    {geoEstado === "ok" && coordsLocal && (
+                      <a
+                        href={urlMapa(coordsLocal)} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-bold text-emerald-600 underline underline-offset-2"
+                      >
+                        Ubicación lista — tócala para comprobarla
+                      </a>
+                    )}
+                    {geoEstado === "error" && (
+                      <span className="text-xs font-medium text-red-600">
+                        No pudimos leer ese enlace. Pega el que entrega Google Maps al tocar Compartir.
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Horario */}

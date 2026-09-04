@@ -5,6 +5,7 @@ import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, onSnapshot, query, collection, documentId, where, getDocs, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import { urlMapa } from "@/lib/geoLink";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AssociatedShopsCarousel } from "./AssociatedShopsCarousel";
 import { Button } from "@/components/ui/button";
@@ -1030,10 +1031,12 @@ function DetailContent() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                   onClick={() => {
-                    window.open(
-                      "https://maps.google.com/?q=-33.1316449,-71.564289",
-                      "_blank"
-                    );
+                    // El punto propio del local si lo cargó; si no, el patio.
+                    const destino =
+                      entrepreneur.lat != null && entrepreneur.lng != null
+                        ? urlMapa({ lat: entrepreneur.lat, lng: entrepreneur.lng })
+                        : urlMapa(PATIO_INFO.coordinates);
+                    window.open(destino, "_blank", "noopener,noreferrer");
                   }}
                 >
                   <MapPin className="w-5 h-5" />
