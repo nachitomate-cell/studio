@@ -384,7 +384,7 @@ function DetailContent() {
       {/* ── Botones flotantes ───────────────────────────────────────────── */}
       <div className="fixed top-4 left-4 right-4 z-50 flex justify-between items-center">
         <button
-          onClick={() => router.push("/")}
+          onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
           className="w-10 h-10 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
           style={{ background: isPremiumDark ? "rgba(5,5,5,0.85)" : "rgba(15,23,42,0.85)", border: isPremiumDark ? "1px solid rgba(211,182,115,0.25)" : "1px solid rgba(255,255,255,0.12)" }}
         >
