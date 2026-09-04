@@ -15,6 +15,7 @@ type ScanError =
   | { type: "invalid_qr" }
   | { type: "not_found" }
   | { type: "network" }
+  | { type: "server"; code?: string }
   | { type: "camera" }
   | { type: "client_qr" };
 
@@ -33,7 +34,12 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
     network: {
       icon: <WifiOff className="w-6 h-6 text-slate-400" />,
       title: "Sin conexión",
-      desc: "Verifica tu conexión a internet e inténtalo de nuevo.",
+      desc: "Tu teléfono está sin internet. Conéctate y vuelve a intentarlo.",
+    },
+    server: {
+      icon: <WifiOff className="w-6 h-6 text-amber-400" />,
+      title: "No pudimos conectar con el Club",
+      desc: "Tienes internet, pero tu red está bloqueando la conexión. Prueba con WiFi, y si usas iPhone desactiva Ajustes › iCloud › Retransmisión privada. También puede ser una VPN.",
     },
     camera: {
       icon: <Camera className="w-6 h-6 text-slate-400" />,
@@ -57,6 +63,9 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
           <div>
             <p className="text-white font-bold text-sm">{cfg.title}</p>
             <p className="text-slate-400 text-xs mt-0.5 leading-relaxed">{cfg.desc}</p>
+            {error.type === "server" && error.code && (
+              <p className="text-slate-600 text-[10px] mt-1.5 font-mono">Código: {error.code}</p>
+            )}
           </div>
         </div>
         <Button
@@ -276,8 +285,14 @@ export default function ClientScannerPage() {
         isScanningRef.current = false;
         return;
       }
-    } catch {
-      setScanError({ type: "network" });
+    } catch (err: any) {
+      // Hasta ahora cualquier fallo se mostraba como "sin conexión", lo que
+      // mandaba al socio a revisar su internet aunque el problema fuera otro.
+      // Se guarda el código real de Firestore para poder diagnosticarlo.
+      const code = typeof err?.code === "string" ? err.code : "desconocido";
+      const sinInternet = typeof navigator !== "undefined" && navigator.onLine === false;
+      console.error("[scan] no se pudo leer el local:", code, err);
+      setScanError(sinInternet ? { type: "network" } : { type: "server", code });
       setScanState("error");
       isScanningRef.current = false;
       return;
