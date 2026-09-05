@@ -96,6 +96,10 @@ export default function ClientScannerPage() {
   const isScanningRef = useRef(false);
   // Ultimo QR ajeno rechazado, para no reescribir el aviso en cada fotograma.
   const ultimoRechazado = useRef<string | null>(null);
+  // Aviso pasajero de "ese QR no es del Club". Es aparte de scanError porque
+  // no detiene nada: la camara sigue buscando mientras se muestra.
+  const [qrAjeno, setQrAjeno] = useState(false);
+  const timerQrAjeno = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startScannerForUser = useCallback((user: import("firebase/auth").User) => {
     getDoc(doc(db, "entrepreneur_profiles", user.uid)).then(async (snap) => {
@@ -168,6 +172,12 @@ export default function ClientScannerPage() {
   useEffect(() => {
     if (scannerReady) startScanner();
   }, [scannerReady]);
+
+  // El aviso de QR ajeno se oculta solo; si el socio sale antes, el
+  // temporizador queda vivo y escribiria sobre una pantalla ya desmontada.
+  useEffect(() => () => {
+    if (timerQrAjeno.current) clearTimeout(timerQrAjeno.current);
+  }, []);
 
   const startScanner = useCallback(async () => {
     setScanError(null);
@@ -276,7 +286,12 @@ export default function ClientScannerPage() {
       // mover el telefono al codigo correcto.
       if (ultimoRechazado.current !== raw) {
         ultimoRechazado.current = raw;
-        setScanError({ type: "invalid_qr" });
+        setQrAjeno(true);
+        if (timerQrAjeno.current) clearTimeout(timerQrAjeno.current);
+        timerQrAjeno.current = setTimeout(() => {
+          setQrAjeno(false);
+          ultimoRechazado.current = null;
+        }, 5000);
       }
       return;
     }
@@ -284,6 +299,8 @@ export default function ClientScannerPage() {
     // Desde aqui el codigo si parece de un local: recien ahora se detiene.
     isScanningRef.current = true;
     ultimoRechazado.current = null;
+    if (timerQrAjeno.current) clearTimeout(timerQrAjeno.current);
+    setQrAjeno(false);
     setScanError(null);
     await stopScanner();
     setScanState("loading");
@@ -393,6 +410,20 @@ export default function ClientScannerPage() {
 
         {scanState === "error" && scanError && (
           <ErrorBanner error={scanError} onRetry={handleRetry} />
+        )}
+
+        {qrAjeno && scanState !== "error" && scanState !== "loading" && (
+          <div className="absolute bottom-0 left-0 right-0 z-20 p-4 pointer-events-none animate-in slide-in-from-bottom duration-300">
+            <div className="bg-slate-950/95 backdrop-blur-sm border border-amber-500/30 rounded-2xl p-4 shadow-2xl flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <p className="text-white font-bold text-sm">Ese código no es del Club</p>
+                <p className="text-slate-400 text-xs mt-0.5 leading-relaxed">
+                  Sigue apuntando: busca el QR del mostrador, el que tiene el logo de Club Patio.
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
