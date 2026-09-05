@@ -94,6 +94,8 @@ export default function ClientScannerPage() {
 
   const scannerInstance = useRef<any>(null);
   const isScanningRef = useRef(false);
+  // Ultimo QR ajeno rechazado, para no reescribir el aviso en cada fotograma.
+  const ultimoRechazado = useRef<string | null>(null);
 
   const startScannerForUser = useCallback((user: import("firebase/auth").User) => {
     getDoc(doc(db, "entrepreneur_profiles", user.uid)).then(async (snap) => {
@@ -228,19 +230,9 @@ export default function ClientScannerPage() {
 
   const onScanSuccess = useCallback(async (decodedText: string) => {
     if (isScanningRef.current) return;
-    isScanningRef.current = true;
-
-    await stopScanner();
-    setScanState("loading");
 
     const raw = decodedText.trim();
-
-    if (!raw) {
-      setScanError({ type: "invalid_qr" });
-      setScanState("error");
-      isScanningRef.current = false;
-      return;
-    }
+    if (!raw) return;
 
     // Extraer vendorId — soporta 3 formatos:
     // 1. URL con ?localId= o ?ref=
@@ -277,11 +269,24 @@ export default function ClientScannerPage() {
       vendorId !== "..";
 
     if (!idUsable) {
-      setScanError({ type: "invalid_qr" });
-      setScanState("error");
-      isScanningRef.current = false;
+      // Antes esto apagaba la camara, asi que bastaba con un QR ajeno a la
+      // vista (un afiche, un envase, una red WiFi) para que el socio quedara
+      // atrapado: se leia solo, fallaba, y ya no alcanzaba a apuntar al QR del
+      // mostrador. Ahora se avisa y la camara sigue buscando, asi basta con
+      // mover el telefono al codigo correcto.
+      if (ultimoRechazado.current !== raw) {
+        ultimoRechazado.current = raw;
+        setScanError({ type: "invalid_qr" });
+      }
       return;
     }
+
+    // Desde aqui el codigo si parece de un local: recien ahora se detiene.
+    isScanningRef.current = true;
+    ultimoRechazado.current = null;
+    setScanError(null);
+    await stopScanner();
+    setScanState("loading");
 
     const currentUser = auth.currentUser;
     if (!currentUser) {
