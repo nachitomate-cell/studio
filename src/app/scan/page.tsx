@@ -24,7 +24,7 @@ function ErrorBanner({ error, onRetry }: { error: ScanError; onRetry: () => void
     invalid_qr: {
       icon: <ShieldAlert className="w-6 h-6 text-red-400" />,
       title: "QR no reconocido",
-      desc: "Este código no corresponde a un local de Club Patio. Asegúrate de escanear el QR oficial del mostrador.",
+      desc: "Este código no es de un local del Club. Escanea el QR que está en el mostrador del local, el que dice Club Patio.",
     },
     not_found: {
       icon: <ShieldAlert className="w-6 h-6 text-red-400" />,
@@ -263,7 +263,20 @@ export default function ClientScannerPage() {
       vendorId = raw;
     }
 
-    if (!vendorId || vendorId.length < 10) {
+    // Un ID de Firestore no admite barras ni dos puntos. Sin esta validación,
+    // el contenido de un QR ajeno (una URL, una red WiFi, un código de producto)
+    // se usaba tal cual como ruta y Firestore respondía "invalid-argument", que
+    // el catch de más abajo mostraba como un problema de conexión.
+    const ID_VALIDO = /^[A-Za-z0-9_.~-]+$/;
+    const idUsable =
+      !!vendorId &&
+      vendorId.length >= 10 &&
+      vendorId.length <= 1000 &&
+      ID_VALIDO.test(vendorId) &&
+      vendorId !== "." &&
+      vendorId !== "..";
+
+    if (!idUsable) {
       setScanError({ type: "invalid_qr" });
       setScanState("error");
       isScanningRef.current = false;
