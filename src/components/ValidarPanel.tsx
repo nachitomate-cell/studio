@@ -627,19 +627,50 @@ export default function ValidarPanel({
     setPrizeScannerActive(true);
     // Wait for the div to mount
     await new Promise((r) => setTimeout(r, 100));
+    const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+    const alLeer = (decodedText: string) => { onPrizeQrScanned(decodedText); };
+
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       const scanner = new Html5Qrcode("prize-qr-reader");
       prizeQrRef.current = scanner;
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        (decodedText: string) => { onPrizeQrScanned(decodedText); },
-        () => { /* scan errors are normal */ }
-      );
+
+      try {
+        // "ideal" y no exigencia estricta: hay Android donde la cámara trasera
+        // no se declara como "environment" y una exigencia dura falla de entrada.
+        await scanner.start(
+          { facingMode: { ideal: "environment" } },
+          config, alLeer, () => { /* fallos de lectura son normales */ }
+        );
+      } catch {
+        // Segundo intento: tomar la última cámara de la lista, que en los
+        // teléfonos suele ser la trasera. Salva a los equipos donde la
+        // preferencia anterior tampoco resuelve.
+        const camaras = await Html5Qrcode.getCameras();
+        if (!camaras?.length) throw new Error("SIN_CAMARAS");
+        await scanner.start(
+          camaras[camaras.length - 1].id,
+          config, alLeer, () => { /* fallos de lectura son normales */ }
+        );
+      }
     } catch (e: any) {
       setPrizeScannerActive(false);
-      setPrizeScannerError("No se pudo acceder a la cámara. Usa el código manual.");
+      // Antes cualquier causa mostraba el mismo aviso, así que no había forma
+      // de saber si era un permiso, otra app ocupando la cámara o un equipo
+      // sin soporte. Cada una se arregla distinto.
+      const nombre = String(e?.name ?? e?.message ?? "desconocido");
+      console.error("[premios] no se pudo abrir la cámara:", nombre, e);
+      const mensajes: Record<string, string> = {
+        NotAllowedError: "La cámara está bloqueada para esta app. Ábrela en los ajustes del teléfono y permite el acceso, o usa el código manual.",
+        PermissionDeniedError: "La cámara está bloqueada para esta app. Ábrela en los ajustes del teléfono y permite el acceso, o usa el código manual.",
+        NotReadableError: "Otra aplicación está usando la cámara. Ciérrala y vuelve a intentar, o usa el código manual.",
+        TrackStartError: "Otra aplicación está usando la cámara. Ciérrala y vuelve a intentar, o usa el código manual.",
+        NotFoundError: "No encontramos una cámara en este dispositivo. Usa el código manual.",
+        SIN_CAMARAS: "No encontramos una cámara en este dispositivo. Usa el código manual.",
+      };
+      setPrizeScannerError(
+        (mensajes[nombre] ?? "No se pudo abrir la cámara. Usa el código manual.") + ` (${nombre})`
+      );
     }
   };
 
