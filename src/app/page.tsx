@@ -4,6 +4,8 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { doc, onSnapshot, collection, query, getDocs, where } from "firebase/firestore";
 import { app, auth, db } from "@/lib/firebase";
+import { esTemporadaPatria } from "@/lib/fiestasPatrias";
+import { HeroFiestasPatrias } from "@/components/seasonal/HeroFiestasPatrias";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -649,7 +651,12 @@ function HomeContent() {
     })(),
   ];
 
-  const renderHero = () => (
+  const renderHero = () => {
+    // Del 10 al 22 de septiembre el inicio se viste de dieciocho. Fuera de esa
+    // ventana esto es falso y vuelve la cabecera de siempre, sin desplegar nada.
+    if (esTemporadaPatria()) return <HeroFiestasPatrias />;
+
+    return (
     <section style={{
       borderBottom: "1px solid #F0EDE8",
       padding: "20px 24px 18px",
@@ -730,7 +737,8 @@ function HomeContent() {
         </p>
       </div>
     </section>
-  );
+    );
+  };
 
   const renderContent = () => {
     if (showAuth) {
@@ -1075,7 +1083,15 @@ function HomeContent() {
             <section className="space-y-6 pt-4">
               <div className="flex items-center justify-between px-6 pb-3" style={{ borderBottom: "1px solid #F0EDE8" }}>
                 <div className="flex items-center gap-2.5">
-                  <div style={{ width: 3, height: 18, borderRadius: 2, background: "linear-gradient(180deg, #C9920A, #D3B673)" }} />
+                  <div style={{
+                    width: 3, height: 18, borderRadius: 2,
+                    // En temporada la barrita dorada se vuelve tricolor, para que
+                    // el dieciocho no quede solo en la cabecera.
+                    background: esTemporadaPatria()
+                      ? "linear-gradient(180deg, #0B3E8F 0%, #0B3E8F 33.3%, #FFFFFF 33.3%, #FFFFFF 66.6%, #D52B1E 66.6%, #D52B1E 100%)"
+                      : "linear-gradient(180deg, #C9920A, #D3B673)",
+                    boxShadow: esTemporadaPatria() ? "0 0 0 0.5px rgba(0,0,0,0.10)" : "none",
+                  }} />
                   <h2 className="text-lg font-black" style={{ color: "#1A1A1A" }}>Descubre</h2>
                 </div>
                 <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ background: "#FAFAF8", border: "1px solid #EEEBE4", color: "#888" }}>
