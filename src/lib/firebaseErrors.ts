@@ -51,6 +51,11 @@ export function getFriendlyErrorMessage(error: any): string {
     console.error("[error sin mapear]", code || "(sin código)", error?.message ?? error);
   }
 
-  const pista = code ? ` (${code})` : "";
+  // Con código basta para identificarlo. Sin código —un fallo de red, del
+  // navegador o de nuestro propio código— antes no quedaba ninguna pista y el
+  // caso era imposible de diagnosticar con solo la captura de pantalla que
+  // manda la persona. Se muestra un resumen corto del mensaje original.
+  const detalle = String(error?.message ?? "").trim().slice(0, 60);
+  const pista = code ? ` (${code})` : detalle ? ` (${detalle})` : "";
   return `Ocurrió un error inesperado. Por favor, inténtalo de nuevo${pista}.`;
 }
