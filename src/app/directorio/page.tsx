@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  collection, onSnapshot, doc, updateDoc, addDoc, getDoc,
+  collection, onSnapshot, doc, updateDoc, addDoc, getDoc, getDocs, query, where,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
@@ -29,6 +29,8 @@ import { ADMIN_EMAIL } from "@/lib/constants";
 interface VendorProfile {
   id: string;
   businessName: string;
+  /** Correo de acceso. Vive en `usuarios`, no en el perfil, por eso se une aparte. */
+  correo: string;
   category: string;
   description: string;
   imageUrl: string;
@@ -167,6 +169,26 @@ export default function DirectorioPage() {
 
   // ── Firestore listener ───────────────────────────────────────────────────
 
+  // El correo de acceso está en `usuarios/{id}.correo`, no en el perfil del
+  // comercio. Se trae aparte y se une por id: sin esto no hay forma de saber
+  // con qué cuenta entra cada local, que es justo lo que se pregunta cuando
+  // alguien no puede ingresar.
+  const [correos, setCorreos] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+    getDocs(query(collection(db, "usuarios"), where("rol", "==", "emprendedor")))
+      .then((snap) => {
+        const m: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          const c = String(d.data().correo ?? d.data().email ?? "").trim();
+          if (c) m[d.id] = c;
+        });
+        setCorreos(m);
+      })
+      .catch(() => { /* sin permisos: las tarjetas quedan sin correo */ });
+  }, [isAuthorized]);
+
   useEffect(() => {
     if (!isAuthorized) return;
 
@@ -176,6 +198,7 @@ export default function DirectorioPage() {
         return {
           id:              d.id,
           businessName:    v.businessName  || v.nombre       || "",
+          correo:          v.correo || v.email || "",
           category:        v.category      || v.rubro        || "",
           description:     v.description   || v.descripcion  || "",
           imageUrl:        v.imageUrls?.[0] || v.imageUrl    || v.imagenUrl || "",
@@ -595,6 +618,13 @@ export default function DirectorioPage() {
                         {vendor.tipo === "asociado" ? "🏪 Asociado" : "🎨 Emprendedor"}
                       </button>
                     </div>
+                    {/* Correo de acceso: es lo primero que se necesita cuando un
+                        local avisa que no puede entrar. */}
+                    <p className="text-[10px] text-slate-500 mt-1 truncate font-mono" title={correos[vendor.id] || vendor.correo || ""}>
+                      {correos[vendor.id] || vendor.correo || (
+                        <span className="text-slate-300 italic">sin correo registrado</span>
+                      )}
+                    </p>
                   </div>
 
                   {/* Acciones */}
