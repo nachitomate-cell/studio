@@ -22,15 +22,38 @@ async function fetchPremios() {
   }
 }
 
+/** Cuántos locales se muestran por sección. */
+const POR_SECCION = 12;
+
+/**
+ * Los locales llegan separados por sección, con cupo propio cada una.
+ *
+ * Antes se cortaban los primeros 10 del total y recién después se dividían en
+ * asociados y emprendedores. Como el orden que devuelve Firestore es arbitrario,
+ * los asociados casi nunca alcanzaban a entrar: de los 10 que se mostraban solo
+ * uno lo era, y comercios como Magura quedaban en el puesto 40 de 54 sin
+ * aparecer nunca, sin importar su categoría.
+ *
+ * Se ordena por nombre para que la lista sea estable entre visitas y no dependa
+ * del orden interno de la base.
+ */
 async function fetchLocales() {
   try {
     const snap = await adminDb.collection("entrepreneur_profiles").get();
-    return snap.docs
+    const visibles = snap.docs
       .map(d => ({ id: d.id, ...d.data() } as any))
-      .filter((x: any) => x.imagenTarjeta || x.imagenPerfil)
-      .slice(0, 10);
+      // Un local desactivado no debería aparecer: antes no se comprobaba.
+      .filter((x: any) => (x.imagenTarjeta || x.imagenPerfil) && x.active !== false)
+      .sort((a: any, b: any) =>
+        String(a.businessName ?? a.nombre ?? "").localeCompare(String(b.businessName ?? b.nombre ?? ""), "es")
+      );
+
+    return {
+      asociados: visibles.filter((x: any) => x.tipo === "asociado").slice(0, POR_SECCION),
+      emprendedores: visibles.filter((x: any) => x.tipo !== "asociado").slice(0, POR_SECCION),
+    };
   } catch {
-    return [];
+    return { asociados: [], emprendedores: [] };
   }
 }
 
@@ -39,9 +62,10 @@ export default async function DescubrePage() {
 
   const ctaHref = "/unete";
 
-  const localesAsociados = locales.filter((l: any) => l.tipo === "asociado");
-  const localesEmprendedores = locales.filter((l: any) => l.tipo !== "asociado");
+  const localesAsociados = locales.asociados;
+  const localesEmprendedores = locales.emprendedores;
   const hayAsociados = localesAsociados.length > 0;
+  const totalLocales = localesAsociados.length + localesEmprendedores.length;
 
   return (
     <div className="fixed inset-0 z-[99999] overflow-y-auto [-webkit-overflow-scrolling:touch] text-slate-50 bg-[#0f172a] bg-[radial-gradient(at_10%_10%,rgba(211,182,115,0.12)_0px,transparent_55%),radial-gradient(at_90%_90%,rgba(157,204,101,0.08)_0px,transparent_55%)] font-[family-name:'PT_Sans',-apple-system,system-ui,sans-serif]">
@@ -178,7 +202,7 @@ export default async function DescubrePage() {
         </section>
 
         {/* ── LOCALES ── */}
-        {locales.length > 0 && (
+        {totalLocales > 0 && (
           hayAsociados ? (
             <section className="pb-8 space-y-5">
               {/* Comercios Asociados (arriba, destacados) */}
@@ -203,7 +227,7 @@ export default async function DescubrePage() {
               <div className="px-6">
                 <SectionTitle sub="Gana sellos en todos estos locales">Locales participantes</SectionTitle>
               </div>
-              <LocalesRow locales={locales} />
+              <LocalesRow locales={localesEmprendedores} />
             </section>
           )
         )}
