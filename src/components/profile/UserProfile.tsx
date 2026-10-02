@@ -35,6 +35,8 @@ import { CatalogoPremios } from "./CatalogoPremios";
 import { ActivityFeed } from "./ActivityFeed";
 import { FavoriteShops } from "./FavoriteShops";
 import PermissionsModal from "@/components/PermissionsModal";
+import { SalirNavegadorInterno } from "@/components/ActivarNotificaciones";
+import { esNavegadorInterno, pasosDesbloquear } from "@/lib/pushSoporte";
 import { cn } from "@/lib/utils";
 import { PATIO_INFO } from "@/lib/data";
 import Link from "next/link";
@@ -824,6 +826,8 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   // Banner de instalación PWA para iOS: visible cuando el usuario está en Safari/iOS
   // pero NO instaló la app en su pantalla de inicio (modo standalone).
   const [showIosHint, setShowIosHint] = useState(false);
+  // Abierta dentro de Instagram/Facebook: ahí no hay push ni instalación posible.
+  const [navegadorInterno, setNavegadorInterno] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [pendingAvatarId, setPendingAvatarId] = useState("User");
   const [savingAvatar, setSavingAvatar] = useState(false);
@@ -904,7 +908,11 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
       const isStandalone =
         window.matchMedia("(display-mode: standalone)").matches ||
         (window.navigator as any).standalone === true;
-      if (isIos && !isStandalone) {
+      // Dentro de Instagram no hay barra de Safari: los pasos de instalar no
+      // sirven hasta salir al navegador, así que ese caso tiene su propio aviso.
+      const interno = esNavegadorInterno();
+      setNavegadorInterno(interno);
+      if (isIos && !isStandalone && !interno) {
         setShowIosHint(true);
       }
     }
@@ -1052,7 +1060,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         break;
       case "denied":
         setNotifDenied(true);
-        toast({ variant: "destructive", title: "Permiso bloqueado", description: "Actívalo desde los Ajustes del sistema." });
+        toast({ variant: "destructive", title: "Permiso bloqueado", description: pasosDesbloquear() });
         break;
       case "no_vapid_key":
         toast({ variant: "destructive", title: "Error de configuración", description: "Falta clave del servidor. Contacta al administrador." });
@@ -1659,8 +1667,13 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
         </div>
       )}
 
+      {/* ── Banner push dentro de Instagram/Facebook: salir al navegador ──── */}
+      {navegadorInterno && !pushEnabled && !isEditing && !isEntrepreneur && (
+        <SalirNavegadorInterno claro />
+      )}
+
       {/* ── Banner push: activar / bloqueado ─────────────────────────────── */}
-      {!pushEnabled && !isEditing && !showIosHint && !isEntrepreneur && !notifBannerDismissed && (
+      {!pushEnabled && !isEditing && !showIosHint && !navegadorInterno && !isEntrepreneur && !notifBannerDismissed && (
         <Card className={`border-none shadow-md rounded-2xl ${notifDenied ? "bg-red-50/60" : "bg-blue-50/50"}`}>
           <CardContent className="p-4 space-y-3">
             {/* Top row */}
@@ -1674,7 +1687,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
                     {notifDenied ? "Notificaciones bloqueadas" : "Activa las notificaciones"}
                   </p>
                   <p className={`text-[11px] font-medium ${notifDenied ? "text-red-500" : "text-blue-500"}`}>
-                    {notifDenied ? "Actívalas desde Ajustes del sistema" : "Recibe avisos de sellos y premios"}
+                    {notifDenied ? "Quedaron bloqueadas en este teléfono" : "Recibe avisos de sellos y premios"}
                   </p>
                 </div>
               </div>
@@ -1694,11 +1707,7 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
             {notifDenied ? (
               <div className="bg-red-100/60 rounded-xl px-3 py-2">
                 <p className="text-[11px] font-bold text-red-700">
-                  {/iphone|ipad|ipod/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "")
-                    ? "Ajustes → Safari → Notificaciones → Activar"
-                    : /android/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "")
-                    ? "Configuración → Aplicaciones → [Navegador] → Notificaciones → Activar"
-                    : "Candado (barra URL) → Notificaciones → Permitir"}
+                  {pasosDesbloquear()}
                 </p>
                 <p className="text-[10px] text-red-400 mt-0.5">Vuelve a la app después — se actualizará solo.</p>
               </div>

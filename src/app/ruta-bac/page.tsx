@@ -15,6 +15,7 @@ import {
   Bell,
 } from "lucide-react";
 import { registerFcmToken } from "@/lib/fcmTokenManager";
+import { pasosDesbloquear } from "@/lib/pushSoporte";
 import { useBacOfflineSync } from "@/hooks/useBacOfflineSync";
 import { BacLeaderboardModal } from "@/components/bac/BacLeaderboardModal";
 import { BacExpressReview } from "@/components/bac/BacExpressReview";
@@ -108,7 +109,7 @@ function NotifBanner() {
     } else if (res.reason === "denied") {
       toast({
         title: "Permiso denegado",
-        description: "Puedes activarlas luego desde la configuración del navegador.",
+        description: `Para activarlas después: ${pasosDesbloquear()}`,
         variant: "destructive",
       });
       setVisible(false);
