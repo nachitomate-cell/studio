@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { X, Bell, MapPin, Camera, CheckCircle2, XCircle, AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
 import { registerFcmToken } from "@/lib/fcmTokenManager";
+import { esNavegadorInterno, pasosDesbloquear } from "@/lib/pushSoporte";
+import { SalirNavegadorInterno } from "@/components/ActivarNotificaciones";
 
 interface PermissionsModalProps {
   onClose: () => void;
@@ -26,12 +28,10 @@ function detectPlatform(): Platform {
   return "desktop";
 }
 
-const INSTRUCTIONS: Record<keyof PermsState, Record<Platform, string>> = {
-  notifications: {
-    ios: "Ajustes → [Safari/Chrome] → Notificaciones → Activar",
-    android: "Configuración → Aplicaciones → [Navegador] → Notificaciones → Activar",
-    desktop: "Haz clic en el candado (barra de URL) → Notificaciones → Permitir",
-  },
+// Notificaciones no está aquí: su ruta depende de si la app está instalada y
+// vive en pasosDesbloquear(). En Android NO es "Configuración → Aplicaciones":
+// el permiso es de Chrome por sitio, y ahí no aparece ninguna app del Club.
+const INSTRUCTIONS: Record<"location" | "camera", Record<Platform, string>> = {
   location: {
     ios: 'Ajustes → Privacidad → Localización → [Navegador] → "Al usar la app"',
     android: "Configuración → Aplicaciones → [Navegador] → Permisos → Ubicación → Permitir",
@@ -196,9 +196,10 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
             status={perms.notifications}
             loading={loading === "notifications"}
             onRequest={requestNotifications}
-            instructions={INSTRUCTIONS.notifications[platform]}
+            instructions={pasosDesbloquear()}
             canReactivate
           />
+          {perms.notifications === "unsupported" && esNavegadorInterno() && <SalirNavegadorInterno claro />}
 
           <PermRow
             icon={<MapPin className="w-5 h-5" />}
