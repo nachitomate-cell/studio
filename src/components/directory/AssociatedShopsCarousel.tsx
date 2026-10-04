@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getSafeImageUrl } from "@/lib/utils";
+import { fotoOptimizada } from "@/lib/imagen";
 
 export interface ShopBasicInfo {
   id: string;
@@ -124,8 +125,10 @@ export function AssociatedShopsCarousel({ shops, isLoading }: Props) {
             {/* Image Section */}
             <div className="w-full h-32 bg-slate-700 relative">
               <img
-                src={getSafeImageUrl(imageSrc)}
+                {...fotoOptimizada(getSafeImageUrl(imageSrc), 256)}
                 alt={name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent pointer-events-none" />

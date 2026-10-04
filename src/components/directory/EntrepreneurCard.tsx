@@ -5,9 +5,10 @@ import Image from "next/image";
 import { Entrepreneur } from "@/lib/data";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
 import { formatDistance } from "@/hooks/useUserLocation";
+import { registrarEvento } from "@/lib/statsLocal";
 import { Star } from "lucide-react";
 
 interface EntrepreneurCardProps {
@@ -24,9 +25,25 @@ interface EntrepreneurCardProps {
 export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, distanceKm, priority = false, averageRating, reviewCount }: EntrepreneurCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imgSrc, setImgSrc] = useState(getSafeImageUrl(entrepreneur.imagenTarjeta || entrepreneur.imageUrl));
+  const ref = useRef<HTMLAnchorElement>(null);
+
+  // Aparición en el directorio: cuenta cuando al menos la mitad de la tarjeta
+  // queda en pantalla (no por estar en la lista sin que nadie la vea).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        registrarEvento(entrepreneur.id, "impresion");
+        obs.disconnect();
+      }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [entrepreneur.id]);
 
   return (
-    <Link href={`/emprendedor/${entrepreneur.id}`} className="block group">
+    <Link ref={ref} href={`/emprendedor/${entrepreneur.id}`} className="block group">
       <Card className="overflow-hidden border border-gray-100 bg-white shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] group-hover:-translate-y-0.5">
         <div className={cn("relative w-full overflow-hidden bg-slate-50", fullWidth ? "aspect-[16/7]" : "aspect-square")}>
           {!imageLoaded && (
@@ -36,7 +53,7 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
             src={imgSrc}
             alt={entrepreneur.name}
             fill
-            sizes="(max-width: 768px) 50vw, 33vw"
+            sizes={fullWidth ? "(max-width: 512px) 100vw, 512px" : "(max-width: 512px) 50vw, 256px"}
             quality={75}
             priority={priority}
             className={cn(
@@ -105,7 +122,8 @@ export function EntrepreneurCard({ entrepreneur, fullWidth = false, isOpen, dist
           )}
         </div>
         <CardContent className="p-3 text-center bg-white border-t border-slate-50">
-          <h3 className="text-xs font-bold text-[#4A4A4A] line-clamp-1 group-hover:text-[#C9920A] transition-colors">
+          {/* Dos líneas con alto fijo: en una sola los nombres quedaban en "POMARUS..." */}
+          <h3 className="text-xs font-bold text-[#4A4A4A] line-clamp-2 leading-snug min-h-[2.75em] group-hover:text-[#C9920A] transition-colors">
             {entrepreneur.name}
           </h3>
           <div className="flex items-center justify-center gap-2 mt-0.5 flex-wrap">

@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { Crown } from "lucide-react";
 import { getSafeImageUrl } from "@/lib/utils";
 import Link from "next/link";
+import { fotoOptimizada } from "@/lib/imagen";
 
 interface PremiumLocal {
   id: string;
@@ -94,10 +95,12 @@ export function RecommendationWidget() {
               >
                 {/* Imagen de fondo — cubre todo el cuadro */}
                 <img
-                  src={heroSrc}
+                  {...fotoOptimizada(heroSrc, 420)}
                   alt={local.businessName}
+                  loading="lazy"
+                  decoding="async"
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
+                  onError={(e) => { const img = e.target as HTMLImageElement; img.srcset = ""; img.src = "/Logo2.png"; }}
                 />
 
                 {/* Gradiente inferior para legibilidad del texto */}
@@ -113,7 +116,9 @@ export function RecommendationWidget() {
                 {logoSrc && (
                   <div className="absolute top-2.5 right-2.5 w-14 h-14 rounded-xl overflow-hidden bg-white/15 backdrop-blur-md p-1.5 shadow-lg">
                     <img
-                      src={logoSrc}
+                      {...fotoOptimizada(logoSrc, 56)}
+                      loading="lazy"
+                      decoding="async"
                       alt={`Logo ${local.businessName}`}
                       className="w-full h-full object-contain"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

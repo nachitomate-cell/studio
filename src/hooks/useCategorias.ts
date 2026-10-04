@@ -21,6 +21,18 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { CATEGORIES_BASE, CATEGORY_ALL, type Category } from "@/lib/data";
 
+/**
+ * Algunas categorías se cargaron en mayúsculas ("RESTAURANTE", "SERVICIOS") y
+ * junto a "Cafetería" se veía descuidado. Solo toca las que vienen enteras en
+ * mayúsculas; "Deco & Hogar" o "Gourmet & Licores" quedan tal cual.
+ */
+function formatearNombre(nombre: string): string {
+  const t = nombre.trim();
+  if (t !== t.toUpperCase() || !/\p{L}/u.test(t)) return t;
+  const min = t.toLocaleLowerCase("es-CL");
+  return min.charAt(0).toLocaleUpperCase("es-CL") + min.slice(1);
+}
+
 export function useCategorias(): {
   categorias: Category[];
   categoriasConTodos: Category[];
@@ -38,7 +50,7 @@ export function useCategorias(): {
             const data = d.data() as { nombre?: string; icono?: string; orden?: number };
             return {
               id: d.id,
-              name: data.nombre ?? d.id,
+              name: formatearNombre(data.nombre ?? d.id),
               icon: "", // legacy Lucide field — no lo usa nadie en runtime
               emoji: data.icono,
               orden: typeof data.orden === "number" ? data.orden : undefined,

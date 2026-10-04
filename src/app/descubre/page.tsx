@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Sparkles, MapPin } from "lucide-react";
+import { MapPin, ArrowRight, Smartphone, Bell, Ticket, Wallet } from "lucide-react";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { PREMIOS as PREMIOS_FALLBACK } from "@/lib/data";
 import UTMTracker from "@/components/UTMTracker";
 import StickyCta from "./StickyCta";
+import { fotoOptimizada } from "@/lib/imagen";
 
 const GOLD = "#D3B673";
 
@@ -57,8 +58,40 @@ async function fetchLocales() {
   }
 }
 
+/**
+ * Socios reales para la prueba social. Antes decía "+500 vecinos" escrito a mano
+ * con tres círculos grises de avatar: un número desactualizado (eran 1.252 el
+ * 2026-10-04) y una decoración que se ve inventada. Se redondea hacia abajo a la
+ * centena para que la frase siga siendo cierta. Conteo agregado: no lee los documentos.
+ */
+async function fetchSocios(): Promise<number | null> {
+  try {
+    const snap = await adminDb.collection("usuarios").count().get();
+    const n = snap.data().count;
+    return n >= 100 ? Math.floor(n / 100) * 100 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sello de regalo al registrarse, con la misma regla que aplica /unete al crear
+ * la cuenta. Si se apaga desde /moderador, la página deja de prometerlo.
+ */
+async function fetchSellosBienvenida(): Promise<number> {
+  try {
+    const cfg = (await adminDb.doc("configuracion/general").get()).data()?.selloBienvenida;
+    if (cfg?.activo === false) return 0;
+    return Number(cfg?.cantidad ?? 1);
+  } catch {
+    return 0;
+  }
+}
+
 export default async function DescubrePage() {
-  const [premios, locales] = await Promise.all([fetchPremios(), fetchLocales()]);
+  const [premios, locales, socios, sellosBienvenida] = await Promise.all([
+    fetchPremios(), fetchLocales(), fetchSocios(), fetchSellosBienvenida(),
+  ]);
 
   const ctaHref = "/unete";
 
@@ -86,35 +119,36 @@ export default async function DescubrePage() {
               muted
               playsInline
               preload="none"
+              // Sin poster el cuadro quedaba gris hasta que bajaba el video.
+              poster="/header.webp"
               className="w-full h-full object-cover"
             />
           </div>
 
-          <h1 className="text-3xl font-black leading-[1.2] mb-3 bg-gradient-to-br from-[#D3B673] to-[#F2D59B] bg-clip-text text-transparent">
-            Descubre el Club Patio
+          <h1 className="text-[34px] font-black leading-[1.05] tracking-tight mb-3 text-white">
+            Compra en el Patio y <span className="text-[#F0C84A]">gana premios</span>
           </h1>
 
-          <p className="text-[15px] text-slate-400 leading-[1.65] mb-7 px-2">
-            Acumula sellos en los locales de Patio Curauma y canjéalos por premios reales.
-            <br /><strong className="text-slate-50">Es gratis, es tuyo.</strong>
+          <p className="text-[15px] text-slate-300 leading-[1.6] mb-6 px-2">
+            Escanea el QR del mostrador cuando compras y suma un sello. Ser socio no cuesta nada.
           </p>
 
-          {/* Prueba social (FOMO) */}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="flex">
-              <div className="bg-gray-400 border-2 border-[#0f172a] rounded-full w-6 h-6" />
-              <div className="bg-gray-500 border-2 border-[#0f172a] rounded-full w-6 h-6 -ml-2" />
-              <div className="bg-gray-300 border-2 border-[#0f172a] rounded-full w-6 h-6 -ml-2" />
+          {/* Prueba social con el número real (antes "+500" escrito a mano y avatares grises) */}
+          {socios && (
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <span className="text-[34px] font-black leading-none text-[#9DCC65]">
+                +{socios.toLocaleString("es-CL")}
+              </span>
+              <span className="text-left text-[13px] font-semibold leading-tight text-slate-300">
+                vecinos ya tienen<br />su tarjeta del Club
+              </span>
             </div>
-            <span className="text-sm text-gray-300 font-medium">
-              🔥 +500 vecinos ya disfrutan sus recompensas
-            </span>
-          </div>
+          )}
 
           {/* Tarjeta de sellos preview */}
           <div className="bg-slate-800/60 backdrop-blur-[20px] border border-[#D3B673]/20 rounded-[20px] py-[18px] px-5 mb-6 text-left">
-            <p className="text-[10px] font-extrabold text-[#9DCC65] uppercase tracking-[1.5px] mb-3">
-              Tu tarjeta de sellos ✦
+            <p className="text-xs font-bold text-slate-300 mb-3">
+              Así se ve tu tarjeta
             </p>
             <div className="grid grid-cols-5 gap-2">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -126,13 +160,12 @@ export default async function DescubrePage() {
               ))}
             </div>
             <p className="text-[11px] text-slate-600 mt-2.5 font-semibold">
-              3 de 10 sellos — ¡el próximo podría ser tuyo!
+              3 de 10 sellos
             </p>
           </div>
 
-          <Link href={ctaHref} className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-br from-[#D3B673] to-[#BFA05C] text-slate-900 font-black text-base rounded-[18px] shadow-[0_8px_24px_rgba(211,182,115,0.38)] no-underline">
-            <Sparkles size={20} />
-            Quiero unirme gratis →
+          <Link id="cta-hero" href={ctaHref} className="flex items-center justify-center gap-2 w-full h-14 bg-[#F0C84A] text-[#2A1B00] font-black text-[17px] rounded-[18px] shadow-[0_10px_28px_rgba(240,200,74,0.4)] no-underline">
+            Crear mi tarjeta gratis <ArrowRight size={19} />
           </Link>
         </section>
 
@@ -174,7 +207,7 @@ export default async function DescubrePage() {
 
         {/* ── PREMIOS ── */}
         <section className="px-6 pb-8">
-          <SectionTitle sub="Reales. Actualizados. Te esperan.">Premios disponibles</SectionTitle>
+          <SectionTitle sub="Lo que puedes canjear hoy con tus sellos">Premios</SectionTitle>
           <div className="grid grid-cols-2 gap-2.5">
             {premios.slice(0, 6).map((p: any) => (
               <div key={p.id} className={`relative flex flex-col items-center text-center gap-2 bg-slate-800/55 backdrop-blur-[16px] rounded-2xl px-3 py-4 border ${p.esSorteo ? "border-[#D3B673]/35" : "border-white/[0.07]"}`}>
@@ -208,7 +241,7 @@ export default async function DescubrePage() {
               {/* Comercios Asociados (arriba, destacados) */}
               <div>
                 <div className="px-6">
-                  <SectionTitle sub="Suma sellos con tu boleta, al instante">🏪 Comercios Asociados</SectionTitle>
+                  <SectionTitle sub="Suma sellos con tu boleta">Comercios asociados</SectionTitle>
                 </div>
                 <LocalesRow locales={localesAsociados} />
               </div>
@@ -216,7 +249,7 @@ export default async function DescubrePage() {
               {localesEmprendedores.length > 0 && (
                 <div>
                   <div className="px-6">
-                    <SectionTitle sub="Gana sellos en cada compra">🎨 Emprendedores</SectionTitle>
+                    <SectionTitle sub="Gana sellos en cada compra">Emprendedores</SectionTitle>
                   </div>
                   <LocalesRow locales={localesEmprendedores} />
                 </div>
@@ -232,27 +265,27 @@ export default async function DescubrePage() {
           )
         )}
 
-        {/* ── BENEFICIOS (Bento Box) ── */}
+        {/* ── BENEFICIOS ──
+            Antes era un mosaico de cinco cajas con un emoji grande cada una (el
+            formato de landing genérica). Ahora cada beneficio lleva un color de la
+            marca y un ícono, y dice algo concreto. */}
         <section className="px-6 pb-8">
-          <h3 className="text-[15px] font-extrabold text-[#9DCC65] mb-4">¿Por qué unirte?</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Beneficio destacado a ancho completo */}
-            <div className="md:col-span-2 bg-gradient-to-br from-[#111111] to-gray-900 border border-white/10 rounded-2xl p-6 animate-fade-in-up">
-              <div className="text-3xl mb-3">📱</div>
-              <p className="text-base font-bold text-slate-50 mb-1">Todo desde tu celular</p>
-              <p className="text-[13px] text-slate-400 leading-relaxed">
-                Sin tarjeta física. Tu club entero vive en tu bolsillo, siempre a mano.
-              </p>
-            </div>
+          <h3 className="text-[22px] font-black tracking-tight text-white mb-4">Lo que te llevas</h3>
+          <div className="space-y-2.5">
             {[
-              { icon: "🔔", text: "Notificaciones de nuevos premios y sorteos" },
-              { icon: "🎟️", text: "Participa en sorteos exclusivos del club" },
-              { icon: "💳", text: "Compatible con Google Wallet" },
-              { icon: "🏆", text: "Recompensas reales en tus locales favoritos" },
-            ].map((b, i) => (
-              <div key={i} className="bg-slate-800/45 border border-white/[0.06] rounded-2xl p-5 animate-fade-in-up">
-                <div className="text-2xl mb-2">{b.icon}</div>
-                <p className="text-[13px] text-slate-300 leading-snug">{b.text}</p>
+              { Icono: Smartphone, color: "#F0C84A", titulo: "Tu tarjeta en el celular", texto: "Sin cartón que se pierda: tus sellos quedan guardados." },
+              { Icono: Bell, color: "#9DCC65", titulo: "Avisos al instante", texto: "Te llega una alerta con cada sello, premio o sorteo." },
+              { Icono: Ticket, color: "#5BB8D4", titulo: "Sorteos para socios", texto: "Cada cierto tiempo se sortean premios entre los socios." },
+              { Icono: Wallet, color: "#F0C84A", titulo: "Va a tu Google Wallet", texto: "Guárdala junto a tus otras tarjetas." },
+            ].map(({ Icono, color, titulo, texto }) => (
+              <div key={titulo} className="flex items-center gap-4 rounded-2xl p-4 bg-slate-800/60 border border-white/[0.07]">
+                <span className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: color }}>
+                  <Icono size={22} color="#0f172a" strokeWidth={2.4} />
+                </span>
+                <div>
+                  <p className="text-[15px] font-black text-white">{titulo}</p>
+                  <p className="text-[13px] text-slate-400 leading-snug mt-0.5">{texto}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -272,24 +305,25 @@ export default async function DescubrePage() {
         </section>
 
         {/* ── INCENTIVO DE BIENVENIDA ── */}
-        <div className="mx-6 mb-6 rounded-2xl border border-[#8CC63F]/30 bg-[#8CC63F]/5 p-4 text-center animate-fade-in-up">
-          <p className="text-sm font-semibold text-slate-100 leading-relaxed">
-            🎁 Tu primer sello va por nuestra cuenta.{" "}
-            <span className="text-[#8CC63F] font-bold">Arranca con ventaja.</span>
-          </p>
-        </div>
+        {sellosBienvenida > 0 && (
+          <div className="mx-6 mb-6 rounded-3xl bg-[#8DC63F] p-5 flex items-center gap-4 animate-fade-in-up">
+            <span className="w-14 h-14 rounded-full bg-white flex items-center justify-center shrink-0">
+              <img src="/Logo2.png" alt="" className="w-9 h-9 object-contain" />
+            </span>
+            <p className="text-[17px] font-black text-[#1C3305] leading-tight text-left">
+              {sellosBienvenida === 1 ? "Tu primer sello es de regalo" : `Te regalamos ${sellosBienvenida} sellos`}
+              <span className="block text-[13px] font-bold text-[#2F4F0F] mt-1">al crear tu tarjeta</span>
+            </p>
+          </div>
+        )}
 
         {/* ── CTA FINAL ── */}
         <section id="cta-final" className="px-6 pb-5 text-center">
-          <h2 className="text-[22px] font-black text-slate-50 mb-1.5">
-            ¿Listo para empezar?
+          <h2 className="text-[26px] font-black tracking-tight text-white mb-5">
+            Tu tarjeta está a un minuto
           </h2>
-          <p className="text-[13px] text-slate-500 mb-5">
-            Gratis. Sin cuotas. Sin compromisos.
-          </p>
-          <Link href={ctaHref} className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-br from-[#D3B673] to-[#BFA05C] text-slate-900 font-black text-base rounded-[18px] shadow-[0_8px_24px_rgba(211,182,115,0.38)] no-underline">
-            <Sparkles size={20} />
-            Crear mi cuenta gratis
+          <Link href={ctaHref} className="flex items-center justify-center gap-2 w-full h-14 bg-[#F0C84A] text-[#2A1B00] font-black text-[17px] rounded-[18px] shadow-[0_10px_28px_rgba(240,200,74,0.4)] no-underline">
+            Crear mi tarjeta gratis <ArrowRight size={19} />
           </Link>
           <Link href={ctaHref} className="flex items-center justify-center mt-3.5 text-[13px] text-slate-600 no-underline">
             ¿Ya tengo cuenta?&nbsp;<strong className="text-[#D3B673] font-bold">Iniciar sesión →</strong>
@@ -302,7 +336,7 @@ export default async function DescubrePage() {
       </div>
 
       {/* Smart Sticky CTA inferior (cliente — se oculta sobre #cta-final) */}
-      <StickyCta href={ctaHref} watchId="cta-final" />
+      <StickyCta href={ctaHref} watchIds={["cta-hero", "cta-final"]} />
     </div>
   );
 }
@@ -318,8 +352,10 @@ function LocalCard({ local }: { local: any }) {
       )}
       <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center p-2 mb-3 shadow-md">
         <img
-          src={local.imagenTarjeta || local.imagenPerfil}
+          {...fotoOptimizada(local.imagenTarjeta || local.imagenPerfil, 48)}
           alt={local.businessName || local.name || "Local"}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-contain rounded-full"
         />
       </div>

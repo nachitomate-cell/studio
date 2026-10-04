@@ -1242,17 +1242,34 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
   if (!user) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
-        <div className="flex flex-col items-center justify-center bg-white p-10 rounded-2xl border border-border shadow-sm text-center space-y-6">
-          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-            <UserIcon className="w-8 h-8 text-primary" />
+        {/* Antes era una tarjeta centrada con ícono en círculo pastel, idéntica a
+            la de Premios: se leía como pantalla de plantilla. Ahora vende con la
+            tarjeta de sellos de la marca (las piedras del logo). */}
+        <div className="rounded-[28px] p-6 text-white relative overflow-hidden" style={{ background: "#C9920A", boxShadow: "0 14px 34px rgba(201,146,10,0.35)" }}>
+          <h2 className="text-[28px] font-black leading-[1.05] tracking-tight">
+            Tus sellos, tus premios y tus locales favoritos
+          </h2>
+          <p className="text-[14px] font-semibold mt-2.5 leading-snug" style={{ color: "rgba(255,255,255,0.88)" }}>
+            Entra con tu correo y lo tienes todo a mano.
+          </p>
+          <div className="flex gap-1.5 mt-5" aria-hidden>
+            {Array.from({ length: 10 }).map((_, i) => (
+              <span
+                key={i}
+                className="flex-1 aspect-square rounded-full flex items-center justify-center"
+                style={{ background: i < 3 ? "white" : "rgba(255,255,255,0.2)" }}
+              >
+                {i < 3 && <img src="/Logo2.png" alt="" className="w-[70%] h-[70%] object-contain" />}
+              </span>
+            ))}
           </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-primary">¡Bienvenido al Club Patio!</h2>
-            <p className="text-muted-foreground px-4">Inicia sesión para acumular sellos y participar en nuestros sorteos exclusivos.</p>
-          </div>
-          <Button onClick={onShowAuth} className="w-full rounded-xl h-12 text-lg font-bold gap-2 shadow-lg shadow-primary/20">
-            <UserIcon className="w-5 h-5" /> Entrar al Club
-          </Button>
+          <button
+            onClick={onShowAuth}
+            className="mt-6 w-full h-13 py-3.5 rounded-2xl font-black text-[16px] active:scale-[0.97] transition-transform"
+            style={{ background: "white", color: "#7A5300", boxShadow: "0 8px 22px rgba(0,0,0,0.15)" }}
+          >
+            Entrar o crear mi cuenta
+          </button>
         </div>
       </div>
     );

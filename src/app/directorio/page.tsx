@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { getSafeImageUrl } from "@/lib/utils";
 import { ADMIN_EMAIL } from "@/lib/constants";
+import { fotoOptimizada } from "@/lib/imagen";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -565,14 +566,18 @@ export default function DirectorioPage() {
                   {/* Thumbnail */}
                   <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-slate-100">
                     <img
-                      src={getSafeImageUrl(
+                      {...fotoOptimizada(getSafeImageUrl(
                         vendor.imagenTarjeta || vendor.imageUrl,
                         "/Logo2.png"
-                      )}
+                      ), 48)}
                       alt={vendor.businessName || "Local"}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/Logo2.png";
+                        const img = e.target as HTMLImageElement;
+                        img.srcset = "";
+                        img.src = "/Logo2.png";
                       }}
                     />
                   </div>

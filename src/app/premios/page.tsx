@@ -7,6 +7,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RewardsView } from "@/components/RewardsView";
+import { guardarRetorno } from "@/lib/urlRetorno";
 
 export default function PremiosPage() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function PremiosPage() {
     const unsub = auth.onAuthStateChanged((user) => {
       if (!user) {
         if (typeof window !== "undefined") {
-          localStorage.setItem("url_retorno", "/premios");
+          guardarRetorno("/premios");
         }
         router.push("/?login=true");
         return;
@@ -87,7 +88,7 @@ export default function PremiosPage() {
           userData={userData}
           onShowAuth={() => {
             if (typeof window !== "undefined") {
-              localStorage.setItem("url_retorno", "/premios");
+              guardarRetorno("/premios");
             }
             router.push("/?login=true");
           }}

@@ -34,23 +34,22 @@ export function middleware(request: NextRequest) {
   }
 
   // ── Prevenir restauración de URL de iOS PWA en /emprendedor/* ─────────────────
-  // Cuando iOS restaura la última URL de la PWA, la petición llega sin Referer.
+  // Cuando iOS restaura la última URL de la PWA, la petición llega SIN Referer.
   // La navegación interna (SPA) no genera peticiones al servidor, así que no
-  // se ve afectada. Solo bloqueamos entradas directas sin Referer de nuestro dominio.
+  // se ve afectada.
+  //
+  // Antes se bloqueaba todo lo que no viniera de nuestro propio dominio, y eso
+  // rompía el botón "Compartir" del perfil: el enlace abierto desde WhatsApp
+  // (sin Referer) o desde Google (Referer ajeno) terminaba en el inicio y no en
+  // el local. Ahora solo se bloquea lo que de verdad se parece a la restauración
+  // de iOS: sin Referer y sin la marca `?compartido=1` que pone el botón.
   if (pathname.startsWith("/emprendedor/")) {
     const referer = request.headers.get("referer") || "";
-    // Aceptar cualquier navegación cuyo Referer provenga de nuestro propio host
-    // (mismo origen), además de los dominios conocidos. Así evitamos redirigir
-    // al inicio cuando la app se sirve desde el dominio de producción real
-    // (p. ej. clubpatiocurauma.synaptechspa.cl) o desde subdominios de tenant.
-    const currentHost = (request.headers.get("host") || "").split(":")[0];
-    const fromOurApp =
-      (currentHost && referer.includes(currentHost)) ||
-      referer.includes("synaptechspa.cl") ||
-      referer.includes("localhost");
-    if (!fromOurApp) {
+    const compartido = request.nextUrl.searchParams.has("compartido");
+    if (!referer && !compartido) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
+      url.search = "";
       return NextResponse.redirect(url);
     }
   }

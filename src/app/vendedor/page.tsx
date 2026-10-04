@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { extraerCoords, esEnlaceCorto, urlMapa, type Coords } from "@/lib/geoLink";
 import { query, collection, orderBy, limit, onSnapshot, doc, setDoc, updateDoc, getDocs, getDoc, addDoc, deleteDoc, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { comprimirImagen } from "@/lib/comprimirImagen";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,7 @@ import {
 } from "@/lib/informes";
 import VendorStampModal from "@/components/VendorStampModal";
 import { BiooPromoCard } from "@/components/BiooPromoCard";
+import { EstadisticasLocal } from "@/components/EstadisticasLocal";
 import { SynapTechAIPanel, type AIInsight } from "@/components/SynapTechAI";
 import { clasificarPerfil, calcularSegmentacion, PERFILES_META, type PerfilConductual } from "@/lib/perfilesConductuales";
 
@@ -675,7 +677,7 @@ export default function VendedorPage() {
       if (profileImage) {
         try {
           const storageRef = ref(storage, `entrepreneur_photos/${auth.currentUser.uid}/profile.jpg`);
-          const uploadResult = await uploadBytes(storageRef, profileImage);
+          const uploadResult = await uploadBytes(storageRef, await comprimirImagen(profileImage));
           finalImageUrl = await getDownloadURL(uploadResult.ref);
         } catch (storageError: any) {
           console.error("Storage Error:", storageError);
@@ -1933,6 +1935,9 @@ export default function VendedorPage() {
             </Alert>
           )}
         </section>
+
+        {/* ── Lo que el Club le genera al local (visitas, toques, sellos) ── */}
+        {view !== "scanner" && <EstadisticasLocal />}
 
         {/* ── Beneficio VIP: Mi Link in Bio (bioo.cl) — destacado en el dashboard ── */}
         {view !== "scanner" && (

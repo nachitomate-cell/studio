@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { doc, onSnapshot, collection, query, getDocs, where } from "firebase/firestore";
 import { app, auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
@@ -14,7 +14,7 @@ import { useCategorias } from "@/hooks/useCategorias";
 import { useUserLocation, haversineKm } from "@/hooks/useUserLocation";
 import { isOpenNow } from "@/lib/horarios";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, Check, Heart, X, ExternalLink, Bell } from "lucide-react";
+import { Search, Loader2, QrCode, Gift, LogIn, UserPlus, Sparkles, Trophy, Instagram, Facebook, MapPin, ChevronDown, ChevronRight, ArrowRight, Check, Heart, X, ExternalLink, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -37,8 +37,13 @@ import { captureUTMParams, registrarVisitaUTM } from "@/lib/utmTracking";
 import VendorStampModal from "@/components/VendorStampModal";
 import ValidarPanel from "@/components/ValidarPanel";
 import PushNotifModal, { type PushNotifData } from "@/components/PushNotifModal";
+import { AnimatePresence, motion } from "framer-motion";
+import { PantallaCarga } from "@/components/PantallaCarga";
+import { BienvenidaAvisos, AVISOS_SNOOZE_KEY } from "@/components/BienvenidaAvisos";
+import { estadoPush } from "@/lib/pushSoporte";
 import { SolicitudClubModal } from "@/components/SolicitudClubModal";
 import QRCode from "react-qr-code";
+import { fotoOptimizada } from "@/lib/imagen";
 
 function getMondayKey(date: Date): string {
   const d = new Date(date);
@@ -97,39 +102,32 @@ function cargarPremiosActivos(): Promise<any[]> {
   return _premiosPromise;
 }
 
-const GROUP_META: Record<string, { emoji: string; color: string; light: string }> = {
-  deco:      { emoji: "🏠", color: "#C2714F", light: "#FDF3EF" },
-  gourmet:   { emoji: "🍷", color: "#4A7C59", light: "#EEF6F1" },
-  joyeria:   { emoji: "💎", color: "#7C3AED", light: "#F3EFFE" },
-  belleza:   { emoji: "✨", color: "#C2185B", light: "#FDE9F2" },
-  artesania: { emoji: "🎨", color: "#B45309", light: "#FEF3E2" },
-  papeleria: { emoji: "📚", color: "#1D6FAB", light: "#E8F3FB" },
-  infantil:  { emoji: "🧸", color: "#0891B2", light: "#E5F7FB" },
-  vestuario: { emoji: "👗", color: "#4338CA", light: "#EDEFFE" },
-  otros:     { emoji: "🏪", color: "#C9920A", light: "#FFF8E8" },
-};
-
-function GroupSection({ group, userCoords, filterCercano }: {
+function GroupSection({ group, userCoords, filterCercano, onVerTodos }: {
   group: { id: string; name: string; locals: Entrepreneur[] };
   userCoords: { lat: number; lng: number } | null;
   filterCercano: boolean;
+  onVerTodos?: () => void;
 }) {
-  const meta = GROUP_META[group.id] ?? { emoji: "🏪", color: "#C9920A", light: "#FFF8E8" };
+  // Encabezado tipo vitrina: nombre grande y "Ver todos" en vez del emoji en
+  // cuadrito pastel con un color distinto por categoría (se veía de plantilla).
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <div className="flex items-center justify-between px-6">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="text-base leading-none flex items-center justify-center rounded-xl"
-            style={{ width: 32, height: 32, background: meta.light, fontSize: 16 }}
-          >
-            {meta.emoji}
+        <div className="flex items-baseline gap-2">
+          <h3 className="text-[17px] font-black tracking-tight" style={{ color: "#1A1A1A" }}>{group.name}</h3>
+          <span className="text-[11px] font-bold" style={{ color: "#C9920A" }}>
+            {group.locals.length} {group.locals.length === 1 ? "local" : "locales"}
           </span>
-          <h3 className="text-sm font-black" style={{ color: meta.color }}>{group.name}</h3>
         </div>
-        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: meta.light, color: meta.color, border: `1px solid ${meta.color}25` }}>
-          {group.locals.length} {group.locals.length !== 1 ? "locales" : "local"}
-        </span>
+        {onVerTodos && (
+          <button
+            onClick={onVerTodos}
+            className="flex items-center gap-0.5 text-[12px] font-bold active:opacity-60"
+            style={{ color: "#C9920A" }}
+          >
+            Ver todos <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2 px-6 no-scrollbar snap-x snap-mandatory">
         {group.locals.map((entrepreneur, idx) => {
@@ -177,8 +175,7 @@ function HomeContent() {
   const [premiosBadge, setPremiosBadge] = useState(false);
   const [nextPremio, setNextPremio] = useState<{ nombre: string; sellosRequeridos: number; icono: string } | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [showPushBanner, setShowPushBanner] = useState(false);
-  const [pushBannerLoading, setPushBannerLoading] = useState(false);
+  const [showAvisos, setShowAvisos] = useState(false);
   const [publicidad, setPublicidad] = useState<{ imageUrl: string; cta: string | null } | null>(null);
   const [showPublicidad, setShowPublicidad] = useState(false);
   const [publicidadLoading, setPublicidadLoading] = useState(false);
@@ -198,12 +195,23 @@ function HomeContent() {
   const [debugGps, setDebugGps] = useState<{ lat: number; lng: number; zona: string; dist: string; server?: string } | null>(null);
   const lastGeoApiCallRef = useRef<number>(0);
 
-  useEffect(() => {
+  // useLayoutEffect y no useEffect: corre antes de que el navegador pinte, así el
+  // splash del servidor pasa directo al de la publicidad sin mostrar la app entremedio.
+  useLayoutEffect(() => {
     sessionStorage.setItem('home_visited', '1');
     if (!sessionStorage.getItem("publicidad_vista")) {
       setPublicidadLoading(true);
     }
   }, []);
+
+  // Tope a la espera de la publicidad: con la red saturada de una feria,
+  // Firestore puede tardar y el socio quedaba mirando el splash. Si la
+  // publicidad llega después, el modal igual aparece encima de la app.
+  useEffect(() => {
+    if (!publicidadLoading) return;
+    const t = setTimeout(() => setPublicidadLoading(false), 2500);
+    return () => clearTimeout(t);
+  }, [publicidadLoading]);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -287,11 +295,15 @@ function HomeContent() {
         setPublicidad(newPub);
         if (!sessionStorage.getItem("publicidad_vista")) {
           sessionStorage.setItem("publicidad_vista", "1");
-          // Precargar imagen antes de abrir el modal para evitar flash de carga
+          // Precargar antes de abrir el modal para evitar flash de carga. Se precarga
+          // la MISMA versión optimizada que muestra el <img> (mismo src y srcset):
+          // antes se bajaba el original completo y después el modal pedía otra copia.
+          const opt = fotoOptimizada(newPub.imageUrl, 420, 80);
           const preload = new window.Image();
           preload.onload = () => setShowPublicidad(true);
           preload.onerror = () => setShowPublicidad(true);
-          preload.src = newPub.imageUrl;
+          if (opt.srcSet) preload.srcset = opt.srcSet;
+          preload.src = opt.src;
         }
       } else {
         setPublicidad(null);
@@ -397,19 +409,21 @@ function HomeContent() {
     }
   }, [user, userData]);
 
-  // Banner de activación de push notifications
+  // Pantalla de activación de avisos al abrir la app. Espera a que termine el
+  // tutorial y la publicidad para no apilar dos pantallas completas.
   useEffect(() => {
-    if (!user || showOnboarding) return;
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission !== "default") return; // ya concedido o denegado
+    if (!user || showOnboarding || publicidadLoading || showPublicidad) return;
+    if (estadoPush() !== "preguntable") return; // ya concedido, denegado o imposible
 
     // Snooze de 7 días: no molestar si ya lo cerró recientemente
-    const snoozeUntil = localStorage.getItem("push_banner_snooze");
-    if (snoozeUntil && Date.now() < Number(snoozeUntil)) return;
+    try {
+      const snoozeUntil = localStorage.getItem(AVISOS_SNOOZE_KEY);
+      if (snoozeUntil && Date.now() < Number(snoozeUntil)) return;
+    } catch { }
 
-    const timer = setTimeout(() => setShowPushBanner(true), 2000);
+    const timer = setTimeout(() => setShowAvisos(true), 600);
     return () => clearTimeout(timer);
-  }, [user, showOnboarding]);
+  }, [user, showOnboarding, publicidadLoading, showPublicidad]);
 
   // Show NPS survey 30 days after registration if not yet answered
   useEffect(() => {
@@ -649,88 +663,67 @@ function HomeContent() {
     })(),
   ];
 
-  const renderHero = () => (
-    <section style={{
-      borderBottom: "1px solid #F0EDE8",
-      padding: "20px 24px 18px",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      textAlign: "center",
-      position: "relative",
-      overflow: "hidden",
-    }}>
-      {/* Imagen de fondo */}
-      <div aria-hidden style={{
-        position: "absolute", inset: 0, pointerEvents: "none",
-        backgroundImage: "url('/header.webp')",
-        backgroundSize: "cover",
-        backgroundPosition: "center top",
-        zIndex: 0,
-      }} />
-      {/* Overlay blanco degradado para legibilidad del contenido */}
-      <div aria-hidden style={{
-        position: "absolute", inset: 0, pointerEvents: "none",
-        background: "linear-gradient(to bottom, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.72) 50%, rgba(255,255,255,0.93) 100%)",
-        zIndex: 1,
-      }} />
-
-      {/* Logo */}
-      <div style={{ position: "relative", zIndex: 2, marginBottom: 12 }}>
+  // Portada vendedora: foto real del Patio a todo color (antes la tapaba un velo
+  // blanco), titular que dice qué se gana, datos en vivo y, si no es socio, el
+  // botón para crear la tarjeta ahí mismo. El logo ya está en el header: no se repite.
+  const renderHero = () => {
+    // Mismo criterio que el directorio sin filtros (visibles y sin tiendas "hijas"),
+    // para que la portada y "Locales del Patio" digan el mismo número.
+    const visibles = entrepreneurs.filter((e: any) => isVendorVisible(e) && !e.isHiddenFromFeed);
+    const abiertos = visibles.filter((e) => isOpenNow((e as any).horariosEstructurados)).length;
+    return (
+      <section className="relative overflow-hidden" style={{ minHeight: user ? 196 : 268 }}>
         <img
-          src="/Logo3.webp"
-          alt="Club Patio Curauma"
-          style={{ width: 64, height: "auto", display: "block" }}
+          src="/header.webp"
+          alt=""
+          aria-hidden
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: "center 35%" }}
         />
-      </div>
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{ background: "linear-gradient(to top, rgba(24,16,4,0.92) 0%, rgba(24,16,4,0.55) 50%, rgba(24,16,4,0.05) 100%)" }}
+        />
 
-      {/* Título */}
-      <div style={{ position: "relative", zIndex: 2 }}>
-        <p style={{
-          fontFamily: "Montserrat, sans-serif",
-          fontSize: 9,
-          fontWeight: 700,
-          color: "#C9920A",
-          letterSpacing: "3.5px",
-          textTransform: "uppercase",
-          margin: "0 0 4px 0",
-        }}>
-          Bienvenido al
-        </p>
-        <h1 style={{
-          fontFamily: "Montserrat, sans-serif",
-          fontSize: 20,
-          fontWeight: 900,
-          color: "#1A1A1A",
-          margin: 0,
-          lineHeight: 1.05,
-          letterSpacing: "-0.5px",
-        }}>
-          Club Patio Curauma
-        </h1>
+        {/* Dato en vivo arriba: cuántos locales están atendiendo ahora mismo */}
+        {abiertos > 0 && (
+          <div
+            className="absolute top-4 left-6 flex items-center gap-1.5 rounded-full px-3 py-1.5"
+            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 14px rgba(0,0,0,0.18)" }}
+          >
+            <span className="relative flex w-2 h-2">
+              <span className="absolute inset-0 rounded-full animate-ping" style={{ background: "#8DC63F", opacity: 0.6 }} />
+              <span className="relative w-2 h-2 rounded-full" style={{ background: "#6BA32E" }} />
+            </span>
+            <span className="text-[11px] font-black" style={{ color: "#3F6B14" }}>
+              {abiertos} {abiertos === 1 ? "local abierto" : "locales abiertos"} ahora
+            </span>
+          </div>
+        )}
 
-        {/* Línea gold decorativa */}
-        <div style={{
-          width: 36,
-          height: 2,
-          background: "linear-gradient(90deg, #C9920A, #D3B673)",
-          borderRadius: 2,
-          margin: "8px auto 8px",
-        }} />
-
-        <p style={{
-          fontSize: 10,
-          color: "#888",
-          letterSpacing: "1.5px",
-          fontWeight: 600,
-          textTransform: "uppercase",
-          margin: 0,
-        }}>
-          Fidelización · Premios · Comunidad
-        </p>
-      </div>
-    </section>
-  );
+        <div className="absolute left-6 right-6 bottom-5">
+          <h1 className="text-white" style={{ fontSize: 27, fontWeight: 900, lineHeight: 1.08, margin: 0, letterSpacing: "-0.5px" }}>
+            Compra en el Patio y <span style={{ color: "#F0C84A" }}>gana premios</span>
+          </h1>
+          <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.88)", margin: "8px 0 0", fontWeight: 600 }}>
+            {visibles.length > 0
+              ? `Cada compra suma un sello en ${visibles.length} locales`
+              : "Cada compra en los locales suma un sello"}
+          </p>
+          {!user && (
+            <button
+              onClick={() => router.push("/unete")}
+              className="mt-4 inline-flex items-center gap-2 rounded-2xl px-5 h-12 font-black text-[15px] active:scale-[0.97] transition-transform"
+              style={{ background: "#F0C84A", color: "#2A1B00", boxShadow: "0 8px 24px rgba(240,200,74,0.45)" }}
+            >
+              Crear mi tarjeta gratis <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  };
 
   const renderContent = () => {
     if (showAuth) {
@@ -916,39 +909,48 @@ function HomeContent() {
             )}
 
             {/* Acceso rápido a Premios */}
+            {/* Bloque dorado con las piedras del logo como sellos: es el elemento
+                propio de la marca, no un ícono genérico de regalo. */}
             <div
               onClick={() => router.push("/premios")}
-              className="mx-6 active:scale-[0.97] transition-transform cursor-pointer"
+              className="mx-6 active:scale-[0.97] transition-transform cursor-pointer relative overflow-hidden"
               style={{
-                background: "#FFFBF2",
-                borderRadius: "16px",
-                padding: "16px 20px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                border: "1.5px solid #E8D5A3",
-                boxShadow: "0 2px 12px rgba(201,146,10,0.08)",
+                background: "#C9920A",
+                borderRadius: 20,
+                padding: "18px 20px",
+                boxShadow: "0 10px 26px rgba(201,146,10,0.35)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12,
-                  background: "linear-gradient(135deg, #C9920A, #D3B673)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  <Gift style={{ width: 20, height: 20, color: "white" }} />
-                </div>
-                <div>
-                  <p style={{ color: "#1A1A1A", fontWeight: 800, fontSize: "15px", margin: 0 }}>
-                    Mis Premios y Sellos
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p style={{ color: "white", fontWeight: 900, fontSize: 18, margin: 0, letterSpacing: "-0.3px" }}>
+                    {user ? "Mi tarjeta de sellos" : "Junta sellos y canjea premios"}
                   </p>
-                  <p style={{ color: "#9A7B3A", fontSize: "12px", margin: "2px 0 0" }}>
-                    Ver tarjeta · Canjear · Sorteo
+                  <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 12.5, margin: "3px 0 0", fontWeight: 600 }}>
+                    {user ? "Mira cuántos llevas y qué puedes canjear" : "Mira los premios que te esperan"}
                   </p>
                 </div>
+                <span
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255,255,255,0.22)" }}
+                >
+                  <ChevronRight className="w-5 h-5 text-white" />
+                </span>
               </div>
-              <span style={{ color: "#C9920A", fontSize: "22px", fontWeight: 300 }}>›</span>
+              <div className="flex gap-1.5 mt-3.5" aria-hidden>
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const llenos = user ? Math.min(10, userData?.comprasRealizadas || 0) : 3;
+                  return (
+                    <span
+                      key={i}
+                      className="flex-1 aspect-square rounded-full flex items-center justify-center"
+                      style={{ background: i < llenos ? "white" : "rgba(255,255,255,0.18)" }}
+                    >
+                      {i < llenos && <img src="/Logo2.png" alt="" className="w-[70%] h-[70%] object-contain" />}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="px-6">
@@ -961,20 +963,27 @@ function HomeContent() {
                 href="https://www.patiocuraumaonline.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2.5 w-full transition-all active:scale-[0.97]"
+                className="flex items-center justify-between w-full px-5 py-4 active:scale-[0.98] transition-transform"
                 style={{
-                  height: 54,
-                  borderRadius: 14,
-                  background: "linear-gradient(135deg, #5BB8D4 0%, #2E86AB 100%)",
+                  borderRadius: 20,
+                  background: "#2E86AB",
                   color: "white",
-                  fontWeight: 800,
-                  fontSize: 15,
-                  letterSpacing: "0.2px",
                   textDecoration: "none",
-                  boxShadow: "0 4px 16px rgba(46,134,171,0.35)",
+                  boxShadow: "0 10px 26px rgba(46,134,171,0.32)",
                 }}
               >
-                🛍️ Visita nuestra Tienda Online
+                <span>
+                  <span className="block" style={{ fontWeight: 900, fontSize: 17, letterSpacing: "-0.3px" }}>Tienda online del Patio</span>
+                  <span className="block" style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: 2 }}>
+                    Compra online desde tu casa
+                  </span>
+                </span>
+                <span
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255,255,255,0.2)" }}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </span>
               </a>
             </div>
 
@@ -1073,12 +1082,17 @@ function HomeContent() {
             </section>
 
             <section className="space-y-6 pt-4">
-              <div className="flex items-center justify-between px-6 pb-3" style={{ borderBottom: "1px solid #F0EDE8" }}>
-                <div className="flex items-center gap-2.5">
-                  <div style={{ width: 3, height: 18, borderRadius: 2, background: "linear-gradient(180deg, #C9920A, #D3B673)" }} />
-                  <h2 className="text-lg font-black" style={{ color: "#1A1A1A" }}>Descubre</h2>
+              <div className="flex items-end justify-between px-6">
+                <div>
+                  <h2 className="text-[24px] font-black tracking-tight leading-none" style={{ color: "#1A1A1A" }}>Locales del Patio</h2>
+                  <p className="text-[12.5px] font-semibold mt-1.5" style={{ color: "#8A8A8A" }}>
+                    En todos juntas sellos con cada compra
+                  </p>
                 </div>
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ background: "#FAFAF8", border: "1px solid #EEEBE4", color: "#888" }}>
+                <span
+                  className="shrink-0 text-[12px] font-black px-3 py-1.5 rounded-full"
+                  style={{ background: "#FFF3D6", color: "#9A6B00" }}
+                >
                   {filteredEntrepreneurs.length} locales
                 </span>
               </div>
@@ -1096,6 +1110,8 @@ function HomeContent() {
                       group={group}
                       userCoords={userCoords}
                       filterCercano={filterCercano}
+                      // "otros" junta categorías desconocidas: no hay chip que lo filtre.
+                      onVerTodos={group.id !== "otros" && group.locals.length > 2 ? () => setSelectedCategory(group.id) : undefined}
                     />
                   ))}
                 </div>
@@ -1238,7 +1254,12 @@ function HomeContent() {
           onComplete={() => setShowOnboarding(false)}
         />
       )}
-      {showNpsSurvey && user && !showOnboarding && (
+      <AnimatePresence>
+        {showAvisos && user && (
+          <BienvenidaAvisos onClose={() => setShowAvisos(false)} />
+        )}
+      </AnimatePresence>
+      {showNpsSurvey && user && !showOnboarding && !showAvisos && (
         <NpsSurvey
           userId={user.uid}
           onClose={() => setShowNpsSurvey(false)}
@@ -1254,49 +1275,6 @@ function HomeContent() {
         </div>
       )}
       <PWAInstallBanner userId={user?.uid ?? null} />
-
-      {/* Banner de activación de push notifications */}
-      {showPushBanner && (
-        <div className="fixed bottom-20 left-0 right-0 z-[200] flex justify-center px-4 animate-in slide-in-from-bottom-3 duration-300">
-          <div className="w-full max-w-lg bg-slate-900 rounded-2xl shadow-2xl px-4 py-3.5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-              <span className="text-lg">🔔</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-white leading-tight">Activa las notificaciones</p>
-              <p className="text-[11px] text-slate-400 leading-tight mt-0.5">Recibe alertas de sellos, premios y promociones exclusivas.</p>
-            </div>
-            <button
-              disabled={pushBannerLoading}
-              onClick={async () => {
-                setPushBannerLoading(true);
-                try {
-                  const { registerFcmToken } = await import("@/lib/fcmTokenManager");
-                  const result = await registerFcmToken();
-                  if (result.ok) {
-                    toast({ title: "¡Notificaciones activadas! 🎉", description: "Ya recibirás todas las alertas del Club." });
-                  }
-                } finally {
-                  setPushBannerLoading(false);
-                  setShowPushBanner(false);
-                }
-              }}
-              className="shrink-0 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded-xl disabled:opacity-60 active:scale-95 transition-transform"
-            >
-              {pushBannerLoading ? "…" : "Activar"}
-            </button>
-            <button
-              onClick={() => {
-                setShowPushBanner(false);
-                localStorage.setItem("push_banner_snooze", String(Date.now() + 7 * 24 * 60 * 60 * 1000));
-              }}
-              className="shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       <BottomNav activeTab={activeTab} premiosBadge={premiosBadge} isVendor={isVendor} onTabChange={(tab) => {
         setActiveTab(tab);
@@ -1438,28 +1416,14 @@ function HomeContent() {
         </div>
       )}
 
-      {/* LOADING PUBLICIDAD */}
-      {publicidadLoading && (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white">
-          <img src="/Logo3.webp" alt="Patio Curauma" style={{ width: 90, height: "auto", marginBottom: 24 }} />
-          <div style={{ display: "flex", gap: 8 }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} style={{
-                width: 10, height: 10, borderRadius: "50%",
-                background: "linear-gradient(135deg, #C9920A, #8DC63F)",
-                animation: "pubDot 1.2s ease-in-out infinite",
-                animationDelay: `${i * 0.2}s`,
-              }} />
-            ))}
-          </div>
-          <style>{`
-            @keyframes pubDot {
-              0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-              40%            { transform: scale(1);   opacity: 1;   }
-            }
-          `}</style>
-        </div>
-      )}
+      {/* LOADING PUBLICIDAD: el mismo splash del arranque, así no hay salto entre los dos */}
+      <AnimatePresence>
+        {publicidadLoading && (
+          <motion.div key="splash" exit={{ opacity: 0 }} transition={{ duration: 0.35 }}>
+            <PantallaCarga />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL PUBLICIDAD */}
       {showPublicidad && publicidad && (
@@ -1468,23 +1432,26 @@ function HomeContent() {
           onClick={() => setShowPublicidad(false)}
         >
           <div
-            className="relative w-full max-w-sm animate-in zoom-in-95 duration-300"
+            className="relative flex flex-col items-center w-full max-w-sm max-h-full animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              onClick={() => setShowPublicidad(false)}
-              className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="rounded-3xl overflow-hidden shadow-2xl">
+            {/* El afiche se achica para que los botones siempre queden a la vista:
+                los afiches vienen verticales (9:16) y a lo ancho no cabían. */}
+            <div className="relative min-h-0">
               <img
-                src={publicidad.imageUrl}
+                {...fotoOptimizada(publicidad.imageUrl, 420, 80)}
                 alt="Publicidad"
-                className="w-full h-auto object-cover block"
+                className="block w-auto max-w-full max-h-[calc(100dvh-10rem)] object-contain rounded-3xl shadow-2xl"
               />
+              <button
+                onClick={() => setShowPublicidad(false)}
+                aria-label="Cerrar publicidad"
+                className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="flex flex-col gap-2 mt-4">
+            <div className="flex flex-col gap-2 mt-4 w-full shrink-0">
               {publicidad.cta && (
                 <a
                   href={publicidad.cta}
@@ -1540,7 +1507,7 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PantallaCarga />}>
       <HomeContent />
     </Suspense>
   );
