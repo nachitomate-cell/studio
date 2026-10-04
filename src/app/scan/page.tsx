@@ -10,6 +10,7 @@ import {
   WifiOff, ScanLine, ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { guardarRetorno } from "@/lib/urlRetorno";
 
 type ScanError =
   | { type: "invalid_qr" }
@@ -131,7 +132,7 @@ export default function ClientScannerPage() {
           router.replace(`/canje?localId=${ref}`);
         } else {
           localStorage.setItem("referral_local_id", ref);
-          localStorage.setItem("url_retorno", `/canje?localId=${ref}`);
+          guardarRetorno(`/canje?localId=${ref}`);
           router.replace("/unete");
         }
       });
@@ -334,7 +335,7 @@ export default function ClientScannerPage() {
     }
 
     if (typeof window !== "undefined") {
-      localStorage.setItem("url_retorno", `/canje?localId=${vendorId}`);
+      guardarRetorno(`/canje?localId=${vendorId}`);
     }
     router.replace(`/canje?localId=${vendorId}`);
   }, [router]);

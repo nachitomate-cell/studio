@@ -14,6 +14,8 @@ import {
   Loader2, AlertCircle, ArrowLeft, XCircle, Clock, RefreshCw, Camera, Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { comprimirImagen } from "@/lib/comprimirImagen";
+import { guardarRetorno } from "@/lib/urlRetorno";
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -239,12 +241,20 @@ function BoletaForm({
     const f = e.target.files?.[0] ?? null;
     fileRef.current = f;
     if (!f) { setPreview(null); return; }
-    // Convertir a DataURL para que sobreviva un remount de la página
-    // (iOS Safari descarga la pestaña al abrir la cámara y vuelve a montar
-    // todo el árbol React al regresar — un blob URL no sobrevive a eso).
-    const reader = new FileReader();
-    reader.onload = () => setPreview(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(f);
+    setPreview(null); // sin preview el botón Enviar queda deshabilitado mientras se comprime
+    // Achicar antes de todo: sube más rápido en la red del local y el DataURL
+    // cabe en sessionStorage. 2000 px y calidad alta: la boleta debe leerse.
+    const input = e.target;
+    comprimirImagen(f, { maxLado: 2000, calidad: 0.85 }).then((liviana) => {
+      if (input.files?.[0] !== f) return; // eligió otra foto mientras esta se comprimía
+      fileRef.current = liviana;
+      // Convertir a DataURL para que sobreviva un remount de la página
+      // (iOS Safari descarga la pestaña al abrir la cámara y vuelve a montar
+      // todo el árbol React al regresar — un blob URL no sobrevive a eso).
+      const reader = new FileReader();
+      reader.onload = () => setPreview(typeof reader.result === "string" ? reader.result : null);
+      reader.readAsDataURL(liviana);
+    });
   };
 
   return (
@@ -364,10 +374,16 @@ function MembresiaForm({
     const f = e.target.files?.[0] ?? null;
     fileRef.current = f;
     if (!f) { setPreview(null); return; }
-    // DataURL para sobrevivir el remount al abrir la cámara nativa en iOS.
-    const reader = new FileReader();
-    reader.onload = () => setPreview(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(f);
+    setPreview(null); // sin preview el botón Enviar queda deshabilitado mientras se comprime
+    const input = e.target;
+    comprimirImagen(f, { maxLado: 2000, calidad: 0.85 }).then((liviana) => {
+      if (input.files?.[0] !== f) return; // eligió otra foto mientras esta se comprimía
+      fileRef.current = liviana;
+      // DataURL para sobrevivir el remount al abrir la cámara nativa en iOS.
+      const reader = new FileReader();
+      reader.onload = () => setPreview(typeof reader.result === "string" ? reader.result : null);
+      reader.readAsDataURL(liviana);
+    });
   };
 
   return (
@@ -713,7 +729,7 @@ function CanjeContent() {
     const unsub = auth.onAuthStateChanged(async (user) => {
       if (!user) {
         if (typeof window !== "undefined") {
-          localStorage.setItem("url_retorno", window.location.href);
+          guardarRetorno(window.location.href);
         }
         toast({
           title: "Un paso más 🚀",
@@ -761,6 +777,19 @@ function CanjeContent() {
           }
           if (esAsociado(vSnap.data())) {
             setPhase("boleta");
+            return;
+          }
+        } else {
+          // El local no tiene perfil. Antes se seguía igual y se creaba una
+          // solicitud de sello a nadie ("Esperando que el local apruebe…" para
+          // siempre). Se revisa también usuarios/, de donde iniciarHandshake toma
+          // el nombre de los vendedores antiguos. Solo se corta si las DOS
+          // lecturas responden que no existe: si alguna falla (red, permisos),
+          // cae al catch y sigue el flujo normal como antes.
+          const uSnap = await getDoc(doc(db, "usuarios", localId));
+          if (!uSnap.exists()) {
+            setPhase("error");
+            setErrorMsg("Este código no corresponde a ningún local del Club. Escanea el QR que está en el mostrador.");
             return;
           }
         }

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/firebase";
+import { comprimirImagen } from "@/lib/comprimirImagen";
 
 /**
  * Sube una imagen desde un panel de staff (director/moderador/admin) a través de
@@ -19,10 +20,10 @@ export async function uploadImagenAdmin(
   const user = auth.currentUser;
   if (!user) throw new Error("Debes iniciar sesión para subir imágenes.");
 
-  const idToken = await user.getIdToken();
+  const [idToken, liviana] = await Promise.all([user.getIdToken(), comprimirImagen(file)]);
 
   const form = new FormData();
-  form.append("file", file);
+  form.append("file", liviana);
   form.append("destino", destino.tipo);
   if (destino.tipo === "local") form.append("vendorId", destino.vendorId);
 

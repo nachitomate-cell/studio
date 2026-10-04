@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Map, Loader2, X, ChevronRight, HelpCircle, Share2 } from "lucide-react";
 import { isVendorVisible, getSafeImageUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { fotoOptimizada } from "@/lib/imagen";
 
 // ── Real-time hook ────────────────────────────────────────────────────────────
 function useLocalesVisitados(userId: string | null): {
@@ -896,7 +897,7 @@ export default function MiRutaPage() {
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-100 shrink-0 bg-slate-50">
                 <img
-                  src={selectedVendor.imageUrl}
+                  {...fotoOptimizada(selectedVendor.imageUrl, 64)}
                   alt={selectedVendor.name}
                   className="w-full h-full object-cover grayscale opacity-50"
                 />

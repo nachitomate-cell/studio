@@ -36,6 +36,7 @@ import { capturarCampana, leerCampana, limpiarCampana } from "@/lib/campanaRegis
 import { campanaPorSlug, type Campana } from "@/lib/campanas";
 
 import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
+import { tomarRetorno, borrarRetorno } from "@/lib/urlRetorno";
 const EMAILS_EMPRENDEDORES = ["aliado@clubpatio.cl"];
 
 function generarCodigoReferido(nombre: string): string {
@@ -134,8 +135,7 @@ export default function UnetePage() {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       if (preventAutoRedirect.current) return;
       if (u) {
-        const retornoAuto = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
-        if (retornoAuto) localStorage.removeItem("url_retorno");
+        const retornoAuto = typeof window !== "undefined" ? tomarRetorno() : null;
         router.replace(retornoAuto || "/");
       }
     });
@@ -200,8 +200,7 @@ export default function UnetePage() {
             toast({ title: "¡Bienvenido de vuelta! 🎉", description: "Redirigiendo al Club Patio..." });
           }
         }
-        const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
-        if (retorno) localStorage.removeItem("url_retorno");
+        const retorno = typeof window !== "undefined" ? tomarRetorno() : null;
         router.replace(retorno || "/");
 
       } else {
@@ -290,7 +289,7 @@ export default function UnetePage() {
           try {
             await registrarCompra(db, newUser.uid, referralLocalId, false, "REFERIDO");
             localStorage.removeItem("referral_local_id");
-            localStorage.removeItem("url_retorno");
+            borrarRetorno();
           } catch { /* no crítico */ }
         } else if (bienvenidaActivo) {
           // Trazabilidad de origen. Los QR físicos están impresos con la URL base
@@ -506,8 +505,7 @@ export default function UnetePage() {
 
               <Button
                 onClick={() => {
-                  const retorno = typeof window !== "undefined" ? localStorage.getItem("url_retorno") : null;
-                  if (retorno) localStorage.removeItem("url_retorno");
+                  const retorno = typeof window !== "undefined" ? tomarRetorno() : null;
                   // La pantalla del evento gana sobre el retorno guardado: quien
                   // se inscribió desde el QR de la feria tiene que aterrizar ahí.
                   router.replace(campanaActiva?.destino || retorno || "/premios");

@@ -29,6 +29,7 @@ import { registrarCompra } from "@/lib/puntos";
 import { syncUserStampsToWallet } from "@/lib/walletSync";
 
 import { ADMIN_EMAIL as EMAIL_MASTER_ADMIN } from "@/lib/constants";
+import { tomarRetorno, borrarRetorno } from "@/lib/urlRetorno";
 const EMAILS_EMPRENDEDORES = [
   'aliado@clubpatio.cl',
 ];
@@ -181,9 +182,8 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
           }
         }
 
-        const urlPendiente = localStorage.getItem("url_retorno");
+        const urlPendiente = tomarRetorno();
         if (urlPendiente) {
-          localStorage.removeItem("url_retorno");
           setIsRedirectingPendingStamp(true);
           window.location.href = urlPendiente;
           return;
@@ -293,7 +293,7 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
           try {
             await registrarCompra(db, newUser.uid, referralLocalId, false, "REFERIDO");
             localStorage.removeItem("referral_local_id");
-            localStorage.removeItem("url_retorno");
+            borrarRetorno();
           } catch {
             // No crítico: el usuario ya fue creado
           }
@@ -401,9 +401,8 @@ export function Auth({ onLoginSuccess }: { onLoginSuccess?: () => void } = {}) {
             <Button
               className="w-full h-12 rounded-xl font-bold"
               onClick={() => {
-                const urlPendiente = localStorage.getItem("url_retorno");
+                const urlPendiente = tomarRetorno();
                 if (urlPendiente) {
-                  localStorage.removeItem("url_retorno");
                   window.location.href = urlPendiente;
                 } else {
                   setShowCelebration(false);

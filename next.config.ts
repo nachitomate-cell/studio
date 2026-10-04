@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
         source: '/favicon.ico',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, must-revalidate' }],
       },
+      {
+        // Imágenes y videos de /public. Sin esto Vercel los sirve con max-age=0
+        // y el teléfono vuelve a pedirlos en cada visita. Un día de caché fresca
+        // y una semana sirviendo la copia guardada mientras revalida: si se
+        // reemplaza un archivo, el cambio llega a más tardar al día siguiente.
+        source: '/:all*(png|jpg|jpeg|webp|svg|gif|mp4)',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
+      },
     ];
   },
   typescript: {

@@ -5,6 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Store, Loader2, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { fotoOptimizada } from "@/lib/imagen";
 
 interface ShopInfo {
   id: string;
@@ -35,7 +36,7 @@ function ShopRow({ shop, rank }: { shop: ShopInfo; rank: number }) {
         <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 shrink-0">
           {shop.imageUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={shop.imageUrl} alt={shop.name} className="w-full h-full object-cover" />
+            <img {...fotoOptimizada(shop.imageUrl, 40)} alt={shop.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <Store className="w-5 h-5 text-slate-300" />

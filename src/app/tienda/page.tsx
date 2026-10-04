@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { comprimirImagen } from "@/lib/comprimirImagen";
 import { db, auth, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -204,7 +205,7 @@ export default function TiendaPage() {
       if (profileImage) {
         try {
           const storageRef = ref(storage, `entrepreneur_photos/${user.uid}/profile.jpg`);
-          const uploadResult = await uploadBytes(storageRef, profileImage);
+          const uploadResult = await uploadBytes(storageRef, await comprimirImagen(profileImage));
           finalImageUrl = await getDownloadURL(uploadResult.ref);
         } catch {
           toast({ variant: "destructive", title: "Error de imagen", description: "No se pudo subir la foto. Se guardará solo el texto." });

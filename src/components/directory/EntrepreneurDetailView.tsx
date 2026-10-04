@@ -35,6 +35,8 @@ import { useToast } from "@/hooks/use-toast";
 import { getOpenStatus } from "@/lib/horarios";
 import { useUserLocation, haversineKm, formatDistance } from "@/hooks/useUserLocation";
 import { PATIO_INFO } from "@/lib/data";
+import { fotoOptimizada } from "@/lib/imagen";
+import { registrarEvento } from "@/lib/statsLocal";
 
 // Estilo unificado para todas las pills de medios de pago — contorno sutil, texto blanco
 const PAYMENT_PILL_STYLE = {
@@ -110,8 +112,15 @@ function DetailContent() {
     const barberName = barber ? barber.name : "Cualquier barbero disponible";
     const message = `¡Hola! Me gustaría agendar el servicio *${serviceName}* (${servicePrice})${barber ? ` con el barbero *${barberName}*` : ""} en ${entrepreneur.nombre}.`;
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    registrarEvento(entrepreneur.id, "whatsapp");
     window.open(url, "_blank");
   };
+
+  // Una visita por sesión al perfil (ver src/lib/statsLocal.ts). Se espera a que
+  // el perfil exista para no contar enlaces rotos.
+  useEffect(() => {
+    if (entrepreneur?.id) registrarEvento(entrepreneur.id, "vista");
+  }, [entrepreneur?.id]);
 
   // Auth listener + favorites persistence
   useEffect(() => {
@@ -293,7 +302,9 @@ function DetailContent() {
   };
 
   const handleShare = async () => {
-    const shareUrl = `https://clubpatiocurauma.synaptechspa.cl/emprendedor/${id}`;
+    // `?compartido=1` deja pasar el enlace por el middleware: abierto desde
+    // WhatsApp llega sin Referer y sin la marca se mandaba al inicio.
+    const shareUrl = `https://clubpatiocurauma.synaptechspa.cl/emprendedor/${id}?compartido=1`;
     const nombre = entrepreneur?.nombre ?? "este emprendimiento";
     const rubro = entrepreneur?.rubro ? ` · ${entrepreneur.rubro}` : "";
     const shareData = {
@@ -417,8 +428,9 @@ function DetailContent() {
         )}
         {/* Imagen con parallax */}
         <img
-          src={getSafeImageUrl(entrepreneur.imagenPerfil)}
+          {...fotoOptimizada(getSafeImageUrl(entrepreneur.imagenPerfil), 512, 75)}
           alt={entrepreneur.nombre}
+          fetchPriority="high"
           style={{
             width: "100%",
             height: "300px",
@@ -513,10 +525,10 @@ function DetailContent() {
               style={{ borderRadius: "16px", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <img
-                src={getSafeImageUrl(entrepreneur.logoHeader, "/Logo2.png")}
+                {...fotoOptimizada(getSafeImageUrl(entrepreneur.logoHeader, "/Logo2.png"), 64)}
                 alt={`Logo ${entrepreneur.nombre}`}
                 className="w-full h-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
+                onError={(e) => { const img = e.target as HTMLImageElement; img.srcset = ""; img.src = "/Logo2.png"; }}
               />
             </div>
             <div className="flex-1 pt-0.5 min-w-0">
@@ -733,10 +745,12 @@ function DetailContent() {
                   style={{ height: "128px", width: "128px" }}
                 >
                   <img
-                    src={getSafeImageUrl(url)}
+                    {...fotoOptimizada(getSafeImageUrl(url), 128)}
                     alt={`Foto ${i + 1}`}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
+                    onError={(e) => { const img = e.target as HTMLImageElement; img.srcset = ""; img.src = "/Logo2.png"; }}
                   />
                 </button>
               ))}
@@ -939,6 +953,7 @@ function DetailContent() {
                 boxShadow: "0 8px 24px rgba(211, 182, 115, 0.25)",
               }}
               onClick={() => {
+                registrarEvento(entrepreneur.id, "contacto");
                 const link = entrepreneur.buttonLink || entrepreneur.urlCotizacion || entrepreneur.whatsapp;
                 if (link && link.startsWith('#')) {
                   document.querySelector(link)?.scrollIntoView({ behavior: 'smooth' });
@@ -959,6 +974,7 @@ function DetailContent() {
                   boxShadow: "0 8px 24px rgba(37,211,102,0.25)",
                 }}
                 onClick={() => {
+                  registrarEvento(entrepreneur.id, "whatsapp");
                   let numero = entrepreneur.whatsapp.replace(/\D/g, "");
                   if (!numero.startsWith("56")) {
                     numero = "56" + numero;
@@ -982,6 +998,7 @@ function DetailContent() {
                 boxShadow: "0 8px 24px rgba(124,58,237,0.28)",
               }}
               onClick={() => {
+                registrarEvento(entrepreneur.id, "bioo");
                 window.open(
                   entrepreneur.biooPublicUrl || `https://bioo.cl/${entrepreneur.biooHandle}`,
                   "_blank"
@@ -1008,6 +1025,7 @@ function DetailContent() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                   onClick={() => {
+                    registrarEvento(entrepreneur.id, "instagram");
                     window.open(
                       `https://instagram.com/${entrepreneur.instagram.replace("@", "")}`,
                       "_blank"
@@ -1031,6 +1049,7 @@ function DetailContent() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                   onClick={() => {
+                    registrarEvento(entrepreneur.id, "mapa");
                     // El punto propio del local si lo cargó; si no, el patio.
                     const destino =
                       entrepreneur.lat != null && entrepreneur.lng != null
@@ -1241,12 +1260,12 @@ function DetailContent() {
 
           {/* Imagen principal */}
           <img
-            src={getSafeImageUrl((entrepreneur.imageUrls as string[])[lightboxIndex])}
+            {...fotoOptimizada(getSafeImageUrl((entrepreneur.imageUrls as string[])[lightboxIndex]), 540, 80)}
             alt={`Foto ${lightboxIndex + 1}`}
             className="max-w-full object-contain px-4 animate-in zoom-in-95 duration-200"
             style={{ maxHeight: "85vh" }}
             onClick={(e) => e.stopPropagation()}
-            onError={(e) => { (e.target as HTMLImageElement).src = "/Logo2.png"; }}
+            onError={(e) => { const img = e.target as HTMLImageElement; img.srcset = ""; img.src = "/Logo2.png"; }}
           />
 
           {/* Navegación prev/next */}

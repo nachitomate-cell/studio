@@ -1,28 +1,36 @@
 'use client';
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 /**
- * Smart Sticky CTA — botón flotante inferior que se oculta cuando la sección
- * final ("¿Listo para empezar?") entra en el viewport, para no chocar con el
- * CTA de cierre de página. Se observa el elemento con id={watchId}.
+ * Smart Sticky CTA — botón flotante inferior que se oculta mientras se ve
+ * cualquiera de los otros botones de la página (el de la portada y el de
+ * cierre), para no mostrar dos "Crear mi tarjeta" juntos.
+ * Se observan los elementos con los ids de `watchIds`.
  */
-export default function StickyCta({ href, watchId }: { href: string; watchId: string }) {
-  const [hidden, setHidden] = useState(false);
+export default function StickyCta({ href, watchIds }: { href: string; watchIds: string[] }) {
+  const [hidden, setHidden] = useState(true);
+  const clave = watchIds.join(",");
 
   useEffect(() => {
-    const target = document.getElementById(watchId);
-    if (!target) return;
+    const targets = clave.split(",").map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+    if (targets.length === 0) { setHidden(false); return; }
 
+    const visibles = new Set<Element>();
     const observer = new IntersectionObserver(
-      ([entry]) => setHidden(entry.isIntersecting),
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) visibles.add(e.target);
+          else visibles.delete(e.target);
+        }
+        setHidden(visibles.size > 0);
+      },
       { threshold: 0.1 }
     );
-    observer.observe(target);
+    targets.forEach((t) => observer.observe(t));
     return () => observer.disconnect();
-  }, [watchId]);
+  }, [clave]);
 
   return (
     <div
@@ -32,10 +40,9 @@ export default function StickyCta({ href, watchId }: { href: string; watchId: st
     >
       <Link
         href={href}
-        className="flex items-center justify-center gap-2 w-full h-[50px] bg-gradient-to-br from-[#D3B673] to-[#BFA05C] text-slate-900 font-black text-[15px] rounded-2xl shadow-[0_8px_24px_rgba(211,182,115,0.38)] no-underline"
+        className="flex items-center justify-center w-full h-[52px] bg-[#F0C84A] text-[#2A1B00] font-black text-base rounded-2xl shadow-[0_8px_24px_rgba(240,200,74,0.38)] no-underline"
       >
-        <Sparkles size={18} />
-        Unirme al Club — Es gratis
+        Crear mi tarjeta gratis
       </Link>
     </div>
   );
