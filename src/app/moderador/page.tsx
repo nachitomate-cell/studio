@@ -892,6 +892,14 @@ export default function ModeradorPage() {
               bg: "#f9731612",
             },
             {
+              href: "/moderador/reportes",
+              emoji: "🗂️",
+              titulo: "Reportes Semanales",
+              desc: "Reporte del Club · Planilla de socios al día",
+              color: "#0d9488",
+              bg: "#0d948812",
+            },
+            {
               href: "/moderador/plantillas",
               emoji: "🔔",
               titulo: "Plantillas de Notificación",
