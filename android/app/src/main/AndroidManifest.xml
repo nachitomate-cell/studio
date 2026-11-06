@@ -39,6 +39,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Cámara: el panel del local escanea los QR de sellos y premios dentro
+         del WebView. Sin este permiso getUserMedia falla siempre (06-11). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <!-- Geolocalización en primer plano -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
