@@ -1373,11 +1373,18 @@ export function RewardsView({ user, userData, onShowAuth }: RewardsViewProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 pt-2 border-t border-emerald-50">
-                    <div className="p-2 bg-white border border-slate-100 rounded-xl shadow-sm shrink-0">
-                      <QRCode value={`canje:${canje.id}`} size={80} fgColor="#1e293b" />
-                    </div>
+                    {/* El QR de la lista es chico y a muchos teléfonos del local les
+                        costaba leerlo. Al tocarlo se abre el voucher a pantalla completa. */}
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/canje/${canje.id}`)}
+                      className="p-2 bg-white border border-slate-100 rounded-xl shadow-sm shrink-0 active:scale-95 transition-transform"
+                      aria-label="Ver el QR en grande"
+                    >
+                      <QRCode value={`canje:${canje.id}`} size={96} fgColor="#1e293b" />
+                    </button>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wider mb-1">Muéstralo al vendedor</p>
+                      <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wider mb-1">Toca el QR para verlo en grande</p>
                       <p className="text-lg font-black tracking-widest text-primary">{canje.codigo}</p>
                     </div>
                   </div>

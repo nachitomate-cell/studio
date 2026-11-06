@@ -745,13 +745,34 @@ export default function VendedorPage() {
   const startScanner = async () => {
     setView("scanner");
     try {
-      const { Html5Qrcode } = await import("html5-qrcode");
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
       setTimeout(async () => {
         try {
-          const html5QrCode = new Html5Qrcode("reader");
+          // Mismo lector que el de premios: nativo del teléfono cuando existe,
+          // recuadro proporcional y cámara trasera como preferencia, no exigencia.
+          const html5QrCode = new Html5Qrcode("reader", {
+            verbose: false,
+            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+            useBarCodeDetectorIfSupported: true,
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          });
           scannerInstance.current = html5QrCode;
-          const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
-          await html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => onScanSuccess(decodedText), () => {});
+          const config = {
+            fps: 15,
+            aspectRatio: 1.0,
+            qrbox: (w: number, h: number) => {
+              const lado = Math.max(160, Math.floor(Math.min(w, h) * 0.8));
+              return { width: lado, height: lado };
+            },
+          };
+          const alLeer = (decodedText: string) => onScanSuccess(decodedText);
+          try {
+            await html5QrCode.start({ facingMode: { ideal: "environment" } }, config, alLeer, () => {});
+          } catch {
+            const camaras = await Html5Qrcode.getCameras();
+            if (!camaras?.length) throw new Error("SIN_CAMARAS");
+            await html5QrCode.start(camaras[camaras.length - 1].id, config, alLeer, () => {});
+          }
         } catch (err) {
           setView("dashboard");
           toast({ variant: "destructive", title: "Error de Cámara", description: "No se pudo iniciar el escáner." });
