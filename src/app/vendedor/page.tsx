@@ -775,7 +775,14 @@ export default function VendedorPage() {
           }
         } catch (err) {
           setView("dashboard");
-          toast({ variant: "destructive", title: "Error de Cámara", description: "No se pudo iniciar el escáner." });
+          const enAppNativa = !!(window as any).Capacitor?.isNativePlatform?.();
+          toast({
+            variant: "destructive",
+            title: "Error de Cámara",
+            description: enAppNativa
+              ? "La app del Club todavía no puede usar la cámara. Abre clubpatiocurauma.synaptechspa.cl/vendedor en Chrome para escanear."
+              : "No se pudo iniciar el escáner. Revisa el permiso de cámara del navegador.",
+          });
         }
       }, 300);
     } catch (e) {

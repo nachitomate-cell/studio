@@ -685,8 +685,21 @@ export default function ValidarPanel({
       // Antes cualquier causa mostraba el mismo aviso, así que no había forma
       // de saber si era un permiso, otra app ocupando la cámara o un equipo
       // sin soporte. Cada una se arregla distinto.
-      const nombre = String(e?.name ?? e?.message ?? "desconocido");
+      // html5-qrcode a veces rechaza con un texto en vez de un Error, y ahí
+      // salía "(desconocido)". Se busca el nombre del error dentro del texto.
+      const crudo = typeof e === "string" ? e : String(e?.name ?? e?.message ?? "");
+      const conocido = crudo.match(/NotAllowedError|PermissionDeniedError|NotReadableError|TrackStartError|NotFoundError|SIN_CAMARAS/);
+      const nombre = conocido?.[0] ?? (crudo.slice(0, 60) || "desconocido");
       console.error("[premios] no se pudo abrir la cámara:", nombre, e);
+      // La app Android del Club (Capacitor) se publicó sin el permiso CAMERA:
+      // dentro de ella la cámara no abre nunca, diga lo que diga el error.
+      const enAppNativa = !!(window as any).Capacitor?.isNativePlatform?.();
+      if (enAppNativa) {
+        setPrizeScannerError(
+          "La app del Club todavía no puede usar la cámara del teléfono. Para escanear, abre Chrome y entra a clubpatiocurauma.synaptechspa.cl/vendedor con tu misma cuenta. Mientras, el código manual funciona igual."
+        );
+        return;
+      }
       const mensajes: Record<string, string> = {
         NotAllowedError: "La cámara está bloqueada para esta app. Ábrela en los ajustes del teléfono y permite el acceso, o usa el código manual.",
         PermissionDeniedError: "La cámara está bloqueada para esta app. Ábrela en los ajustes del teléfono y permite el acceso, o usa el código manual.",
