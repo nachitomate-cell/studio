@@ -574,7 +574,18 @@ export default function ValidarPanel({
     setPrizeScannerError(null);
   };
 
-  const onPrizeQrScanned = async (text: string) => {
+  const onPrizeQrScanned = async (rawText: string) => {
+    let text = rawText.trim();
+    // El link de la página del voucher (/canje/{id}) también sirve.
+    const enLink = text.match(/\/canje\/([A-Za-z0-9]+)/);
+    if (enLink) text = `canje:${enLink[1]}`;
+    // Si el QR trae el código PREM-..., se verifica igual que el código manual.
+    if (/^PREM-[A-Z0-9]+$/i.test(text)) {
+      await stopPrizeScanner();
+      setPrizeCode(text.toUpperCase());
+      await handleVerifyPrize(text);
+      return;
+    }
     if (!text.startsWith("canje:")) {
       setPrizeScannerError("QR no es un voucher de premio. Usa el código manual.");
       return;
@@ -627,12 +638,28 @@ export default function ValidarPanel({
     setPrizeScannerActive(true);
     // Wait for the div to mount
     await new Promise((r) => setTimeout(r, 100));
-    const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+    // El socio muestra el voucher en la pantalla de su teléfono, a veces en
+    // la lista de "Mis canjes" donde el QR es chico. Con el recuadro fijo de
+    // 220 px y el decodificador en JavaScript, muchos teléfonos no lo leían y
+    // los locales terminaban tipeando el código (Antojitos de la Nutri, 06-11).
+    // Recuadro proporcional al visor y lector nativo del teléfono cuando existe.
+    const config = {
+      fps: 15,
+      qrbox: (w: number, h: number) => {
+        const lado = Math.max(160, Math.floor(Math.min(w, h) * 0.8));
+        return { width: lado, height: lado };
+      },
+    };
     const alLeer = (decodedText: string) => { onPrizeQrScanned(decodedText); };
 
     try {
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const scanner = new Html5Qrcode("prize-qr-reader");
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
+      const scanner = new Html5Qrcode("prize-qr-reader", {
+        verbose: false,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        useBarCodeDetectorIfSupported: true,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      });
       prizeQrRef.current = scanner;
 
       try {
@@ -675,8 +702,8 @@ export default function ValidarPanel({
   };
 
   // ── Verificar código de premio ────────────────────────────────────────────
-  const handleVerifyPrize = async () => {
-    const codigoNormalizado = prizeCode.trim().toUpperCase();
+  const handleVerifyPrize = async (codigoDirecto?: string) => {
+    const codigoNormalizado = (typeof codigoDirecto === "string" ? codigoDirecto : prizeCode).trim().toUpperCase();
     if (!codigoNormalizado) return;
 
     setVerifyingPrize(true);
@@ -1063,7 +1090,7 @@ export default function ValidarPanel({
                 disabled={verifyingPrize}
               />
               <Button
-                onClick={handleVerifyPrize}
+                onClick={() => handleVerifyPrize()}
                 disabled={verifyingPrize || !prizeCode.trim()}
                 className="h-12 px-4 rounded-2xl font-bold gap-2 shrink-0"
                 style={{ backgroundColor: "#D3B673" }}
