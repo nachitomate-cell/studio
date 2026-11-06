@@ -8,6 +8,7 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
+import { puedeExportarBase } from "@/lib/constants";
 import {
   Loader2, ChevronLeft, Download, Search, BarChart2,
   TrendingUp, Store, Star, Stamp, Gift, Undo2,
@@ -310,7 +311,7 @@ export default function ModeradorSellosPage() {
     if (!authorized) return;
     Promise.all([
       getDocs(collection(db, "entrepreneur_profiles")),
-      getDocs(query(collection(db, "usuarios"), where("rol", "==", "emprendedor"))),
+      getDocs(query(collection(db, "usuarios"), where("rol", "==", "emprendedor"), limit(150))),
     ])
       .then(([profilesSnap, usuariosSnap]) => {
         const list: VendorInfo[] = [];
@@ -577,6 +578,7 @@ export default function ModeradorSellosPage() {
 
   // ── Exportar Excel ─────────────────────────────────────────────────────────
   const exportExcel = async () => {
+    if (!puedeExportarBase(auth.currentUser?.email)) return;
     const XLSX = await import("xlsx");
     const hoy = new Date().toISOString().slice(0, 10);
     const rows = filtered.map((l) => {
@@ -784,15 +786,17 @@ export default function ModeradorSellosPage() {
               <Trophy className="w-4 h-4" />
               Top Clientes
             </Button>
-            <Button
-              onClick={exportExcel}
-              variant="outline"
-              className="shrink-0 rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
-            >
-              <Download className="w-4 h-4" />
-              <span className="md:hidden">Excel</span>
-              <span className="hidden md:inline">Exportar Excel</span>
-            </Button>
+            {puedeExportarBase(auth.currentUser?.email) && (
+              <Button
+                onClick={exportExcel}
+                variant="outline"
+                className="shrink-0 rounded-2xl h-9 md:h-10 px-3 md:px-4 gap-1.5 md:gap-2 font-bold text-xs md:text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+              >
+                <Download className="w-4 h-4" />
+                <span className="md:hidden">Excel</span>
+                <span className="hidden md:inline">Exportar Excel</span>
+              </Button>
+            )}
             <Button
               onClick={handleLimpiarBoletas}
               disabled={limpiando}

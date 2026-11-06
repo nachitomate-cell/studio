@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminStorage } from "@/lib/firebaseAdmin";
 import { autorizarStaffPanel } from "@/lib/autorizarStaffPanel";
+import { puedeExportarBase } from "@/lib/constants";
 import {
   REPORTES_COLLECTION,
   REPORTES_STORAGE_PREFIX,
@@ -67,6 +68,13 @@ export async function GET(request: Request) {
 
     const nombre = String(archivo.nombre ?? "").trim() || path.slice(path.lastIndexOf("/") + 1);
     const tipo = archivo.tipo === "xlsx" ? "xlsx" : "pdf";
+    // Los Excel traen datos de socios o de ventas: solo los baja SynapTech.
+    if (tipo === "xlsx" && !puedeExportarBase(staff.email)) {
+      return NextResponse.json(
+        { error: "La descarga de la base de datos está reservada a SynapTech." },
+        { status: 403 },
+      );
+    }
 
     const expiresAt = Date.now() + URL_TTL_MS;
     const [url] = await adminStorage.bucket().file(path).getSignedUrl({

@@ -13,7 +13,7 @@
 
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { autorizarStaffPanel } from "@/lib/autorizarStaffPanel";
+import { autorizarExportacion } from "@/lib/autorizarStaffPanel";
 import { planillaSociosBuffer } from "@/lib/planillaSocios";
 import { contentDispositionAdjunto, nombreArchivoPlanilla } from "@/lib/reportesSemanales";
 
@@ -25,7 +25,7 @@ export const maxDuration = 60;
 
 export async function GET(request: Request) {
   try {
-    const staff = await autorizarStaffPanel(request);
+    const staff = await autorizarExportacion(request);
     if (staff instanceof NextResponse) return staff;
 
     const [usuarios, leads] = await Promise.all([

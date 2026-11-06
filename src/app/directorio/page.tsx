@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  collection, onSnapshot, doc, updateDoc, addDoc, getDoc, getDocs, query, where,
+  collection, onSnapshot, doc, updateDoc, addDoc, getDoc, getDocs, query, where, limit,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
@@ -178,7 +178,7 @@ export default function DirectorioPage() {
 
   useEffect(() => {
     if (!isAuthorized) return;
-    getDocs(query(collection(db, "usuarios"), where("rol", "==", "emprendedor")))
+    getDocs(query(collection(db, "usuarios"), where("rol", "==", "emprendedor"), limit(150)))
       .then((snap) => {
         const m: Record<string, string> = {};
         snap.docs.forEach((d) => {

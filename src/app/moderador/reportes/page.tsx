@@ -16,7 +16,7 @@ import {
   etiquetaArchivo, formatearPesoReporte, formatearRangoReporte, nombreArchivoPlanilla,
   type ReporteSemanalPublico,
 } from "@/lib/reportesSemanales";
-import { canAccessModPanel } from "@/lib/constants";
+import { canAccessModPanel, puedeExportarBase } from "@/lib/constants";
 
 /** Saca el nombre del Content-Disposition (prefiere filename* con tildes). */
 function nombreDesdeDisposition(header: string | null): string | null {
@@ -176,13 +176,14 @@ export default function ModeradorReportesPage() {
         </Link>
         <div>
           <h1 className="text-lg font-black text-slate-800">Reportes semanales</h1>
-          <p className="text-xs text-slate-400 font-medium">El reporte del Club y la planilla de socios, cuando los necesites</p>
+          <p className="text-xs text-slate-400 font-medium">El reporte del Club, cuando lo necesites</p>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto p-5 space-y-6">
 
-        {/* ── Planilla al día ── */}
+        {/* ── Planilla al día (solo SynapTech: es la base completa de socios) ── */}
+        {puedeExportarBase(auth.currentUser?.email) && (
         <Card className="border-none shadow-md rounded-3xl bg-white">
           <CardContent className="p-6 space-y-4">
             <div className="flex items-center gap-2">
@@ -220,6 +221,7 @@ export default function ModeradorReportesPage() {
             </p>
           </CardContent>
         </Card>
+        )}
 
         {/* ── Archivo semanal ── */}
         <section className="space-y-3">
@@ -259,9 +261,7 @@ export default function ModeradorReportesPage() {
                 <CalendarRange className="w-10 h-10 text-slate-200 mx-auto mb-3" />
                 <p className="text-sm font-bold text-slate-400">Todavía no hay reportes archivados</p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Cada semana aparecerá aquí el reporte del Club para que lo descargues cuando quieras.
-                  Mientras tanto, la planilla de arriba siempre está al día.
-                </p>
+                  Cada semana aparecerá aquí el reporte del Club para que lo descargues cuando quieras.                </p>
               </CardContent>
             </Card>
           ) : (
@@ -286,6 +286,8 @@ export default function ModeradorReportesPage() {
                     <div className="flex flex-wrap gap-2">
                       {reporte.archivos.map((archivo, indice) => {
                         const clave = `${reporte.id}:${indice}`;
+                        // Los Excel traen datos de socios o ventas: solo SynapTech los baja.
+                        if (archivo.tipo === "xlsx" && !puedeExportarBase(auth.currentUser?.email)) return null;
                         const Icono = archivo.tipo === "pdf" ? FileText : FileSpreadsheet;
                         return (
                           <Button

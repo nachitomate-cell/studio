@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getDocFromServer, doc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import { puedeExportarBase } from "@/lib/constants";
 import { Loader2, ChevronLeft, Download, Search, CalendarDays, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,6 +211,7 @@ export default function ModeradorUsuariosPage() {
 
   // ── Exportar Excel ────────────────────────────────────────────────────────
   const exportExcel = async () => {
+    if (!puedeExportarBase(auth.currentUser?.email)) return;
     const XLSX = await import("xlsx");
     const hoy = new Date().toISOString().slice(0, 10);
     const rows = filtered.map((u) => ({
@@ -269,14 +271,16 @@ export default function ModeradorUsuariosPage() {
               {loading ? "Cargando..." : `${usuarios.length} usuarios registrados`}
             </p>
           </div>
-          <Button
-            onClick={exportExcel}
-            variant="outline"
-            className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
-          >
-            <Download className="w-4 h-4" />
-            Exportar Excel
-          </Button>
+          {puedeExportarBase(auth.currentUser?.email) && (
+            <Button
+              onClick={exportExcel}
+              variant="outline"
+              className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+            >
+              <Download className="w-4 h-4" />
+              Exportar Excel
+            </Button>
+          )}
         </div>
       </div>
 

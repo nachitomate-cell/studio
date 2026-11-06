@@ -9,7 +9,23 @@
 
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { canAccessModPanel } from "@/lib/constants";
+import { canAccessModPanel, puedeExportarBase } from "@/lib/constants";
+
+/** Staff que además puede sacar la base en un archivo (solo SynapTech). */
+export async function autorizarExportacion(
+  request: Request,
+): Promise<{ uid: string; email: string } | NextResponse> {
+  const staff = await autorizarStaffPanel(request);
+  if (staff instanceof NextResponse) return staff;
+  if (!puedeExportarBase(staff.email)) {
+    console.warn(`[exportacion] bloqueada para ${staff.email} (${staff.uid})`);
+    return NextResponse.json(
+      { error: "La descarga de la base de datos está reservada a SynapTech." },
+      { status: 403 },
+    );
+  }
+  return staff;
+}
 
 export async function autorizarStaffPanel(
   request: Request,
