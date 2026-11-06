@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
+import { puedeExportarBase } from "@/lib/constants";
 import { uploadImagenAdmin } from "@/lib/uploadImagenAdmin";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -362,11 +363,11 @@ export default function DirectorPage() {
       };
     };
     const unsubRankingRol = onSnapshot(
-      query(collection(db, "usuarios"), where("rol", "==", "emprendedor"), limit(200)),
+      query(collection(db, "usuarios"), where("rol", "==", "emprendedor"), limit(150)),
       (snap) => setRankingByRol(snap.docs.map(toRankRow))
     );
     const unsubRankingRoles = onSnapshot(
-      query(collection(db, "usuarios"), where("roles", "array-contains", "emprendedor"), limit(200)),
+      query(collection(db, "usuarios"), where("roles", "array-contains", "emprendedor"), limit(150)),
       (snap) => setRankingByRoles(snap.docs.map(toRankRow))
     );
 
@@ -476,6 +477,7 @@ export default function DirectorPage() {
   const kpiTotalLocales = Math.max(ranking.length, allProfiles.length);
 
   const handleExportRanking = async () => {
+    if (!puedeExportarBase(auth.currentUser?.email)) return;
     const { default: XLSX } = await import("xlsx");
     const rows = ranking.map((emp, i) => ({
       "#": i + 1,
@@ -993,9 +995,11 @@ export default function DirectorPage() {
             >
               <FolderOpen className="w-3 h-3" /> Directorio
             </Button>
-            <Button size="sm" variant="outline" onClick={handleExportRanking} className="rounded-xl gap-2 font-bold text-[10px] uppercase">
-              <Download className="w-3 h-3" /> Reporte
-            </Button>
+            {puedeExportarBase(auth.currentUser?.email) && (
+              <Button size="sm" variant="outline" onClick={handleExportRanking} className="rounded-xl gap-2 font-bold text-[10px] uppercase">
+                <Download className="w-3 h-3" /> Reporte
+              </Button>
+            )}
           </div>
         </div>
       </div>

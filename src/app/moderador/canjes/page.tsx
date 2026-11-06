@@ -7,6 +7,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import { puedeExportarBase } from "@/lib/constants";
 import {
   Loader2, ChevronLeft, Download, Search, Gift, CheckCircle2, Clock, XCircle,
 } from "lucide-react";
@@ -156,6 +157,7 @@ export default function ModeradorCanjesPage() {
 
   // ── Exportar Excel ─────────────────────────────────────────────────────────────
   const exportExcel = async () => {
+    if (!puedeExportarBase(auth.currentUser?.email)) return;
     const XLSX = await import("xlsx");
     const rows = filtered.map((c) => ({
       Fecha: formatFecha(c.creadoEn),
@@ -200,14 +202,16 @@ export default function ModeradorCanjesPage() {
             </h1>
             <p className="text-sm text-slate-400 font-medium">Historial completo de canjes</p>
           </div>
-          <Button
-            onClick={exportExcel}
-            variant="outline"
-            className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
-          >
-            <Download className="w-4 h-4" />
-            Exportar Excel
-          </Button>
+          {puedeExportarBase(auth.currentUser?.email) && (
+            <Button
+              onClick={exportExcel}
+              variant="outline"
+              className="rounded-2xl h-10 px-4 gap-2 font-bold text-sm border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary transition-all whitespace-nowrap"
+            >
+              <Download className="w-4 h-4" />
+              Exportar Excel
+            </Button>
+          )}
         </div>
       </div>
 

@@ -51,8 +51,23 @@ service cloud.firestore {
     // El rol "director" tiene las mismas facultades que "admin" — la única
     // restricción del admin es el acceso al panel /superadmin, que se gatea
     // por email (SUPERADMIN_EMAIL) en el cliente, no por estas reglas.
+    // SynapTech (el Desarrollador). Por contrato (11-04-2026, cl. 3 y 5) la base
+    // queda bajo su control hasta el pago total: es el único que la lee completa.
+    function esSynaptech() {
+      return isSignedIn() && request.auth.token.email == "ignaciiio.mate@gmail.com";
+    }
+
     function isDirector() {
       return isSignedIn() && hasAnyRol(["director_patio", "director", "admin"]);
+    }
+
+    // Interruptor de SynapTech para pausar los comunicados del panel. Vive en
+    // una colección sin reglas (`synaptech`), así que solo lo cambia el Admin
+    // SDK: si estuviera en `config`, el mismo director podría apagarlo.
+    // Se maneja con devtools/clubpatio-comunicados.mjs.
+    function comunicadosPausados() {
+      return exists(/databases/$(database)/documents/synaptech/comunicados)
+        && get(/databases/$(database)/documents/synaptech/comunicados).data.get("pausado", false) == true;
     }
 
     // Tiene local en el club. La ficha manda sobre el rol: un comercio siempre
@@ -71,7 +86,11 @@ service cloud.firestore {
       // El handshake ya corre vía Admin SDK (server-side) y no necesita esta apertura.
       allow get: if isOwner(userId) || isStaff();
       // Lista: solo staff (moderador ve todos los usuarios)
-      allow list: if isStaff();
+      //
+      // El staff del Patio lista de a 150 como máximo (la consulta legítima más
+      // grande del panel son los ~100 inscritos de una campaña). Una consulta sin
+      // límite —la que bajaba la base entera de una vez— solo la hace SynapTech.
+      allow list: if esSynaptech() || (isStaff() && request.query.limit <= 150);
       // Creación: solo el propio usuario, y NUNCA con rol privilegiado (CRÍTICO-03)
       // Roles permitidos en auto-registro: "cliente" y "emprendedor".
       // Admin/moderador/director JAMÁS se pueden auto-asignar client-side.
@@ -226,7 +245,7 @@ service cloud.firestore {
     // ── Comunicados Globales (broadcast) ──────────────────────────────────────
     match /broadcast_messages/{messageId} {
       allow read: if isStaff();
-      allow create: if isDirector();
+      allow create: if isDirector() && !comunicadosPausados();
       allow update, delete: if isDirector();
     }
 
@@ -257,7 +276,8 @@ service cloud.firestore {
 
     // ── Leads de Marketing ─────────────────────────────────────────────────────
     match /leads_marketing/{leadId} {
-      allow read: if isStaff();
+      // Ninguna pantalla la lee (la planilla sale por el Admin SDK): solo SynapTech.
+      allow read: if esSynaptech();
       allow create: if isSignedIn();
       allow update, delete: if isDirector();
     }

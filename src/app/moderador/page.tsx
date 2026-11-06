@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, updateDoc, doc, limit, orderBy, getDoc, setDoc, writeBatch, increment, addDoc, Timestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import { puedeExportarBase } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Users, AlertTriangle, Search, Gift, Zap, ShieldCheck, UserCog, Trash2, BarChart2, Settings, ToggleLeft, ToggleRight, RefreshCw, Share2, Clock, MessageSquare, CheckCheck, Eye, Hourglass, X, Store, ArrowRight, Star } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -491,8 +492,8 @@ export default function ModeradorPage() {
 
       // Buscar por email en ambos campos posibles (correo y email)
       const [snapCorreo, snapEmail] = await Promise.all([
-        getDocs(query(collection(db, "usuarios"), where("correo", "==", term))),
-        getDocs(query(collection(db, "usuarios"), where("email", "==", term))),
+        getDocs(query(collection(db, "usuarios"), where("correo", "==", term), limit(5))),
+        getDocs(query(collection(db, "usuarios"), where("email", "==", term), limit(5))),
       ]);
       const seen = new Set<string>();
       const uniqueDocs = [...snapCorreo.docs, ...snapEmail.docs].filter(d => {
@@ -847,7 +848,7 @@ export default function ModeradorPage() {
               href: "/moderador/sellos",
               emoji: "📊",
               titulo: "Registro de Sellos",
-              desc: "Historial completo · Filtros · Exportar Excel",
+              desc: "Historial completo · Filtros",
               color: "#D3B673",
               bg: "#D3B67312",
             },
@@ -855,7 +856,7 @@ export default function ModeradorPage() {
               href: "/moderador/usuarios",
               emoji: "👥",
               titulo: "Directorio de Usuarios",
-              desc: "Filtros de cumpleaños · Exportar lista",
+              desc: "Filtros de cumpleaños",
               color: "#6366f1",
               bg: "#6366f112",
             },
@@ -895,7 +896,7 @@ export default function ModeradorPage() {
               href: "/moderador/reportes",
               emoji: "🗂️",
               titulo: "Reportes Semanales",
-              desc: "Reporte del Club · Planilla de socios al día",
+              desc: "Reportes del Club",
               color: "#0d9488",
               bg: "#0d948812",
             },
@@ -907,7 +908,10 @@ export default function ModeradorPage() {
               color: "#8b5cf6",
               bg: "#8b5cf612",
             },
-          ].map(({ href, emoji, titulo, desc, color, bg }) => (
+          ]
+            // Auditoría = exportación completa de la base: solo SynapTech.
+            .filter(({ href }) => href !== "/moderador/auditoria" || puedeExportarBase(auth.currentUser?.email))
+            .map(({ href, emoji, titulo, desc, color, bg }) => (
             <Link key={href} href={href}>
               <div
                 className="rounded-3xl p-6 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 group"

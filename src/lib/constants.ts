@@ -41,6 +41,20 @@ export function canAccessModPanel(
 }
 
 /**
+ * Quién puede sacar la base de datos del Club en un archivo (Excel de socios,
+ * sellos, canjes, auditoría, planilla de socios, listado completo por API).
+ *
+ * Solo SynapTech. Por contrato (cláusulas 3 y 5, 11-04-2026) la infraestructura
+ * y los activos digitales quedan bajo control del Desarrollador hasta el pago
+ * total: el staff del Patio opera el panel y ve a los socios en pantalla, pero
+ * no se lleva la base. Se valida en el servidor; ocultar los botones es solo
+ * para que el panel no ofrezca algo que va a fallar.
+ */
+export function puedeExportarBase(email: string | null | undefined): boolean {
+  return !!email && email.trim().toLowerCase() === SUPERADMIN_EMAIL;
+}
+
+/**
  * Dominio canónico de producción. Usar SIEMPRE para enlaces compartibles
  * (QR, "Copiar Enlace", links de referido) en lugar de window.location.origin
  * — así no se filtran dominios viejos/preview a clientes finales.

@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 
-import { ADMIN_EMAIL as MASTER_EMAIL } from "@/lib/constants";
+import { puedeExportarBase } from "@/lib/constants";
 const CONFIRM_WORD = "CONFIRMAR";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -195,14 +195,10 @@ export default function ModeradorAuditoriaPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { router.replace("/"); setAuthLoading(false); return; }
-      if (user.email === MASTER_EMAIL) { setAuthorized(true); setAuthLoading(false); return; }
-      try {
-        const snap = await getDoc(doc(db, "usuarios", user.uid));
-        const rol = snap.exists() ? (snap.data().rol as string) : "";
-        if (["moderador", "admin", "director", "director_patio"].includes(rol)) {
-          setAuthorized(true);
-        } else { router.replace("/"); }
-      } catch { router.replace("/"); }
+      // Esta pantalla exporta la base completa y limpia datos: solo SynapTech
+      // (contrato 11-04-2026, cl. 3 y 5). El staff del Patio no entra.
+      if (puedeExportarBase(user.email)) { setAuthorized(true); setAuthLoading(false); return; }
+      router.replace("/moderador");
       setAuthLoading(false);
     });
     return () => unsub();

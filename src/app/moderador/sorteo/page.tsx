@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, orderBy, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, doc, getDoc, limit } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { canAccessModPanel, CANONICAL_BASE_URL } from "@/lib/constants";
@@ -74,7 +74,7 @@ export default function SorteoCampanaPage() {
     setCargando(true);
     try {
       const [socios, sorteos] = await Promise.all([
-        getDocs(query(collection(db, "usuarios"), where("campanaRegistro", "==", slug))),
+        getDocs(query(collection(db, "usuarios"), where("campanaRegistro", "==", slug), limit(150))),
         getDocs(query(collection(db, "sorteos"), where("campana", "==", slug))),
       ]);
       setParticipantes(
