@@ -700,9 +700,12 @@ export default function ValidarPanel({
         );
         return;
       }
+      // En la app instalada (PWA) Chrome recuerda un "Bloquear" para siempre y
+      // no vuelve a preguntar: hay que decir exactamente dónde se habilita.
+      const BLOQUEADA = "La cámara está bloqueada para el Club. Mantén presionado el ícono de la app → Información de la app (ⓘ) → Permisos → Cámara → Permitir. En Chrome: toca el candado junto a la dirección → Permisos → Cámara. Luego vuelve a intentar. Mientras, el código manual funciona igual.";
       const mensajes: Record<string, string> = {
-        NotAllowedError: "La cámara está bloqueada para esta app. Ábrela en los ajustes del teléfono y permite el acceso, o usa el código manual.",
-        PermissionDeniedError: "La cámara está bloqueada para esta app. Ábrela en los ajustes del teléfono y permite el acceso, o usa el código manual.",
+        NotAllowedError: BLOQUEADA,
+        PermissionDeniedError: BLOQUEADA,
         NotReadableError: "Otra aplicación está usando la cámara. Ciérrala y vuelve a intentar, o usa el código manual.",
         TrackStartError: "Otra aplicación está usando la cámara. Ciérrala y vuelve a intentar, o usa el código manual.",
         NotFoundError: "No encontramos una cámara en este dispositivo. Usa el código manual.",
