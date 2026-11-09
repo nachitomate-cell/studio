@@ -1,0 +1,57 @@
+# Build de la app iOS de Club Patio (Capacitor) sin Mac.
+# Codemagic app: 6af11c9156a38d0c62dece03 (repo nachitomate-cell/studio).
+# Se lanza por API: POST https://api.codemagic.io/builds
+#   {"appId":"6af11c9156a38d0c62dece03","workflowId":"ios-appstore","branch":"main"}
+# El IPA queda en App Store Connect (TestFlight interno), listo para adjuntar a
+# la version que se envia a revision.
+workflows:
+  ios-appstore:
+    name: Club Patio - iOS App Store
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: CODEMAGIC_API_KEY
+    environment:
+      groups:
+        # CERTIFICATE_PRIVATE_KEY (segura). Copia en 10_Credenciales_SENSIBLE/ios-club-patio
+        - appstore_credentials
+      vars:
+        BUNDLE_ID: "com.clubpatio.app"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Dependencias JS (plugins de Capacitor)
+        script: |
+          npm ci --no-audit --no-fund
+      - name: Sincronizar Capacitor (la app carga el sitio en vivo; out/ es solo un respaldo)
+        script: |
+          mkdir -p out
+          [ -f out/index.html ] || echo '<!doctype html><title>Club Patio</title>' > out/index.html
+          npx cap sync ios
+      - name: Firma (certificado con llave persistente + perfil App Store)
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Numero de build (contador de Codemagic)
+        script: |
+          cd ios/App
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Compilar IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
