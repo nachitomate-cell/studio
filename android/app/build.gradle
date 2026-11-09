@@ -33,7 +33,9 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled true
+            // Sin R8: borra las anotaciones @CapacitorPlugin/@Permission y los plugins
+            // revientan con NullPointerException al consultar permisos (08-11-2026).
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
