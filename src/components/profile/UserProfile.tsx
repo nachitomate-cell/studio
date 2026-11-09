@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { onAuthStateChanged, User, signOut, deleteUser } from "firebase/auth";
+import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, deleteDoc, addDoc, serverTimestamp, increment, getDocs, where } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
@@ -1155,8 +1155,11 @@ export function UserProfile({ onShowAuth }: UserProfileProps) {
     if (!user) return;
     setLoading(true);
     try {
-      await deleteDoc(doc(db, "usuarios", user.uid));
-      await deleteUser(user);
+      // Lo borra el servidor: las reglas no dejan al socio borrar su propio documento.
+      const idToken = await user.getIdToken(true);
+      const res = await fetch("/api/cuenta/eliminar", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await signOut(auth).catch(() => {});
       toast({ title: "Cuenta eliminada", description: "Lamentamos verte partir. Tus datos han sido borrados." });
     } catch (error: any) {
       if (error.code === 'auth/requires-recent-login') {

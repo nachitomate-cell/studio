@@ -31,7 +31,7 @@ export default function PrivacidadPage() {
           </p>
           <p className="text-xs text-slate-400">
             Conforme a la Ley N° 19.628 sobre Protección de la Vida Privada (Chile) ·
-            Última actualización: mayo 2026
+            Última actualización: noviembre 2026
           </p>
         </div>
 
@@ -39,9 +39,11 @@ export default function PrivacidadPage() {
           El responsable del tratamiento de datos personales es{" "}
           <strong>Club Patio Curauma</strong>, plataforma de fidelización del centro
           comercial Patio Curauma, Valparaíso, Chile. Contacto:{" "}
-          <a href="mailto:contacto@clubpatio.cl" className="underline" style={{ color: "#D3B673" }}>
-            contacto@clubpatio.cl
+          <a href="mailto:hola@synaptechspa.cl" className="underline" style={{ color: "#D3B673" }}>
+            hola@synaptechspa.cl
           </a>
+          . La App es desarrollada y operada técnicamente por SynapTech SpA, que actúa
+          como encargado del tratamiento.
         </Section>
 
         <Section title="2. Datos que Recopilamos">
@@ -99,28 +101,33 @@ export default function PrivacidadPage() {
           </ul>
         </Section>
 
-        <Section title="4. Uso de Ubicación en Segundo Plano">
+        <Section title="4. Uso de Ubicación (Aviso de llegada al Patio)">
           <p className="mb-3">
-            La App solicita permiso de ubicación en segundo plano ("Permitir siempre")
-            para una única función: el sistema de <strong>geocercas de proximidad</strong>.
+            La App puede usar la ubicación del dispositivo, incluso cuando está cerrada o
+            no se está usando, para una única función: <strong>avisarte cuando llegas a
+            Patio Curauma</strong> y recordarte tus sellos y premios. La función se activa
+            solo si el usuario la acepta dentro de la App, después de ver esta explicación.
           </p>
           <ul className="space-y-2 list-disc pl-5 text-sm text-slate-600">
             <li>
-              Cuando el usuario activa esta función, la App monitorea la posición del
-              dispositivo mediante un Servicio en Primer Plano visible (notificación
-              persistente titulada "Club Patio activo") mientras la pantalla está apagada.
+              Funciona con las geocercas del sistema operativo (Android e iOS): el teléfono
+              detecta por su cuenta la llegada a las zonas del Patio y muestra el aviso.
+              No hay seguimiento continuo ni notificación permanente.
             </li>
             <li>
-              Al detectar ingreso a una geocerca, se dispara una notificación local
-              directamente en el dispositivo. No se envían coordenadas a servidores externos.
+              Tus coordenadas y tu recorrido <strong>no se envían a nuestros servidores ni se
+              guardan</strong>. Solo se registra que llegaste a una zona del Patio (por
+              ejemplo, &quot;Outlet Curauma&quot;) y la hora, para medir el servicio y dejar
+              el aviso en tu bandeja de mensajes.
             </li>
             <li>
-              El usuario puede revocar este permiso en cualquier momento desde
-              Configuración &gt; Club Patio &gt; Ubicación.
+              Hay un período de enfriamiento (un aviso por zona cada 24 horas como máximo) y
+              no se envían avisos de noche.
             </li>
             <li>
-              El sistema incluye un período de enfriamiento de 12 horas por ubicación
-              para evitar notificaciones repetitivas.
+              Puedes desactivarla en cualquier momento quitando el permiso de ubicación en
+              los ajustes del teléfono (Ajustes &gt; Aplicaciones &gt; Club Patio &gt;
+              Ubicación, o Ajustes &gt; Club Patio &gt; Ubicación en iPhone).
             </li>
           </ul>
         </Section>
@@ -206,10 +213,16 @@ export default function PrivacidadPage() {
               <strong>Portabilidad:</strong> recibir sus datos en formato estructurado.
             </li>
           </ul>
+          <p id="eliminar-cuenta" className="mt-3 text-sm text-slate-600 scroll-mt-24">
+            <strong>Eliminar tu cuenta:</strong> desde la App, en Mi perfil → Eliminar mi
+            cuenta. Se borran de inmediato tu perfil, tus datos de contacto, tus mensajes y
+            tu acceso. Los registros de sellos y canjes ya realizados se conservan en el
+            historial de los locales, como respaldo contable.
+          </p>
           <p className="mt-3 text-sm text-slate-600">
-            Para ejercer sus derechos, contáctenos en{" "}
-            <a href="mailto:contacto@clubpatio.cl" className="underline" style={{ color: "#D3B673" }}>
-              contacto@clubpatio.cl
+            Para ejercer cualquier otro derecho, o si no puedes entrar a la App, escríbenos a{" "}
+            <a href="mailto:hola@synaptechspa.cl" className="underline" style={{ color: "#D3B673" }}>
+              hola@synaptechspa.cl
             </a>
             . Respondemos en un plazo máximo de 30 días hábiles.
           </p>
@@ -219,7 +232,7 @@ export default function PrivacidadPage() {
           Los datos se conservan mientras la cuenta esté activa. Al solicitar la
           eliminación de la cuenta, los datos son borrados en un plazo máximo de{" "}
           <strong>30 días</strong>, salvo obligación legal de conservarlos por mayor tiempo.
-          Los datos de ubicación no se retienen (procesamiento solo en memoria del dispositivo).
+          Las coordenadas de ubicación no se retienen: solo se guarda la zona del Patio a la que llegaste y la hora.
         </Section>
 
         <Section title="10. Menores de Edad">
