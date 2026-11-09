@@ -35,6 +35,12 @@ export async function registerFcmToken(): Promise<FcmResult> {
     return { ok: false, reason: "unsupported" };
   }
 
+  // App de las tiendas: el WebView no tiene Web Push. El token sale del SDK
+  // nativo de Firebase y es un token FCM normal, así que el servidor lo usa
+  // igual que el de la PWA (usuarios/{uid}.fcmToken).
+  const { esAppNativa } = await import("@/lib/nativo");
+  if (esAppNativa()) return registerFcmTokenNativo();
+
   // 1. Verificar soporte básico del navegador
   if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
     console.warn("[FCM] Navegador no soporta Push. Asegúrate de usar la PWA instalada en iOS.");
@@ -144,4 +150,42 @@ export async function registerFcmToken(): Promise<FcmResult> {
   }
 
   return { ok: true, token };
+}
+
+/**
+ * Token FCM desde la app nativa (Android/iOS) con @capacitor-firebase/messaging.
+ * El permiso lo pide el sistema; no hace falta service worker ni VAPID.
+ */
+async function registerFcmTokenNativo(): Promise<FcmResult> {
+  try {
+    const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
+    let { receive } = await FirebaseMessaging.checkPermissions();
+    if (receive !== "granted") ({ receive } = await FirebaseMessaging.requestPermissions());
+    if (receive !== "granted") return { ok: false, reason: "denied" };
+    const { token } = await FirebaseMessaging.getToken();
+    if (!token) return { ok: false, reason: "token_error" };
+    const r = await guardarTokenNativo(token);
+    return r ?? { ok: true, token };
+  } catch (err) {
+    console.error("[FCM] Error obteniendo el token nativo:", err);
+    return { ok: false, reason: "token_error" };
+  }
+}
+
+/** Guarda el token nativo si cambió. Devuelve un error solo si no hay sesión. */
+export async function guardarTokenNativo(token: string): Promise<FcmResult | null> {
+  const user = auth.currentUser;
+  if (!user) return { ok: false, reason: "no_user" };
+  try {
+    const { esAppNativa, plataformaNativa } = await import("@/lib/nativo");
+    if (!esAppNativa()) return null;
+    const userRef = doc(db, "usuarios", user.uid);
+    const snap = await getDoc(userRef);
+    if (!snap.exists() || snap.data().fcmToken !== token) {
+      await updateDoc(userRef, { fcmToken: token, fcmPlataforma: `${plataformaNativa()}-app` });
+    }
+  } catch (err) {
+    console.error("[FCM] Error guardando el token nativo (no fatal):", err);
+  }
+  return null;
 }

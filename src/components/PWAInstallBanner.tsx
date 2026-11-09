@@ -26,6 +26,9 @@ export function PWAInstallBanner({ userId }: PWAInstallBannerProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // App de las tiendas: ya está instalada, y Apple rechaza apps que invitan a instalar la web.
+    if ((window as any).Capacitor?.isNativePlatform?.()) return;
+
     // Ya instalada como PWA → no mostrar nada
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||

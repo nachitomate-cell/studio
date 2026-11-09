@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { X, Bell, MapPin, Camera, CheckCircle2, XCircle, AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
 import { registerFcmToken } from "@/lib/fcmTokenManager";
-import { esNavegadorInterno, pasosDesbloquear } from "@/lib/pushSoporte";
+import { esNavegadorInterno, pasosDesbloquear, estadoPush } from "@/lib/pushSoporte";
+import { esAppNativa } from "@/lib/nativo";
+import { GeoPushFila } from "@/components/GeoPushFila";
 import { SalirNavegadorInterno } from "@/components/ActivarNotificaciones";
 
 interface PermissionsModalProps {
@@ -55,6 +57,11 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
 
   // Re-check notification permission (property-based, no event API)
   const recheckNotifications = useCallback(() => {
+    if (esAppNativa()) {
+      const e = estadoPush();
+      setPerms((p) => ({ ...p, notifications: e === "concedido" ? "granted" : e === "denegado" ? "denied" : "prompt" }));
+      return;
+    }
     if (!("Notification" in window)) {
       setPerms((p) => ({ ...p, notifications: "unsupported" }));
     } else {
@@ -201,7 +208,7 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
           />
           {perms.notifications === "unsupported" && esNavegadorInterno() && <SalirNavegadorInterno claro />}
 
-          <PermRow
+          {esAppNativa() ? <GeoPushFila /> : <PermRow
             icon={<MapPin className="w-5 h-5" />}
             name="Ubicación"
             description="Detectar si estás cerca de Patio Curauma"
@@ -209,7 +216,7 @@ export default function PermissionsModal({ onClose }: PermissionsModalProps) {
             loading={loading === "location"}
             onRequest={requestLocation}
             instructions={INSTRUCTIONS.location[platform]}
-          />
+          />}
 
           <PermRow
             icon={<Camera className="w-5 h-5" />}

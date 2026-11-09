@@ -1,4 +1,3 @@
-
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -6,11 +5,23 @@ const config: CapacitorConfig = {
   appName: 'Club Patio',
   webDir: 'out',
   server: {
-    // Carga el sitio live de Vercel — las API routes funcionan en el servidor
-    // Para build APK offline: eliminar esta línea, habilitar output:'export' en next.config.ts y hacer npm run build
+    // La app carga el sitio en vivo de Vercel: las API routes corren en el servidor
+    // y cada deploy web llega a la app sin pasar por la revisión de las tiendas.
+    // Lo que SÍ exige una versión nueva en las tiendas: cambios en android/, ios/,
+    // plugins/ o en los plugins nativos del package.json.
     url: 'https://clubpatiocurauma.synaptechspa.cl',
     cleartext: false,
     androidScheme: 'https',
+  },
+  plugins: {
+    FirebaseMessaging: {
+      // Con la app abierta, el push también se muestra como notificación.
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_geopush',
+      iconColor: '#C9920A',
+    },
   },
 };
 

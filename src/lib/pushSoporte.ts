@@ -68,8 +68,23 @@ export function estaInstalada(): boolean {
   );
 }
 
+/**
+ * App de las tiendas: el permiso es del sistema y se lee async con el plugin
+ * nativo. useAppNativa lo deja aquí; mientras no se sepa, no se ofrece nada
+ * (la tarjeta del aviso de llegada ya pide este mismo permiso).
+ */
+let estadoNativo: EstadoPush = "no_soportado";
+export function fijarEstadoPushNativo(e: EstadoPush) {
+  estadoNativo = e;
+}
+
+function enAppNativa(): boolean {
+  return typeof window !== "undefined" && !!(window as any).Capacitor?.isNativePlatform?.();
+}
+
 export function estadoPush(): EstadoPush {
   if (typeof window === "undefined") return "no_soportado";
+  if (enAppNativa()) return estadoNativo;
 
   // Si ya está concedido, da igual la plataforma.
   if ("Notification" in window && Notification.permission === "granted") {
@@ -124,6 +139,11 @@ export function pasosSalirNavegadorInterno(): string {
  * instalada sí aparece en Ajustes con el nombre del ícono: "Club Patio".
  */
 export function pasosDesbloquear(): string {
+  if (enAppNativa()) {
+    return esIOS()
+      ? "Ajustes del iPhone → Club Patio → Notificaciones → Permitir notificaciones"
+      : "Ajustes del teléfono → Aplicaciones → Club Patio → Notificaciones → Permitir";
+  }
   if (esIOS()) return "Ajustes del iPhone → Notificaciones → Club Patio → Permitir notificaciones";
   if (esAndroid()) {
     return estaInstalada()

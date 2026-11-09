@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>es</string>
 	<key>CFBundleDisplayName</key>
-        <string>Club Patio</string>
+	<string>Club Patio</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,6 +20,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -28,37 +30,33 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 
-	<!-- Geolocalización en segundo plano — requerido por @capacitor-community/background-geolocation -->
+	<!-- Aviso de llegada a Patio Curauma (geocercas del sistema, plugins/geopush).
+	     Sin UIBackgroundModes "location": el monitoreo de regiones no lo necesita
+	     y Apple lo objeta si no hay seguimiento continuo (navegación, deporte). -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Necesitamos tu ubicación para avisarte de beneficios cercanos en Patio Curauma.</string>
+	<string>Club Patio usa tu ubicación para avisarte cuando llegas a Patio Curauma y recordarte tus sellos y premios. Tu recorrido no se guarda.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Patio Curauma te avisará de premios exclusivos incluso si la app está cerrada.</string>
+	<string>Con "Siempre", Club Patio te avisa al llegar a Patio Curauma aunque la app esté cerrada. Solo detecta tu llegada al Patio; tu recorrido no se guarda.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Patio Curauma te avisará de premios exclusivos incluso si la app está cerrada.</string>
+	<string>Con "Siempre", Club Patio te avisa al llegar a Patio Curauma aunque la app esté cerrada. Solo detecta tu llegada al Patio; tu recorrido no se guarda.</string>
 
-	<!-- Habilita el modo de ubicación en segundo plano -->
+	<!-- Los locales escanean el QR del socio y el socio escanea el QR del local. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Club Patio usa la cámara para escanear los códigos QR de sellos y premios.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Club Patio usa tus fotos solo si eliges una para tu perfil o tu local.</string>
+
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
-		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
 </dict>
