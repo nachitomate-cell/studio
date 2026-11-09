@@ -28,6 +28,7 @@ import {
   Star,
   Pencil,
   Trash2,
+  Flag,
   Sparkles,
 } from "lucide-react";
 import { cn, getSafeImageUrl } from "@/lib/utils";
@@ -78,6 +79,11 @@ function DetailContent() {
 
   // Reviews
   const [reviews, setReviews] = useState<any[]>([]);
+  // Denuncias: las reseñas que este socio denunció se le ocultan al tiro.
+  const [denunciadas, setDenunciadas] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("resenas_denunciadas") || "[]"); } catch { return []; }
+  });
+  const [denunciando, setDenunciando] = useState<string | null>(null);
   const [myReview, setMyReview] = useState<any | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
@@ -233,7 +239,8 @@ function DetailContent() {
     const unsub = onSnapshot(q, (snap) => {
       const list: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-      setReviews(list);
+      // Ocultas por moderación (2+ denuncias) no se muestran, salvo a su autor.
+      setReviews(list.filter((r) => !r.oculta || r.userId === currentUser?.uid));
       if (currentUser) {
         const mine = list.find((r) => r.userId === currentUser.uid) || null;
         setMyReview(mine);
@@ -349,6 +356,26 @@ function DetailContent() {
       console.error("Error guardando review:", e);
     } finally {
       setSavingReview(false);
+    }
+  };
+
+  const denunciarResena = async (reviewId: string, motivo: string) => {
+    if (!currentUser) return;
+    setDenunciando(null);
+    const nuevas = [...denunciadas, reviewId];
+    setDenunciadas(nuevas);
+    try { localStorage.setItem("resenas_denunciadas", JSON.stringify(nuevas)); } catch {}
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch("/api/resenas/denunciar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reviewId, motivo }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      toast({ title: "Gracias por avisarnos", description: "Ocultamos la reseña para ti y la revisaremos dentro de 24 horas." });
+    } catch {
+      toast({ variant: "destructive", title: "No pudimos enviar la denuncia", description: "Inténtalo de nuevo en un momento." });
     }
   };
 
@@ -1163,7 +1190,7 @@ function DetailContent() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {reviews.slice(0, 5).map((review: any) => (
+                  {reviews.filter((r: any) => !denunciadas.includes(r.id)).slice(0, 5).map((review: any) => (
                     <div
                       key={review.id}
                       className="rounded-2xl p-4 space-y-2"
@@ -1193,6 +1220,15 @@ function DetailContent() {
                           {[1,2,3,4,5].map((s) => (
                             <Star key={s} className={`w-3 h-3 ${s <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-white/20"}`} />
                           ))}
+                          {currentUser && review.userId !== currentUser.uid && (
+                            <button
+                              onClick={() => setDenunciando(denunciando === review.id ? null : review.id)}
+                              aria-label="Denunciar reseña"
+                              className="ml-1 w-6 h-6 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity text-white"
+                            >
+                              <Flag className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {review.userId === currentUser?.uid && (
                             <button
                               onClick={handleDeleteReview}
@@ -1206,6 +1242,22 @@ function DetailContent() {
                       </div>
                       {review.comment && (
                         <p className="text-[12px] text-white/60 leading-relaxed pl-9">{review.comment}</p>
+                      )}
+                      {denunciando === review.id && (
+                        <div className="pl-9 pt-1 space-y-2">
+                          <p className="text-[11px] font-bold text-white/70">¿Por qué denuncias esta reseña? Dejará de verse para ti y la revisaremos.</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {([["ofensivo","Ofensiva"],["spam","Spam"],["falso","Falsa"],["datos_personales","Datos personales"],["otro","Otro"]] as const).map(([m, t]) => (
+                              <button
+                                key={m}
+                                onClick={() => denunciarResena(review.id, m)}
+                                className="px-2.5 py-1 rounded-full text-[11px] font-bold text-white bg-white/10 hover:bg-white/20"
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}

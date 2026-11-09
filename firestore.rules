@@ -297,13 +297,21 @@ service cloud.firestore {
     // Cada usuario autenticado puede crear/editar/eliminar solo su propia review.
     // Un usuario solo puede tener una review por vendor (validado client-side; la regla
     // solo impide que se escriba con un userId diferente al caller).
+    // Denuncias de reseñas: solo el servidor (Admin SDK) escribe; el staff lee.
+    match /reportes_resenas/{reporteId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // El autor edita su reseña, pero no puede quitarse la moderación.
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['oculta', 'ocultaEn', 'denuncias']);
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isStaff());
     }
 
