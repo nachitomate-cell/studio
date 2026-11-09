@@ -1,5 +1,7 @@
 import UIKit
 import Capacitor
+import FirebaseCore
+import CapacitorGeopushLocal
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,8 +9,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Firebase (push del Club). Va en código y no en GoogleService-Info.plist
+        // para no tener que sumar el archivo al proyecto de Xcode. App iOS
+        // registrada en studio-7914495232-557f1 el 08-11-2026.
+        if FirebaseApp.app() == nil {
+            let opciones = FirebaseOptions(googleAppID: "1:120681935080:ios:229600f6a173297c6bd95d", gcmSenderID: "120681935080")
+            opciones.apiKey = "AIzaSyApDXeYdRLOufzRlXtpaBJBXyjIZwfCKgo"
+            opciones.projectID = "studio-7914495232-557f1"
+            opciones.bundleID = Bundle.main.bundleIdentifier ?? "com.clubpatio.app"
+            opciones.storageBucket = "studio-7914495232-557f1.firebasestorage.app"
+            FirebaseApp.configure(options: opciones)
+        }
+        // Geocercas del aviso de llegada: el delegado tiene que existir ANTES de que
+        // iOS entregue el evento cuando relanza la app por una región.
+        GeoPushManager.shared.arrancar()
         return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        NotificationCenter.default.post(name: Notification.Name.init("didReceiveRemoteNotification"), object: completionHandler, userInfo: userInfo)
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

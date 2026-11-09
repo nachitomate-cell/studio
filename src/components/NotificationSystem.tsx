@@ -7,7 +7,7 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useToast } from "@/hooks/use-toast";
-import { useGeofencing } from "@/hooks/useGeofencing";
+import { useAppNativa } from "@/hooks/useAppNativa";
 
 /**
  * Componente que escucha nuevas notificaciones en Firestore.
@@ -23,8 +23,8 @@ export function NotificationSystem() {
   const router = useRouter();
   const [mountTime] = useState(new Date().toISOString());
 
-  // Inicializa el motor de geocercas en background
-  useGeofencing();
+  // App de las tiendas: geopush (aviso al llegar al Patio) y push nativo.
+  useAppNativa();
 
   // Escucha el postMessage que Firebase SW envía al app después de un notificationclick.
   // Firebase's notificationclick handler: abre/enfoca el app, luego envía

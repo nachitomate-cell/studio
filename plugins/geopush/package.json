@@ -1,0 +1,15 @@
+{
+  "name": "capacitor-geopush-local",
+  "version": "1.0.0",
+  "description": "Geocercas del sistema operativo con aviso local (Club Patio)",
+  "license": "UNLICENSED",
+  "private": true,
+  "author": "SynapTech SpA",
+  "main": "index.js",
+  "files": ["android/src/main/", "android/build.gradle", "ios/Sources", "CapacitorGeopushLocal.podspec", "index.js"],
+  "capacitor": {
+    "ios": { "src": "ios" },
+    "android": { "src": "android" }
+  },
+  "peerDependencies": { "@capacitor/core": ">=7.0.0" }
+}

@@ -29,6 +29,8 @@ import { OnboardingTutorial } from "@/components/OnboardingTutorial";
 import { NpsSurvey } from "@/components/NpsSurvey";
 import { dispararAlertaSistema } from "@/lib/notificaciones";
 import { useBackgroundGeolocation } from "@/hooks/useBackgroundGeolocation";
+import { esAppNativa } from "@/lib/nativo";
+import { GeoPushTarjeta } from "@/components/GeoPushActivar";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, LOCATIONS } from "@/context/LocationContext";
 
@@ -574,9 +576,11 @@ function HomeContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Geolocalización en segundo plano — usa Capacitor en Android/iOS, watchPosition en web
+  // PWA/navegador: proximidad con la página abierta (watchPosition → servidor → push).
+  // En la app de las tiendas lo hacen las geocercas del sistema (useAppNativa),
+  // que avisan con la app cerrada.
   useBackgroundGeolocation({
-    enabled: !!user,
+    enabled: !!user && !esAppNativa(),
     onPosition: handleGeolocationPosition,
     onError: (msg) => {
       console.warn("[Geofence] Error GPS:", msg);
@@ -762,6 +766,8 @@ function HomeContent() {
                 )}
 
                 <div className="px-6 space-y-3">
+                  {/* App de las tiendas: aviso al llegar al Patio (se esconde sola si ya está activo) */}
+                  <GeoPushTarjeta />
                   {/* Fila: saludo + botones */}
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-bold text-slate-800">

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "120681935080",
+    "project_id": "studio-7914495232-557f1",
+    "storage_bucket": "studio-7914495232-557f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:120681935080:android:a542798f908d22d66bd95d",
+        "android_client_info": {
+          "package_name": "com.clubpatio.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEQr_qa7fpNDtkkaVNL6Z2ERZzwZk2S4w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
