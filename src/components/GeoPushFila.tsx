@@ -46,10 +46,24 @@ export function GeoPushFila() {
     }
   };
 
-  const modo =
-    estado.plataforma === "ios" && estado.modo === "mientras_se_usa"
-      ? "Activo. Para que avise con más precisión, en Ajustes → Club Patio → Ubicación elige “Siempre”."
-      : "Activo. Te avisamos al llegar a Patio Curauma, aunque la app esté cerrada.";
+  // iOS no muestra "Siempre" en Ajustes hasta que la app lo pide una vez
+  // (requestAlwaysAuthorization). Este botón lo pide; iOS muestra
+  // "Cambiar a Permitir siempre" solo la primera vez, después queda en Ajustes.
+  const iosSinSiempre = estado.plataforma === "ios" && estado.modo === "mientras_se_usa";
+  const pedirSiempre = async () => {
+    setCargando(true);
+    try {
+      const e = await activarGeoPush("segundo_plano");
+      if (e) setEstado(e);
+      await refrescar();
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const modo = iosSinSiempre
+    ? "Activo mientras usas la app. Con “Siempre” te avisa con más precisión aunque la app esté cerrada."
+    : "Activo. Te avisamos al llegar a Patio Curauma, aunque la app esté cerrada.";
 
   return (
     <div className="rounded-2xl border border-slate-100 overflow-hidden">
@@ -65,7 +79,18 @@ export function GeoPushFila() {
           <CheckCircle2 className="w-3.5 h-3.5" /> Activado
         </span>
       </div>
-      <div className="px-4 pb-4">
+      <div className="px-4 pb-4 space-y-2">
+        {iosSinSiempre && (
+          <button
+            onClick={pedirSiempre}
+            disabled={cargando}
+            className="w-full h-9 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 active:scale-[0.97] disabled:opacity-60"
+            style={{ backgroundColor: "#D3B673" }}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            {cargando ? "Un momento…" : "Permitir “Siempre”"}
+          </button>
+        )}
         <button
           onClick={probar}
           className="w-full h-9 rounded-xl text-xs font-bold border border-slate-200 text-slate-500 flex items-center justify-center gap-1.5 active:scale-[0.97]"
