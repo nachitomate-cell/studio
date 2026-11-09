@@ -5,7 +5,10 @@
  * Coordenadas verificadas el 08-11-2026 contra OpenStreetMap y las direcciones
  * que los locales cargaron en su perfil:
  * - Outlet Curauma, Av. Lomas de la Luz 4650 (la mayoría de los locales).
- * - Tienda Patio Curauma, Av. Universidad 134, local 1.
+ * - Patio Universidad, Av. Universidad 134, local 1.
+ * Patio Villa Alemana (Manuel Montt 1561) queda fuera hasta tener el pin exacto:
+ * ni OpenStreetMap ni Photon ubican ese número. Se agrega en configuracion/geopush
+ * sin publicar una versión nueva de la app.
  */
 
 import type { ConfigGeoPush } from "@/lib/geopush";
@@ -28,11 +31,11 @@ export const GEOPUSH_POR_DEFECTO: ConfigGeoPush = {
       url: "/",
     },
     {
-      id: "tienda",
+      id: "universidad",
       lat: -33.144649,
       lng: -71.5715651,
       radio: 150,
-      titulo: "Estás en la Tienda Patio 🛍️",
+      titulo: "Llegaste a Patio Universidad 🛍️",
       mensaje: "Tus sellos también corren acá. Abre Club Patio y muestra tu código al pagar.",
       url: "/",
     },
