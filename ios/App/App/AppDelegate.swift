@@ -128,11 +128,9 @@ final class GeoPushSim: NSObject {
         NSLog("[GeoPushSim] %@", msg)
         let url = docs.appendingPathComponent("geopush-sim.log")
         if let h = try? FileHandle(forWritingTo: url) {
-            h.seekToEndOfFile(); h.write((linea + "
-").data(using: .utf8)!); h.closeFile()
+            h.seekToEndOfFile(); h.write((linea + "\n").data(using: .utf8)!); h.closeFile()
         } else {
-            try? (linea + "
-").write(to: url, atomically: true, encoding: .utf8)
+            try? (linea + "\n").write(to: url, atomically: true, encoding: .utf8)
         }
     }
 
