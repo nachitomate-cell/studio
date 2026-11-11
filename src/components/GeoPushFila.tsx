@@ -5,35 +5,26 @@
  * Muestra el estado real, deja activarlo con la divulgación de Play y probarlo.
  */
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { MapPin, CheckCircle2, BellRing } from "lucide-react";
-import { useGeoPushEstado, pasoPendiente, activarGeoPush, GeoPushCaja } from "@/components/GeoPushActivar";
+import type { EstadoGeoPush } from "@/lib/geopush";
+import { useGeoPushEstado, pasoPendiente, GeoPushCaja, useFlujoGeoPush } from "@/components/GeoPushActivar";
 
 export function GeoPushFila() {
   const { estado, setEstado, disponible, refrescar } = useGeoPushEstado();
-  const [cargando, setCargando] = useState(false);
+  const alCambiar = useCallback((e: EstadoGeoPush | null) => (e ? setEstado(e) : void refrescar()), [setEstado, refrescar]);
+  const { activar, cargando, guia } = useFlujoGeoPush(alCambiar);
   const [probado, setProbado] = useState<null | boolean>(null);
 
-  if (!disponible || !estado) return null;
+  if (!disponible || !estado) return guia;
   const paso = pasoPendiente(estado);
 
   if (paso) {
     return (
-      <GeoPushCaja
-        paso={paso}
-        cargando={cargando}
-        plataforma={estado.plataforma}
-        onActivar={async () => {
-          setCargando(true);
-          try {
-            const e = await activarGeoPush(paso);
-            if (e) setEstado(e);
-            else await refrescar();
-          } finally {
-            setCargando(false);
-          }
-        }}
-      />
+      <>
+        <GeoPushCaja paso={paso} cargando={cargando} plataforma={estado.plataforma} onActivar={() => activar(paso, estado)} />
+        {guia}
+      </>
     );
   }
 
@@ -46,19 +37,12 @@ export function GeoPushFila() {
     }
   };
 
-  // iOS no muestra "Siempre" en Ajustes hasta que la app lo pide una vez
-  // (requestAlwaysAuthorization). Este botón lo pide; iOS muestra
-  // "Cambiar a Permitir siempre" solo la primera vez, después queda en Ajustes.
+  // iOS muestra "Cambiar a Permitir siempre" una sola vez (eso lo hace la guía).
+  // Después, "Siempre" solo se elige en Ajustes → Club Patio → Ubicación.
   const iosSinSiempre = estado.plataforma === "ios" && estado.modo === "mientras_se_usa";
   const pedirSiempre = async () => {
-    setCargando(true);
-    try {
-      const e = await activarGeoPush("segundo_plano");
-      if (e) setEstado(e);
-      await refrescar();
-    } finally {
-      setCargando(false);
-    }
+    const { GeoPush } = await import("@/lib/geopush");
+    await GeoPush.abrirAjustes();
   };
 
   const modo = iosSinSiempre
@@ -66,6 +50,7 @@ export function GeoPushFila() {
     : "Activo. Te avisamos al llegar a Patio Curauma, aunque la app esté cerrada.";
 
   return (
+    <>
     <div className="rounded-2xl border border-slate-100 overflow-hidden">
       <div className="flex items-center gap-3 p-4">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "rgba(157,204,101,0.12)", color: "#9DCC65" }}>
@@ -83,12 +68,11 @@ export function GeoPushFila() {
         {iosSinSiempre && (
           <button
             onClick={pedirSiempre}
-            disabled={cargando}
             className="w-full h-9 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 active:scale-[0.97] disabled:opacity-60"
             style={{ backgroundColor: "#D3B673" }}
           >
             <MapPin className="w-3.5 h-3.5" />
-            {cargando ? "Un momento…" : "Permitir “Siempre”"}
+            Cambiar a “Siempre” en Ajustes
           </button>
         )}
         <button
@@ -100,5 +84,7 @@ export function GeoPushFila() {
         </button>
       </div>
     </div>
+    {guia}
+    </>
   );
 }

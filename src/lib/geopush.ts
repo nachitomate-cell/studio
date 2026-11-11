@@ -124,8 +124,42 @@ export async function sincronizarGeoPush(user: User | null): Promise<EstadoGeoPu
   } catch (e) {
     console.warn("[GeoPush] No se pudo configurar:", e);
   }
-  if (user) await subirEventos(user);
+  if (user) {
+    await subirEventos(user);
+    if (estado) await reportarEstado(user, estado);
+  }
   return estado;
+}
+
+const CLAVE_ESTADO_REPORTADO = "geopush_estado_reportado";
+
+/**
+ * Cuenta al servidor qué permisos tiene el socio (para medir cuántos llegan al
+ * aviso activo y dónde se quedan). Solo si cambió o pasó un día.
+ */
+async function reportarEstado(user: User, e: EstadoGeoPush) {
+  const datos = {
+    plataforma: e.plataforma,
+    ubicacion: e.ubicacion,
+    segundoPlano: e.segundoPlano,
+    avisos: e.avisos,
+    modo: e.modo ?? null,
+    activo: e.activo,
+    zonas: e.zonas,
+  };
+  const firma = `${user.uid}|${JSON.stringify(datos)}`;
+  try {
+    const previo = JSON.parse(localStorage.getItem(CLAVE_ESTADO_REPORTADO) || "null");
+    if (previo?.firma === firma && Date.now() - previo.ts < 86_400_000) return;
+  } catch {}
+  try {
+    const r = await fetch("/api/geopush/estado", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
+      body: JSON.stringify(datos),
+    });
+    if (r.ok) localStorage.setItem(CLAVE_ESTADO_REPORTADO, JSON.stringify({ firma, ts: Date.now() }));
+  } catch {}
 }
 
 async function subirEventos(user: User) {
