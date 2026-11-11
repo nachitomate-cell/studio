@@ -75,8 +75,16 @@ workflows:
           mkdir -p out
           cp scripts/geopush-sim/index.html out/index.html
           npx cap sync ios
-      - name: Compilar para simulador y probar el geopush
+      - name: Compilar para simulador y probar el geopush (tope 28 min)
         script: |
-          bash scripts/geopush-sim/correr.sh
+          mkdir -p sim-out
+          bash scripts/geopush-sim/correr.sh > sim-out/consola.log 2>&1 </dev/null &
+          P=$!
+          for i in $(seq 1 168); do kill -0 $P 2>/dev/null || break; sleep 10; done
+          if kill -0 $P 2>/dev/null; then echo "TOPE GLOBAL: corto la prueba" | tee -a sim-out/pasos.log; pkill -P $P; kill -9 $P; fi
+          pkill -f "log stream" 2>/dev/null || true
+          echo "===== pasos ====="; cat sim-out/pasos.log 2>/dev/null
+          echo "===== consola (cola) ====="; tail -n 80 sim-out/consola.log
+          exit 0
     artifacts:
       - sim-out/**

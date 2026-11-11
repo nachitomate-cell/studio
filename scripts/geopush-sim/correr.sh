@@ -16,22 +16,25 @@ MID="-33.1400,-71.5645"   # ~900 m
 IN="-33.1318,-71.5645"    # centro del outlet (radio 250 m)
 CFG='{"zonas":[{"id":"outlet","lat":-33.1318,"lng":-71.5645,"radio":250,"titulo":"Prueba simulador: llegaste al outlet","mensaje":"Aviso de llegada de prueba (Codemagic)"}],"esperaMinutos":0,"cooldownHoras":0,"cooldownGlobalHoras":0,"silencio":{"desde":0,"hasta":0},"activo":true}'
 
+# con_tope <segundos> cmd... : corta el comando si se pasa del tope
+con_tope() { local t="$1"; shift; "$@" & local pid=$!; ( sleep "$t"; kill -9 $pid 2>/dev/null && echo "[$(date +%H:%M:%S)] [tope] cortado tras ${t}s: $*" >> "$OUT/pasos.log" ) </dev/null >/dev/null 2>&1 & local w=$!; wait $pid; local rc=$?; kill $w 2>/dev/null; return $rc; }
+sc() { con_tope 150 xcrun simctl "$@"; }
 paso() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$OUT/pasos.log"; }
 
 loc_set() {
-  xcrun simctl location "$1" set "$2" 2>>"$OUT/pasos.log" || xcrun simctl location "$1" set -- "$2" 2>>"$OUT/pasos.log" || paso "ERROR location set $2"
+  sc location "$1" set "$2" 2>>"$OUT/pasos.log" || sc location "$1" set -- "$2" 2>>"$OUT/pasos.log" || paso "ERROR location set $2"
 }
 loc_ruta() { # udid velocidad puntos...
   local u="$1" sp="$2"; shift 2
-  xcrun simctl location "$u" start --speed="$sp" --interval=1 "$@" 2>>"$OUT/pasos.log" \
-    || xcrun simctl location "$u" start --speed="$sp" --interval=1 -- "$@" 2>>"$OUT/pasos.log" \
+  sc location "$u" start --speed="$sp" --interval=1 "$@" 2>>"$OUT/pasos.log" \
+    || sc location "$u" start --speed="$sp" --interval=1 -- "$@" 2>>"$OUT/pasos.log" \
     || paso "ERROR location start $*"
 }
 
 volcar() { # udid etiqueta
   local u="$1" et="$2" c
-  c=$(xcrun simctl get_app_container "$u" "$BID" data 2>/dev/null)
-  xcrun simctl io "$u" screenshot "$OUT/$et.png" >/dev/null 2>&1 || paso "sin captura $et"
+  c=$(sc get_app_container "$u" "$BID" data 2>/dev/null)
+  sc io "$u" screenshot "$OUT/$et.png" >/dev/null 2>&1 || paso "sin captura $et"
   if [ -n "$c" ]; then
     [ -f "$c/Documents/geopush-sim.json" ] && cp "$c/Documents/geopush-sim.json" "$OUT/$et-estado.json"
     [ -f "$c/Library/Preferences/$BID.plist" ] && plutil -convert xml1 -o "$OUT/$et-prefs.plist" "$c/Library/Preferences/$BID.plist"
@@ -44,17 +47,17 @@ except Exception as e: print("sin estado.json (%s)"%e)' "$OUT/$et-estado.json" 2
 
 copiar_logs() { # udid prefijo
   local u="$1" p="$2" c
-  c=$(xcrun simctl get_app_container "$u" "$BID" data 2>/dev/null)
+  c=$(sc get_app_container "$u" "$BID" data 2>/dev/null)
   [ -n "$c" ] && [ -f "$c/Documents/geopush-sim.log" ] && cp "$c/Documents/geopush-sim.log" "$OUT/$p-app.log"
-  xcrun simctl spawn "$u" log show --last 60m --style compact --info --debug \
+  con_tope 150 xcrun simctl spawn "$u" log show --last 20m --style compact --info \
     --predicate 'eventMessage CONTAINS "GeoPush"' > "$OUT/$p-log-geopush.txt" 2>&1
-  xcrun simctl spawn "$u" log show --last 60m --style compact --info --debug \
+  con_tope 150 xcrun simctl spawn "$u" log show --last 20m --style compact --info \
     --predicate 'process == "locationd"' 2>/dev/null \
     | grep -i -E "clubpatio|gp_outlet|fence|region" | tail -n 4000 > "$OUT/$p-log-locationd.txt"
-  xcrun simctl spawn "$u" log show --last 60m --style compact --info --debug \
+  con_tope 150 xcrun simctl spawn "$u" log show --last 20m --style compact --info \
     --predicate 'process == "usernotificationsd" OR process == "SpringBoard"' 2>/dev/null \
     | grep -i -E "clubpatio|geopush" | tail -n 4000 > "$OUT/$p-log-avisos.txt"
-  xcrun simctl spawn "$u" log show --last 60m --style compact --info --debug \
+  con_tope 150 xcrun simctl spawn "$u" log show --last 20m --style compact --info \
     --predicate 'process == "runningboardd" OR process == "SpringBoard"' 2>/dev/null \
     | grep -i "clubpatio" | grep -i -E "launch|terminat|background|location" | tail -n 2000 > "$OUT/$p-log-ciclo-app.txt"
 }
@@ -77,7 +80,7 @@ paso "simulador A/B (Siempre)=$UA  C (Mientras se usa)=$UC"
 
 # ---------- Compilar ----------
 paso "compilando para simulador (Debug, sin firma)"
-xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+con_tope 1200 xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
   -sdk iphonesimulator -destination "id=$UA" -derivedDataPath build \
   CODE_SIGNING_ALLOWED=NO build > "$OUT/xcodebuild.log" 2>&1
 RC=$?
@@ -90,23 +93,23 @@ open -a Simulator >/dev/null 2>&1 || true
 
 # ---------- Escenario A: Siempre, app abierta ----------
 U="$UA"
-xcrun simctl boot "$U"; xcrun simctl bootstatus "$U" -b >/dev/null 2>&1
-xcrun simctl install "$U" "$APP" || { paso "install fallo"; exit 1; }
-xcrun simctl privacy "$U" grant location-always "$BID" 2>>"$OUT/pasos.log" || paso "ERROR grant location-always"
-xcrun simctl privacy "$U" grant notifications "$BID" 2>>"$OUT/pasos.log" && paso "notifications concedido por simctl" || paso "simctl no concede notifications (se usa permiso provisional)"
+sc boot "$U"; sc bootstatus "$U" -b >/dev/null 2>&1
+sc install "$U" "$APP" || { paso "install fallo"; exit 1; }
+sc privacy "$U" grant location-always "$BID" 2>>"$OUT/pasos.log" || paso "ERROR grant location-always"
+sc privacy "$U" grant notifications "$BID" 2>>"$OUT/pasos.log" && paso "notifications concedido por simctl" || paso "simctl no concede notifications (se usa permiso provisional)"
 loc_set "$U" "$FAR"; sleep 5
 xcrun simctl spawn "$U" log stream --style compact --level debug \
   --predicate 'eventMessage CONTAINS "GeoPush" OR ((process == "locationd" OR process == "usernotificationsd" OR process == "SpringBoard" OR process == "runningboardd") AND eventMessage CONTAINS[c] "clubpatio")' \
-  > "$OUT/AB-logstream.txt" 2>&1 &
+  > "$OUT/AB-logstream.txt" 2>&1 </dev/null &
 LSA=$!
 paso "A: lanzo la app AFUERA de la zona"
 SIMCTL_CHILD_GP_CONFIG="$CFG" SIMCTL_CHILD_GP_PROVISIONAL=1 SIMCTL_CHILD_GP_RESET_EVENTOS=1 \
-  xcrun simctl launch "$U" "$BID" | tee -a "$OUT/pasos.log"
+  sc launch "$U" "$BID" | tee -a "$OUT/pasos.log"
 sleep 25
 volcar "$U" A0-afuera
 paso "A: ruta afuera -> adentro (25 m/s)"
 loc_ruta "$U" 25 "$FAR" "$MID" "$IN"
-for i in 1 2 3 4 5 6; do sleep 12; xcrun simctl io "$U" screenshot "$OUT/A1-entrando-$i.png" >/dev/null 2>&1; done
+for i in 1 2 3 4 5 6; do sleep 12; sc io "$U" screenshot "$OUT/A1-entrando-$i.png" >/dev/null 2>&1; done
 loc_set "$U" "$IN"; sleep 20
 volcar "$U" A2-adentro
 
@@ -116,50 +119,51 @@ loc_ruta "$U" 25 "$IN" "$MID" "$FAR"; sleep 60
 loc_set "$U" "$FAR"; sleep 15
 volcar "$U" B0-afuera
 paso "B: termino la app (simctl terminate) y vuelvo a entrar"
-xcrun simctl terminate "$U" "$BID"; sleep 8
+sc terminate "$U" "$BID"; sleep 8
 loc_ruta "$U" 25 "$FAR" "$MID" "$IN"
-for i in 1 2 3 4 5 6; do sleep 12; xcrun simctl io "$U" screenshot "$OUT/B1-entrando-cerrada-$i.png" >/dev/null 2>&1; done
+for i in 1 2 3 4 5 6; do sleep 12; sc io "$U" screenshot "$OUT/B1-entrando-cerrada-$i.png" >/dev/null 2>&1; done
 loc_set "$U" "$IN"; sleep 25
-c=$(xcrun simctl get_app_container "$U" "$BID" data)
+c=$(sc get_app_container "$U" "$BID" data)
 [ -f "$c/Library/Preferences/$BID.plist" ] && plutil -convert xml1 -o "$OUT/B2-prefs-sin-abrir.plist" "$c/Library/Preferences/$BID.plist"
-xcrun simctl spawn "$U" launchctl list 2>/dev/null | grep -i clubpatio > "$OUT/B2-procesos.txt"
+sc spawn "$U" launchctl list 2>/dev/null | grep -i clubpatio > "$OUT/B2-procesos.txt"
 paso "B: procesos de la app tras entrar con la app cerrada: $(cat "$OUT/B2-procesos.txt" | tr '\n' ' ')"
 paso "B: abro la app para leer la bitacora"
-xcrun simctl launch "$U" "$BID" | tee -a "$OUT/pasos.log"
+sc launch "$U" "$BID" | tee -a "$OUT/pasos.log"
 sleep 15
 volcar "$U" B3-reabierta
-kill $LSA 2>/dev/null
+kill $LSA 2>/dev/null; pkill -f "log stream" 2>/dev/null
 copiar_logs "$U" AB
 
 # ---------- Escenario C: Mientras se usa ----------
 U="$UC"
-xcrun simctl boot "$U"; xcrun simctl bootstatus "$U" -b >/dev/null 2>&1
-xcrun simctl install "$U" "$APP" || { paso "install C fallo"; exit 0; }
-xcrun simctl privacy "$U" grant location "$BID" 2>>"$OUT/pasos.log" || paso "ERROR grant location"
+sc boot "$U"; sc bootstatus "$U" -b >/dev/null 2>&1
+sc install "$U" "$APP" || { paso "install C fallo"; exit 0; }
+sc privacy "$U" grant location "$BID" 2>>"$OUT/pasos.log" || paso "ERROR grant location"
 loc_set "$U" "$FAR"; sleep 5
 xcrun simctl spawn "$U" log stream --style compact --level debug \
   --predicate 'eventMessage CONTAINS "GeoPush" OR ((process == "locationd" OR process == "usernotificationsd" OR process == "SpringBoard") AND eventMessage CONTAINS[c] "clubpatio")' \
-  > "$OUT/C-logstream.txt" 2>&1 &
+  > "$OUT/C-logstream.txt" 2>&1 </dev/null &
 LSC=$!
 paso "C: lanzo la app AFUERA con permiso 'mientras se usa'"
 SIMCTL_CHILD_GP_CONFIG="$CFG" SIMCTL_CHILD_GP_PROVISIONAL=1 SIMCTL_CHILD_GP_RESET_EVENTOS=1 \
-  xcrun simctl launch "$U" "$BID" | tee -a "$OUT/pasos.log"
+  sc launch "$U" "$BID" | tee -a "$OUT/pasos.log"
 sleep 25
 volcar "$U" C0-armado
 paso "C: mando la app a segundo plano (abro Ajustes) y entro a la zona"
-xcrun simctl launch "$U" com.apple.Preferences >/dev/null 2>&1
+sc launch "$U" com.apple.Preferences >/dev/null 2>&1
 loc_ruta "$U" 25 "$FAR" "$MID" "$IN"
-for i in 1 2 3 4 5 6; do sleep 12; xcrun simctl io "$U" screenshot "$OUT/C1-entrando-$i.png" >/dev/null 2>&1; done
+for i in 1 2 3 4 5 6; do sleep 12; sc io "$U" screenshot "$OUT/C1-entrando-$i.png" >/dev/null 2>&1; done
 loc_set "$U" "$IN"; sleep 20
 paso "C: vuelvo a la app (sigue viva) y luego la relanzo para que re-arme y registre"
-xcrun simctl launch "$U" "$BID" >/dev/null; sleep 12
+sc launch "$U" "$BID" >/dev/null; sleep 12
 volcar "$U" C2-vuelta
-xcrun simctl terminate "$U" "$BID"; sleep 3
-xcrun simctl launch "$U" "$BID" | tee -a "$OUT/pasos.log"; sleep 15
+sc terminate "$U" "$BID"; sleep 3
+sc launch "$U" "$BID" | tee -a "$OUT/pasos.log"; sleep 15
 volcar "$U" C3-relanzada
-kill $LSC 2>/dev/null
+kill $LSC 2>/dev/null; pkill -f "log stream" 2>/dev/null
 copiar_logs "$U" C
 
+pkill -f "log stream" 2>/dev/null
 paso "listo"
 ls -la "$OUT"
 exit 0
