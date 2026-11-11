@@ -2,6 +2,8 @@ import UIKit
 import Capacitor
 import FirebaseCore
 import CapacitorGeopushLocal
+import CoreLocation
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -22,7 +24,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         // Geocercas del aviso de llegada: el delegado tiene que existir ANTES de que
         // iOS entregue el evento cuando relanza la app por una región.
+        #if targetEnvironment(simulator)
+        GeoPushSim.shared.preparar(launchOptions)
+        #endif
         GeoPushManager.shared.arrancar()
+        #if targetEnvironment(simulator)
+        GeoPushSim.shared.arrancarVolcado()
+        #endif
         return true
     }
 
@@ -74,3 +82,106 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
 }
+
+// MARK: - SOLO rama test/geopush-sim (nunca a main): ganchos para probar el
+// aviso de llegada en el simulador de iOS desde Codemagic. No toca la lógica de
+// GeoPushManager: siembra la config por variable de entorno y vuelca el estado
+// (permiso, regiones monitoreadas, avisos pendientes/entregados, bitácora).
+#if targetEnvironment(simulator)
+final class GeoPushSim: NSObject {
+    static let shared = GeoPushSim()
+    private let lm = CLLocationManager()
+    private var timer: Timer?
+    private var lineas = 0
+
+    private var docs: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] }
+
+    func preparar(_ launchOptions: [UIApplication.LaunchOptionsKey: Any]?) {
+        let env = ProcessInfo.processInfo.environment
+        let porUbicacion = launchOptions?[.location] != nil
+        let estado = UIApplication.shared.applicationState == .background ? "background" : "foreground/inactive"
+        anotar("didFinishLaunching launchOptions.location=\(porUbicacion) estado=\(estado) claves=\((launchOptions ?? [:]).keys.map { $0.rawValue })")
+        if env["GP_RESET_EVENTOS"] == "1" {
+            UserDefaults.standard.removeObject(forKey: "geopush.eventos")
+            anotar("bitacora geopush.eventos borrada")
+        }
+        if let cfg = env["GP_CONFIG"], let data = cfg.data(using: .utf8) {
+            UserDefaults.standard.set(data, forKey: "geopush.config")
+            anotar("config sembrada: \(cfg)")
+        }
+    }
+
+    func arrancarVolcado() {
+        if ProcessInfo.processInfo.environment["GP_PROVISIONAL"] == "1" {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge, .provisional]) { ok, err in
+                self.anotar("permiso de avisos (provisional) ok=\(ok) err=\(err?.localizedDescription ?? "-")")
+            }
+        }
+        volcar("arranque")
+        DispatchQueue.main.async {
+            self.timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.volcar("tick") }
+        }
+    }
+
+    private func anotar(_ msg: String) {
+        let linea = "\(ISO8601DateFormatter().string(from: Date())) \(msg)"
+        NSLog("[GeoPushSim] %@", msg)
+        let url = docs.appendingPathComponent("geopush-sim.log")
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile(); h.write((linea + "
+").data(using: .utf8)!); h.closeFile()
+        } else {
+            try? (linea + "
+").write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
+    func volcar(_ motivo: String) {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { s in
+            center.getPendingNotificationRequests { pend in
+                center.getDeliveredNotifications { entr in
+                    DispatchQueue.main.async {
+                        let auth: String
+                        switch self.lm.authorizationStatus {
+                        case .authorizedAlways: auth = "always"
+                        case .authorizedWhenInUse: auth = "whenInUse"
+                        case .denied: auth = "denied"
+                        case .restricted: auth = "restricted"
+                        default: auth = "notDetermined"
+                        }
+                        let avisos: String
+                        switch s.authorizationStatus {
+                        case .authorized: avisos = "authorized"
+                        case .provisional: avisos = "provisional"
+                        case .denied: avisos = "denied"
+                        case .notDetermined: avisos = "notDetermined"
+                        default: avisos = "otro"
+                        }
+                        let regiones = self.lm.monitoredRegions.map { r -> String in
+                            if let c = r as? CLCircularRegion { return "\(c.identifier)@\(c.center.latitude),\(c.center.longitude)r\(Int(c.radius))" }
+                            return r.identifier
+                        }.sorted()
+                        let pendientes = pend.map { "\($0.identifier)[\($0.trigger.map { String(describing: type(of: $0)) } ?? "inmediato")]" }
+                        let entregados = entr.map { "\($0.request.identifier)|\($0.request.content.title)|\(ISO8601DateFormatter().string(from: $0.date))" }
+                        let eventos = (UserDefaults.standard.array(forKey: "geopush.eventos") as? [[String: Any]]) ?? []
+                        let app = UIApplication.shared.applicationState == .active ? "active" : (UIApplication.shared.applicationState == .background ? "background" : "inactive")
+                        let dic: [String: Any] = [
+                            "motivo": motivo, "ts": ISO8601DateFormatter().string(from: Date()), "app": app,
+                            "ubicacion": auth, "avisos": avisos, "regiones": regiones,
+                            "pendientes": pendientes, "entregados": entregados, "eventos": eventos
+                        ]
+                        if let data = try? JSONSerialization.data(withJSONObject: dic, options: [.prettyPrinted, .sortedKeys]) {
+                            try? data.write(to: self.docs.appendingPathComponent("geopush-sim.json"))
+                        }
+                        self.lineas += 1
+                        if motivo != "tick" || self.lineas % 2 == 0 {
+                            self.anotar("estado[\(motivo)] app=\(app) ubicacion=\(auth) avisos=\(avisos) regiones=\(regiones) pendientes=\(pendientes) entregados=\(entregados) eventos=\(eventos)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+#endif

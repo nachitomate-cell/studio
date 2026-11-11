@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prueba geopush</title>
+<style>body{font:15px -apple-system,sans-serif;margin:0;padding:56px 16px 16px;background:#111;color:#eee}h1{font-size:18px;color:#C9920A}pre{white-space:pre-wrap;word-break:break-all;font-size:12px;background:#222;padding:8px;border-radius:6px}</style>
+</head><body>
+<h1>Club Patio - prueba geopush (simulador)</h1>
+<div id="h"></div>
+<pre id="e">esperando el plugin...</pre>
+<script>
+// Solo lee (estado + eventos sin limpiar). No llama a ningun servidor.
+async function tick(){
+  var gp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GeoPush;
+  document.getElementById('h').textContent = new Date().toLocaleTimeString();
+  if(!gp){ document.getElementById('e').textContent='sin plugin GeoPush'; return; }
+  try{
+    var st = await gp.estado();
+    var ev = await gp.eventos({limpiar:false});
+    document.getElementById('e').textContent = 'estado: '+JSON.stringify(st,null,1)+'\n\ngeopush.eventos:\n'+JSON.stringify(ev.eventos,null,1);
+  }catch(err){ document.getElementById('e').textContent='error: '+err; }
+}
+setInterval(tick,3000); tick();
+</script>
+</body></html>

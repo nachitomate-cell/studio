@@ -9,7 +9,9 @@ const config: CapacitorConfig = {
     // y cada deploy web llega a la app sin pasar por la revisión de las tiendas.
     // Lo que SÍ exige una versión nueva en las tiendas: cambios en android/, ios/,
     // plugins/ o en los plugins nativos del package.json.
-    url: 'https://clubpatiocurauma.synaptechspa.cl',
+    // SOLO rama test/geopush-sim: sin url para que la app cargue la pagina local de
+    // prueba (out/index.html) y no toque produccion (config ni bitacora).
+    // url: 'https://clubpatiocurauma.synaptechspa.cl',
     cleartext: false,
     androidScheme: 'https',
   },

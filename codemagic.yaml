@@ -55,3 +55,28 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
+
+  # SOLO rama test/geopush-sim: prueba del aviso de llegada en el simulador de
+  # iOS, sin firma ni publicacion. Evidencia en sim-out/.
+  ios-geopush-sim:
+    name: Club Patio - prueba geopush en simulador (sin firma)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Dependencias JS
+        script: |
+          npm ci --no-audit --no-fund
+      - name: Sincronizar Capacitor con la pagina local de prueba
+        script: |
+          mkdir -p out
+          cp scripts/geopush-sim/index.html out/index.html
+          npx cap sync ios
+      - name: Compilar para simulador y probar el geopush
+        script: |
+          bash scripts/geopush-sim/correr.sh
+    artifacts:
+      - sim-out/**
