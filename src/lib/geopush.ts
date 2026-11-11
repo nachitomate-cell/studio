@@ -43,6 +43,8 @@ export interface ZonaGeoPush {
   /** Ruta a abrir cuando tocan el aviso. */
   url?: string;
   cooldownHoras?: number;
+  /** Zona privada: el servidor solo la entrega a estas cuentas (nunca llega al teléfono como campo). */
+  soloUids?: string[];
 }
 
 export interface ConfigGeoPush {
@@ -85,9 +87,18 @@ export function geoPushDisponible(): boolean {
 
 let configCache: ConfigGeoPush | null = null;
 
-export async function obtenerConfig(): Promise<ConfigGeoPush | null> {
+/** Con `user`, el servidor suma las zonas privadas de esa cuenta (zonas de prueba del equipo). */
+export async function obtenerConfig(user?: User | null): Promise<ConfigGeoPush | null> {
   try {
-    const r = await fetch("/api/geopush/config", { cache: "no-store" });
+    const headers: Record<string, string> = {};
+    if (user) {
+      try {
+        headers.Authorization = `Bearer ${await user.getIdToken()}`;
+      } catch {
+        // Sin token igual sirven las zonas públicas.
+      }
+    }
+    const r = await fetch("/api/geopush/config", { cache: "no-store", headers });
     if (!r.ok) return configCache;
     configCache = (await r.json()) as ConfigGeoPush;
     return configCache;
@@ -107,7 +118,7 @@ export function urlDeZona(zonaId: string): string {
 export async function sincronizarGeoPush(user: User | null): Promise<EstadoGeoPush | null> {
   if (!geoPushDisponible()) return null;
   let estado: EstadoGeoPush | null = null;
-  const cfg = await obtenerConfig();
+  const cfg = await obtenerConfig(user);
   try {
     estado = cfg ? await GeoPush.configurar({ config: cfg }) : await GeoPush.estado();
   } catch (e) {
